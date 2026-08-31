@@ -124,6 +124,12 @@ const AD = (() => {
         'f': 1e-15, 'F': 1e-15
     };
 
+    // A trailing unit symbol, stripped before the engineering suffix is read.
+    // Longest alternatives first so "ohm" wins over "m"-as-a-letter and "Hz"
+    // over a bare "z". Deliberately excludes K, C and J: in this course "4K7"
+    // means kilo far more often than kelvin.
+    const UNIT_SUFFIX = /(ohms?|Ohms?|OHMS?|Hz|HZ|hz|dB|dBm|VA|var|[VAFHWSs\u03A9\u2126%\u00B0])$/;
+
     function parseNumValue(raw) {
         raw = (raw ?? '').toString().trim();
         if (!raw) return NaN;
@@ -132,9 +138,19 @@ const AD = (() => {
         const sciMatch = raw.match(/^[-+]?(\d+(\.\d*)?|\.\d+)(e[-+]?\d+)?$/i);
         if (sciMatch) return Number(raw);
 
+        // Strip one trailing unit so "3.3V", "50pF", "1us", "4mA" and "10kohm"
+        // all parse. Lessons routinely ship defaults written that way, and
+        // without this every such field reads NaN and its calculator refuses
+        // to run. The SI multiplier is left in place for the match below.
+        const body = raw.replace(UNIT_SUFFIX, '').trim();
+        if (!body) return NaN;
+
+        const sciBody = body.match(/^[-+]?(\d+(\.\d*)?|\.\d+)(e[-+]?\d+)?$/i);
+        if (sciBody) return Number(body);
+
         // Handle engineering suffix
-        const engMatch = raw.match(/^([-+]?[\d.]+)\s*([TtGgMkKmµuUnNpPfF]?)\s*$/);
-        if (!engMatch) return Number(raw);
+        const engMatch = body.match(/^([-+]?[\d.]+)\s*([TtGgMkKmµuUnNpPfF]?)\s*$/);
+        if (!engMatch) return Number(body);
 
         const num = Number(engMatch[1]);
         const suffix = engMatch[2];
