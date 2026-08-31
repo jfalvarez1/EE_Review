@@ -223,6 +223,15 @@ const CURRICULUM = {
                     title: 'BJT Design Case Studies',
                     description: 'Real-world designs analyzed step by step',
                     topics: ['20V 5ns amplifier', 'Audio power amp', 'Precision current source', 'RF LNA design']
+                },
+                // The learning path's final step. Not "how does this work" but
+                // "which part do I buy, and does it still meet spec".
+                {
+                    id: 36,
+                    title: 'Design: A Current Mirror from a Datasheet',
+                    description: 'An error budget against a real spec, and choosing the part that meets it',
+                    topics: ['VBE mismatch = dVBE/VT', 'Matched pairs: 2N3904 vs BC847BS vs MAT12',
+                             'Emitter degeneration: money or headroom', 'Early effect and the cascode fix']
                 }
             ]
         },

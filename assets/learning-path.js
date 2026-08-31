@@ -203,7 +203,7 @@ const LEARNING_PATH = (() => {
                   earns: 'Reading a real BJT and MOSFET datasheet: which parameters are ' +
                          'guaranteed, which are typical-only, how much beta really varies, ' +
                          'and how to pick a part rather than recognise one.' },
-                { ref: null, status: 'new', slug: 'current-mirror-design',
+                { ref: [1, 36], status: 'new', slug: 'current-mirror-design',
                   title: 'Design: a current mirror from a datasheet',
                   earns: 'The capstone. Specify it, choose the part by number, work the ' +
                          'matching and Early-effect errors from real datasheet numbers, and ' +
