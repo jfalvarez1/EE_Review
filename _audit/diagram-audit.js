@@ -146,7 +146,11 @@
         var texts = svg.querySelectorAll('text');
         for (var ti = 0; ti < texts.length; ti++) {
             var tr = rectOf(texts[ti]);
-            if (tr) trs.push({ r: tr, s: (texts[ti].textContent || '').trim() });
+            // Keep the element itself. trs is FILTERED - a text with no
+            // measurable box is skipped - so trs[i] and texts[i] stop being
+            // the same element as soon as one is dropped, and indexing back
+            // into `texts` compares the wrong pair.
+            if (tr) trs.push({ r: tr, s: (texts[ti].textContent || '').trim(), el: texts[ti] });
         }
         for (var m1 = 0; m1 < trs.length; m1++) {
             for (var m2 = m1 + 1; m2 < trs.length; m2++) {
@@ -155,6 +159,33 @@
                 }
             }
         }
+        // ---- text sitting on a SYMBOL
+        // Text-vs-text and text-vs-wire were checked above, which left the
+        // obvious third case unchecked: a caption laid across a ground symbol
+        // or a transistor body. Symbols are <g> groups, so neither of the other
+        // two rules could ever see them.
+        for (var ti2 = 0; ti2 < trs.length; ti2++) {
+            for (var gi = 0; gi < shapes.length; gi++) {
+                if (shapes[gi].tagName.toLowerCase() !== 'g') continue;
+                // Only groups that hold ARTWORK count. Labels are wrapped in
+                // their own <g>, so a text always shares a box with the group
+                // around it - and comparing those reported every label in the
+                // drawing as overlapping a symbol. What the rule means is
+                // "is this text sitting on top of drawn lines", so require the
+                // group to contain some.
+                if (!shapes[gi].querySelector('path,line,circle,polygon,polyline,rect')) continue;
+                if (shapes[gi].contains(trs[ti2].el)) continue;
+                var gb = rectOf(shapes[gi]);
+                if (!gb) continue;
+                var tb = trs[ti2].r;
+                if ((Math.min(tb.X, gb.X) - Math.max(tb.x, gb.x)) > INK &&
+                    (Math.min(tb.Y, gb.Y) - Math.max(tb.y, gb.y)) > INK) {
+                    out.push({ rule: 'TEXT-ON-SYMBOL', at: '"' + trs[ti2].s + '"' });
+                    break;
+                }
+            }
+        }
+
         for (var tj = 0; tj < trs.length; tj++) {
             for (var sk = 0; sk < segs.length; sk++) {
                 var u = segs[sk][0], v = segs[sk][1], t = trs[tj];

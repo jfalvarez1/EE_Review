@@ -1,6 +1,6 @@
 # EE Review — Analog Design & Power Systems Study Guide
 
-A browser-based study guide for electrical engineering. **26 modules, 358 lessons**, each one
+A browser-based study guide for electrical engineering. **26 modules, 359 lessons**, each one
 short enough to read in a sitting: the concept, the equations that matter, a worked example
 with real numbers, an interactive calculator, and the gotchas that only show up on a bench or
 in the field.
@@ -16,7 +16,7 @@ It reads two ways, and they are genuinely different documents:
   know the subject and need to look one thing up, and the wrong shape to learn from: it opens
   with 35 lessons of transistor internals.
 
-![The welcome screen, showing 26 modules and 358 lessons](docs/images/welcome.png)
+![The welcome screen, showing 26 modules and 359 lessons](docs/images/welcome.png)
 
 ### Suggested pairing: run the simulations in Circuit Toy
 
@@ -164,7 +164,7 @@ assets/
   exercises.js           108 exercises across 8 sets and 4 difficulty levels
   widgets.js             Oscilloscope, calculator and exercise widgets
   styles.css             The whole stylesheet
-lessons/module-NN/       358 lesson fragments, one HTML file each
+lessons/module-NN/       359 lesson fragments, one HTML file each
 tools/                   serve.py — the local web server the launchers use
 docs/                    Troubleshooting notes and README images
 split_pdfs/              Reference PDFs (see Licensing note below)
