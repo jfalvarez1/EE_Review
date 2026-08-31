@@ -2987,12 +2987,16 @@ const ComponentModels = (() => {
             const pos = o.labelPos === 'auto' ? (horizontal ? 'top' : 'right') : o.labelPos;
             const halfH = (b.h / 2) * o.scale;
             const halfW = (b.w / 2) * o.scale;
+            // 15 px between the label and value baselines, in every position.
+            // At 13 the two em-boxes touch: an 11 px face is about 14.5 px tall
+            // once the descender space is counted, so the pair reads as one
+            // smudged block and a geometry audit flags it as overlapping text.
             if (pos === 'top') {
                 // Both stacked ABOVE the body: label on top, value beneath it.
-                lx = o.x; ly = o.y - halfH - 22; vy = o.y - halfH - 9; anchor = 'middle';
+                lx = o.x; ly = o.y - halfH - 24; vy = o.y - halfH - 9; anchor = 'middle';
                 if (!o.label) ly = vy;
             } else if (pos === 'bottom') {
-                lx = o.x; ly = o.y + halfH + 14; vy = o.y + halfH + 28; anchor = 'middle';
+                lx = o.x; ly = o.y + halfH + 14; vy = o.y + halfH + 29; anchor = 'middle';
             } else if (pos === 'left') {
                 lx = o.x - halfW - 9; ly = o.y - 5; vy = o.y + 10; anchor = 'end';
             } else {
@@ -3128,6 +3132,31 @@ const ComponentModels = (() => {
             body.push(`<path d="${d}" fill="none" stroke="${wireColor}" ` +
                       `stroke-width="${STROKE}" stroke-linecap="round" ` +
                       `stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`);
+        }
+
+        // Blocks: labelled rectangles for things that genuinely have no
+        // schematic symbol - an IC, a controller, a functional stage. A
+        // rectangle is the correct symbol here; it is only wrong when it
+        // stands in for a device that has a symbol of its own (a transistor,
+        // a diode), which is what the symbol audit looks for.
+        for (const b of (s.blocks || [])) {
+            const w = b.w || 80, h = b.h || 60;
+            const x = b.x - w / 2, y = b.y - h / 2;
+            const col = b.color || COLORS.component;
+            body.push(`<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" ` +
+                      `rx="3" fill="${b.fill || 'none'}" stroke="${col}" ` +
+                      `stroke-width="${STROKE}" vector-effect="non-scaling-stroke"/>`);
+            const lines = [].concat(b.label || []).concat(b.sub || []);
+            const step = 15;   // matches the label/value pitch used by place()
+            const y0 = b.y - ((lines.length - 1) * step) / 2 + 4;
+            lines.forEach((line, i) => {
+                body.push(opToSVG(['text', b.x, y0 + i * step, line, {
+                    size: i === 0 ? 11 : 9.5,
+                    anchor: 'middle',
+                    weight: i === 0 ? 'bold' : null,
+                    color: i === 0 ? col : COLORS.value
+                }], i === 0 ? col : COLORS.value));
+            });
         }
 
         for (const p of parts) {

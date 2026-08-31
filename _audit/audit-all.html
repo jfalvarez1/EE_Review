@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Diagram audit - all ComponentModels schematics</title>
+<style>
+    body { background: #0b0f16; color: #e6edf3; font: 13px ui-monospace, Consolas, monospace; margin: 20px; }
+    h1 { font-size: 15px; }
+    pre { white-space: pre-wrap; }
+    .ok { color: #34d399; }
+    .bad { color: #fb7185; }
+</style>
+</head>
+<body>
+<h1>Diagram audit</h1>
+<div id="status">running...</div>
+<pre id="out"></pre>
+
+<!-- The lesson fragments assume these are already on the page. -->
+<script src="../assets/ad-framework.js"></script>
+<script src="../assets/component-models.js"></script>
+<script src="diagram-audit.js"></script>
+
+<!--
+    Every lesson that calls ComponentModels.diagram() is fetched, injected into
+    a detached-but-rendered container and audited in one pass. Doing it here
+    rather than by navigating the app 23 times is the difference between one
+    page load and forty-six round trips - and the whole point of the label
+    geometry living in one shared place is that a change to it has to be
+    re-checked everywhere at once.
+-->
+<div id="stage" style="position:absolute; left:-10000px; top:0; width:1000px;"></div>
+
+<script>
+(function () {
+    'use strict';
+
+    var LESSONS = [
+        'module-05/lesson-11', 'module-05/lesson-16', 'module-06/lesson-12',
+        'module-10/lesson-09', 'module-23/lesson-18', 'module-23/lesson-23',
+        'module-24/lesson-01', 'module-24/lesson-02',
+        'module-26/lesson-01', 'module-26/lesson-02', 'module-26/lesson-03',
+        'module-26/lesson-04', 'module-26/lesson-05', 'module-26/lesson-06',
+        'module-26/lesson-07', 'module-26/lesson-08', 'module-26/lesson-09',
+        'module-26/lesson-10', 'module-26/lesson-11', 'module-26/lesson-15',
+        'module-26/lesson-16', 'module-26/lesson-17', 'module-26/lesson-18'
+    ];
+
+    var stage = document.getElementById('stage');
+    var out = document.getElementById('out');
+    var status = document.getElementById('status');
+    var report = [];
+    var totalFindings = 0, totalDiagrams = 0;
+
+    function get(url) {
+        var x = new XMLHttpRequest();
+        x.open('GET', url, false);
+        x.send(null);
+        return x.status === 200 ? x.responseText : null;
+    }
+
+    // The lesson pane the auditor looks for.
+    var pane = document.createElement('div');
+    pane.id = 'lesson-content';
+    stage.appendChild(pane);
+
+    for (var i = 0; i < LESSONS.length; i++) {
+        var rel = LESSONS[i];
+        var html = get('../lessons/' + rel + '.html');
+        if (html === null) {
+            report.push({ lesson: rel, error: 'fetch failed' });
+            continue;
+        }
+
+        pane.innerHTML = html;
+
+        // innerHTML does not execute scripts; re-create them so it does.
+        var errs = [];
+        var scripts = pane.querySelectorAll('script');
+        for (var s = 0; s < scripts.length; s++) {
+            var old = scripts[s];
+            try {
+                var fresh = document.createElement('script');
+                if (old.src) { fresh.src = old.src; } else { fresh.textContent = old.textContent; }
+                old.parentNode.replaceChild(fresh, old);
+            } catch (e) {
+                errs.push(String(e));
+            }
+        }
+
+        var res;
+        try {
+            res = window.__auditPage(rel);
+        } catch (e) {
+            report.push({ lesson: rel, error: String(e) });
+            continue;
+        }
+
+        totalDiagrams += res.audited;
+        totalFindings += res.count;
+        report.push({
+            lesson: rel,
+            diagrams: res.audited,
+            findings: res.findings,
+            scriptErrors: errs
+        });
+        pane.innerHTML = '';
+    }
+
+    var lines = [];
+    for (var r = 0; r < report.length; r++) {
+        var e = report[r];
+        if (e.error) { lines.push('ERROR  ' + e.lesson + '  ' + e.error); continue; }
+        var head = (e.findings.length ? 'FAIL   ' : 'ok     ') + e.lesson +
+                   '  (' + e.diagrams + ' diagram' + (e.diagrams === 1 ? '' : 's') + ')';
+        lines.push(head);
+        for (var f = 0; f < e.findings.length; f++) {
+            lines.push('           ' + e.findings[f].rule + '  ' + e.findings[f].at);
+        }
+        if (e.scriptErrors && e.scriptErrors.length) {
+            lines.push('           script: ' + e.scriptErrors.join('; '));
+        }
+    }
+    out.textContent = lines.join('\n');
+    status.innerHTML = '<span class="' + (totalFindings ? 'bad' : 'ok') + '">' +
+        LESSONS.length + ' lessons, ' + totalDiagrams + ' diagrams, ' +
+        totalFindings + ' findings</span>';
+
+    window.__report = report;
+    window.__summary = { lessons: LESSONS.length, diagrams: totalDiagrams, findings: totalFindings };
+})();
+</script>
+</body>
+</html>

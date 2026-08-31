@@ -214,7 +214,34 @@
             <li><strong>At the input:</strong> Is the feedback signal added as a voltage (series) or injected as a current (shunt)?</li>
         </ol>
 
-        <canvas id="identify-topology-canvas" width="500" height="300"></canvas>
+        <div class="controls">
+            <div class="c4">
+                <label for="topo-in">At the input, feedback is added as&hellip;</label>
+                <select id="topo-in">
+                    <option value="series" selected>a voltage in series (series)</option>
+                    <option value="shunt">a current in parallel (shunt)</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="topo-out">At the output, feedback samples&hellip;</label>
+                <select id="topo-out">
+                    <option value="voltage" selected>voltage, in parallel with the load (shunt)</option>
+                    <option value="current">current, in series with the load (series)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="identify-topology-canvas" width="640" height="360"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Topology</div><div class="v mono" id="topo-name">&mdash;</div></div>
+            <div class="box"><div class="k">Stabilises</div><div class="v mono" id="topo-stab">&mdash;</div></div>
+            <div class="box"><div class="k">Z<sub>in</sub></div><div class="v mono" id="topo-zin">&mdash;</div></div>
+            <div class="box"><div class="k">Z<sub>out</sub></div><div class="v mono" id="topo-zout">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="topo-note"></p>
     </div>
 
     <div class="card">
@@ -575,3 +602,135 @@
     })();
     </script>
 </div>
+\n
+<script>
+(function () {
+    const canvas = document.getElementById('identify-topology-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = (window.AD && AD.TEK_COLORS) || {};
+
+    // The four topologies, indexed by [input connection][output sampling].
+    // Naming convention here is input-first, which is the one Razavi uses.
+    const T = {
+        'series|voltage': {
+            name: 'Series-shunt',
+            alt: 'voltage amplifier',
+            stab: 'voltage gain Av',
+            zin: 'raised by (1 + T)',
+            zout: 'lowered by (1 + T)',
+            eg: 'The non-inverting op-amp. Ideal when you want a stiff voltage output from a high-impedance source.'
+        },
+        'shunt|voltage': {
+            name: 'Shunt-shunt',
+            alt: 'transimpedance amplifier',
+            stab: 'transimpedance Rm = Vout/Iin',
+            zin: 'lowered by (1 + T)',
+            zout: 'lowered by (1 + T)',
+            eg: 'The photodiode TIA. Low input impedance is the point — it holds the diode at virtual ground.'
+        },
+        'series|current': {
+            name: 'Series-series',
+            alt: 'transconductance amplifier',
+            stab: 'transconductance Gm = Iout/Vin',
+            zin: 'raised by (1 + T)',
+            zout: 'raised by (1 + T)',
+            eg: 'Emitter degeneration. Gm ≈ 1/RE once gm·RE >> 1, which is why the stage becomes so predictable.'
+        },
+        'shunt|current': {
+            name: 'Shunt-series',
+            alt: 'current amplifier',
+            stab: 'current gain Ai',
+            zin: 'lowered by (1 + T)',
+            zout: 'raised by (1 + T)',
+            eg: 'Current mirrors and current-output stages. Both impedances move the way a current source wants.'
+        }
+    };
+
+    function current() {
+        const i = document.getElementById('topo-in').value;
+        const o = document.getElementById('topo-out').value;
+        return { i: i, o: o, t: T[i + '|' + o] };
+    }
+
+    function update() {
+        const s = current();
+        AD.setText('topo-name', s.t.name);
+        AD.setText('topo-stab', s.t.stab);
+        AD.setText('topo-zin', s.t.zin);
+        AD.setText('topo-zout', s.t.zout);
+        const n = document.getElementById('topo-note');
+        if (n) n.textContent = s.t.alt.charAt(0).toUpperCase() + s.t.alt.slice(1) + '. ' + s.t.eg;
+        draw(s);
+    }
+
+    function draw(s) {
+        const W = canvas.width, H = canvas.height;
+        ctx.fillStyle = TEK.bg || '#001a00';
+        ctx.fillRect(0, 0, W, H);
+
+        const padL = 150, padT = 70;
+        const cw = (W - padL - 30) / 2, ch = (H - padT - 40) / 2;
+
+        const cols = ['voltage', 'current'];   // output sampling
+        const rows = ['series', 'shunt'];      // input connection
+
+        ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(230,237,243,0.9)';
+        ctx.fillText('Output samples →', padL + cw, 26);
+        cols.forEach((c, j) => {
+            ctx.fillStyle = 'rgba(230,237,243,0.85)';
+            ctx.fillText(c === 'voltage' ? 'voltage (shunt at output)' : 'current (series at output)',
+                         padL + cw * (j + 0.5), 50);
+        });
+
+        ctx.save();
+        ctx.translate(22, padT + ch);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(230,237,243,0.9)';
+        ctx.fillText('Input adds →', 0, 0);
+        ctx.restore();
+
+        rows.forEach((r, i) => {
+            cols.forEach((c, j) => {
+                const x = padL + cw * j, y = padT + ch * i;
+                const on = (r === s.i && c === s.o);
+                const t = T[r + '|' + c];
+
+                ctx.fillStyle = on ? 'rgba(110,231,255,0.16)' : 'rgba(255,255,255,0.03)';
+                ctx.fillRect(x + 4, y + 4, cw - 8, ch - 8);
+                ctx.strokeStyle = on ? '#6ee7ff' : 'rgba(230,237,243,0.22)';
+                ctx.lineWidth = on ? 2.5 : 1;
+                ctx.strokeRect(x + 4, y + 4, cw - 8, ch - 8);
+
+                ctx.textAlign = 'center';
+                ctx.fillStyle = on ? '#6ee7ff' : 'rgba(230,237,243,0.55)';
+                ctx.font = (on ? 'bold ' : '') + '14px ui-sans-serif, system-ui, sans-serif';
+                ctx.fillText(t.name, x + cw / 2, y + ch / 2 - 14);
+                ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
+                ctx.fillStyle = on ? 'rgba(230,237,243,0.9)' : 'rgba(230,237,243,0.4)';
+                ctx.fillText(t.alt, x + cw / 2, y + ch / 2 + 6);
+                ctx.fillText('Zin ' + (t.zin.indexOf('raised') === 0 ? '↑' : '↓') +
+                             '   Zout ' + (t.zout.indexOf('raised') === 0 ? '↑' : '↓'),
+                             x + cw / 2, y + ch / 2 + 26);
+            });
+
+            ctx.save();
+            ctx.textAlign = 'right';
+            ctx.fillStyle = 'rgba(230,237,243,0.85)';
+            ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
+            ctx.fillText(r === 'series' ? 'voltage in series' : 'current in parallel',
+                         padL - 12, padT + ch * (i + 0.5));
+            ctx.restore();
+        });
+    }
+
+    ['topo-in', 'topo-out'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', update);
+    });
+    update();
+})();
+</script>
