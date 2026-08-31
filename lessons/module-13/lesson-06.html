@@ -1,839 +1,585 @@
-<!-- Module 13, Lesson 6: CAN Bus Physical Layer -->
+<!-- Module 13, Lesson 6: Flyback Converters -->
 <div class="lesson-content" data-module="13" data-lesson="6">
 
     <div class="card">
-        <h2>CAN Bus Physical Layer</h2>
-        <p>Controller Area Network (CAN) is a robust differential bus designed for automotive and industrial applications. Its dominant/recessive architecture enables collision-free arbitration and fault-tolerant communication.</p>
+        <h2>Flyback Converter Design</h2>
+        <p>Flyback converters provide isolation, multiple outputs, and wide input range. Learn transformer design, snubber circuits, and control strategies for this versatile topology.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">CAN High Speed</div>
-                <div class="v">Up to 1 Mbps</div>
+                <div class="k">Isolation</div>
+                <div class="v">Galvanic separation</div>
             </div>
             <div class="box">
-                <div class="k">CAN FD</div>
-                <div class="v">Up to 8 Mbps data</div>
+                <div class="k">Multi-output</div>
+                <div class="v">Multiple windings</div>
             </div>
             <div class="box">
-                <div class="k">Termination</div>
-                <div class="v">120Ω at each end</div>
+                <div class="k">Wide Vin</div>
+                <div class="v">85-265VAC universal</div>
             </div>
             <div class="box">
-                <div class="k">Max Nodes</div>
-                <div class="v">~110 (depends on driver)</div>
+                <div class="k">Power Range</div>
+                <div class="v">1W - 150W typical</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> CAN uses "dominant" (logic 0) and "recessive" (logic 1) states. Any node can drive the bus dominant, overriding recessive states. This wired-AND behavior enables non-destructive arbitration—the lowest ID message wins without collision.
+            <strong>Key Concept:</strong> The flyback transformer is actually a coupled inductor. Energy is stored in the air gap during switch-on, then transferred to the output during switch-off. The air gap is critical!
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: CAN Bus Signal Levels</h3>
+        <h3>Interactive: Flyback Design Calculator</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="can-speed">Bus Speed</label>
-                <select id="can-speed">
-                    <option value="125000">125 kbps</option>
-                    <option value="250000">250 kbps</option>
-                    <option value="500000" selected>500 kbps</option>
-                    <option value="1000000">1 Mbps</option>
-                </select>
+                <label for="fb-vin">Input Voltage (VDC)</label>
+                <input type="range" id="fb-vin" min="50" max="400" step="10" value="150">
+                <span id="fb-vin-val" class="mono">150V</span>
             </div>
             <div class="c3">
-                <label for="can-length">Bus Length (m)</label>
-                <input type="text" id="can-length" value="40">
+                <label for="fb-vout">Output Voltage (V)</label>
+                <input type="range" id="fb-vout" min="3" max="48" step="1" value="12">
+                <span id="fb-vout-val" class="mono">12V</span>
             </div>
             <div class="c3">
-                <label for="can-nodes">Number of Nodes</label>
-                <input type="range" id="can-nodes" min="2" max="32" step="1" value="8">
-                <span id="can-nodes-val" class="mono">8</span>
+                <label for="fb-pout">Output Power (W)</label>
+                <input type="range" id="fb-pout" min="5" max="100" step="5" value="30">
+                <span id="fb-pout-val" class="mono">30W</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="fb-fsw">Switching Freq (kHz)</label>
+                <input type="range" id="fb-fsw" min="50" max="200" step="10" value="100">
+                <span id="fb-fsw-val" class="mono">100kHz</span>
             </div>
             <div class="c3">
-                <label for="can-term">Termination</label>
-                <select id="can-term">
-                    <option value="none">None</option>
-                    <option value="single">Single 120Ω</option>
-                    <option value="split" selected>Split 60Ω + 60Ω</option>
+                <label for="fb-mode">Operating Mode</label>
+                <select id="fb-mode">
+                    <option value="ccm">CCM (Continuous)</option>
+                    <option value="dcm">DCM (Discontinuous)</option>
+                    <option value="bcm">BCM (Boundary)</option>
                 </select>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="can-canvas" width="980" height="350"></canvas>
+            <canvas id="fb-canvas" width="980" height="340"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Max Length</div>
-                <div class="v mono" id="can-maxlen">—</div>
+                <div class="k">Turns Ratio</div>
+                <div class="v mono" id="fb-ratio">—</div>
             </div>
             <div class="box">
-                <div class="k">Bit Time</div>
-                <div class="v mono" id="can-bittime">—</div>
+                <div class="k">Duty Cycle</div>
+                <div class="v mono" id="fb-duty">—</div>
             </div>
             <div class="box">
-                <div class="k">Prop Segment</div>
-                <div class="v mono" id="can-propseg">—</div>
+                <div class="k">Pri Inductance</div>
+                <div class="v mono" id="fb-lpri">—</div>
             </div>
             <div class="box">
-                <div class="k">Status</div>
-                <div class="v mono" id="can-status">—</div>
+                <div class="k">Peak Pri Current</div>
+                <div class="v mono" id="fb-ipk">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>CAN Bus Voltage Levels</h3>
-        <div id="can-levels-schematic"></div>
+        <h3>Flyback Design Equations</h3>
+        <pre style="color:#4af; background:#111; padding:15px; border-radius:4px; font-size:11px;">
+Turns Ratio:
+    n = Np/Ns = (Vin × D) / (Vout × (1-D))
+
+    For CCM with D_max = 0.45:
+    n = Vin_min × 0.45 / (Vout × 0.55)
+
+Duty Cycle (CCM):
+    D = (n × Vout) / (Vin + n × Vout)
+
+Primary Inductance (CCM):
+    Lpri = (Vin_min × D_max)² / (2 × fsw × Pout × K)
+    K = ripple factor (typ 0.4)
+
+Primary Peak Current:
+    Ip_pk = (Pout / (η × Vin)) × (1 + K/2) / D
+
+Switch Voltage Stress:
+    Vsw = Vin + n × (Vout + Vf) + Vspike
+    Vspike from leakage inductance!
+
+Output Diode Stress:
+    Vd = Vout + Vin/n
+
+Snubber Design:
+    Leakage energy: E = 0.5 × Llk × Ip²
+    Snubber cap: Cs > Llk × Ip² / Vclamp²
+    Snubber resistor: Rs = Vclamp² / (fsw × E)
+        </pre>
     </div>
 
     <div class="card">
-        <h3>CAN Physical Layer Specifications</h3>
-
-        <table class="table">
-            <tr>
-                <th>Parameter</th>
-                <th>Recessive</th>
-                <th>Dominant</th>
-                <th>Notes</th>
-            </tr>
-            <tr>
-                <td>CAN_H</td>
-                <td>2.5V</td>
-                <td>3.5V</td>
-                <td>High-side line</td>
-            </tr>
-            <tr>
-                <td>CAN_L</td>
-                <td>2.5V</td>
-                <td>1.5V</td>
-                <td>Low-side line</td>
-            </tr>
-            <tr>
-                <td>Differential (V<sub>DIFF</sub>)</td>
-                <td>0V</td>
-                <td>2.0V (typ)</td>
-                <td>CAN_H - CAN_L</td>
-            </tr>
-            <tr>
-                <td>Receiver Threshold</td>
-                <td colspan="2">0.5V to 0.9V</td>
-                <td>Differential input</td>
-            </tr>
-            <tr>
-                <td>Common Mode</td>
-                <td colspan="2">-2V to +7V</td>
-                <td>Ground shift tolerance</td>
-            </tr>
-        </table>
-
-        <div class="warn">
-            <strong>Bus Length vs Speed:</strong> Higher speeds require shorter buses. At 1 Mbps, max length is ~40m. At 125 kbps, up to 500m is possible. The limiting factor is propagation delay relative to bit time.
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>CAN Bus Topology</h3>
-        <canvas id="can-topology-canvas" width="900" height="340"></canvas>
-    </div>
-
-    <div class="card">
-        <h3>Bit Timing Segments</h3>
-
-        <div class="kv">
-            <div class="box">
-                <div class="k">Sync Seg</div>
-                <div class="v">1 TQ (edge sync)</div>
-            </div>
-            <div class="box">
-                <div class="k">Prop Seg</div>
-                <div class="v">1-8 TQ (propagation delay)</div>
-            </div>
-            <div class="box">
-                <div class="k">Phase Seg 1</div>
-                <div class="v">1-8 TQ (before sample)</div>
-            </div>
-            <div class="box">
-                <div class="k">Phase Seg 2</div>
-                <div class="v">1-8 TQ (after sample)</div>
-            </div>
-        </div>
-
-        <canvas id="can-timing-canvas" width="900" height="220"></canvas>
+        <h3>Flyback Converter Schematic</h3>
+        <div id="fb-schematic"></div>
     </div>
 
     <div class="card">
         <h3>SPICE Netlist</h3>
-        <div id="spice-container"></div>
+        <div id="fb-spice"></div>
     </div>
 
     <div class="card">
-        <h3>Verification Checklist</h3>
-        <div id="checklist-container"></div>
+        <h3>Design Checklist</h3>
+        <div id="fb-checklist"></div>
     </div>
 
     <div class="card">
         <h3>Practice Exercises</h3>
-        <div id="exercise-container"></div>
+        <div id="fb-exercises"></div>
     </div>
 
 </div>
 
 <script>
 (function() {
-    const canvas = document.getElementById('can-canvas');
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('fb-canvas');
     const ctx = canvas.getContext('2d');
-    const TEK = AD.TEK_COLORS;
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
 
     function update() {
-        const speed = parseInt(document.getElementById('can-speed').value);
-        const length = AD.parseValue(document.getElementById('can-length').value) || 40;
-        const nodes = parseInt(document.getElementById('can-nodes').value);
-        const term = document.getElementById('can-term').value;
+        const Vin = AD.num('fb-vin') || 150;
+        const Vout = AD.num('fb-vout') || 12;
+        const Pout = AD.num('fb-pout') || 30;
+        const fsw = AD.num('fb-fsw') * 1000 || 100000;
+        const mode = document.getElementById('fb-mode').value;
 
-        document.getElementById('can-nodes-val').textContent = nodes;
+        document.getElementById('fb-vin-val').textContent = Vin + 'V';
+        document.getElementById('fb-vout-val').textContent = Vout + 'V';
+        document.getElementById('fb-pout-val').textContent = Pout + 'W';
+        document.getElementById('fb-fsw-val').textContent = (fsw/1000).toFixed(0) + 'kHz';
 
-        // Max bus length based on speed
-        // Rule: propagation delay must fit in prop segment
-        const propVelocity = 5e-9; // 5ns/m
-        const maxLengthTable = {
-            1000000: 40,
-            500000: 100,
-            250000: 250,
-            125000: 500
-        };
-        const maxLen = maxLengthTable[speed] || 40;
+        const eta = 0.85;
+        const Vf = 0.5; // Diode forward drop
+        const Dmax = 0.45; // Max duty cycle
 
-        // Bit time
-        const bitTime = 1 / speed;
+        // Turns ratio for CCM
+        const n = (Vin * Dmax) / ((Vout + Vf) * (1 - Dmax));
 
-        // Propagation segment (typically 1-8 TQ, ~20% of bit time)
-        const propSeg = bitTime * 0.2;
+        // Actual duty cycle
+        const D = (n * (Vout + Vf)) / (Vin + n * (Vout + Vf));
 
-        // Status check
-        let status = 'OK';
-        let statusColor = 'var(--ok)';
+        // Primary inductance
+        const K = 0.4; // Ripple factor
+        const Lpri = (Vin * D) * (Vin * D) / (2 * fsw * Pout / eta * K);
 
-        if (length > maxLen) {
-            status = 'Bus too long';
-            statusColor = 'var(--bad)';
-        } else if (term === 'none') {
-            status = 'Missing termination';
-            statusColor = 'var(--warn)';
-        } else if (nodes > 32) {
-            status = 'Many nodes - check loading';
-            statusColor = 'var(--warn)';
-        }
+        // Primary peak current
+        const Iout = Pout / Vout;
+        const Ipri_avg = Pout / (eta * Vin * D);
+        const deltaIp = K * Ipri_avg;
+        const Ipri_pk = Ipri_avg + deltaIp / 2;
 
-        document.getElementById('can-maxlen').textContent = maxLen + ' m';
-        document.getElementById('can-bittime').textContent = AD.fmtUnit(bitTime, 's');
-        document.getElementById('can-propseg').textContent = AD.fmtUnit(propSeg, 's');
-        document.getElementById('can-status').textContent = status;
-        document.getElementById('can-status').style.color = statusColor;
+        document.getElementById('fb-ratio').textContent = n.toFixed(1) + ':1';
+        document.getElementById('fb-duty').textContent = (D * 100).toFixed(1) + '%';
+        document.getElementById('fb-lpri').textContent = AD.formatValue(Lpri, 'H');
+        document.getElementById('fb-ipk').textContent = Ipri_pk.toFixed(2) + 'A';
 
-        plotCANWaveforms(speed, term);
-    }
-
-    function plotCANWaveforms(speed, term) {
-        const w = canvas.width;
-        const h = canvas.height;
-        const bitTime = 1 / speed;
-
-        // Time axis: 12 bit times
-        const tMax = bitTime * 12;
-
-        const axes = AD.drawAxes(ctx, w, h, {
-            xMin: 0,
-            xMax: tMax * 1e6,
-            yMin: 0,
-            yMax: 5,
-            xLabel: 'Time',
-            yLabel: 'Voltage',
-            xUnit: 'µs',
-            yUnit: 'V',
-            xDivs: 12,
-            yDivs: 10
-        });
-
-        // CAN frame pattern: SOF + ID bits + RTR + IDE + r0 + DLC
-        // Simplified: just show dominant/recessive pattern
-        const pattern = [0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1]; // Sample bits
-
-        const tDataH = [];
-        const vDataH = [];
-        const tDataL = [];
-        const vDataL = [];
-        const tDataDiff = [];
-        const vDataDiff = [];
-
-        const N = 600;
-        for (let i = 0; i < N; i++) {
-            const t = (i / N) * tMax;
-            const bitIndex = Math.floor(t / bitTime) % pattern.length;
-            const inBit = (t % bitTime) / bitTime;
-
-            const bit = pattern[bitIndex];
-
-            // Calculate CAN_H and CAN_L levels
-            let canH, canL;
-            const riseTime = 30e-9 / bitTime; // ~30ns rise time
-
-            if (bit === 0) {
-                // Dominant
-                canH = 3.5;
-                canL = 1.5;
-            } else {
-                // Recessive
-                canH = 2.5;
-                canL = 2.5;
-            }
-
-            // Add transition smoothing
-            if (inBit < riseTime) {
-                const prevBit = pattern[(bitIndex - 1 + pattern.length) % pattern.length];
-                const prevH = prevBit === 0 ? 3.5 : 2.5;
-                const prevL = prevBit === 0 ? 1.5 : 2.5;
-                const factor = inBit / riseTime;
-                canH = prevH + (canH - prevH) * factor;
-                canL = prevL + (canL - prevL) * factor;
-            }
-
-            // Add ringing if no termination
-            let ringing = 0;
-            if (term === 'none' && inBit > riseTime && inBit < riseTime + 0.3) {
-                ringing = 0.3 * Math.sin((inBit - riseTime) * 100) * Math.exp(-(inBit - riseTime) * 30);
-            }
-
-            tDataH.push(t * 1e6);
-            vDataH.push(canH + ringing);
-            tDataL.push(t * 1e6);
-            vDataL.push(canL - ringing);
-            tDataDiff.push(t * 1e6);
-            vDataDiff.push((canH - canL) + ringing * 2);
-        }
-
-        // Plot CAN_H (orange)
-        AD.plotData(ctx, axes, tDataH, vDataH, {
-            color: '#fbbf24',
-            lineWidth: 2
-        });
-
-        // Plot CAN_L (green)
-        AD.plotData(ctx, axes, tDataL, vDataL, {
-            color: '#34d399',
-            lineWidth: 2
-        });
-
-        // Draw reference lines
-        ctx.save();
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 1;
-
-        const v25 = axes.toCanvas(0, 2.5);
-        ctx.beginPath();
-        ctx.moveTo(axes.left, v25.y);
-        ctx.lineTo(axes.left + axes.width, v25.y);
-        ctx.stroke();
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('2.5V (recessive)', axes.left + axes.width - 80, v25.y - 5);
-        ctx.restore();
-
-        // Legend
-        ctx.save();
-        ctx.font = '11px ui-sans-serif';
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillText('● CAN_H', axes.left + 10, axes.top + 20);
-        ctx.fillStyle = '#34d399';
-        ctx.fillText('● CAN_L', axes.left + 80, axes.top + 20);
-        ctx.fillStyle = TEK.text;
-        ctx.fillText('Dominant (0) = 2V diff, Recessive (1) = 0V diff', axes.left + 160, axes.top + 20);
-        ctx.restore();
-
-        // Bit markers
-        ctx.save();
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.font = '9px ui-sans-serif';
-        for (let i = 0; i < 12; i++) {
-            const t = (i + 0.5) * bitTime * 1e6;
-            const pt = axes.toCanvas(t, 4.7);
-            ctx.fillText(pattern[i % pattern.length].toString(), pt.x - 3, pt.y);
-        }
-        ctx.restore();
-    }
-
-    // Event listeners
-    ['can-length', 'can-nodes'].forEach(id => {
-        document.getElementById(id).addEventListener('input', update);
-    });
-    ['can-speed', 'can-term'].forEach(id => {
-        document.getElementById(id).addEventListener('change', update);
-    });
-
-    update();
-
-    // ==================== CAN BUS TOPOLOGY CANVAS ====================
-    (function() {
-        const canvas = document.getElementById('can-topology-canvas');
-        if (!canvas || typeof AD === 'undefined') return;
-        const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
-        const TEK = AD.TEK_COLORS;
-
-        ctx.fillStyle = '#0d1117';
+        // Draw waveforms
+        ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, W, H);
 
-        // Title
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = 'bold 12px ui-sans-serif';
-        ctx.fillText('CAN High-Speed Bus Topology', 20, 25);
+        const plotW = (W - mL - mR - 40) / 2;
+        const plotH = 100;
 
-        // Termination resistors at ends
-        ctx.strokeStyle = TEK.ch2;
-        ctx.lineWidth = 2;
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
+        // Primary current waveform
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
 
-        // Left termination
-        AD.roundRect(ctx, 40, 50, 50, 30, 4);
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '11px ui-sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('120Ω', 65, 70);
+        ctx.fillText('Primary Current (Ip)', mL + plotW/2, mT - 5);
 
-        // Right termination
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        AD.roundRect(ctx, 810, 50, 50, 30, 4);
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('120Ω', 835, 70);
-
-        // CAN_H and CAN_L bus lines
-        ctx.strokeStyle = '#fbbf24'; // CAN_H orange
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(90, 55);
-        ctx.lineTo(810, 55);
-        ctx.stroke();
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = '10px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('CAN_H', 10, 58);
-
-        ctx.strokeStyle = '#34d399'; // CAN_L green
-        ctx.beginPath();
-        ctx.moveTo(90, 75);
-        ctx.lineTo(810, 75);
-        ctx.stroke();
-        ctx.fillStyle = '#34d399';
-        ctx.fillText('CAN_L', 10, 78);
-
-        // Nodes
-        const nodes = [
-            { x: 160, name: 'Node 1', sub: 'ECU' },
-            { x: 310, name: 'Node 2', sub: 'Sensor' },
-            { x: 460, name: 'Node 3', sub: 'Motor' },
-            { x: 610, name: 'Node 4', sub: 'HMI' },
-            { x: 760, name: 'Node N', sub: '...' }
-        ];
-
-        nodes.forEach(node => {
-            // Drop lines to bus
-            ctx.strokeStyle = TEK.ch2;
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(node.x, 55);
-            ctx.lineTo(node.x, 95);
-            ctx.stroke();
-
-            // Connection dots
-            ctx.fillStyle = TEK.ch2;
-            ctx.beginPath();
-            ctx.arc(node.x, 55, 4, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(node.x, 75, 4, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Node box
-            ctx.fillStyle = 'rgba(30,41,59,0.9)';
-            ctx.strokeStyle = TEK.ch2;
-            ctx.lineWidth = 2;
-            AD.roundRect(ctx, node.x - 35, 95, 70, 45, 6);
-            ctx.fill(); ctx.stroke();
-
-            ctx.fillStyle = '#e6edf3';
-            ctx.font = 'bold 11px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(node.name, node.x, 113);
-            ctx.font = '10px ui-sans-serif';
-            ctx.fillStyle = '#9fb0c0';
-            ctx.fillText(node.sub, node.x, 130);
-        });
-
-        // Split Termination section
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = 'bold 11px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('Split Termination (EMC improved):', 20, 175);
-
-        // Left split termination
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        ctx.strokeStyle = TEK.ch3;
-        ctx.lineWidth = 1.5;
-
-        // Top resistor
-        AD.roundRect(ctx, 55, 190, 40, 22, 3);
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '10px ui-sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('60Ω', 75, 205);
-
-        // Capacitor
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        AD.roundRect(ctx, 55, 218, 40, 22, 3);
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('4.7nF', 75, 233);
-
-        // Bottom resistor
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        AD.roundRect(ctx, 55, 246, 40, 22, 3);
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('60Ω', 75, 261);
-
-        // Connecting lines
-        ctx.strokeStyle = TEK.ch3;
-        ctx.beginPath();
-        ctx.moveTo(75, 185); ctx.lineTo(75, 190);
-        ctx.moveTo(75, 212); ctx.lineTo(75, 218);
-        ctx.moveTo(75, 240); ctx.lineTo(75, 246);
-        ctx.moveTo(75, 268); ctx.lineTo(75, 280);
-        ctx.stroke();
-
-        // Bus lines in split section
-        ctx.strokeStyle = '#fbbf24';
+        ctx.strokeStyle = TEK.ch1;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(95, 200);
-        ctx.lineTo(800, 200);
-        ctx.stroke();
 
-        ctx.strokeStyle = '#34d399';
-        ctx.beginPath();
-        ctx.moveTo(95, 260);
-        ctx.lineTo(800, 260);
-        ctx.stroke();
+        const periods = 2;
+        for (let i = 0; i <= plotW; i++) {
+            const phase = (i / plotW * periods) % 1;
+            let Ip;
 
-        // Right split termination
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        ctx.strokeStyle = TEK.ch3;
+            if (mode === 'ccm') {
+                if (phase < D) {
+                    Ip = (Ipri_avg - deltaIp/2) + (deltaIp * phase / D);
+                } else {
+                    Ip = 0;
+                }
+            } else if (mode === 'dcm') {
+                if (phase < D) {
+                    Ip = Ipri_pk * phase / D;
+                } else if (phase < D + 0.3) {
+                    Ip = 0;
+                } else {
+                    Ip = 0;
+                }
+            } else { // BCM
+                if (phase < D) {
+                    Ip = Ipri_pk * phase / D;
+                } else {
+                    Ip = Ipri_pk * (1 - (phase - D) / (1 - D));
+                    if (Ip < 0) Ip = 0;
+                }
+            }
 
-        AD.roundRect(ctx, 805, 190, 40, 22, 3);
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('60Ω', 825, 205);
-
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        AD.roundRect(ctx, 805, 218, 40, 22, 3);
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('4.7nF', 825, 233);
-
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        AD.roundRect(ctx, 805, 246, 40, 22, 3);
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('60Ω', 825, 261);
-
-        ctx.strokeStyle = TEK.ch3;
-        ctx.beginPath();
-        ctx.moveTo(825, 185); ctx.lineTo(825, 190);
-        ctx.moveTo(825, 212); ctx.lineTo(825, 218);
-        ctx.moveTo(825, 240); ctx.lineTo(825, 246);
-        ctx.moveTo(825, 268); ctx.lineTo(825, 280);
+            const y = mT + plotH - (Ip / (Ipri_pk * 1.2)) * plotH;
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
+        }
         ctx.stroke();
 
         // Labels
-        ctx.fillStyle = '#fbbf24';
-        ctx.textAlign = 'left';
-        ctx.fillText('CAN_H', 110, 195);
-        ctx.fillStyle = '#34d399';
-        ctx.fillText('CAN_L', 110, 270);
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(Ipri_pk.toFixed(1) + 'A', mL - 5, mT + 10);
+        ctx.fillText('0A', mL - 5, mT + plotH);
 
-        // Benefits note
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('Benefits: Filters common-mode noise, reduces EMI emissions', 300, 320);
-    })();
+        // Secondary current waveform
+        const plot2X = mL + plotW + 40;
+        ctx.strokeStyle = TEK.grid;
+        ctx.strokeRect(plot2X, mT, plotW, plotH);
 
-    // ==================== CAN BIT TIMING CANVAS ====================
-    (function() {
-        const canvas = document.getElementById('can-timing-canvas');
-        if (!canvas || typeof AD === 'undefined') return;
-        const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
-        const TEK = AD.TEK_COLORS;
-
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, W, H);
-
-        const segments = [
-            { name: 'SYNC\nSEG', tq: '1TQ', width: 60, color: TEK.ch1 },
-            { name: 'PROP\nSEG', tq: '1-8TQ', width: 150, color: TEK.ch2 },
-            { name: 'PHASE1\nSEG', tq: '1-8TQ', width: 150, color: TEK.ch3 },
-            { name: 'PHASE2\nSEG', tq: '1-8TQ', width: 200, color: TEK.ch4 }
-        ];
-
-        let x = 80;
-        const y = 50;
-        const segH = 70;
-
-        // Draw 1 Bit Time arrow
-        ctx.strokeStyle = '#e6edf3';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(80, 25);
-        ctx.lineTo(640, 25);
-        ctx.stroke();
-        // Arrow heads
-        ctx.beginPath();
-        ctx.moveTo(80, 25); ctx.lineTo(90, 20); ctx.lineTo(90, 30); ctx.closePath();
-        ctx.fillStyle = '#e6edf3';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(640, 25); ctx.lineTo(630, 20); ctx.lineTo(630, 30); ctx.closePath();
-        ctx.fill();
-        ctx.font = '11px ui-sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('1 Bit Time', 360, 20);
+        ctx.fillText('Secondary Current (Is)', plot2X + plotW/2, mT - 5);
 
-        // Draw segments
-        segments.forEach((seg, i) => {
-            ctx.fillStyle = 'rgba(30,41,59,0.8)';
-            ctx.strokeStyle = seg.color;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.rect(x, y, seg.width, segH);
-            ctx.fill();
-            ctx.stroke();
+        const Is_pk = Ipri_pk * n;
 
-            ctx.fillStyle = seg.color;
-            ctx.font = 'bold 11px ui-sans-serif';
-            ctx.textAlign = 'center';
-            const lines = seg.name.split('\n');
-            ctx.fillText(lines[0], x + seg.width/2, y + 25);
-            ctx.fillText(lines[1], x + seg.width/2, y + 40);
-
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '10px ui-sans-serif';
-            ctx.fillText(seg.tq, x + seg.width/2, y + 60);
-
-            x += seg.width;
-        });
-
-        // Sample point marker
-        const sampleX = 80 + 60 + 150 + 150; // After PHASE1
-        ctx.strokeStyle = TEK.ch5;
+        ctx.strokeStyle = TEK.ch2;
         ctx.lineWidth = 2;
-        ctx.setLineDash([4, 4]);
         ctx.beginPath();
-        ctx.moveTo(sampleX, y + segH);
-        ctx.lineTo(sampleX, y + segH + 40);
+
+        for (let i = 0; i <= plotW; i++) {
+            const phase = (i / plotW * periods) % 1;
+            let Is;
+
+            if (mode === 'ccm') {
+                if (phase < D) {
+                    Is = 0;
+                } else {
+                    const secPhase = (phase - D) / (1 - D);
+                    Is = Is_pk * (1 - secPhase * 0.4);
+                }
+            } else if (mode === 'dcm') {
+                if (phase < D) {
+                    Is = 0;
+                } else if (phase < D + 0.35) {
+                    Is = Is_pk * (1 - (phase - D) / 0.35);
+                } else {
+                    Is = 0;
+                }
+            } else { // BCM
+                if (phase < D) {
+                    Is = 0;
+                } else {
+                    Is = Is_pk * (1 - (phase - D) / (1 - D));
+                }
+            }
+
+            const y = mT + plotH - (Is / (Is_pk * 1.2)) * plotH;
+            if (i === 0) ctx.moveTo(plot2X + i, y);
+            else ctx.lineTo(plot2X + i, y);
+        }
         ctx.stroke();
-        ctx.setLineDash([]);
 
-        ctx.fillStyle = TEK.ch5;
-        ctx.beginPath();
-        ctx.moveTo(sampleX, y + segH + 40);
-        ctx.lineTo(sampleX - 6, y + segH + 50);
-        ctx.lineTo(sampleX + 6, y + segH + 50);
-        ctx.closePath();
-        ctx.fill();
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'right';
+        ctx.fillText(Is_pk.toFixed(1) + 'A', plot2X - 5, mT + 10);
+        ctx.fillText('0A', plot2X - 5, mT + plotH);
 
-        ctx.font = '11px ui-sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Sample Point', sampleX, y + segH + 65);
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('(typically 75-87.5%)', sampleX, y + segH + 80);
+        // Transformer diagram
+        const tfY = mT + plotH + 30;
+        ctx.fillStyle = '#222';
+        ctx.fillRect(mL, tfY, W - mL - mR, 140);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(mL, tfY, W - mL - mR, 140);
 
-        // Formulas
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '11px ui-monospace, monospace';
+        ctx.fillStyle = '#4af';
+        ctx.font = '12px monospace';
         ctx.textAlign = 'left';
-        ctx.fillText('TQ = Time Quantum = 1 / (Prescaler × fCLK)', 680, 70);
-        ctx.fillText('Bit Time = (Sync + Prop + Phase1 + Phase2) × TQ', 680, 90);
-    })();
+        ctx.fillText('Flyback Transformer:', mL + 10, tfY + 20);
 
-    // CAN voltage levels diagram
-    (function() {
-        const container = document.getElementById('can-levels-schematic');
-        if (!container) return;
+        // Draw transformer symbol
+        const txX = mL + 100, txY = tfY + 70;
 
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('width', '600');
-        svg.setAttribute('height', '200');
-        svg.setAttribute('viewBox', '0 0 600 200');
-        svg.innerHTML = `
-            <style>
-                .wire { stroke: #e6edf3; stroke-width: 1.5; fill: none; }
-                .canh { stroke: #fbbf24; stroke-width: 2; fill: none; }
-                .canl { stroke: #34d399; stroke-width: 2; fill: none; }
-                .diff { stroke: #6ee7ff; stroke-width: 2; fill: none; }
-                .lbl { fill: #e6edf3; font: 11px ui-sans-serif; }
-                .lblsm { fill: #9fb0c0; font: 10px ui-sans-serif; }
-                .grid { stroke: rgba(255,255,255,0.1); stroke-width: 1; }
-            </style>
+        // Primary winding
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 5; i++) {
+            ctx.beginPath();
+            ctx.arc(txX + i * 12, txY, 8, Math.PI, 0);
+            ctx.stroke();
+        }
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '10px monospace';
+        ctx.fillText('Primary', txX - 30, txY + 30);
+        ctx.fillText('Np turns', txX - 30, txY + 45);
 
-            <!-- Voltage scale -->
-            <line x1="60" y1="30" x2="60" y2="170" class="wire"/>
-            <text x="20" y="35" class="lblsm">5.0V</text>
-            <text x="20" y="67" class="lblsm">3.5V</text>
-            <text x="20" y="100" class="lblsm">2.5V</text>
-            <text x="20" y="133" class="lblsm">1.5V</text>
-            <text x="20" y="165" class="lblsm">0.0V</text>
+        // Core
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(txX + 70, txY - 20);
+        ctx.lineTo(txX + 70, txY + 20);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(txX + 80, txY - 20);
+        ctx.lineTo(txX + 80, txY + 20);
+        ctx.stroke();
 
-            <!-- Grid lines -->
-            <line x1="60" y1="30" x2="580" y2="30" class="grid"/>
-            <line x1="60" y1="62" x2="580" y2="62" class="grid"/>
-            <line x1="60" y1="95" x2="580" y2="95" class="grid"/>
-            <line x1="60" y1="128" x2="580" y2="128" class="grid"/>
-            <line x1="60" y1="160" x2="580" y2="160" class="grid"/>
+        // Secondary winding
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.arc(txX + 95 + i * 12, txY, 8, 0, Math.PI);
+            ctx.stroke();
+        }
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('Secondary', txX + 140, txY + 30);
+        ctx.fillText('Ns turns', txX + 140, txY + 45);
 
-            <!-- Recessive state (left) -->
-            <text x="100" y="20" class="lbl">Recessive (1)</text>
-            <line x1="80" y1="95" x2="200" y2="95" class="canh" stroke-width="3"/>
-            <line x1="80" y1="95" x2="200" y2="95" class="canl" stroke-width="3"/>
-            <text x="210" y="100" class="lblsm">CAN_H = CAN_L = 2.5V</text>
-            <text x="210" y="115" class="lblsm">Vdiff = 0V</text>
+        // Air gap
+        ctx.fillStyle = '#fa4';
+        ctx.font = '9px monospace';
+        ctx.fillText('Air Gap', txX + 60, txY + 35);
+        ctx.fillText('(stores energy!)', txX + 50, txY + 48);
 
-            <!-- Dominant state (right) -->
-            <text x="380" y="20" class="lbl">Dominant (0)</text>
-            <line x1="360" y1="62" x2="480" y2="62" class="canh" stroke-width="3"/>
-            <line x1="360" y1="128" x2="480" y2="128" class="canl" stroke-width="3"/>
-            <text x="490" y="67" class="lblsm">CAN_H = 3.5V</text>
-            <text x="490" y="133" class="lblsm">CAN_L = 1.5V</text>
-            <text x="490" y="100" class="lblsm">Vdiff = 2.0V</text>
+        // Voltage stress info
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        const Vsw = Vin + n * (Vout + Vf) + 50; // +50V spike estimate
+        const Vdiode = Vout + Vin / n;
 
-            <!-- Differential arrow -->
-            <line x1="340" y1="62" x2="340" y2="128" class="diff"/>
-            <polygon points="340,128 336,120 344,120" fill="#6ee7ff"/>
-            <polygon points="340,62 336,70 344,70" fill="#6ee7ff"/>
-        `;
-        container.appendChild(svg);
-    })();
+        ctx.fillText('Component Stress:', txX + 250, tfY + 40);
+        ctx.fillStyle = '#888';
+        ctx.fillText('Switch: ' + Vsw.toFixed(0) + 'V (with spike)', txX + 250, tfY + 60);
+        ctx.fillText('Diode: ' + Vdiode.toFixed(0) + 'V', txX + 250, tfY + 75);
+        ctx.fillText('Turns ratio: ' + n.toFixed(1) + ':1', txX + 250, tfY + 90);
 
-    // SPICE Netlist
-    new SpiceNetlistWidget('spice-container', {
-        title: 'CAN Bus Transceiver Model',
-        netlist: `* CAN Bus Physical Layer Simulation
-* Two nodes on a CAN bus with termination
+        // Mode description
+        ctx.fillStyle = '#4f4';
+        ctx.font = '10px monospace';
+        const modeDesc = {
+            ccm: 'CCM: Current never reaches zero. Better for high power.',
+            dcm: 'DCM: Current returns to zero each cycle. Simpler control.',
+            bcm: 'BCM: Current just reaches zero. Transition mode.'
+        };
+        ctx.fillText(modeDesc[mode], txX + 250, tfY + 120);
+    }
 
-.SUBCKT CAN_XCVR TXD RXD CANH CANL VCC GND
-* Simplified CAN transceiver model
-* Driver: push-pull to differential
-RTXH CANH neth 20
-RTXL CANL netl 20
-ETXH neth GND VALUE={IF(V(TXD)<2.5, 3.5, 2.5)}
-ETXL netl GND VALUE={IF(V(TXD)<2.5, 1.5, 2.5)}
-* Receiver: differential to single-ended
-ERXD RXD GND VALUE={IF((V(CANH)-V(CANL))>0.9, 0, 5)}
-.ENDS
-
-* Power supply
-VCC vcc 0 DC 5
-
-* Node 1 (transmitter)
-VTX1 txd1 0 PULSE(5 0 0 30n 30n 1u 2u)
-X1 txd1 rxd1 canh1 canl1 vcc 0 CAN_XCVR
-
-* Transmission line (twisted pair)
-T1H canh1 0 canh2 0 Z0=120 TD=200n
-T1L canl1 0 canl2 0 Z0=120 TD=200n
-
-* Termination resistors (120 ohm each end)
-RT1 canh1 canl1 120
-RT2 canh2 canl2 120
-
-* Node 2 (receiver)
-VTX2 txd2 0 DC 5
-X2 txd2 rxd2 canh2 canl2 vcc 0 CAN_XCVR
-
-.TRAN 1n 10u
-
-.PROBE V(txd1) V(canh1) V(canl1) V(rxd2)
-.END
-
-* Observe differential signaling with proper termination`
+    ['fb-vin', 'fb-vout', 'fb-pout', 'fb-fsw', 'fb-mode'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', update);
+        el.addEventListener('change', update);
     });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('fb-schematic');
+        const svg = new SchematicSVG(700, 260);
+
+        svg.text(50, 25, 'Flyback Converter with Snubber:', {fontSize: 12, fill: '#4af'});
+
+        // Input
+        svg.text(30, 80, 'Vin', {fontSize: 10});
+        svg.wire([[50, 70], [100, 70]]);
+
+        // Primary winding (simplified as inductor)
+        svg.inductor(130, 70, {horizontal: true});
+        svg.text(130, 55, 'Lpri', {fontSize: 9});
+
+        // Transformer core indication
+        svg.wire([[155, 50], [155, 90]]);
+        svg.wire([[160, 50], [160, 90]]);
+
+        // Switch
+        svg.wire([[150, 70], [180, 70]]);
+        svg.wire([[180, 70], [180, 100]]);
+        svg.wire([[180, 140], [180, 170]]);
+        svg.text(195, 120, 'Q', {fontSize: 10});
+
+        // Snubber (RCD clamp)
+        svg.wire([[180, 70], [220, 70]]);
+        svg.wire([[220, 70], [220, 50]]);
+        svg.diode(220, 40, {horizontal: false});
+        svg.wire([[220, 20], [260, 20]]);
+        svg.capacitor(280, 20, {horizontal: true});
+        svg.wire([[300, 20], [340, 20]]);
+        svg.resistor(340, 40, {horizontal: false});
+        svg.wire([[340, 60], [340, 70]]);
+        svg.wire([[220, 70], [340, 70]]);
+        svg.text(280, 10, 'Snubber', {fontSize: 9, fill: '#fa4'});
+
+        // Secondary winding
+        svg.wire([[170, 70], [170, 50]]);
+        svg.wire([[170, 50], [250, 50]]);
+        svg.inductor(280, 50, {horizontal: true});
+        svg.text(280, 35, 'Lsec', {fontSize: 9});
+
+        // Isolation barrier
+        svg.text(195, 105, '||', {fontSize: 14, fill: '#888'});
+        svg.text(170, 145, 'Isolation', {fontSize: 8, fill: '#888'});
+
+        // Output diode
+        svg.wire([[300, 50], [340, 50]]);
+        svg.diode(360, 50, {horizontal: true});
+        svg.text(360, 35, 'D', {fontSize: 9});
+
+        // Output capacitor
+        svg.wire([[380, 50], [420, 50]]);
+        svg.wire([[420, 50], [420, 80]]);
+        svg.capacitor(420, 100, {horizontal: false});
+        svg.text(435, 100, 'Cout', {fontSize: 9});
+        svg.wire([[420, 120], [420, 150]]);
+
+        // Load
+        svg.wire([[420, 50], [480, 50]]);
+        svg.resistor(480, 80, {horizontal: false});
+        svg.text(500, 90, 'Load', {fontSize: 9});
+        svg.wire([[480, 100], [480, 150]]);
+
+        // Ground connections
+        svg.wire([[50, 170], [180, 170]]);
+        svg.wire([[50, 70], [50, 170]]);
+        svg.wire([[250, 150], [480, 150]]);
+        svg.wire([[250, 50], [250, 150]]);
+
+        // Output
+        svg.text(500, 45, 'Vout', {fontSize: 10});
+
+        // Feedback (optocoupler)
+        svg.rect(350, 130, 50, 40, {fill: 'none', stroke: '#888'});
+        svg.text(375, 155, 'Opto', {fontSize: 8});
+        svg.wire([[420, 90], [400, 130]]);
+        svg.wire([[350, 150], [180, 150]]);
+
+        // Annotations
+        svg.text(520, 100, 'Key points:', {fontSize: 10, fill: '#4af'});
+        svg.text(520, 120, '• Snubber absorbs leakage spike', {fontSize: 9, fill: '#888'});
+        svg.text(520, 135, '• Opto provides isolated feedback', {fontSize: 9, fill: '#888'});
+        svg.text(520, 150, '• Dot convention: opposite phase', {fontSize: 9, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('fb-spice', {
+            title: 'Flyback Converter Simulation',
+            netlist: `* Flyback Converter - 150VDC to 12V/2.5A
+* 100kHz switching, CCM operation
+
+* Input (rectified mains)
+Vin in 0 DC 150
+
+* Flyback transformer (coupled inductors)
+* Primary: 500µH, Secondary: 50µH (10:1)
+L1 in sw 500u
+L2 sec_a 0 50u
+K1 L1 L2 0.98  ; 2% leakage
+
+* Switch (MOSFET)
+.subckt sw_pwm d g s
+S1 d s g s swmod
+.model swmod sw(Ron=0.1 Roff=1MEG Vt=2.5)
+.ends
+Xsw sw 0 pwm 0 sw_pwm
+
+* PWM (D = 45%)
+Vpwm pwm 0 PULSE(0 10 0 50n 50n 4.5u 10u)
+
+* RCD Snubber
+Dsnub sw snub_cap DFAST
+Csnub snub_cap 0 10n IC=200
+Rsnub snub_cap sw 10k
+.model DFAST D(Is=1e-8 Rs=0.01)
+
+* Output diode (fast recovery)
+Dout sec_a out DFAST
+
+* Output filter
+Cout out 0 470u IC=12
+Rload out 0 4.8  ; 2.5A at 12V
+
+.tran 100n 500u UIC
+
+.probe V(sw) V(out) I(L1) I(L2)
+.end
+
+* Expected: Vout ≈ 12V
+* Switch voltage: ~300V peak with snubber
+* Watch for leakage inductance ringing`
+        });
+    }
 
     // Checklist
-    new ChecklistWidget('checklist-container', {
-        lessonKey: 'm13l6',
-        items: [
-            'Understand dominant (0V diff) vs recessive (2V diff)',
-            'Know CAN_H/CAN_L voltage levels (2.5V/3.5V, 1.5V)',
-            'Calculate max bus length for target speed',
-            'Apply 120Ω termination at both ends',
-            'Consider split termination for EMC',
-            'Configure bit timing: Sync, Prop, Phase1, Phase2',
-            'Set sample point at 75-87.5% of bit time',
-            'Use twisted pair for CAN_H/CAN_L'
-        ]
-    });
+    function initChecklist() {
+        new ChecklistWidget('fb-checklist', {
+            title: 'Flyback Design Checklist',
+            items: [
+                'Define input voltage range (AC or DC)',
+                'Calculate turns ratio for target duty cycle',
+                'Size primary inductance for operating mode',
+                'Select core with adequate energy storage',
+                'Calculate and design air gap',
+                'Select switch with margin for leakage spike',
+                'Design snubber for leakage energy',
+                'Select output diode for voltage and speed',
+                'Size output capacitor for ripple and ESR',
+                'Design feedback with optocoupler isolation',
+                'Verify creepage/clearance for safety'
+            ]
+        });
+    }
 
     // Exercises
-    const exercises = [
-        {
-            id: 'M13L6-1',
-            type: 'choice',
-            question: 'In CAN bus, what is the differential voltage during a dominant state?',
-            choices: [
-                { text: '0V', correct: false, explanation: '0V differential is the recessive state.' },
-                { text: '2V (CAN_H - CAN_L)', correct: true, explanation: 'Correct! Dominant = CAN_H at 3.5V, CAN_L at 1.5V, difference = 2V.' },
-                { text: '5V', correct: false, explanation: 'CAN uses 2.5V common-mode with ±1V swing, not 5V differential.' },
-                { text: '3.3V', correct: false, explanation: 'The differential voltage is 2V (3.5V - 1.5V).' }
+    function initExercises() {
+        new ExerciseWidget('fb-exercises', {
+            exercises: [
+                {
+                    question: 'Flyback: Vin=100V, Vout=5V, D=0.4. What turns ratio?',
+                    answer: 'n = 13.3:1',
+                    solution: 'n = (Vin × D) / (Vout × (1-D)) = (100 × 0.4) / (5 × 0.6) = 40/3 = 13.3:1'
+                },
+                {
+                    question: 'Why must flyback transformers have an air gap?',
+                    answer: 'To store energy',
+                    solution: 'Unlike a true transformer, a flyback transformer stores energy in its magnetic field during switch-on. The air gap increases reluctance, allowing more energy storage (E = 0.5×L×I²) without saturating the core.'
+                },
+                {
+                    question: 'Flyback switch sees 400V spike. Primary inductance 500µH, leakage 2%, Ipk=2A. What snubber capacitor to clamp at 400V?',
+                    answer: '~50nF',
+                    solution: 'Leakage L = 500µ × 0.02 = 10µH. Energy = 0.5 × 10µ × 2² = 20µJ. C = 2×E/V² = 2×20µ/400² = 250pF minimum. Add margin: ~50nF typical for low ripple on clamp.'
+                }
             ]
-        },
-        {
-            id: 'M13L6-2',
-            type: 'numeric',
-            question: 'What is the typical maximum bus length for CAN at 500 kbps?',
-            hint: 'Refer to the speed vs length guidelines',
-            expected: 100,
-            tolerance: 0.1,
-            unit: 'm',
-            solution: 'At 500 kbps, max bus length is approximately 100 meters',
-            explanation: 'Higher speeds require shorter buses due to propagation delay constraints in the bit timing.'
-        },
-        {
-            id: 'M13L6-3',
-            type: 'choice',
-            question: 'Why does CAN use dominant and recessive states?',
-            choices: [
-                { text: 'To save power', correct: false, explanation: 'Power savings is not the primary reason for this architecture.' },
-                { text: 'For non-destructive arbitration', correct: true, explanation: 'Correct! Any node can assert dominant (0), enabling collision-free arbitration where lowest ID wins.' },
-                { text: 'To increase speed', correct: false, explanation: 'The dominant/recessive scheme is for arbitration, not speed.' },
-                { text: 'To reduce EMI', correct: false, explanation: 'While CAN has good EMC properties, the D/R states are for arbitration.' }
-            ]
-        }
-    ];
+        });
+    }
 
-    const container = document.getElementById('exercise-container');
-    exercises.forEach((ex, i) => {
-        const div = document.createElement('div');
-        div.id = `exercise-${i}`;
-        div.style.marginBottom = '15px';
-        container.appendChild(div);
-        new ExerciseWidget(`exercise-${i}`, ex);
-    });
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
 })();
 </script>

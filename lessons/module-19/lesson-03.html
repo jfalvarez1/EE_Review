@@ -1,230 +1,188 @@
-<!-- Module 19, Lesson 3: Signal Integrity Debugging -->
+<!-- Module 19, Lesson 3: UART RS-232/RS-485 Transceivers -->
 <div class="lesson-content" data-module="19" data-lesson="3">
 
     <div class="card">
-        <h2>Signal Integrity Debugging</h2>
-        <p>When signals don't look clean, systematic debugging identifies the root cause: reflections, crosstalk, ground bounce, or termination issues.</p>
+        <h2>UART RS-232/RS-485 Transceivers</h2>
+        <p>UART serial communication requires level translation and line driving for reliable long-distance communication. RS-232 and RS-485 define different electrical standards for different applications.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Reflections</div>
-                <div class="v">Impedance mismatch</div>
+                <div class="k">RS-232</div>
+                <div class="v">Point-to-point, ±3-15V levels</div>
             </div>
             <div class="box">
-                <div class="k">Crosstalk</div>
-                <div class="v">Coupled noise</div>
+                <div class="k">RS-485</div>
+                <div class="v">Multi-drop, differential ±1.5-6V</div>
             </div>
             <div class="box">
-                <div class="k">Ground Bounce</div>
-                <div class="v">Return path inductance</div>
+                <div class="k">Max Distance</div>
+                <div class="v mono">RS-232: 15m, RS-485: 1200m</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> If the edge rate is faster than 2× the propagation delay down the trace, treat it as a transmission line. For FR4, this means traces longer than ~2cm for 1ns edges.
+            <strong>Key Insight:</strong> RS-232 uses single-ended signaling with large voltage swings for noise immunity over short distances. RS-485 uses differential signaling which cancels common-mode noise, enabling much longer cables and higher speeds.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Transmission Line Effects</h3>
+        <h3>Interactive: RS-485 Differential Signaling</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="si-z0">Trace Z<sub>0</sub> (Ω)</label>
-                <input type="text" id="si-z0" value="50">
+                <label for="rs485-vdiff">V<sub>diff</sub> (V)</label>
+                <input type="range" id="rs485-vdiff" min="1" max="5" step="0.1" value="2">
+                <span id="rs485-vdiff-val" class="mono">2.0V</span>
             </div>
             <div class="c3">
-                <label for="si-zl">Load Z<sub>L</sub> (Ω)</label>
-                <input type="range" id="si-zl" min="10" max="500" step="10" value="100">
-                <span id="si-zl-val" class="mono">100Ω</span>
+                <label for="rs485-noise">Common Mode Noise (V)</label>
+                <input type="range" id="rs485-noise" min="0" max="3" step="0.1" value="1">
+                <span id="rs485-noise-val" class="mono">1.0V</span>
             </div>
             <div class="c3">
-                <label for="si-len">Trace Length (cm)</label>
-                <input type="range" id="si-len" min="1" max="30" step="1" value="10">
-                <span id="si-len-val" class="mono">10cm</span>
+                <label for="rs485-baud">Baud Rate</label>
+                <select id="rs485-baud">
+                    <option value="9600">9600</option>
+                    <option value="115200" selected>115200</option>
+                    <option value="1000000">1 Mbps</option>
+                    <option value="10000000">10 Mbps</option>
+                </select>
             </div>
             <div class="c3">
-                <label for="si-tr">Rise Time (ns)</label>
-                <input type="range" id="si-tr" min="0.5" max="10" step="0.5" value="1">
-                <span id="si-tr-val" class="mono">1ns</span>
+                <label for="rs485-length">Cable Length (m)</label>
+                <input type="range" id="rs485-length" min="1" max="1200" step="10" value="100">
+                <span id="rs485-length-val" class="mono">100m</span>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="si-canvas" width="980" height="300"></canvas>
+            <canvas id="rs485-canvas" width="980" height="400"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Reflection Coeff</div>
-                <div class="v mono" id="si-gamma">—</div>
+                <div class="k">Noise Margin</div>
+                <div class="v mono" id="rs485-margin">—</div>
             </div>
             <div class="box">
-                <div class="k">Propagation Delay</div>
-                <div class="v mono" id="si-tpd">—</div>
-            </div>
-            <div class="box">
-                <div class="k">Critical Length</div>
-                <div class="v mono" id="si-lcrit">—</div>
+                <div class="k">Max Cable Length</div>
+                <div class="v mono" id="rs485-maxlen">—</div>
             </div>
             <div class="box">
                 <div class="k">Status</div>
-                <div class="v mono" id="si-status">—</div>
+                <div class="v mono" id="rs485-status">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Termination</div>
+                <div class="v mono" id="rs485-term">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Eye Diagram Analysis</h3>
-
-        <!-- SVG Eye Diagram -->
-        <div class="diagram-container" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; padding: 20px; margin: 15px 0;">
-            <svg viewBox="0 0 600 350" style="width: 100%; max-width: 600px; display: block; margin: 0 auto;">
-                <defs>
-                    <marker id="eyeArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#6ee7ff"/>
-                    </marker>
-                    <!-- Gradient for eye traces -->
-                    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style="stop-color:#34d399;stop-opacity:0.3" />
-                        <stop offset="50%" style="stop-color:#34d399;stop-opacity:0.8" />
-                        <stop offset="100%" style="stop-color:#34d399;stop-opacity:0.3" />
-                    </linearGradient>
-                </defs>
-
-                <!-- Grid background -->
-                <pattern id="eyeGrid" width="30" height="30" patternUnits="userSpaceOnUse">
-                    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
-                </pattern>
-                <rect x="50" y="30" width="400" height="200" fill="url(#eyeGrid)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-
-                <!-- Decision threshold line -->
-                <line x1="50" y1="130" x2="450" y2="130" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="5,3"/>
-                <text x="460" y="135" fill="#fbbf24" font-size="10">Threshold</text>
-
-                <!-- Eye shape - multiple overlapping traces to simulate eye pattern -->
-                <!-- Upper eye opening traces -->
-                <path d="M 50 130 Q 150 60, 250 60 Q 350 60, 450 130" fill="none" stroke="url(#eyeGrad)" stroke-width="2"/>
-                <path d="M 50 130 Q 150 70, 250 65 Q 350 70, 450 130" fill="none" stroke="rgba(52,211,153,0.4)" stroke-width="1.5"/>
-                <path d="M 50 130 Q 150 55, 250 55 Q 350 55, 450 130" fill="none" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
-
-                <!-- Lower eye opening traces -->
-                <path d="M 50 130 Q 150 200, 250 200 Q 350 200, 450 130" fill="none" stroke="url(#eyeGrad)" stroke-width="2"/>
-                <path d="M 50 130 Q 150 190, 250 195 Q 350 190, 450 130" fill="none" stroke="rgba(52,211,153,0.4)" stroke-width="1.5"/>
-                <path d="M 50 130 Q 150 205, 250 205 Q 350 205, 450 130" fill="none" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
-
-                <!-- Jitter/noise at crossings (slight spread) -->
-                <ellipse cx="50" cy="130" rx="8" ry="15" fill="rgba(52,211,153,0.3)"/>
-                <ellipse cx="450" cy="130" rx="8" ry="15" fill="rgba(52,211,153,0.3)"/>
-
-                <!-- Noise at logic levels -->
-                <rect x="230" y="50" width="40" height="15" fill="rgba(52,211,153,0.2)" rx="2"/>
-                <rect x="230" y="195" width="40" height="15" fill="rgba(52,211,153,0.2)" rx="2"/>
-
-                <!-- Annotations -->
-                <!-- Eye Height -->
-                <line x1="250" y1="60" x2="250" y2="200" stroke="#6ee7ff" stroke-width="1.5" marker-start="url(#eyeArrow)" marker-end="url(#eyeArrow)"/>
-                <text x="265" y="130" fill="#6ee7ff" font-size="11" font-weight="bold">Eye</text>
-                <text x="265" y="145" fill="#6ee7ff" font-size="11" font-weight="bold">Height</text>
-
-                <!-- Eye Width -->
-                <line x1="90" y1="220" x2="410" y2="220" stroke="#fb7185" stroke-width="1.5" marker-start="url(#eyeArrow)" marker-end="url(#eyeArrow)"/>
-                <text x="230" y="240" fill="#fb7185" font-size="11" text-anchor="middle" font-weight="bold">Eye Width</text>
-
-                <!-- Bit period -->
-                <line x1="50" y1="250" x2="450" y2="250" stroke="#888" stroke-width="1"/>
-                <line x1="50" y1="245" x2="50" y2="255" stroke="#888" stroke-width="1"/>
-                <line x1="450" y1="245" x2="450" y2="255" stroke="#888" stroke-width="1"/>
-                <text x="250" y="265" fill="#888" font-size="10" text-anchor="middle">Bit Period (UI)</text>
-
-                <!-- Legend box -->
-                <g transform="translate(480, 30)">
-                    <rect width="110" height="120" rx="4" fill="rgba(30,30,50,0.8)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-                    <text x="10" y="20" fill="#ccc" font-size="10" font-weight="bold">What to Look For:</text>
-
-                    <circle cx="15" cy="38" r="4" fill="#fb7185"/>
-                    <text x="25" y="42" fill="#aaa" font-size="9">Closed = Jitter</text>
-
-                    <circle cx="15" cy="58" r="4" fill="#fbbf24"/>
-                    <text x="25" y="62" fill="#aaa" font-size="9">Asymm = Duty</text>
-
-                    <circle cx="15" cy="78" r="4" fill="#a78bfa"/>
-                    <text x="25" y="82" fill="#aaa" font-size="9">Multiple = ISI</text>
-
-                    <circle cx="15" cy="98" r="4" fill="#6ee7ff"/>
-                    <text x="25" y="102" fill="#aaa" font-size="9">Spread = Jitter</text>
-                </g>
-
-                <!-- Crossing jitter label -->
-                <text x="50" y="160" fill="#a78bfa" font-size="9" text-anchor="middle">Jitter at</text>
-                <text x="50" y="172" fill="#a78bfa" font-size="9" text-anchor="middle">crossing</text>
-            </svg>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 15px;">
-            <div style="background: rgba(251, 113, 133, 0.1); border-left: 3px solid #fb7185; padding: 10px; border-radius: 4px;">
-                <strong style="color: #fb7185; font-size: 12px;">Closed Eye</strong>
-                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">Too much jitter or noise - reduce data rate or improve channel</p>
-            </div>
-            <div style="background: rgba(251, 191, 36, 0.1); border-left: 3px solid #fbbf24; padding: 10px; border-radius: 4px;">
-                <strong style="color: #fbbf24; font-size: 12px;">Asymmetric</strong>
-                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">Duty cycle distortion - check driver output stage</p>
-            </div>
-            <div style="background: rgba(167, 139, 250, 0.1); border-left: 3px solid #a78bfa; padding: 10px; border-radius: 4px;">
-                <strong style="color: #a78bfa; font-size: 12px;">Multiple Crossings</strong>
-                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">ISI (intersymbol interference) - need equalization</p>
-            </div>
-            <div style="background: rgba(110, 231, 255, 0.1); border-left: 3px solid #6ee7ff; padding: 10px; border-radius: 4px;">
-                <strong style="color: #6ee7ff; font-size: 12px;">Spread at Levels</strong>
-                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">Crosstalk or reflections - check termination</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Common SI Problems</h3>
+        <h3>RS-232 vs RS-485 Comparison</h3>
 
         <table class="table">
             <tr>
-                <th>Symptom</th>
-                <th>Likely Cause</th>
-                <th>Solution</th>
+                <th>Parameter</th>
+                <th>RS-232</th>
+                <th>RS-485</th>
             </tr>
             <tr>
-                <td>Ringing after edges</td>
-                <td>Unterminated line, mismatch</td>
-                <td>Add series/parallel termination</td>
+                <td>Signaling</td>
+                <td>Single-ended</td>
+                <td>Differential</td>
             </tr>
             <tr>
-                <td>Overshoot > 30%</td>
-                <td>Source impedance too low</td>
-                <td>Add series resistor at source</td>
+                <td>Voltage Levels</td>
+                <td>±3V to ±15V</td>
+                <td>±1.5V to ±6V differential</td>
             </tr>
             <tr>
-                <td>Slow rise time</td>
-                <td>RC loading, long stubs</td>
-                <td>Reduce capacitive load, remove stubs</td>
+                <td>Topology</td>
+                <td>Point-to-point</td>
+                <td>Multi-drop (32-256 nodes)</td>
             </tr>
             <tr>
-                <td>Glitches on quiet line</td>
-                <td>Crosstalk from adjacent</td>
-                <td>Add spacing, ground guard</td>
+                <td>Max Distance</td>
+                <td>15m @ 20kbps</td>
+                <td>1200m @ 100kbps</td>
             </tr>
             <tr>
-                <td>Signal shifts with activity</td>
-                <td>Ground bounce, SSO</td>
-                <td>More power/ground pins, decoupling</td>
+                <td>Max Speed</td>
+                <td>~1 Mbps</td>
+                <td>10 Mbps @ 12m</td>
+            </tr>
+            <tr>
+                <td>CMR</td>
+                <td>N/A</td>
+                <td>-7V to +12V typical</td>
             </tr>
         </table>
+    </div>
+
+    <div class="card">
+        <h3>RS-485 Design Considerations</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Termination</div>
+                <div class="v">120Ω at each end of bus</div>
+            </div>
+            <div class="box">
+                <div class="k">Bias Resistors</div>
+                <div class="v">Keep bus in known state when idle</div>
+            </div>
+            <div class="box">
+                <div class="k">Cable Type</div>
+                <div class="v">Twisted pair, shielded if noisy</div>
+            </div>
+            <div class="box">
+                <div class="k">Fail-Safe</div>
+                <div class="v">Pull A high, B low when open</div>
+            </div>
+        </div>
 
         <div class="warn">
-            <strong>Termination Trade-offs:</strong>
-            <ul style="margin: 10px 0 0 20px;">
-                <li>Series termination: Low power, works for point-to-point only</li>
-                <li>Parallel termination: Multi-drop okay, but constant current draw</li>
-                <li>AC termination (RC): Compromise, lower DC power</li>
-            </ul>
+            <strong>Baud Rate vs Distance:</strong> The product of baud rate (bps) × cable length (m) should not exceed approximately 10⁸. At 1 Mbps, max distance ≈ 100m. At 115200 bps, max ≈ 870m.
         </div>
+    </div>
+
+    <div class="card">
+        <h3>Common Transceiver ICs</h3>
+
+        <table class="table">
+            <tr>
+                <th>Part</th>
+                <th>Type</th>
+                <th>Speed</th>
+                <th>Features</th>
+            </tr>
+            <tr>
+                <td>MAX232</td>
+                <td>RS-232</td>
+                <td>120 kbps</td>
+                <td>Charge pump, classic</td>
+            </tr>
+            <tr>
+                <td>MAX3232</td>
+                <td>RS-232</td>
+                <td>250 kbps</td>
+                <td>3.3V compatible</td>
+            </tr>
+            <tr>
+                <td>MAX485</td>
+                <td>RS-485</td>
+                <td>2.5 Mbps</td>
+                <td>Low power, half-duplex</td>
+            </tr>
+            <tr>
+                <td>SN65HVD75</td>
+                <td>RS-485</td>
+                <td>20 Mbps</td>
+                <td>High speed, full-duplex</td>
+            </tr>
+        </table>
     </div>
 
     <div class="card">
@@ -246,217 +204,260 @@
 
 <script>
 (function() {
-    const canvas = document.getElementById('si-canvas');
+    const canvas = document.getElementById('rs485-canvas');
     const ctx = canvas.getContext('2d');
 
     function update() {
-        const z0 = AD.parseValue(document.getElementById('si-z0').value) || 50;
-        const zl = AD.num('si-zl');
-        const len = AD.num('si-len');
-        const tr = AD.num('si-tr');
+        const vdiff = AD.num('rs485-vdiff');
+        const noise = AD.num('rs485-noise');
+        const baud = parseInt(document.getElementById('rs485-baud').value);
+        const length = AD.num('rs485-length');
 
-        document.getElementById('si-zl-val').textContent = zl + 'Ω';
-        document.getElementById('si-len-val').textContent = len + 'cm';
-        document.getElementById('si-tr-val').textContent = tr + 'ns';
+        document.getElementById('rs485-vdiff-val').textContent = vdiff.toFixed(1) + 'V';
+        document.getElementById('rs485-noise-val').textContent = noise.toFixed(1) + 'V';
+        document.getElementById('rs485-length-val').textContent = length + 'm';
 
-        // Reflection coefficient
-        const gamma = (zl - z0) / (zl + z0);
-        document.getElementById('si-gamma').textContent =
-            (gamma >= 0 ? '+' : '') + gamma.toFixed(2) + ' (' + (gamma * 100).toFixed(0) + '%)';
+        // RS-485 receiver threshold is typically ±200mV
+        const threshold = 0.2;
+        const margin = (vdiff / 2) - threshold - noise * 0.1; // Simplified
 
-        // Propagation delay (FR4 ≈ 6.7ns/m or 0.67ns/10cm)
-        const tpd = len * 0.067; // ns
-        document.getElementById('si-tpd').textContent = tpd.toFixed(2) + 'ns';
+        document.getElementById('rs485-margin').textContent = margin.toFixed(2) + 'V';
+        document.getElementById('rs485-margin').style.color = margin > 0.2 ? 'var(--ok)' : 'var(--bad)';
 
-        // Critical length (where trace becomes transmission line)
-        const lcrit = tr / 0.067 / 2; // cm, rule: tpd < tr/2
-        document.getElementById('si-lcrit').textContent = lcrit.toFixed(1) + 'cm';
+        // Max length based on baud×distance ≤ 10^8
+        const maxLen = Math.min(1200, 1e8 / baud);
+        document.getElementById('rs485-maxlen').textContent = Math.round(maxLen) + 'm';
 
-        const statusEl = document.getElementById('si-status');
-        if (len < lcrit) {
-            statusEl.textContent = 'Lumped (no TL effects)';
-            statusEl.style.color = 'var(--ok)';
-        } else if (Math.abs(gamma) < 0.2) {
-            statusEl.textContent = 'Well matched';
+        const statusEl = document.getElementById('rs485-status');
+        if (length <= maxLen && margin > 0.2) {
+            statusEl.textContent = 'OK';
             statusEl.style.color = 'var(--ok)';
         } else {
-            statusEl.textContent = 'Reflections likely';
-            statusEl.style.color = 'var(--warn)';
+            statusEl.textContent = length > maxLen ? 'TOO LONG' : 'LOW MARGIN';
+            statusEl.style.color = 'var(--bad)';
         }
 
-        plotTransmissionLine(z0, zl, len, tr, gamma, tpd);
+        // Termination recommendation
+        const termEl = document.getElementById('rs485-term');
+        if (length > 10 || baud > 100000) {
+            termEl.textContent = '120Ω at ends';
+            termEl.style.color = 'var(--text)';
+        } else {
+            termEl.textContent = 'Optional';
+            termEl.style.color = 'var(--muted)';
+        }
+
+        plotRS485(vdiff, noise, baud);
     }
 
-    function plotTransmissionLine(z0, zl, len, tr, gamma, tpd) {
+    function plotRS485(vdiff, noise, baud) {
         const w = canvas.width;
         const h = canvas.height;
 
-        const totalTime = tpd * 8 + tr * 2; // Show multiple reflections
+        const bitTime = 1 / baud;
+        const totalTime = 10 * bitTime;
 
-        const axes = AD.drawAxes(ctx, w, h, {
+        // Top half: A and B lines
+        ctx.save();
+
+        const axesTop = AD.drawAxes(ctx, w, h * 0.5, {
             xMin: 0,
             xMax: totalTime,
-            yMin: -0.3,
-            yMax: 1.5,
+            yMin: -1,
+            yMax: 6,
             xLabel: 'Time',
             yLabel: 'Voltage',
-            xUnit: 'ns',
+            xUnit: 's',
             yUnit: 'V',
             xDivs: 10,
-            yDivs: 8
+            yDivs: 7,
+            margin: { left: 55, right: 20, top: 15, bottom: 25 }
         });
 
+        // Generate UART data pattern (start bit, 8 data bits, stop bit)
         const N = 500;
         const tData = [];
-        const vSourceData = [];
-        const vLoadData = [];
+        const aData = [];
+        const bData = [];
+        const vcm = 2.5; // Common mode voltage
+
+        // Pattern: idle, start, 0x55 (01010101), stop
+        const pattern = [1, 0, 1, 0, 1, 0, 1, 0, 1, 1]; // Start=0, data, stop=1
 
         for (let i = 0; i < N; i++) {
             const t = (i / N) * totalTime;
             tData.push(t);
 
-            // Simplified transmission line model with reflections
-            let vSource = 0;
-            let vLoad = 0;
+            const bitIndex = Math.floor(t / bitTime);
+            const bit = pattern[bitIndex % 10];
 
-            // Initial step (simplified as smooth rise)
-            const riseFunc = (time) => {
-                if (time < 0) return 0;
-                if (time > tr) return 1;
-                return time / tr;
-            };
+            // Add noise
+            const noiseVal = (Math.random() - 0.5) * noise * 0.5;
 
-            // Source voltage includes reflections
-            vSource = riseFunc(t) * 0.5; // Initial launch (source impedance divider)
-
-            // First forward wave arrives at load
-            if (t > tpd) {
-                vLoad = riseFunc(t - tpd) * 0.5 * (1 + gamma);
+            // A and B are differential
+            if (bit === 1) {
+                aData.push(vcm + vdiff / 2 + noiseVal);
+                bData.push(vcm - vdiff / 2 + noiseVal);
+            } else {
+                aData.push(vcm - vdiff / 2 + noiseVal);
+                bData.push(vcm + vdiff / 2 + noiseVal);
             }
-
-            // First reflection returns to source
-            if (t > 2 * tpd) {
-                vSource += riseFunc(t - 2 * tpd) * 0.5 * gamma;
-            }
-
-            // Second reflection at load
-            if (t > 3 * tpd) {
-                vLoad += riseFunc(t - 3 * tpd) * 0.5 * gamma * gamma * (1 + gamma);
-            }
-
-            // Continue reflections
-            if (t > 4 * tpd) {
-                vSource += riseFunc(t - 4 * tpd) * 0.5 * Math.pow(gamma, 2);
-            }
-
-            if (t > 5 * tpd) {
-                vLoad += riseFunc(t - 5 * tpd) * 0.5 * Math.pow(gamma, 3) * (1 + gamma);
-            }
-
-            vSourceData.push(vSource);
-            vLoadData.push(vLoad);
         }
 
-        // Plot source voltage
-        AD.plotData(ctx, axes, tData, vSourceData, {
-            color: 'rgba(251, 191, 36, 0.95)',
-            lineWidth: 2
+        // Plot A line
+        AD.plotData(ctx, axesTop, tData, aData, {
+            color: 'rgba(110, 231, 255, 0.9)',
+            lineWidth: 2,
+            label: 'A (+)'
         });
 
-        // Plot load voltage
-        AD.plotData(ctx, axes, tData, vLoadData, {
-            color: 'rgba(110, 231, 255, 0.95)',
-            lineWidth: 2
+        // Plot B line
+        AD.plotData(ctx, axesTop, tData, bData, {
+            color: 'rgba(251, 113, 133, 0.9)',
+            lineWidth: 2,
+            label: 'B (-)'
         });
 
-        // Mark final voltage level
-        const vFinal = 1.0;
-        ctx.save();
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 1;
-
-        const finalPt = axes.toCanvas(0, vFinal);
-        ctx.beginPath();
-        ctx.moveTo(axes.left, finalPt.y);
-        ctx.lineTo(axes.left + axes.width, finalPt.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('Final: ' + vFinal.toFixed(1) + 'V', axes.left + axes.width - 60, finalPt.y - 5);
         ctx.restore();
 
-        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
-            { color: 'rgba(251, 191, 36, 0.95)', label: 'Source end' },
-            { color: 'rgba(110, 231, 255, 0.95)', label: 'Load end' }
+        // Bottom half: Differential (A-B)
+        ctx.save();
+        ctx.translate(0, h * 0.5);
+
+        const axesBot = AD.drawAxes(ctx, w, h * 0.5, {
+            xMin: 0,
+            xMax: totalTime,
+            yMin: -vdiff - 0.5,
+            yMax: vdiff + 0.5,
+            xLabel: 'Time',
+            yLabel: 'A - B',
+            xUnit: 's',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 6,
+            margin: { left: 55, right: 20, top: 15, bottom: 25 }
+        });
+
+        // Calculate differential
+        const diffData = [];
+        for (let i = 0; i < N; i++) {
+            diffData.push(aData[i] - bData[i]);
+        }
+
+        AD.plotData(ctx, axesBot, tData, diffData, {
+            color: 'rgba(52, 211, 153, 0.95)',
+            lineWidth: 2,
+            label: 'Differential'
+        });
+
+        // Draw threshold lines
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.7)';
+
+        const thresh = 0.2;
+        const threshHi = axesBot.toCanvas(0, thresh);
+        const threshLo = axesBot.toCanvas(0, -thresh);
+
+        ctx.beginPath();
+        ctx.moveTo(axesBot.left, threshHi.y);
+        ctx.lineTo(axesBot.left + axesBot.width, threshHi.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(axesBot.left, threshLo.y);
+        ctx.lineTo(axesBot.left + axesBot.width, threshLo.y);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('+200mV', axesBot.left + axesBot.width + 3, threshHi.y + 3);
+        ctx.fillText('-200mV', axesBot.left + axesBot.width + 3, threshLo.y + 3);
+        ctx.restore();
+
+        ctx.restore();
+
+        // Legend on top plot
+        AD.drawLegend(ctx, 70, 25, [
+            { color: 'rgba(110, 231, 255, 0.9)', label: 'A (non-inverting)' },
+            { color: 'rgba(251, 113, 133, 0.9)', label: 'B (inverting)' }
         ]);
     }
 
-    ['si-z0', 'si-zl', 'si-len', 'si-tr'].forEach(id => {
+    ['rs485-vdiff', 'rs485-noise', 'rs485-length'].forEach(id => {
         document.getElementById(id).addEventListener('input', update);
     });
+    document.getElementById('rs485-baud').addEventListener('change', update);
 
     update();
 
     new SpiceNetlistWidget('spice-container', {
-        title: 'Transmission Line with Termination',
-        netlist: `* Transmission Line Signal Integrity
-* Compare terminated vs unterminated
+        title: 'RS-485 Driver/Receiver',
+        netlist: `* RS-485 Differential Line Simulation
 
-* Source (CMOS driver)
-VPULSE src 0 PULSE(0 3.3 1n 0.5n 0.5n 10n 25n)
-RSRC src drv 10
+* Driver (simplified differential output)
+* A = VCM + VDIFF/2, B = VCM - VDIFF/2
+VCM cm 0 DC 2.5
 
-* Transmission line (50Ω, 10cm = 0.67ns)
-T1 drv gnd load gnd Z0=50 TD=0.67n
+* Differential driver using voltage sources
+E_A a_drv 0 VALUE={2.5 + 1*V(data)}
+E_B b_drv 0 VALUE={2.5 - 1*V(data)}
 
-* Load options (uncomment one):
+* Driver output impedance
+RDA a_drv a_line 50
+RDB b_drv b_line 50
 
-* Unterminated (high-Z)
-RLOAD load 0 1MEG
+* Transmission line (simplified as RC)
+RLINE_A a_line a_rcv 10
+RLINE_B b_line b_rcv 10
+CLINE_A a_rcv 0 100p
+CLINE_B b_rcv 0 100p
 
-* Series termination (at source)
-* RTERM src drv 40
+* Termination resistor
+RTERM a_rcv b_rcv 120
 
-* Parallel termination
-* RTERM load 0 50
+* Common mode noise injection
+VN_CM noise 0 SIN(0 1 60)
+E_NOISE_A a_rcv_noisy 0 VALUE={V(a_rcv)+V(noise)}
+E_NOISE_B b_rcv_noisy 0 VALUE={V(b_rcv)+V(noise)}
 
-* AC termination
-* RTERM load term 50
-* CTERM term 0 100p
+* Differential receiver
+E_DIFF diff 0 VALUE={V(a_rcv_noisy)-V(b_rcv_noisy)}
 
-.TRAN 0.1n 50n
+* Data pattern (115200 baud)
+VDATA data 0 PULSE(-1 1 0 1n 1n 4.34u 8.68u)
 
-.PROBE V(drv) V(load)
+.TRAN 0.1u 100u
+
+.PROBE V(a_rcv) V(b_rcv) V(diff) V(noise)
 .END
 
-* Try different termination options
-* Watch for overshoot and ringing`
+* Note how common mode noise cancels in differential output
+* Change VN_CM amplitude to see CMR benefit`
     });
 
     new ChecklistWidget('checklist-container', {
-        lessonKey: 'm19l3',
+        lessonKey: 'm13l3',
         items: [
-            'Calculate critical length for edge rate',
-            'Check impedance matching at both ends',
-            'Look for stubs and discontinuities',
-            'Verify return path is continuous',
-            'Consider crosstalk from adjacent traces'
+            'Know RS-485 uses differential signaling',
+            'Understand baud×distance ≤ 10^8 rule',
+            'Use 120Ω termination at line ends',
+            'Add fail-safe bias for idle bus state',
+            'Know RS-485 CMR range is -7V to +12V'
         ]
     });
 
     new ExerciseWidget('exercise-container', {
-        id: 'D3-1',
+        id: 'M3-3',
         type: 'numeric',
-        question: 'A 50Ω trace is terminated with 75Ω. What is the reflection coefficient?',
-        hint: 'Γ = (ZL - Z0) / (ZL + Z0)',
-        expected: 0.2,
+        question: 'What is the maximum cable length for RS-485 at 250kbps using the baud×distance rule?',
+        hint: 'Max distance = 10^8 / baud rate',
+        expected: 400,
         tolerance: 0.05,
-        unit: '',
-        solution: 'Γ = (75 - 50) / (75 + 50) = 25 / 125 = 0.2',
-        explanation: '20% of the signal is reflected. This creates a 20% overshoot at the load and rings until settled. For clean signals, keep Γ < 0.1.'
+        unit: 'm',
+        solution: 'Max distance = 10^8 / 250000 = 400m',
+        explanation: 'The baud×distance product should not exceed 10^8 for reliable communication. At 250kbps, this gives 400m maximum.'
     });
 })();
 </script>

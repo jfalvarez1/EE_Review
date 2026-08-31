@@ -1,736 +1,896 @@
-<!-- Module 25, Lesson 2: Feedback Topologies -->
-<div class="lesson-content" data-module="25" data-lesson="2">
-    <div class="card">
-        <h2>Feedback Topologies</h2>
-        <p>There are four fundamental feedback topologies, classified by how the feedback signal is sampled from the output and mixed with the input. Understanding these topologies is essential for analyzing real circuits.</p>
-        <div class="info-box">
-            <p><strong>Razavi's Classification:</strong> Feedback topologies are named by the connection at input and output:</p>
-            <ul>
-                <li><strong>Series</strong> = voltage addition (input terminal)</li>
-                <li><strong>Shunt</strong> = current addition (input terminal)</li>
-                <li><strong>Voltage</strong> = sample output voltage</li>
-                <li><strong>Current</strong> = sample output current</li>
-            </ul>
-        </div>
-    </div>
+<lesson-content>
+<section class="card">
+    <h2>LED Backlight Driver Design</h2>
+    <p>
+        Modern laptop and monitor displays use <strong>LED backlighting</strong> for thin profiles,
+        low power consumption, and excellent color gamut. The LED driver must provide
+        <strong>constant current</strong> to strings of series-connected LEDs, typically using
+        a boost converter topology.
+    </p>
 
-    <div class="card">
-        <h3>The Four Topologies at a Glance</h3>
-
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Topology</th>
-                    <th>Input Mix</th>
-                    <th>Output Sample</th>
-                    <th>Gain Type</th>
-                    <th>Z<sub>in</sub></th>
-                    <th>Z<sub>out</sub></th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>Series-Shunt</strong></td>
-                    <td>Series (V)</td>
-                    <td>Shunt (V)</td>
-                    <td>Voltage gain (V/V)</td>
-                    <td>&uarr; (1+A&beta;)</td>
-                    <td>&darr; /(1+A&beta;)</td>
-                </tr>
-                <tr>
-                    <td><strong>Shunt-Series</strong></td>
-                    <td>Shunt (I)</td>
-                    <td>Series (I)</td>
-                    <td>Current gain (I/I)</td>
-                    <td>&darr; /(1+A&beta;)</td>
-                    <td>&uarr; (1+A&beta;)</td>
-                </tr>
-                <tr>
-                    <td><strong>Series-Series</strong></td>
-                    <td>Series (V)</td>
-                    <td>Series (I)</td>
-                    <td>Transconductance (I/V)</td>
-                    <td>&uarr; (1+A&beta;)</td>
-                    <td>&uarr; (1+A&beta;)</td>
-                </tr>
-                <tr>
-                    <td><strong>Shunt-Shunt</strong></td>
-                    <td>Shunt (I)</td>
-                    <td>Shunt (V)</td>
-                    <td>Transresistance (V/I)</td>
-                    <td>&darr; /(1+A&beta;)</td>
-                    <td>&darr; /(1+A&beta;)</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <canvas id="topology-overview-canvas" width="500" height="400"></canvas>
-    </div>
-
-    <div class="card">
-        <h3>Topology 1: Series-Shunt (Voltage Amplifier)</h3>
-        <p>This is the most common topology - the non-inverting op-amp configuration is a perfect example.</p>
-
-        <div id="sch-series-shunt"></div>
-
-        <h4>Characteristics</h4>
+    <div class="notice">
+        <strong>What You'll Learn:</strong>
         <ul>
-            <li><strong>Senses output voltage</strong> (shunt connection at output)</li>
-            <li><strong>Subtracts feedback voltage from input</strong> (series connection at input)</li>
-            <li><strong>Ideal for voltage amplifiers</strong> - high Z<sub>in</sub>, low Z<sub>out</sub></li>
+            <li>Why boost topology is needed for LED strings</li>
+            <li>Constant current LED driver design</li>
+            <li>PWM and analog dimming techniques</li>
+            <li>Multi-string current matching</li>
+            <li>Efficiency and thermal considerations</li>
         </ul>
+    </div>
+</section>
 
-        <div class="info-box" style="background: #1a2a1a; border-color: #4caf50;">
-            <h4>Impedance Analysis (Razavi Derivation)</h4>
-            <p><strong>Input Impedance:</strong></p>
-            <p>With series mixing, the input sees the full loop gain:</p>
-            <p style="font-family: monospace;">Z<sub>in,CL</sub> = Z<sub>in,OL</sub> &times; (1 + A&beta;)</p>
+<!-- Why Boost for Backlighting -->
+<section class="card">
+    <h3>Why Boost Topology for LED Backlighting?</h3>
+    <p>
+        A laptop display typically has <strong>multiple strings of 6-10 white LEDs in series</strong>.
+        Each LED has a forward voltage of ~3.0-3.3V, so a 7-LED string requires:
+    </p>
+    <p style="text-align: center; font-size: 1.2em; color: var(--accent);">
+        V_LED = 7 × 3.2V = <strong>22.4V</strong>
+    </p>
+    <p>
+        Since the laptop runs from a battery (7-17V) or USB-C adapter (5-20V), a
+        <strong>boost converter</strong> is essential to generate the high voltage needed.
+    </p>
 
-            <p><strong>Output Impedance:</strong></p>
-            <p>With shunt (voltage) sampling, the output impedance is reduced:</p>
-            <p style="font-family: monospace;">Z<sub>out,CL</sub> = Z<sub>out,OL</sub> / (1 + A&beta;)</p>
+    <!-- SVG: LED String Voltage Diagram -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 550 280" class="circuit-svg" style="max-width: 550px; background: var(--panel);">
+            <defs>
+                <marker id="arrow-led" viewBox="0 0 10 10" refX="9" refY="5"
+                        markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#fbbf24"/>
+                </marker>
+            </defs>
 
-            <p><strong>Physical Interpretation:</strong> Feedback "stiffens" the output - any load that tries to change V<sub>out</sub> is counteracted by the loop.</p>
+            <!-- Title -->
+            <text x="275" y="25" fill="#e6edf3" font-size="14" text-anchor="middle" font-weight="bold">
+                LED String Voltage Build-up
+            </text>
+
+            <!-- LED String (7 LEDs) -->
+            <g id="led-string">
+                <!-- Wire from boost output -->
+                <line x1="50" y1="80" x2="100" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <text x="50" y="95" fill="#ef4444" font-size="10">V_boost</text>
+                <text x="50" y="107" fill="#e6edf3" font-size="9">(22-25V)</text>
+
+                <!-- LED 1 -->
+                <polygon points="100,70 130,80 100,90" fill="none" stroke="#34d399" stroke-width="2"/>
+                <line x1="100" y1="70" x2="100" y2="90" stroke="#34d399" stroke-width="2"/>
+                <text x="115" y="105" fill="#34d399" font-size="9">3.2V</text>
+
+                <!-- LED 2 -->
+                <line x1="130" y1="80" x2="150" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <polygon points="150,70 180,80 150,90" fill="none" stroke="#34d399" stroke-width="2"/>
+                <line x1="150" y1="70" x2="150" y2="90" stroke="#34d399" stroke-width="2"/>
+                <text x="165" y="105" fill="#34d399" font-size="9">3.2V</text>
+
+                <!-- LED 3 -->
+                <line x1="180" y1="80" x2="200" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <polygon points="200,70 230,80 200,90" fill="none" stroke="#34d399" stroke-width="2"/>
+                <line x1="200" y1="70" x2="200" y2="90" stroke="#34d399" stroke-width="2"/>
+                <text x="215" y="105" fill="#34d399" font-size="9">3.2V</text>
+
+                <!-- ... dots -->
+                <text x="255" y="85" fill="#e6edf3" font-size="14">...</text>
+
+                <!-- LED 6 -->
+                <line x1="280" y1="80" x2="300" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <polygon points="300,70 330,80 300,90" fill="none" stroke="#34d399" stroke-width="2"/>
+                <line x1="300" y1="70" x2="300" y2="90" stroke="#34d399" stroke-width="2"/>
+                <text x="315" y="105" fill="#34d399" font-size="9">3.2V</text>
+
+                <!-- LED 7 -->
+                <line x1="330" y1="80" x2="350" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <polygon points="350,70 380,80 350,90" fill="none" stroke="#34d399" stroke-width="2"/>
+                <line x1="350" y1="70" x2="350" y2="90" stroke="#34d399" stroke-width="2"/>
+                <text x="365" y="105" fill="#34d399" font-size="9">3.2V</text>
+
+                <!-- Current sense resistor -->
+                <line x1="380" y1="80" x2="420" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="420" y="72" width="40" height="16" fill="none" stroke="#fb7185" stroke-width="2"/>
+                <text x="440" y="84" fill="#fb7185" font-size="10" text-anchor="middle">R</text>
+                <text x="440" y="105" fill="#fb7185" font-size="9" text-anchor="middle">sense</text>
+
+                <!-- To GND -->
+                <line x1="460" y1="80" x2="500" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <text x="510" y="85" fill="#6ee7ff" font-size="10">GND</text>
+            </g>
+
+            <!-- Voltage stack illustration -->
+            <rect x="80" y="140" width="380" height="110" fill="none" stroke="#374151" stroke-width="1" rx="5"/>
+            <text x="270" y="160" fill="#e6edf3" font-size="11" text-anchor="middle" font-weight="bold">
+                Voltage Distribution Across String
+            </text>
+
+            <!-- Stacked voltage bars -->
+            <rect x="100" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="120" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">LED1</text>
+
+            <rect x="145" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="165" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">LED2</text>
+
+            <rect x="190" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="210" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">LED3</text>
+
+            <rect x="235" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="255" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">...</text>
+
+            <rect x="280" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="300" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">LED6</text>
+
+            <rect x="325" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="345" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">LED7</text>
+
+            <rect x="370" y="220" width="40" height="15" fill="#fb7185" fill-opacity="0.3" stroke="#fb7185"/>
+            <text x="390" y="230" fill="#e6edf3" font-size="8" text-anchor="middle">R</text>
+
+            <!-- Voltage labels -->
+            <text x="95" y="245" fill="#e6edf3" font-size="9">0V</text>
+            <text x="415" y="175" fill="#ef4444" font-size="10">22.4V + Vr</text>
+        </svg>
+    </div>
+</section>
+
+<!-- Boost Converter Topology -->
+<section class="card">
+    <h3>Boost Converter for LED Driving</h3>
+
+    <!-- SVG: Boost Converter Schematic -->
+    <div class="diagram-container">
+        <div id="led-boost-diagram"></div>
+    </div>
+
+    <h4>Boost LED Driver Calculator</h4>
+    <div class="controls">
+        <div class="c3">
+            <label>Input Voltage (V)</label>
+            <input type="range" id="boost-vin" min="5" max="20" value="12" step="0.5">
+            <span id="boost-vin-val">12V</span>
         </div>
-
-        <h4>Worked Example: Non-Inverting Amplifier</h4>
-        <div class="info-box" style="background: #2a1a1a; border-color: #ff9800;">
-            <p><strong>Given:</strong> Op-amp with A = 10<sup>5</sup>, Z<sub>in,OL</sub> = 2M&Omega;, Z<sub>out,OL</sub> = 75&Omega;</p>
-            <p>Feedback: R<sub>1</sub> = 1k&Omega;, R<sub>2</sub> = 9k&Omega; (gain = 10)</p>
-
-            <p><strong>Calculate:</strong></p>
-            <p style="font-family: monospace;">
-                &beta; = R<sub>1</sub>/(R<sub>1</sub>+R<sub>2</sub>) = 1k/10k = 0.1<br>
-                A&beta; = 10<sup>5</sup> &times; 0.1 = 10<sup>4</sup><br><br>
-                Z<sub>in,CL</sub> = 2M&Omega; &times; 10<sup>4</sup> = 20G&Omega;<br>
-                Z<sub>out,CL</sub> = 75&Omega; / 10<sup>4</sup> = 7.5m&Omega;
-            </p>
-            <p style="color: #4caf50;">The feedback has made the amplifier nearly ideal: very high input impedance, nearly zero output impedance!</p>
+        <div class="c3">
+            <label>LEDs per String</label>
+            <input type="range" id="boost-nleds" min="4" max="12" value="7" step="1">
+            <span id="boost-nleds-val">7</span>
+        </div>
+        <div class="c3">
+            <label>LED Vf (V)</label>
+            <input type="range" id="boost-vf" min="2.8" max="3.5" value="3.2" step="0.1">
+            <span id="boost-vf-val">3.2V</span>
+        </div>
+        <div class="c3">
+            <label>LED Current (mA)</label>
+            <input type="range" id="boost-iled" min="10" max="150" value="80" step="5">
+            <span id="boost-iled-val">80mA</span>
         </div>
     </div>
 
-    <div class="card">
-        <h3>Topology 2: Shunt-Shunt (Transimpedance Amplifier)</h3>
-        <p>This topology converts input current to output voltage - the classic transimpedance amplifier (TIA).</p>
-
-        <div id="sch-shunt-shunt"></div>
-
-        <h4>Characteristics</h4>
-        <ul>
-            <li><strong>Senses output voltage</strong> (shunt connection at output)</li>
-            <li><strong>Subtracts feedback current from input</strong> (shunt connection at input)</li>
-            <li><strong>Ideal for current-to-voltage conversion</strong> - low Z<sub>in</sub>, low Z<sub>out</sub></li>
-        </ul>
-
-        <div class="info-box" style="background: #1a1a2a; border-color: #4fc3f7;">
-            <h4>Impedance Analysis</h4>
-            <p><strong>Input Impedance:</strong></p>
-            <p>With shunt mixing, input impedance is reduced (current sensing):</p>
-            <p style="font-family: monospace;">Z<sub>in,CL</sub> = Z<sub>in,OL</sub> / (1 + A&beta;)</p>
-
-            <p><strong>Output Impedance:</strong></p>
-            <p>Still reduced due to voltage sampling:</p>
-            <p style="font-family: monospace;">Z<sub>out,CL</sub> = Z<sub>out,OL</sub> / (1 + A&beta;)</p>
-
-            <p><strong>Physical Interpretation:</strong> The virtual ground at the inverting input makes Z<sub>in</sub> appear very low to the current source.</p>
+    <div class="controls">
+        <div class="c3">
+            <label>Number of Strings</label>
+            <input type="range" id="boost-nstr" min="1" max="8" value="4" step="1">
+            <span id="boost-nstr-val">4</span>
         </div>
-
-        <h4>Why TIAs Use Shunt-Shunt</h4>
-        <p>A photodiode outputs current. We want:</p>
-        <ul>
-            <li>Low input impedance (to absorb all the photocurrent)</li>
-            <li>Low output impedance (to drive following stages)</li>
-            <li>Voltage output proportional to input current</li>
-        </ul>
-        <p>Shunt-shunt feedback naturally provides all three!</p>
-    </div>
-
-    <div class="card">
-        <h3>Topology 3: Shunt-Series (Current Amplifier)</h3>
-        <p>This topology amplifies current - less common in discrete design but important in IC design.</p>
-
-        <div id="sch-shunt-series"></div>
-
-        <h4>Characteristics</h4>
-        <ul>
-            <li><strong>Senses output current</strong> (series connection at output - sense resistor)</li>
-            <li><strong>Subtracts feedback current from input</strong> (shunt connection at input)</li>
-            <li><strong>Ideal for current amplifiers</strong> - low Z<sub>in</sub>, high Z<sub>out</sub></li>
-        </ul>
-
-        <div class="info-box" style="background: #1a2a1a; border-color: #4caf50;">
-            <h4>Current Mirror Example</h4>
-            <p>A Wilson current mirror is a shunt-series feedback amplifier:</p>
-            <ul>
-                <li>Input current is "shunted" into Q1's collector</li>
-                <li>Output current is sensed in series with Q3's emitter</li>
-                <li>Feedback through Q2 base improves output impedance</li>
-            </ul>
-            <p style="font-family: monospace;">
-                A<sub>I</sub> &asymp; 1 (current gain)<br>
-                Z<sub>out</sub> = r<sub>o</sub> &times; (1 + g<sub>m</sub>r<sub>o</sub>) &asymp; &beta;r<sub>o</sub>
-            </p>
+        <div class="c3">
+            <label>Headroom (V)</label>
+            <input type="range" id="boost-head" min="0.5" max="3" value="1.5" step="0.1">
+            <span id="boost-head-val">1.5V</span>
+        </div>
+        <div class="c3">
+            <label>Efficiency (%)</label>
+            <input type="range" id="boost-eff" min="80" max="95" value="88" step="1">
+            <span id="boost-eff-val">88%</span>
+        </div>
+        <div class="c3">
+            <label>Switching Freq (kHz)</label>
+            <input type="range" id="boost-fsw" min="200" max="2000" value="600" step="50">
+            <span id="boost-fsw-val">600kHz</span>
         </div>
     </div>
 
-    <div class="card">
-        <h3>Topology 4: Series-Series (Transconductance Amplifier)</h3>
-        <p>This topology converts input voltage to output current - used in voltage-controlled current sources.</p>
-
-        <div id="sch-series-series"></div>
-
-        <h4>Characteristics</h4>
-        <ul>
-            <li><strong>Senses output current</strong> (series connection at output)</li>
-            <li><strong>Subtracts feedback voltage from input</strong> (series connection at input)</li>
-            <li><strong>Ideal for V-to-I converters</strong> - high Z<sub>in</sub>, high Z<sub>out</sub></li>
-        </ul>
-
-        <div class="info-box" style="background: #1a1a2a; border-color: #4fc3f7;">
-            <h4>Classic Example: Emitter Degeneration</h4>
-            <p>A common-emitter amplifier with emitter resistor R<sub>E</sub>:</p>
-            <ul>
-                <li>Input voltage is compared to V<sub>E</sub> = I<sub>out</sub> &times; R<sub>E</sub></li>
-                <li>This is series-series feedback!</li>
-            </ul>
-            <p style="font-family: monospace;">
-                G<sub>m</sub> = I<sub>out</sub>/V<sub>in</sub> &asymp; 1/R<sub>E</sub> (when g<sub>m</sub>R<sub>E</sub> >> 1)<br>
-                Z<sub>in</sub> = r<sub>&pi;</sub> + (&beta;+1)R<sub>E</sub> (increased)<br>
-                Z<sub>out</sub> = r<sub>o</sub>(1 + g<sub>m</sub>R<sub>E</sub>) (increased)
-            </p>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>How to Identify the Topology</h3>
-        <div class="info-box warning">
-            <h4>Art of Electronics Practical Rule</h4>
-            <p>"Look at how the feedback network connects. If the output wire goes to the feedback network, you're sampling voltage. If a resistor is in series with the output, you're sampling current. Same logic applies at the input."</p>
-        </div>
-
-        <h4>Identification Algorithm (Razavi Method)</h4>
-        <ol>
-            <li><strong>At the output:</strong> Is the feedback connected in parallel with the load (shunt/voltage) or in series with the output path (series/current)?</li>
-            <li><strong>At the input:</strong> Is the feedback signal added as a voltage (series) or injected as a current (shunt)?</li>
-        </ol>
-
-        <div class="controls">
-            <div class="c4">
-                <label for="topo-in">At the input, feedback is added as&hellip;</label>
-                <select id="topo-in">
-                    <option value="series" selected>a voltage in series (series)</option>
-                    <option value="shunt">a current in parallel (shunt)</option>
-                </select>
+    <div id="boost-results" class="results">
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">Required VOUT</span>
+                <span class="value" id="boost-vout">—</span>
             </div>
-            <div class="c4">
-                <label for="topo-out">At the output, feedback samples&hellip;</label>
-                <select id="topo-out">
-                    <option value="voltage" selected>voltage, in parallel with the load (shunt)</option>
-                    <option value="current">current, in series with the load (series)</option>
-                </select>
+            <div class="result-item">
+                <span class="label">Duty Cycle</span>
+                <span class="value" id="boost-duty">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Total LED Power</span>
+                <span class="value" id="boost-pled">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Input Current</span>
+                <span class="value" id="boost-iin">—</span>
             </div>
         </div>
-
-        <div class="canvas-wrap">
-            <canvas id="identify-topology-canvas" width="640" height="360"></canvas>
-        </div>
-
-        <div class="kv">
-            <div class="box"><div class="k">Topology</div><div class="v mono" id="topo-name">&mdash;</div></div>
-            <div class="box"><div class="k">Stabilises</div><div class="v mono" id="topo-stab">&mdash;</div></div>
-            <div class="box"><div class="k">Z<sub>in</sub></div><div class="v mono" id="topo-zin">&mdash;</div></div>
-            <div class="box"><div class="k">Z<sub>out</sub></div><div class="v mono" id="topo-zout">&mdash;</div></div>
-        </div>
-        <p class="fig-note" id="topo-note"></p>
-    </div>
-
-    <div class="card">
-        <h3>Interactive Topology Effects Calculator</h3>
-        <div class="calculator-section">
-            <div class="input-group">
-                <label for="topo-select">Topology:</label>
-                <select id="topo-select" onchange="updateTopoCalc()">
-                    <option value="series-shunt">Series-Shunt (Voltage Amp)</option>
-                    <option value="shunt-shunt">Shunt-Shunt (Transimpedance)</option>
-                    <option value="shunt-series">Shunt-Series (Current Amp)</option>
-                    <option value="series-series">Series-Series (Transconductance)</option>
-                </select>
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">Inductor (min)</span>
+                <span class="value" id="boost-lmin">—</span>
             </div>
-            <div class="input-group">
-                <label for="loop-gain-topo">Loop Gain A&beta;:</label>
-                <input type="range" id="loop-gain-topo" min="1" max="10000" value="1000" oninput="updateTopoCalc()">
-                <span id="loop-gain-topo-val">1000</span>
+            <div class="result-item">
+                <span class="label">Sense Resistor</span>
+                <span class="value" id="boost-rsense">—</span>
             </div>
-            <div class="input-group">
-                <label for="zin-ol">Z<sub>in,OL</sub> (&Omega;):</label>
-                <input type="number" id="zin-ol" value="10000" oninput="updateTopoCalc()">
+            <div class="result-item">
+                <span class="label">Power Loss</span>
+                <span class="value" id="boost-ploss">—</span>
             </div>
-            <div class="input-group">
-                <label for="zout-ol">Z<sub>out,OL</sub> (&Omega;):</label>
-                <input type="number" id="zout-ol" value="100" oninput="updateTopoCalc()">
+            <div class="result-item">
+                <span class="label">Diode Current (avg)</span>
+                <span class="value" id="boost-idiode">—</span>
             </div>
-            <div id="topo-results" class="result-box"></div>
         </div>
-    </div>
-
-    <div class="card">
-        <h3>Loading Effects in Feedback (Advanced)</h3>
-        <p>Real feedback networks load both the amplifier and the source. Razavi's approach accounts for this:</p>
-
-        <div class="info-box" style="background: #2a1a1a; border-color: #ff9800;">
-            <h4>The Complete Analysis Procedure</h4>
-            <ol>
-                <li><strong>Identify the feedback network</strong> (usually a resistor divider)</li>
-                <li><strong>Calculate the loading:</strong>
-                    <ul>
-                        <li>At input: What impedance does the feedback network present?</li>
-                        <li>At output: What load does the feedback network add?</li>
-                    </ul>
-                </li>
-                <li><strong>Find the "loaded" open-loop gain A':</strong> Include loading effects</li>
-                <li><strong>Find &beta; from the unloaded feedback network</strong></li>
-                <li><strong>Apply:</strong> A<sub>CL</sub> = A' / (1 + A'&beta;)</li>
-            </ol>
-        </div>
-
-        <h4>Example: Inverting Amplifier Loading</h4>
-        <p>The feedback network (R<sub>1</sub> and R<sub>2</sub>) loads the op-amp output:</p>
-        <p style="font-family: monospace;">
-            Z<sub>load,feedback</sub> = R<sub>1</sub> + R<sub>2</sub>
-        </p>
-        <p>This reduces the effective open-loop gain if the op-amp has significant output impedance.</p>
-    </div>
-
-    <div class="card">
-        <h3>Summary: Choosing the Right Topology</h3>
-
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Application</th>
-                    <th>Desired Characteristics</th>
-                    <th>Best Topology</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Voltage amplifier</td>
-                    <td>High Z<sub>in</sub>, Low Z<sub>out</sub></td>
-                    <td>Series-Shunt</td>
-                </tr>
-                <tr>
-                    <td>Transimpedance amplifier</td>
-                    <td>Low Z<sub>in</sub>, Low Z<sub>out</sub></td>
-                    <td>Shunt-Shunt</td>
-                </tr>
-                <tr>
-                    <td>Current amplifier</td>
-                    <td>Low Z<sub>in</sub>, High Z<sub>out</sub></td>
-                    <td>Shunt-Series</td>
-                </tr>
-                <tr>
-                    <td>Transconductance amp</td>
-                    <td>High Z<sub>in</sub>, High Z<sub>out</sub></td>
-                    <td>Series-Series</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
-    <div class="card">
-        <h3>Exercises</h3>
-        <div id="exercise-container"></div>
     </div>
 
     <script>
     (function() {
-        // Topology overview canvas
-        const overviewCanvas = document.getElementById('topology-overview-canvas');
-        if (overviewCanvas) {
-            const ctx = overviewCanvas.getContext('2d');
-            const w = overviewCanvas.width, h = overviewCanvas.height;
+        const boostIds = ['boost-vin', 'boost-nleds', 'boost-vf', 'boost-iled', 'boost-nstr', 'boost-head', 'boost-eff', 'boost-fsw'];
 
-            ctx.fillStyle = '#1a1a2e';
-            ctx.fillRect(0, 0, w, h);
+        function updateBoost() {
+            const vin = AD.num('boost-vin');
+            const nleds = parseInt(document.getElementById('boost-nleds').value);
+            const vf = AD.num('boost-vf');
+            const iled = AD.num('boost-iled');
+            const nstr = parseInt(document.getElementById('boost-nstr').value);
+            const head = AD.num('boost-head');
+            const eff = AD.num('boost-eff') / 100;
+            const fsw = AD.num('boost-fsw') * 1000;
 
-            // Draw 2x2 grid of topologies
-            const boxW = 220, boxH = 170;
-            const gap = 20;
+            // Update displays
+            document.getElementById('boost-vin-val').textContent = vin + 'V';
+            document.getElementById('boost-nleds-val').textContent = nleds;
+            document.getElementById('boost-vf-val').textContent = vf.toFixed(1) + 'V';
+            document.getElementById('boost-iled-val').textContent = iled + 'mA';
+            document.getElementById('boost-nstr-val').textContent = nstr;
+            document.getElementById('boost-head-val').textContent = head.toFixed(1) + 'V';
+            document.getElementById('boost-eff-val').textContent = (eff*100).toFixed(0) + '%';
+            document.getElementById('boost-fsw-val').textContent = (fsw/1000).toFixed(0) + 'kHz';
 
-            const topos = [
-                { name: 'Series-Shunt', zin: '\u2191', zout: '\u2193', gain: 'V/V', color: '#4caf50' },
-                { name: 'Shunt-Shunt', zin: '\u2193', zout: '\u2193', gain: 'V/I', color: '#4fc3f7' },
-                { name: 'Shunt-Series', zin: '\u2193', zout: '\u2191', gain: 'I/I', color: '#ff9800' },
-                { name: 'Series-Series', zin: '\u2191', zout: '\u2191', gain: 'I/V', color: '#9c27b0' }
-            ];
+            // Calculations
+            const vout = nleds * vf + head;
+            const duty = 1 - (vin / vout);
+            const pled = vout * (iled / 1000) * nstr;
+            const pin = pled / eff;
+            const iin = pin / vin;
+            const ploss = pin - pled;
 
-            topos.forEach((t, i) => {
-                const col = i % 2;
-                const row = Math.floor(i / 2);
-                const x = gap + col * (boxW + gap);
-                const y = gap + row * (boxH + gap);
+            // Inductor sizing (for CCM, 30% ripple)
+            const iout = (iled / 1000) * nstr;
+            const iinAvg = iout / (1 - duty);
+            const deltaI = iinAvg * 0.3;  // 30% ripple
+            const lmin = (vin * duty) / (fsw * deltaI);
 
-                // Box
-                ctx.strokeStyle = t.color;
-                ctx.lineWidth = 2;
-                ctx.strokeRect(x, y, boxW, boxH);
+            // Sense resistor (for 100mV at target current)
+            const rsense = 0.1 / (iled / 1000);
 
-                // Title
-                ctx.fillStyle = t.color;
-                ctx.font = 'bold 14px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText(t.name, x + boxW/2, y + 25);
+            // Diode average current
+            const idiode = iout;
 
-                // Details
-                ctx.fillStyle = '#fff';
-                ctx.font = '12px monospace';
-                ctx.textAlign = 'left';
-                ctx.fillText('Gain type: ' + t.gain, x + 20, y + 55);
-                ctx.fillText('Zin: ' + t.zin + ' (1+A\u03B2)', x + 20, y + 80);
-                ctx.fillText('Zout: ' + t.zout + ' (1+A\u03B2)', x + 20, y + 105);
-
-                // Simple block diagram
-                ctx.strokeStyle = '#666';
-                ctx.lineWidth = 1;
-                // Amplifier block
-                ctx.strokeRect(x + 80, y + 120, 60, 30);
-                ctx.fillStyle = '#666';
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('A', x + 110, y + 140);
-
-                // Input/output lines
-                ctx.beginPath();
-                ctx.moveTo(x + 40, y + 135);
-                ctx.lineTo(x + 80, y + 135);
-                ctx.moveTo(x + 140, y + 135);
-                ctx.lineTo(x + 180, y + 135);
-                ctx.stroke();
-            });
+            document.getElementById('boost-vout').textContent = vout.toFixed(1) + 'V';
+            document.getElementById('boost-duty').textContent = (duty * 100).toFixed(1) + '%';
+            document.getElementById('boost-pled').textContent = pled.toFixed(2) + 'W';
+            document.getElementById('boost-iin').textContent = (iin * 1000).toFixed(0) + 'mA';
+            document.getElementById('boost-lmin').textContent = AD.fmt(lmin, 2) + 'H';
+            document.getElementById('boost-rsense').textContent = rsense.toFixed(1) + 'Ω';
+            document.getElementById('boost-ploss').textContent = ploss.toFixed(2) + 'W';
+            document.getElementById('boost-idiode').textContent = (idiode * 1000).toFixed(0) + 'mA';
         }
 
-        // Topology calculator
-        window.updateTopoCalc = function() {
-            const topo = document.getElementById('topo-select').value;
-            const loopGain = AD.num('loop-gain-topo');
-            const zinOL = AD.num('zin-ol');
-            const zoutOL = AD.num('zout-ol');
+        boostIds.forEach(id => {
+            document.getElementById(id).addEventListener('input', updateBoost);
+        });
 
-            document.getElementById('loop-gain-topo-val').textContent = loopGain;
-
-            let zinCL, zoutCL, zinDir, zoutDir;
-            const factor = 1 + loopGain;
-
-            switch(topo) {
-                case 'series-shunt':
-                    zinCL = zinOL * factor;
-                    zoutCL = zoutOL / factor;
-                    zinDir = '\u2191 (multiplied by ' + factor.toFixed(0) + ')';
-                    zoutDir = '\u2193 (divided by ' + factor.toFixed(0) + ')';
-                    break;
-                case 'shunt-shunt':
-                    zinCL = zinOL / factor;
-                    zoutCL = zoutOL / factor;
-                    zinDir = '\u2193 (divided by ' + factor.toFixed(0) + ')';
-                    zoutDir = '\u2193 (divided by ' + factor.toFixed(0) + ')';
-                    break;
-                case 'shunt-series':
-                    zinCL = zinOL / factor;
-                    zoutCL = zoutOL * factor;
-                    zinDir = '\u2193 (divided by ' + factor.toFixed(0) + ')';
-                    zoutDir = '\u2191 (multiplied by ' + factor.toFixed(0) + ')';
-                    break;
-                case 'series-series':
-                    zinCL = zinOL * factor;
-                    zoutCL = zoutOL * factor;
-                    zinDir = '\u2191 (multiplied by ' + factor.toFixed(0) + ')';
-                    zoutDir = '\u2191 (multiplied by ' + factor.toFixed(0) + ')';
-                    break;
-            }
-
-            function formatZ(z) {
-                if (z >= 1e9) return (z/1e9).toFixed(2) + ' G\u03A9';
-                if (z >= 1e6) return (z/1e6).toFixed(2) + ' M\u03A9';
-                if (z >= 1e3) return (z/1e3).toFixed(2) + ' k\u03A9';
-                if (z >= 1) return z.toFixed(2) + ' \u03A9';
-                return (z*1e3).toFixed(2) + ' m\u03A9';
-            }
-
-            document.getElementById('topo-results').innerHTML = `
-                <p><strong>Topology:</strong> ${topo}</p>
-                <p><strong>Loop Gain (1+A&beta;):</strong> ${factor}</p>
-                <hr style="border-color:#333; margin: 10px 0;">
-                <p><strong>Input Impedance:</strong></p>
-                <p style="margin-left:20px;">Open-loop: ${formatZ(zinOL)}</p>
-                <p style="margin-left:20px;">Closed-loop: ${formatZ(zinCL)} ${zinDir}</p>
-                <p><strong>Output Impedance:</strong></p>
-                <p style="margin-left:20px;">Open-loop: ${formatZ(zoutOL)}</p>
-                <p style="margin-left:20px;">Closed-loop: ${formatZ(zoutCL)} ${zoutDir}</p>
-            `;
-        };
-        updateTopoCalc();
-
-        // Schematics
-        if (typeof SchematicSVG !== 'undefined') {
-            // Series-Shunt (Non-inverting)
-            const ssContainer = document.getElementById('sch-series-shunt');
-            if (ssContainer) {
-                const sch = new SchematicSVG(ssContainer, 400, 180);
-                const opX = 200, opY = 90;
-                sch.opamp(opX, opY);
-                const op = SchematicSVG.opampTerminals(opX, opY);
-
-                // Input to non-inverting
-                sch.wire([[50, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-                sch.nodeLabel(40, op.nonInvInput.y, 'Vin');
-
-                // Feedback network
-                const fbY = op.invInput.y + 40;
-                sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, fbY]]);
-                sch.resistor(op.invInput.x, fbY, 'vertical', { label: 'R1' });
-                sch.ground(op.invInput.x, fbY + 50 + 20);
-                sch.wire([[op.invInput.x, fbY + 50], [op.invInput.x, fbY + 50 + 20]]);
-
-                // R2 from inverting to output
-                const r2Y = op.invInput.y - 30;
-                sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, r2Y]]);
-                sch.resistor(op.invInput.x, r2Y, 'horizontal', { label: 'R2' });
-                sch.wire([[op.invInput.x + 50, r2Y], [op.output.x + 30, r2Y]]);
-                sch.wire([[op.output.x + 30, r2Y], [op.output.x + 30, op.output.y]]);
-                sch.wire([[op.output.x, op.output.y], [op.output.x + 50, op.output.y]]);
-                sch.dot(op.output.x + 30, op.output.y);
-                sch.nodeLabel(op.output.x + 60, op.output.y, 'Vout');
-
-                ssContainer.innerHTML = sch.render();
-            }
-
-            // Shunt-Shunt (TIA)
-            const shuntContainer = document.getElementById('sch-shunt-shunt');
-            if (shuntContainer) {
-                const sch = new SchematicSVG(shuntContainer, 400, 180);
-                const opX = 200, opY = 90;
-                sch.opamp(opX, opY);
-                const op = SchematicSVG.opampTerminals(opX, opY);
-
-                // Current source input
-                sch.wire([[50, op.invInput.y], [op.invInput.x, op.invInput.y]]);
-                sch.nodeLabel(30, op.invInput.y, 'Iin');
-                // Arrow for current
-                const ctx = shuntContainer.querySelector('svg');
-
-                // Non-inverting to ground
-                sch.wire([[op.nonInvInput.x, op.nonInvInput.y], [op.nonInvInput.x - 20, op.nonInvInput.y]]);
-                sch.ground(op.nonInvInput.x - 20, op.nonInvInput.y + 20);
-                sch.wire([[op.nonInvInput.x - 20, op.nonInvInput.y], [op.nonInvInput.x - 20, op.nonInvInput.y + 20]]);
-
-                // Feedback resistor
-                const rfY = op.invInput.y - 35;
-                sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, rfY]]);
-                sch.resistor(op.invInput.x, rfY, 'horizontal', { label: 'RF' });
-                sch.wire([[op.invInput.x + 50, rfY], [op.output.x + 30, rfY]]);
-                sch.wire([[op.output.x + 30, rfY], [op.output.x + 30, op.output.y]]);
-                sch.wire([[op.output.x, op.output.y], [op.output.x + 50, op.output.y]]);
-                sch.dot(op.output.x + 30, op.output.y);
-                sch.dot(op.invInput.x, op.invInput.y);
-                sch.nodeLabel(op.output.x + 60, op.output.y, 'Vout');
-
-                shuntContainer.innerHTML = sch.render();
-            }
-        }
-
-        // Exercises
-        const exercises = [
-            {
-                question: "An inverting amplifier (shunt-shunt topology) has A\u03B2 = 10,000 and open-loop Zin = 1M\u03A9. What is the closed-loop input impedance?",
-                type: "numeric",
-                answer: 100,
-                tolerance: 5,
-                unit: "\u03A9",
-                hint: "Shunt input reduces Zin by (1+A\u03B2)"
-            },
-            {
-                question: "For a series-shunt amplifier with A\u03B2 = 999, by what factor is the output impedance reduced?",
-                type: "numeric",
-                answer: 1000,
-                tolerance: 10,
-                unit: "\u00D7",
-                hint: "Shunt output reduces Zout by (1+A\u03B2)"
-            },
-            {
-                question: "Which topology would you use for a voltage-controlled current source?",
-                type: "multiple-choice",
-                options: [
-                    "Series-Shunt",
-                    "Shunt-Shunt",
-                    "Shunt-Series",
-                    "Series-Series"
-                ],
-                answer: 3,
-                hint: "V-to-I conversion needs high Zin (series input) and high Zout (series output)"
-            },
-            {
-                question: "A transimpedance amplifier needs low input impedance. Which connection type at the input achieves this?",
-                type: "multiple-choice",
-                options: [
-                    "Series (voltage subtraction)",
-                    "Shunt (current subtraction)",
-                    "Either works equally well",
-                    "Neither - use a buffer"
-                ],
-                answer: 1,
-                hint: "Shunt mixing at input reduces input impedance"
-            }
-        ];
-
-        const container = document.getElementById('exercise-container');
-        if (typeof ExerciseWidget !== 'undefined') {
-            exercises.forEach((ex, i) => {
-                const div = document.createElement('div');
-                div.className = 'exercise-item';
-                container.appendChild(div);
-                new ExerciseWidget(div, {
-                    question: ex.question,
-                    type: ex.type,
-                    answer: ex.answer,
-                    tolerance: ex.tolerance,
-                    unit: ex.unit,
-                    options: ex.options,
-                    hint: ex.hint
-                });
-            });
-        }
+        updateBoost();
     })();
     </script>
-</div>
-\n
+</section>
+
+<!-- Dimming Methods -->
+<section class="card">
+    <h3>LED Dimming Techniques</h3>
+    <p>
+        Display brightness adjustment requires dimming the LEDs. Two primary methods exist:
+    </p>
+
+    <h4>1. PWM Dimming (Digital)</h4>
+    <div class="diagram-container">
+        <canvas id="pwm-dimming-canvas" width="700" height="280" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+    </div>
+
+    <h4>2. Analog (DC) Dimming</h4>
+    <div class="diagram-container">
+        <canvas id="analog-dimming-canvas" width="700" height="280" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+    </div>
+
+    <h4>Hybrid Approach (Best of Both)</h4>
+    <p>
+        Most modern backlight drivers use <strong>hybrid dimming</strong>:
+    </p>
+    <ul>
+        <li><strong>Above ~20%:</strong> Use analog dimming (no flicker)</li>
+        <li><strong>Below ~20%:</strong> Use PWM dimming at high frequency (wide range)</li>
+    </ul>
+</section>
+
+<!-- Multi-String Current Matching -->
+<section class="card">
+    <h3>Multi-String Current Matching</h3>
+    <p>
+        Displays have multiple LED strings for uniform illumination. Due to LED Vf variations,
+        strings need <strong>individual current regulation</strong> to maintain matching.
+    </p>
+
+    <!-- SVG: Multi-String Architecture -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 550 320" class="circuit-svg" style="max-width: 550px; background: var(--panel);">
+            <!-- Boost Output Rail -->
+            <line x1="50" y1="50" x2="500" y2="50" stroke="#ef4444" stroke-width="2"/>
+            <text x="30" y="55" fill="#ef4444" font-size="11">VOUT</text>
+
+            <!-- String 1 -->
+            <g id="string1">
+                <line x1="100" y1="50" x2="100" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="80" y="80" width="40" height="80" fill="none" stroke="#34d399" stroke-width="2" rx="3"/>
+                <text x="100" y="125" fill="#34d399" font-size="10" text-anchor="middle">LED</text>
+                <text x="100" y="140" fill="#34d399" font-size="10" text-anchor="middle">String1</text>
+                <line x1="100" y1="160" x2="100" y2="200" stroke="#e6edf3" stroke-width="1.5"/>
+                <!-- Current sink -->
+                <rect x="80" y="200" width="40" height="30" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="100" y="220" fill="#fbbf24" font-size="9" text-anchor="middle">80mA</text>
+                <line x1="100" y1="230" x2="100" y2="260" stroke="#e6edf3" stroke-width="1.5"/>
+            </g>
+
+            <!-- String 2 -->
+            <g id="string2">
+                <line x1="200" y1="50" x2="200" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="180" y="80" width="40" height="80" fill="none" stroke="#34d399" stroke-width="2" rx="3"/>
+                <text x="200" y="125" fill="#34d399" font-size="10" text-anchor="middle">LED</text>
+                <text x="200" y="140" fill="#34d399" font-size="10" text-anchor="middle">String2</text>
+                <line x1="200" y1="160" x2="200" y2="200" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="180" y="200" width="40" height="30" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="200" y="220" fill="#fbbf24" font-size="9" text-anchor="middle">80mA</text>
+                <line x1="200" y1="230" x2="200" y2="260" stroke="#e6edf3" stroke-width="1.5"/>
+            </g>
+
+            <!-- String 3 -->
+            <g id="string3">
+                <line x1="300" y1="50" x2="300" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="280" y="80" width="40" height="80" fill="none" stroke="#34d399" stroke-width="2" rx="3"/>
+                <text x="300" y="125" fill="#34d399" font-size="10" text-anchor="middle">LED</text>
+                <text x="300" y="140" fill="#34d399" font-size="10" text-anchor="middle">String3</text>
+                <line x1="300" y1="160" x2="300" y2="200" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="280" y="200" width="40" height="30" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="300" y="220" fill="#fbbf24" font-size="9" text-anchor="middle">80mA</text>
+                <line x1="300" y1="230" x2="300" y2="260" stroke="#e6edf3" stroke-width="1.5"/>
+            </g>
+
+            <!-- String 4 -->
+            <g id="string4">
+                <line x1="400" y1="50" x2="400" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="380" y="80" width="40" height="80" fill="none" stroke="#34d399" stroke-width="2" rx="3"/>
+                <text x="400" y="125" fill="#34d399" font-size="10" text-anchor="middle">LED</text>
+                <text x="400" y="140" fill="#34d399" font-size="10" text-anchor="middle">String4</text>
+                <line x1="400" y1="160" x2="400" y2="200" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="380" y="200" width="40" height="30" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="400" y="220" fill="#fbbf24" font-size="9" text-anchor="middle">80mA</text>
+                <line x1="400" y1="230" x2="400" y2="260" stroke="#e6edf3" stroke-width="1.5"/>
+            </g>
+
+            <!-- GND Rail -->
+            <line x1="50" y1="260" x2="500" y2="260" stroke="#6ee7ff" stroke-width="2"/>
+            <text x="30" y="265" fill="#6ee7ff" font-size="11">GND</text>
+
+            <!-- Current Sink IC -->
+            <rect x="130" y="275" width="220" height="35" fill="none" stroke="#a78bfa" stroke-width="2" rx="5"/>
+            <text x="240" y="298" fill="#a78bfa" font-size="11" text-anchor="middle" font-weight="bold">
+                Multi-Channel Current Sink IC
+            </text>
+
+            <!-- Feedback to boost -->
+            <line x1="470" y1="200" x2="470" y2="300" stroke="#fb7185" stroke-width="1" stroke-dasharray="3,2"/>
+            <text x="480" y="250" fill="#fb7185" font-size="9">Headroom</text>
+            <text x="480" y="262" fill="#fb7185" font-size="9">Feedback</text>
+
+            <!-- Annotations -->
+            <text x="470" y="80" fill="#e6edf3" font-size="9">Boost regulates to</text>
+            <text x="470" y="92" fill="#e6edf3" font-size="9">maintain min headroom</text>
+            <text x="470" y="104" fill="#e6edf3" font-size="9">on current sinks</text>
+        </svg>
+    </div>
+
+    <h4>Adaptive Boost Output</h4>
+    <p>
+        The boost controller monitors the voltage across current sinks and adjusts VOUT
+        to maintain minimum headroom (typically 0.5-1.5V). This maximizes efficiency
+        by not over-driving the boost when LEDs have lower Vf.
+    </p>
+
+    <div class="notice">
+        <strong>Current Matching Spec:</strong> ±1-3% typical between strings.
+        LED drivers like MAX16809, TPS61500, and ISL97684 integrate 4-16 matched
+        current sinks with per-string fault detection.
+    </div>
+</section>
+
+<!-- Component Selection -->
+<section class="card">
+    <h3>Real Component Selection</h3>
+
+    <h4>Boost LED Driver ICs</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Part Number</th>
+                <th>Strings</th>
+                <th>VIN</th>
+                <th>VOUT Max</th>
+                <th>Features</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>MAX16809</td><td>16</td><td>4.5-24V</td><td>45V</td><td>1.2MHz, fault detect</td></tr>
+            <tr><td>MAX20446</td><td>6</td><td>4.5-36V</td><td>55V</td><td>Boost/SEPIC/Flyback</td></tr>
+            <tr><td>TPS61500</td><td>6</td><td>3-18V</td><td>40V</td><td>2.4MHz, adaptive out</td></tr>
+            <tr><td>LED7707</td><td>6</td><td>5-28V</td><td>45V</td><td>ST, 85mA/channel</td></tr>
+            <tr><td>ISL97684</td><td>4</td><td>4.5-23V</td><td>45V</td><td>Phase-shift PWM</td></tr>
+            <tr><td>LM3697</td><td>3</td><td>2.5-5.5V</td><td>40V</td><td>Smartphone backlight</td></tr>
+        </tbody>
+    </table>
+
+    <h4>Key Passive Components</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Component</th>
+                <th>Typical Value</th>
+                <th>Requirements</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>Boost Inductor</td><td>22-100µH</td><td>Low DCR, rated for Ipk, shielded</td></tr>
+            <tr><td>Schottky Diode</td><td>SS34, MBRS340</td><td>Vr > VOUT, low Vf, fast</td></tr>
+            <tr><td>Output Capacitor</td><td>4.7-22µF</td><td>Ceramic X5R/X7R, 50V rated</td></tr>
+            <tr><td>Input Capacitor</td><td>10-47µF</td><td>Low ESR, handle ripple current</td></tr>
+            <tr><td>Sense Resistor</td><td>0.5-5Ω</td><td>1% tolerance, low TCR</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- SPICE Simulation -->
+<section class="card">
+    <h3>SPICE Simulation - Boost LED Driver</h3>
+
+    <div class="spice-netlist">
+        <pre id="spice-led">* Boost Converter LED Backlight Driver
+* 7 LEDs per string, 4 strings, 80mA each
+
+.param VIN=12 VLED=3.2 NLEDS=7 ILED=80m NSTR=4
+
+* Calculate output voltage
+.param VOUT={NLEDS*VLED+1.5}
+
+* Input supply
+VIN vin 0 DC {VIN}
+
+* Boost converter (behavioral model)
+* Simplified: just shows current limiting behavior
+Lboost vin sw 47u IC=0
+Dboost sw vout DSCHOTTKY
+.model DSCHOTTKY D(IS=1u RS=20m VJ=0.4 CJO=50p)
+
+* MOSFET switch (PWM controlled)
+.param DUTY={1-VIN/VOUT}
+Vpwm pwm_in 0 PULSE(0 10 0 1n 1n {DUTY/600k} {1/600k})
+Msw sw 0 pwm_gate NMOS_SW
+Vgate pwm_gate 0 PWL(0 0)
+Bgate pwm_gate 0 V=IF(V(pwm_in)>5, 10, 0)
+.model NMOS_SW NMOS(VTO=2 KP=50 RD=20m)
+
+* Output capacitor
+Cout vout 0 10u IC={VOUT}
+
+* LED Strings (4 parallel strings of 7 LEDs each)
+* Each string modeled as voltage source + current sink
+Vled1 vout led1_bot DC {NLEDS*VLED}
+Iled1 led1_bot 0 DC {ILED}
+
+Vled2 vout led2_bot DC {NLEDS*VLED}
+Iled2 led2_bot 0 DC {ILED}
+
+Vled3 vout led3_bot DC {NLEDS*VLED}
+Iled3 led3_bot 0 DC {ILED}
+
+Vled4 vout led4_bot DC {NLEDS*VLED}
+Iled4 led4_bot 0 DC {ILED}
+
+.tran 100n 500u 0 100n
+
+.control
+run
+plot V(vout) title 'Boost Output Voltage'
+plot I(Lboost) title 'Inductor Current'
+plot V(sw) title 'Switch Node Voltage'
+.endc
+.end</pre>
+        <button onclick="AD.copyToClipboard(document.getElementById('spice-led').textContent)">Copy Netlist</button>
+    </div>
+</section>
+
+<!-- Checklist -->
+<section class="card">
+    <h3>LED Backlight Driver Design Checklist</h3>
+    <div class="checklist" data-lesson="m24l2">
+        <label><input type="checkbox" data-k="1"><span>Calculate total LED string voltage (N × Vf + headroom)</span></label>
+        <label><input type="checkbox" data-k="2"><span>Verify boost can achieve required VOUT at min VIN</span></label>
+        <label><input type="checkbox" data-k="3"><span>Size inductor for continuous conduction mode</span></label>
+        <label><input type="checkbox" data-k="4"><span>Select Schottky diode rated for VOUT and average current</span></label>
+        <label><input type="checkbox" data-k="5"><span>Design current matching for uniform brightness</span></label>
+        <label><input type="checkbox" data-k="6"><span>Choose dimming method (PWM/analog/hybrid)</span></label>
+        <label><input type="checkbox" data-k="7"><span>Calculate efficiency at typical and min brightness</span></label>
+        <label><input type="checkbox" data-k="8"><span>Add open/short LED fault protection</span></label>
+        <label><input type="checkbox" data-k="9"><span>Check thermal design at max brightness</span></label>
+        <label><input type="checkbox" data-k="10"><span>Verify EMI compliance (switching freq, layout)</span></label>
+    </div>
+</section>
+
+<!-- Exercises -->
+<section class="card">
+    <h3>Progressive Exercises</h3>
+
+    <div class="exercise-group">
+        <h4>Level 1: Fundamentals</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 1:</strong> A laptop display has 8 LEDs per string with Vf = 3.1V each. Including 1.2V headroom, what boost output voltage is needed?</p>
+            <input type="text" id="led-ex1" placeholder="VOUT (V)">
+            <button onclick="checkLED(1, 26, 2)">Check</button>
+            <span id="led-ex1-fb" class="feedback"></span>
+            <div class="hint">VOUT = (N × Vf) + headroom</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 2:</strong> A boost converter operates from 12V input to 26V output. What is the duty cycle?</p>
+            <input type="text" id="led-ex2" placeholder="Duty cycle (%)">
+            <button onclick="checkLED(2, 53.85, 3)">Check</button>
+            <span id="led-ex2-fb" class="feedback"></span>
+            <div class="hint">D = 1 - (VIN/VOUT)</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 3:</strong> An LED string draws 60mA at 25.5V. What power does the string consume?</p>
+            <input type="text" id="led-ex3" placeholder="Power (W)">
+            <button onclick="checkLED(3, 1.53, 2)">Check</button>
+            <span id="led-ex3-fb" class="feedback"></span>
+            <div class="hint">P = V × I</div>
+        </div>
+    </div>
+
+    <div class="exercise-group">
+        <h4>Level 2: Application</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 4:</strong> A backlight has 6 strings at 70mA each, 24V output from 8V input. At 85% efficiency, what is the input current?</p>
+            <input type="text" id="led-ex4" placeholder="Input current (mA)">
+            <button onclick="checkLED(4, 1482, 5)">Check</button>
+            <span id="led-ex4-fb" class="feedback"></span>
+            <div class="hint">PIN = POUT/η, then IIN = PIN/VIN</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 5:</strong> A boost LED driver at 500kHz needs CCM with 30% ripple. Input is 12V, duty = 50%, average input current = 400mA. What inductor value?</p>
+            <input type="text" id="led-ex5" placeholder="Inductor (µH)">
+            <button onclick="checkLED(5, 50, 10)">Check</button>
+            <span id="led-ex5-fb" class="feedback"></span>
+            <div class="hint">ΔI = 0.3 × Iavg, L = VIN × D / (f × ΔI)</div>
+        </div>
+    </div>
+
+    <div class="exercise-group">
+        <h4>Level 3: System Design</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 6:</strong> PWM dimming at 200Hz with 1% duty cycle. What is the ON time per cycle?</p>
+            <input type="text" id="led-ex6" placeholder="ON time (µs)">
+            <button onclick="checkLED(6, 50, 5)">Check</button>
+            <span id="led-ex6-fb" class="feedback"></span>
+            <div class="hint">Period = 1/f = 5ms, ON time = D × Period</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 7:</strong> A 4-string backlight with 80mA/string draws total 320mA from 28V output (8.96W). With 88% efficiency from 12V, what is heat dissipated in the boost driver?</p>
+            <input type="text" id="led-ex7" placeholder="Heat (W)">
+            <button onclick="checkLED(7, 1.22, 5)">Check</button>
+            <span id="led-ex7-fb" class="feedback"></span>
+            <div class="hint">PIN = POUT/η, Heat = PIN - POUT</div>
+        </div>
+    </div>
+
+    <script>
+    function checkLED(n, expected, tolerance) {
+        const ans = parseFloat(document.getElementById('led-ex' + n).value);
+        const fb = document.getElementById('led-ex' + n + '-fb');
+
+        if (isNaN(ans)) {
+            fb.textContent = 'Please enter a number';
+            fb.className = 'feedback incorrect';
+            return;
+        }
+
+        const error = Math.abs((ans - expected) / expected * 100);
+
+        if (error <= tolerance) {
+            fb.textContent = '✓ Correct!';
+            fb.className = 'feedback correct';
+        } else {
+            fb.textContent = '✗ Try again. Expected: ' + expected.toFixed(2);
+            fb.className = 'feedback incorrect';
+        }
+    }
+    </script>
+</section>
+
+<!-- References -->
+<section class="card">
+    <h3>Industry References</h3>
+    <ul>
+        <li><a href="https://www.analog.com/en/resources/technical-articles/boost-backlight-led-driver.html" target="_blank">Boost Backlight LED Driver (Analog Devices)</a></li>
+        <li><a href="https://www.analog.com/en/resources/technical-articles/how-to-design-an-led-backlight-driving-system-using-the-max20446.html" target="_blank">LED Backlight System Design with MAX20446 (Analog Devices)</a></li>
+        <li><a href="https://www.ti.com/power-management/led-drivers/backlight-led-drivers/overview.html" target="_blank">Backlight LED Drivers (Texas Instruments)</a></li>
+        <li><a href="https://www.topwaydisplay.com/en/blog/lcd-backlight-design" target="_blank">LCD Backlight Design Guide (Topway Display)</a></li>
+        <li><strong>LM3697 Datasheet</strong> - Smartphone backlight driver</li>
+    </ul>
+</section>
+
+<script>
+(function() {
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    // PWM Dimming Canvas
+    (function() {
+        const canvas = document.getElementById('pwm-dimming-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Title
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('PWM Dimming (Digital)', canvas.width / 2, 20);
+
+        // Column labels
+        const cols = [120, 320, 520];
+        const labels = ['100% Brightness', '50% Brightness', '10% Brightness'];
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEK.ch2;
+        labels.forEach((l, i) => ctx.fillText(l, cols[i], 45));
+
+        // Draw waveforms
+        const baseY = 100;
+        const high = 50;
+        const period = 100;
+
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+
+        // 100% - always on
+        ctx.beginPath();
+        ctx.moveTo(50, baseY - high);
+        ctx.lineTo(190, baseY - high);
+        ctx.stroke();
+
+        // 50% - square wave
+        ctx.beginPath();
+        ctx.moveTo(250, baseY);
+        ctx.lineTo(270, baseY);
+        ctx.lineTo(270, baseY - high);
+        ctx.lineTo(320, baseY - high);
+        ctx.lineTo(320, baseY);
+        ctx.lineTo(370, baseY);
+        ctx.lineTo(370, baseY - high);
+        ctx.lineTo(390, baseY - high);
+        ctx.stroke();
+
+        // 10% - narrow pulses
+        ctx.beginPath();
+        ctx.moveTo(450, baseY);
+        for (let i = 0; i < 4; i++) {
+            const x = 460 + i * 35;
+            ctx.lineTo(x, baseY);
+            ctx.lineTo(x, baseY - high);
+            ctx.lineTo(x + 10, baseY - high);
+            ctx.lineTo(x + 10, baseY);
+        }
+        ctx.lineTo(600, baseY);
+        ctx.stroke();
+
+        // Baseline
+        ctx.strokeStyle = '#6b7280';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(40, baseY);
+        ctx.lineTo(660, baseY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Y-axis labels
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('Imax', 38, baseY - high + 4);
+        ctx.fillText('0', 38, baseY + 4);
+
+        // Period label
+        ctx.textAlign = 'center';
+        ctx.fillText('Period = 1/fPWM (typically 200Hz - 20kHz)', canvas.width / 2, 135);
+
+        // Advantages / Disadvantages
+        ctx.textAlign = 'left';
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('ADVANTAGES:', 50, 165);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('✓ Constant color temperature (LEDs at full current when ON)', 50, 185);
+        ctx.fillText('✓ Wide dimming range (1000:1 or more)', 50, 200);
+        ctx.fillText('✓ Precise digital control', 50, 215);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.fillText('DISADVANTAGES:', 50, 240);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('✗ Can cause audible noise in inductors (< 20kHz)', 50, 255);
+        ctx.fillText('✗ EMI concerns from fast edges', 50, 270);
+    })();
+
+    // Analog Dimming Canvas
+    (function() {
+        const canvas = document.getElementById('analog-dimming-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Title
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Analog (DC) Dimming', canvas.width / 2, 20);
+
+        // Column labels
+        const cols = [120, 320, 520];
+        const labels = ['100% Brightness', '50% Brightness', '10% Brightness'];
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEK.ch2;
+        labels.forEach((l, i) => ctx.fillText(l, cols[i], 45));
+
+        // Draw waveforms - constant DC levels
+        const baseY = 110;
+        const maxH = 60;
+
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+
+        // 100% - full level
+        ctx.beginPath();
+        ctx.moveTo(50, baseY - maxH);
+        ctx.lineTo(190, baseY - maxH);
+        ctx.stroke();
+
+        // 50% - mid level
+        ctx.beginPath();
+        ctx.moveTo(250, baseY - maxH * 0.5);
+        ctx.lineTo(390, baseY - maxH * 0.5);
+        ctx.stroke();
+
+        // 10% - low level
+        ctx.beginPath();
+        ctx.moveTo(450, baseY - maxH * 0.1);
+        ctx.lineTo(590, baseY - maxH * 0.1);
+        ctx.stroke();
+
+        // Baseline
+        ctx.strokeStyle = '#6b7280';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(40, baseY);
+        ctx.lineTo(660, baseY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Y-axis labels
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('Imax', 38, baseY - maxH + 4);
+        ctx.fillText('0.5×Imax', 38, baseY - maxH * 0.5 + 4);
+        ctx.fillText('0.1×Imax', 38, baseY - maxH * 0.1 + 4);
+        ctx.fillText('0', 38, baseY + 4);
+
+        // Advantages / Disadvantages
+        ctx.textAlign = 'left';
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('ADVANTAGES:', 50, 155);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('✓ No flicker or audible noise', 50, 175);
+        ctx.fillText('✓ Simpler EMI profile', 50, 190);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.fillText('DISADVANTAGES:', 50, 220);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('✗ Color shift at low currents (LED color temp changes)', 50, 235);
+        ctx.fillText('✗ Limited dimming range (~10:1 practical)', 50, 250);
+        ctx.fillText('✗ Efficiency drops at low currents', 50, 265);
+    })();
+})();
+</script>
+
+</lesson-content>
 <script>
 (function () {
-    const canvas = document.getElementById('identify-topology-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const TEK = (window.AD && AD.TEK_COLORS) || {};
+    const host = document.getElementById('led-boost-diagram');
+    if (!host || !window.ComponentModels) return;
 
-    // The four topologies, indexed by [input connection][output sampling].
-    // Naming convention here is input-first, which is the one Razavi uses.
-    const T = {
-        'series|voltage': {
-            name: 'Series-shunt',
-            alt: 'voltage amplifier',
-            stab: 'voltage gain Av',
-            zin: 'raised by (1 + T)',
-            zout: 'lowered by (1 + T)',
-            eg: 'The non-inverting op-amp. Ideal when you want a stiff voltage output from a high-impedance source.'
-        },
-        'shunt|voltage': {
-            name: 'Shunt-shunt',
-            alt: 'transimpedance amplifier',
-            stab: 'transimpedance Rm = Vout/Iin',
-            zin: 'lowered by (1 + T)',
-            zout: 'lowered by (1 + T)',
-            eg: 'The photodiode TIA. Low input impedance is the point — it holds the diode at virtual ground.'
-        },
-        'series|current': {
-            name: 'Series-series',
-            alt: 'transconductance amplifier',
-            stab: 'transconductance Gm = Iout/Vin',
-            zin: 'raised by (1 + T)',
-            zout: 'raised by (1 + T)',
-            eg: 'Emitter degeneration. Gm ≈ 1/RE once gm·RE >> 1, which is why the stage becomes so predictable.'
-        },
-        'shunt|current': {
-            name: 'Shunt-series',
-            alt: 'current amplifier',
-            stab: 'current gain Ai',
-            zin: 'lowered by (1 + T)',
-            zout: 'raised by (1 + T)',
-            eg: 'Current mirrors and current-output stages. Both impedances move the way a current source wants.'
-        }
-    };
+    // Boost converter feeding an LED string. Q1 pulls the SW node to ground
+    // to charge L; when it opens, L forces SW above Vout and D1 conducts.
+    const RAIL = 100, SW = 300, QY = 200, GND = 290;
 
-    function current() {
-        const i = document.getElementById('topo-in').value;
-        const o = document.getElementById('topo-out').value;
-        return { i: i, o: o, t: T[i + '|' + o] };
-    }
-
-    function update() {
-        const s = current();
-        AD.setText('topo-name', s.t.name);
-        AD.setText('topo-stab', s.t.stab);
-        AD.setText('topo-zin', s.t.zin);
-        AD.setText('topo-zout', s.t.zout);
-        const n = document.getElementById('topo-note');
-        if (n) n.textContent = s.t.alt.charAt(0).toUpperCase() + s.t.alt.slice(1) + '. ' + s.t.eg;
-        draw(s);
-    }
-
-    function draw(s) {
-        const W = canvas.width, H = canvas.height;
-        ctx.fillStyle = TEK.bg || '#001a00';
-        ctx.fillRect(0, 0, W, H);
-
-        const padL = 150, padT = 70;
-        const cw = (W - padL - 30) / 2, ch = (H - padT - 40) / 2;
-
-        const cols = ['voltage', 'current'];   // output sampling
-        const rows = ['series', 'shunt'];      // input connection
-
-        ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(230,237,243,0.9)';
-        ctx.fillText('Output samples →', padL + cw, 26);
-        cols.forEach((c, j) => {
-            ctx.fillStyle = 'rgba(230,237,243,0.85)';
-            ctx.fillText(c === 'voltage' ? 'voltage (shunt at output)' : 'current (series at output)',
-                         padL + cw * (j + 0.5), 50);
-        });
-
-        ctx.save();
-        ctx.translate(22, padT + ch);
-        ctx.rotate(-Math.PI / 2);
-        ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(230,237,243,0.9)';
-        ctx.fillText('Input adds →', 0, 0);
-        ctx.restore();
-
-        rows.forEach((r, i) => {
-            cols.forEach((c, j) => {
-                const x = padL + cw * j, y = padT + ch * i;
-                const on = (r === s.i && c === s.o);
-                const t = T[r + '|' + c];
-
-                ctx.fillStyle = on ? 'rgba(110,231,255,0.16)' : 'rgba(255,255,255,0.03)';
-                ctx.fillRect(x + 4, y + 4, cw - 8, ch - 8);
-                ctx.strokeStyle = on ? '#6ee7ff' : 'rgba(230,237,243,0.22)';
-                ctx.lineWidth = on ? 2.5 : 1;
-                ctx.strokeRect(x + 4, y + 4, cw - 8, ch - 8);
-
-                ctx.textAlign = 'center';
-                ctx.fillStyle = on ? '#6ee7ff' : 'rgba(230,237,243,0.55)';
-                ctx.font = (on ? 'bold ' : '') + '14px ui-sans-serif, system-ui, sans-serif';
-                ctx.fillText(t.name, x + cw / 2, y + ch / 2 - 14);
-                ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
-                ctx.fillStyle = on ? 'rgba(230,237,243,0.9)' : 'rgba(230,237,243,0.4)';
-                ctx.fillText(t.alt, x + cw / 2, y + ch / 2 + 6);
-                ctx.fillText('Zin ' + (t.zin.indexOf('raised') === 0 ? '↑' : '↓') +
-                             '   Zout ' + (t.zout.indexOf('raised') === 0 ? '↑' : '↓'),
-                             x + cw / 2, y + ch / 2 + 26);
-            });
-
-            ctx.save();
-            ctx.textAlign = 'right';
-            ctx.fillStyle = 'rgba(230,237,243,0.85)';
-            ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
-            ctx.fillText(r === 'series' ? 'voltage in series' : 'current in parallel',
-                         padL - 12, padT + ch * (i + 0.5));
-            ctx.restore();
-        });
-    }
-
-    ['topo-in', 'topo-out'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('change', update);
+    host.innerHTML = ComponentModels.diagram({
+        width: 700, height: 380, title: 'Boost LED driver',
+        parts: [
+            { key: 'port', x: 55, y: RAIL, label: 'VIN', value: '5-20 V', labelPos: 'left' },
+            { key: 'capacitor', x: 130, y: 165, rotate: 90, label: 'CIN', labelPos: 'left' },
+            { key: 'inductor', x: 215, y: RAIL, label: 'L', value: '22-100 \u00b5H', labelPos: 'top' },
+            // Placed 15 px left so the drain/source column lands on SW:
+            // an nmos's drain sits at x+15, not on its body centre.
+            { key: 'nmos', x: SW - 15, y: QY, label: 'Q1', labelPos: 'right' },
+            { key: 'schottky', x: 400, y: RAIL, label: 'D1', labelPos: 'top' },
+            { key: 'capacitor', x: 480, y: 165, rotate: 90, label: 'COUT', labelPos: 'right' },
+            { key: 'led', x: 570, y: 150, rotate: 90, label: 'LED string', labelPos: 'left' },
+            { key: 'resistor', x: 570, y: 235, rotate: 90, label: 'Rsense', labelPos: 'right' },
+            { key: 'port', x: 210, y: QY, rotate: 180, label: 'PWM', labelPos: 'left' },
+            { key: 'ground', x: 130, y: GND },
+            { key: 'ground', x: SW, y: GND },
+            { key: 'ground', x: 480, y: GND },
+            { key: 'ground', x: 570, y: GND }
+        ],
+        wires: [
+            [[40, RAIL], [190, RAIL]],
+            [[130, RAIL], [130, 140]],
+            [[130, 190], [130, GND]],
+            [[240, RAIL], [375, RAIL]],
+            [[SW, RAIL], [SW, QY - 35]],                 // SW node down to the drain
+            [[SW, QY + 35], [SW, GND]],                  // source to ground
+            // Ran to 555 and stopped, 15 px short of the LED tap at 570,
+            // so the string hung off nothing.
+            [[425, RAIL], [570, RAIL]],
+            [[480, RAIL], [480, 140]],
+            [[480, 190], [480, GND]],
+            [[570, RAIL], [570, 125]],   // rail down to the LED string anode
+            [[570, 175], [570, 210]],
+            [[570, 260], [570, GND]],
+            [[SW - 40, QY], [225, QY]]                   // PWM port into the gate
+        ],
+        dots: [[130, RAIL], [SW, RAIL], [480, RAIL], [570, RAIL]],
+        texts: [
+            { x: 315, y: 88, text: 'SW', size: 10, anchor: 'start', color: '#fbbf24' },
+            { x: 55, y: 340, text: 'Vout = VIN / (1 - D), so the string voltage is set by duty cycle, not by VIN.',
+              size: 10, anchor: 'start' },
+            { x: 55, y: 356, text: 'Rsense closes the loop on LED current - brightness is a current, never a voltage.',
+              size: 10, anchor: 'start' }
+        ]
     });
-    update();
 })();
 </script>

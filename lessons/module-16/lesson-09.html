@@ -1,481 +1,321 @@
-<!-- Module 16, Lesson 9: Power Supply Failure Analysis -->
+<!-- Module 16, Lesson 9: Anti-Aliasing and Reconstruction Filters -->
 <div class="lesson-content" data-module="16" data-lesson="9">
-
     <div class="card">
-        <h2>Case Study: Switching Power Supply Failure</h2>
-        <p>Investigate a failed ATX power supply with no output. This scenario covers systematic SMPS troubleshooting, from input protection through the control loop, identifying common failure modes.</p>
+        <h2>Anti-Aliasing and Reconstruction Filters</h2>
+        <p>The Nyquist theorem requires signals be band-limited to less than half the sample rate to prevent aliasing. Anti-aliasing filters before ADCs and reconstruction filters after DACs are essential components in any sampled-data system.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Symptom</div>
-                <div class="v">No output, fan dead</div>
+                <h4>Aliasing Problem</h4>
+                <ul>
+                    <li><strong>Nyquist:</strong> fs > 2 × fmax</li>
+                    <li><strong>Aliasing:</strong> High frequencies fold back</li>
+                    <li><strong>fAlias:</strong> |fin - n×fs|</li>
+                    <li><strong>Irreversible:</strong> Cannot be removed after sampling</li>
+                </ul>
             </div>
             <div class="box">
-                <div class="k">Input</div>
-                <div class="v">AC mains present</div>
+                <h4>Filter Requirements</h4>
+                <ul>
+                    <li><strong>Passband:</strong> Flat to signal bandwidth</li>
+                    <li><strong>Stopband:</strong> Attenuate beyond fs/2</li>
+                    <li><strong>Transition:</strong> Sharp rolloff needed</li>
+                    <li><strong>Phase:</strong> Linear phase for time-domain</li>
+                </ul>
             </div>
-            <div class="box">
-                <div class="k">Fuse</div>
-                <div class="v">Intact (not blown)</div>
-            </div>
-            <div class="box">
-                <div class="k">Age</div>
-                <div class="v">~5 years service</div>
-            </div>
-        </div>
-
-        <div class="notice">
-            <strong>Safety Warning:</strong> SMPS contain lethal voltages even when unplugged. The main filter capacitor can hold charge >300V. Always discharge and verify before touching. Use isolation transformer when testing under power.
         </div>
     </div>
 
     <div class="card">
-        <h3>The Scenario</h3>
-        <div style="background:#111; padding:15px; border-radius:4px;">
-            <p><strong>Equipment:</strong> 500W ATX PC power supply</p>
-            <ul style="margin-top:10px; color:#aaa;">
-                <li>Reported: Computer suddenly died, won't turn on</li>
-                <li>No burning smell, no visible damage</li>
-                <li>Fuse OK, bridge rectifier OK, main cap charges to 320V</li>
-                <li>Standby 5V present at motherboard connector</li>
-                <li>PS_ON signal present but no 12V, 5V, 3.3V outputs</li>
-            </ul>
-        </div>
+        <h3>Aliasing Demonstration</h3>
+
+        <svg viewBox="0 0 650 280" class="circuit-diagram">
+            <text x="325" y="20" text-anchor="middle" class="label" style="font-weight:bold;">Aliasing: High Frequency Appears as Low Frequency</text>
+
+            <!-- Original high frequency signal -->
+            <text x="40" y="70" text-anchor="start" class="label" style="font-size:10px;">Input: 9 kHz</text>
+
+            <!-- Sine wave (high frequency) -->
+            <path d="M50,100 Q60,70 70,100 Q80,130 90,100 Q100,70 110,100 Q120,130 130,100 Q140,70 150,100 Q160,130 170,100 Q180,70 190,100 Q200,130 210,100 Q220,70 230,100 Q240,130 250,100" fill="none" stroke="#3498db" stroke-width="1.5"/>
+
+            <!-- Sample points -->
+            <circle cx="50" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="100" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="150" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="200" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="250" cy="100" r="4" fill="#e74c3c"/>
+
+            <!-- Sample rate annotation -->
+            <text x="150" y="55" text-anchor="middle" class="label" style="font-size:9px;fill:#e74c3c;">fs = 10 kHz (samples)</text>
+
+            <!-- Arrow -->
+            <line x1="280" y1="100" x2="350" y2="100" stroke="#333" stroke-width="2"/>
+            <polygon points="345,95 355,100 345,105" fill="#333"/>
+            <text x="315" y="90" text-anchor="middle" class="label" style="font-size:9px;">ADC</text>
+
+            <!-- Aliased output -->
+            <text x="400" y="70" text-anchor="start" class="label" style="font-size:10px;">Output: 1 kHz (alias!)</text>
+
+            <!-- Low frequency reconstruction -->
+            <path d="M380,100 Q430,70 480,100 Q530,130 580,100 Q630,70 680,100" fill="none" stroke="#e74c3c" stroke-width="2"/>
+
+            <!-- Sample points on output -->
+            <circle cx="380" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="430" cy="85" r="4" fill="#e74c3c"/>
+            <circle cx="480" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="530" cy="115" r="4" fill="#e74c3c"/>
+            <circle cx="580" cy="100" r="4" fill="#e74c3c"/>
+
+            <!-- Frequency domain -->
+            <text x="325" y="160" text-anchor="middle" class="label" style="font-weight:bold;">Frequency Domain View</text>
+
+            <!-- Axis -->
+            <line x1="50" y1="250" x2="600" y2="250" stroke="#333" stroke-width="2"/>
+            <line x1="50" y1="250" x2="50" y2="180" stroke="#333" stroke-width="2"/>
+            <text x="325" y="270" text-anchor="middle" class="label" style="font-size:10px;">Frequency</text>
+
+            <!-- Original signal -->
+            <rect x="140" y="200" width="20" height="50" fill="#3498db"/>
+            <text x="150" y="195" text-anchor="middle" class="label" style="font-size:9px;">9 kHz</text>
+
+            <!-- fs/2 marker -->
+            <line x1="180" y1="180" x2="180" y2="250" stroke="#e74c3c" stroke-width="2" stroke-dasharray="5,5"/>
+            <text x="180" y="175" text-anchor="middle" class="label" style="font-size:9px;fill:#e74c3c;">fs/2 = 5 kHz</text>
+
+            <!-- fs marker -->
+            <line x1="300" y1="180" x2="300" y2="250" stroke="#999" stroke-width="1" stroke-dasharray="3,3"/>
+            <text x="300" y="175" text-anchor="middle" class="label" style="font-size:9px;fill:#999;">fs = 10 kHz</text>
+
+            <!-- Aliased component -->
+            <rect x="85" y="200" width="20" height="50" fill="#e74c3c"/>
+            <text x="95" y="195" text-anchor="middle" class="label" style="font-size:9px;fill:#e74c3c;">1 kHz (alias)</text>
+
+            <!-- Folding arrow -->
+            <path d="M150,185 C200,160 200,160 95,185" fill="none" stroke="#e74c3c" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <text x="180" y="155" text-anchor="middle" class="label" style="font-size:8px;fill:#e74c3c;">Folds at fs/2</text>
+
+            <!-- Formula -->
+            <rect x="400" y="180" width="180" height="45" fill="#fff3cd" stroke="#ffc107" stroke-width="1" rx="3"/>
+            <text x="490" y="200" text-anchor="middle" class="label" style="font-size:10px;">fAlias = |fin - fs|</text>
+            <text x="490" y="218" text-anchor="middle" class="label" style="font-size:10px;">= |9 kHz - 10 kHz| = 1 kHz</text>
+        </svg>
     </div>
 
     <div class="card">
-        <h3>Interactive: SMPS Block Diagnosis</h3>
+        <h3>Anti-Aliasing Filter Design</h3>
 
+        <svg viewBox="0 0 650 280" class="circuit-diagram">
+            <text x="325" y="20" text-anchor="middle" class="label" style="font-weight:bold;">Anti-Aliasing Filter in ADC Signal Chain</text>
+
+            <!-- Signal source -->
+            <rect x="40" y="100" width="70" height="40" fill="#e8f4f8" stroke="#3498db" stroke-width="2" rx="3"/>
+            <text x="75" y="125" text-anchor="middle" class="label" style="font-size:10px;">Signal</text>
+
+            <line x1="110" y1="120" x2="150" y2="120" stroke="#333" stroke-width="2"/>
+
+            <!-- Anti-aliasing filter -->
+            <rect x="150" y="90" width="100" height="60" fill="#d4edda" stroke="#28a745" stroke-width="2" rx="3"/>
+            <text x="200" y="115" text-anchor="middle" class="label" style="font-size:10px;font-weight:bold;">AAF</text>
+            <text x="200" y="130" text-anchor="middle" class="label" style="font-size:9px;">fc < fs/2</text>
+
+            <line x1="250" y1="120" x2="290" y2="120" stroke="#333" stroke-width="2"/>
+
+            <!-- ADC -->
+            <rect x="290" y="100" width="70" height="40" fill="#fff3cd" stroke="#ffc107" stroke-width="2" rx="3"/>
+            <text x="325" y="125" text-anchor="middle" class="label" style="font-size:10px;">ADC</text>
+
+            <line x1="360" y1="120" x2="400" y2="120" stroke="#333" stroke-width="2"/>
+            <text x="420" y="125" text-anchor="start" class="label">Digital Out</text>
+
+            <!-- Sample clock -->
+            <line x1="325" y1="80" x2="325" y2="100" stroke="#333" stroke-width="1.5"/>
+            <text x="325" y="75" text-anchor="middle" class="label" style="font-size:9px;">fs</text>
+
+            <!-- Frequency response graph -->
+            <rect x="40" y="170" width="280" height="100" fill="#f8f9fa" stroke="#333" stroke-width="1" rx="3"/>
+            <text x="180" y="190" text-anchor="middle" class="label" style="font-weight:bold;">Anti-Aliasing Filter Response</text>
+
+            <!-- Axes -->
+            <line x1="60" y1="255" x2="300" y2="255" stroke="#333" stroke-width="1"/>
+            <line x1="60" y1="255" x2="60" y2="200" stroke="#333" stroke-width="1"/>
+
+            <!-- Filter response (4th order Butterworth) -->
+            <path d="M60,210 L120,210 Q150,210 170,230 Q190,260 200,255" fill="none" stroke="#27ae60" stroke-width="2"/>
+            <line x1="200" y1="255" x2="300" y2="255" stroke="#27ae60" stroke-width="2"/>
+
+            <!-- Passband -->
+            <text x="90" y="208" text-anchor="middle" class="label" style="font-size:8px;">Passband</text>
+
+            <!-- fc marker -->
+            <line x1="150" y1="200" x2="150" y2="255" stroke="#27ae60" stroke-width="1" stroke-dasharray="3,3"/>
+            <text x="150" y="268" text-anchor="middle" class="label" style="font-size:8px;fill:#27ae60;">fc</text>
+
+            <!-- fs/2 marker -->
+            <line x1="220" y1="200" x2="220" y2="255" stroke="#e74c3c" stroke-width="1" stroke-dasharray="3,3"/>
+            <text x="220" y="268" text-anchor="middle" class="label" style="font-size:8px;fill:#e74c3c;">fs/2</text>
+
+            <!-- Required attenuation -->
+            <line x1="220" y1="210" x2="220" y2="255" stroke="#e74c3c" stroke-width="1"/>
+            <text x="260" y="230" text-anchor="start" class="label" style="font-size:8px;fill:#e74c3c;">> N×6 dB</text>
+
+            <!-- Filter selection guide -->
+            <rect x="350" y="170" width="280" height="100" fill="#e8f4f8" stroke="#3498db" stroke-width="1" rx="3"/>
+            <text x="490" y="190" text-anchor="middle" class="label" style="font-weight:bold;">Filter Selection</text>
+            <text x="360" y="210" text-anchor="start" class="label" style="font-size:9px;">• Butterworth: Maximally flat passband</text>
+            <text x="360" y="225" text-anchor="start" class="label" style="font-size:9px;">• Chebyshev: Steeper rolloff, ripple</text>
+            <text x="360" y="240" text-anchor="start" class="label" style="font-size:9px;">• Bessel: Best group delay (time)</text>
+            <text x="360" y="255" text-anchor="start" class="label" style="font-size:9px;">• Elliptic: Steepest transition band</text>
+        </svg>
+    </div>
+
+    <div class="card">
+        <h3>Anti-Aliasing Filter Calculator</h3>
         <div class="controls">
-            <div class="c3">
-                <label for="smps-block">Stage Under Test</label>
-                <select id="smps-block">
-                    <option value="input">Input/EMI Filter</option>
-                    <option value="rectifier">Bridge Rectifier</option>
-                    <option value="pfc">PFC Stage</option>
-                    <option value="primary">Primary Switch</option>
-                    <option value="transformer">Transformer</option>
-                    <option value="secondary">Secondary Rectifier</option>
-                    <option value="feedback">Feedback/Control</option>
-                    <option value="standby">Standby Supply</option>
-                </select>
-            </div>
-            <div class="c3">
-                <label for="smps-test">Test Method</label>
-                <select id="smps-test">
-                    <option value="dc">DC Voltage</option>
-                    <option value="diode">Diode Mode</option>
-                    <option value="scope">Oscilloscope</option>
-                    <option value="esr">ESR Meter</option>
-                </select>
-            </div>
+            <label>Sample Rate: <input type="text" id="aaf-fs" value="100k" style="width:60px;"> SPS</label>
+            <label>Signal Bandwidth: <input type="text" id="aaf-bw" value="20k" style="width:60px;"> Hz</label>
+            <label>ADC Bits: <input type="text" id="aaf-bits" value="16" style="width:50px;"></label>
+            <label>Filter Order: <input type="text" id="aaf-order" value="4" style="width:50px;"></label>
+            <button onclick="calculateAAF()">Calculate</button>
         </div>
+        <div id="aaf-results" class="results"></div>
 
-        <div class="canvas-wrap">
-            <canvas id="smps-canvas" width="980" height="360"></canvas>
-        </div>
-
-        <div class="kv">
-            <div class="box">
-                <div class="k">Block Status</div>
-                <div class="v mono" id="smps-status">—</div>
-            </div>
-            <div class="box">
-                <div class="k">Expected</div>
-                <div class="v mono" id="smps-expect">—</div>
-            </div>
-            <div class="box">
-                <div class="k">Measured</div>
-                <div class="v mono" id="smps-meas">—</div>
-            </div>
-            <div class="box">
-                <div class="k">Diagnosis</div>
-                <div class="v mono" id="smps-diag">—</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Systematic Troubleshooting</h3>
-
-        <table class="table">
+        <h4>Oversampling vs Filter Order Trade-off</h4>
+        <table class="data-table">
             <tr>
-                <th>Test Point</th>
-                <th>Expected</th>
-                <th>Measured</th>
-                <th>Verdict</th>
+                <th>Oversampling Ratio</th>
+                <th>Transition Band</th>
+                <th>Filter Order Needed</th>
+                <th>Complexity</th>
             </tr>
             <tr>
-                <td>AC Input</td>
-                <td>120/240V AC</td>
-                <td>120V AC</td>
-                <td style="color:#4f4;">PASS</td>
+                <td>2× (fs = 2×BW)</td>
+                <td>None!</td>
+                <td>Impossible (brick wall)</td>
+                <td>N/A</td>
             </tr>
             <tr>
-                <td>Main Fuse</td>
-                <td><1Ω</td>
-                <td>0.3Ω</td>
-                <td style="color:#4f4;">PASS</td>
+                <td>2.5×</td>
+                <td>0.25×BW</td>
+                <td>8-12th order</td>
+                <td>Very high</td>
             </tr>
             <tr>
-                <td>Bulk Cap Voltage</td>
-                <td>~320V DC</td>
-                <td>318V</td>
-                <td style="color:#4f4;">PASS</td>
+                <td>4×</td>
+                <td>1×BW</td>
+                <td>4-6th order</td>
+                <td>Moderate</td>
             </tr>
             <tr>
-                <td>Standby 5V</td>
-                <td>5V ±5%</td>
-                <td>5.1V</td>
-                <td style="color:#4f4;">PASS</td>
+                <td>8×</td>
+                <td>3×BW</td>
+                <td>2-3rd order</td>
+                <td>Low</td>
             </tr>
             <tr>
-                <td>PS_ON Signal</td>
-                <td>0V when active</td>
-                <td>0V</td>
-                <td style="color:#4f4;">PASS</td>
-            </tr>
-            <tr>
-                <td>PWM Controller Vcc</td>
-                <td>12-15V</td>
-                <td>8V</td>
-                <td style="color:#f44;">FAIL</td>
-            </tr>
-            <tr>
-                <td>Aux Winding Cap</td>
-                <td>Low ESR</td>
-                <td>High ESR</td>
-                <td style="color:#f44;">FAIL</td>
+                <td>16× or higher</td>
+                <td>7×BW+</td>
+                <td>1-2nd order</td>
+                <td>Very low</td>
             </tr>
         </table>
     </div>
 
     <div class="card">
-        <h3>SMPS Block Diagram</h3>
-        <div id="smps-schematic"></div>
+        <div id="exercise-container"></div>
     </div>
 
-    <div class="card">
-        <h3>Root Cause: Failed Electrolytic Capacitor</h3>
-        <div style="background:#111; padding:15px; border-radius:4px;">
-            <p><strong>Finding:</strong> Aux winding filter capacitor (C15, 47µF/25V) has high ESR.</p>
-            <ul style="margin-top:10px; color:#aaa;">
-                <li>ESR measured: 8Ω (expected: <0.5Ω)</li>
-                <li>Ripple prevents PWM controller from reaching UVLO threshold</li>
-                <li>Controller tries to start, drops out, oscillates at ~2Hz</li>
-                <li>Classic capacitor "hiccup" failure mode</li>
-            </ul>
-            <p style="margin-top:15px; color:#4af;"><strong>Repair:</strong> Replace C15 with 47µF/35V 105°C low-ESR capacitor. Also replace nearby electrolytics as preventive maintenance.</p>
-        </div>
-    </div>
+    <script>
+    (function() {
+        function calculateAAF() {
+            const fs = AD.num('aaf-fs') || 100e3;
+            const bw = AD.num('aaf-bw') || 20e3;
+            const bits = parseInt(document.getElementById('aaf-bits').value) || 16;
+            const order = parseInt(document.getElementById('aaf-order').value) || 4;
 
-    <div class="card">
-        <h3>Common SMPS Failure Modes</h3>
+            const nyquist = fs / 2;
+            const oversampling = fs / (2 * bw);
+            const transitionBand = nyquist - bw;
 
-        <table class="table">
-            <tr>
-                <th>Component</th>
-                <th>Failure Mode</th>
-                <th>Symptom</th>
-            </tr>
-            <tr>
-                <td>Electrolytic Caps</td>
-                <td>High ESR, low capacitance</td>
-                <td>Hiccup, ripple, instability</td>
-            </tr>
-            <tr>
-                <td>Primary MOSFET</td>
-                <td>Short circuit</td>
-                <td>Blown fuse, smoke</td>
-            </tr>
-            <tr>
-                <td>Schottky Rectifiers</td>
-                <td>Short or open</td>
-                <td>No output or shorted rail</td>
-            </tr>
-            <tr>
-                <td>PWM Controller IC</td>
-                <td>EOS/Latchup</td>
-                <td>No switching, overheating</td>
-            </tr>
-            <tr>
-                <td>Optocoupler</td>
-                <td>CTR degradation</td>
-                <td>Poor regulation, overshoot</td>
-            </tr>
-        </table>
-    </div>
+            // Required attenuation at Nyquist to keep alias below LSB
+            const requiredAtten = 6.02 * bits + 10; // dB, with 10 dB margin
 
-    <div class="card">
-        <h3>SPICE Netlist</h3>
-        <div id="smps-spice"></div>
-    </div>
+            // Butterworth attenuation at Nyquist
+            // A = 20 × log10(sqrt(1 + (f/fc)^(2n)))
+            // For Butterworth, at f = fs/2, fc = bw
+            const freqRatio = nyquist / bw;
+            const butterworthAtten = 10 * order * Math.log10(1 + Math.pow(freqRatio, 2 * order));
 
-    <div class="card">
-        <h3>Repair Checklist</h3>
-        <div id="smps-checklist"></div>
-    </div>
+            // Margin
+            const margin = butterworthAtten - requiredAtten;
 
-    <div class="card">
-        <h3>Practice Exercises</h3>
-        <div id="smps-exercises"></div>
-    </div>
+            let html = '<h4>System Analysis</h4>';
+            html += '<table class="data-table">';
+            html += '<tr><td>Sample rate</td><td>' + AD.fmtUnit(fs, 'SPS') + '</td></tr>';
+            html += '<tr><td>Nyquist frequency</td><td>' + AD.fmtUnit(nyquist, 'Hz') + '</td></tr>';
+            html += '<tr><td>Signal bandwidth</td><td>' + AD.fmtUnit(bw, 'Hz') + '</td></tr>';
+            html += '<tr><td>Oversampling ratio</td><td>' + oversampling.toFixed(1) + '×</td></tr>';
+            html += '<tr><td>Transition band</td><td>' + AD.fmtUnit(transitionBand, 'Hz') + '</td></tr>';
+            html += '</table>';
 
+            html += '<h4>Filter Performance</h4>';
+            html += '<table class="data-table">';
+            html += '<tr><td>Filter order</td><td>' + order + ' (Butterworth)</td></tr>';
+            html += '<tr><td>Required attenuation @ fs/2</td><td>' + requiredAtten.toFixed(1) + ' dB</td></tr>';
+            html += '<tr><td>Achieved attenuation @ fs/2</td><td>' + butterworthAtten.toFixed(1) + ' dB</td></tr>';
+            html += '<tr><td>Margin</td><td style="color:' + (margin >= 0 ? '#27ae60' : '#e74c3c') + ';">' + margin.toFixed(1) + ' dB</td></tr>';
+            html += '</table>';
+
+            if (margin < 0) {
+                html += '<p style="color:#e74c3c;">Warning: Filter does not provide sufficient attenuation. Increase order or sample rate.</p>';
+            } else {
+                html += '<p style="color:#27ae60;">Filter provides adequate attenuation for ' + bits + '-bit resolution.</p>';
+            }
+
+            // Suggested cutoff frequency
+            const suggestedFc = bw * 1.2; // 20% above signal BW
+            html += '<h4>Suggested Filter Cutoff</h4>';
+            html += '<p>fc = ' + AD.fmtUnit(suggestedFc, 'Hz') + ' (signal BW + 20% margin)</p>';
+
+            document.getElementById('aaf-results').innerHTML = html;
+        }
+        window.calculateAAF = calculateAAF;
+        calculateAAF();
+
+        const exercises = [
+            {
+                id: 'aaf1',
+                type: 'numeric',
+                question: 'What is the maximum signal frequency that can be sampled at 48 kHz without aliasing?',
+                expected: 24,
+                tolerance: 0.5,
+                unit: 'kHz',
+                hint: 'Nyquist: fmax = fs/2'
+            },
+            {
+                id: 'aaf2',
+                type: 'numeric',
+                question: 'A 9 kHz signal sampled at 8 kHz produces an alias at what frequency?',
+                expected: 1,
+                tolerance: 0.1,
+                unit: 'kHz',
+                hint: 'fAlias = |fin - fs|'
+            },
+            {
+                id: 'aaf3',
+                type: 'choice',
+                question: 'Which filter type provides the flattest passband response?',
+                options: ['Chebyshev', 'Butterworth', 'Elliptic', 'Bessel'],
+                correct: 1,
+                hint: 'Butterworth is "maximally flat magnitude"'
+            }
+        ];
+
+        exercises.forEach((ex, i) => {
+            const div = document.createElement('div');
+            div.id = 'exercise-' + i;
+            document.getElementById('exercise-container').appendChild(div);
+            new ExerciseWidget('exercise-' + i, ex);
+        });
+    })();
+    </script>
 </div>
-
-<script>
-(function() {
-    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
-
-    const canvas = document.getElementById('smps-canvas');
-    const blockEl = document.getElementById('smps-block');
-    const testEl = document.getElementById('smps-test');
-    if (!canvas || !blockEl || !testEl) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const W = canvas.width, H = canvas.height;
-
-    const blocks = {
-        input: {x: 50, y: 140, w: 80, h: 60, label: 'Input\nFilter', status: 'PASS', expected: '120V AC', measured: '120V AC', diag: 'Normal'},
-        rectifier: {x: 150, y: 140, w: 80, h: 60, label: 'Bridge\nRect', status: 'PASS', expected: '320V DC', measured: '318V DC', diag: 'Normal'},
-        pfc: {x: 250, y: 140, w: 80, h: 60, label: 'PFC\nBoost', status: 'PASS', expected: '390V DC', measured: '385V DC', diag: 'Normal'},
-        primary: {x: 350, y: 140, w: 80, h: 60, label: 'Primary\nSwitch', status: 'WARN', expected: 'Switching', measured: 'Hiccup', diag: 'Check Vcc'},
-        transformer: {x: 450, y: 140, w: 80, h: 60, label: 'Xfmr', status: 'PASS', expected: 'Isolation', measured: 'OK', diag: 'Normal'},
-        secondary: {x: 550, y: 140, w: 80, h: 60, label: 'Output\nRect', status: 'PASS', expected: '12V, 5V, 3.3V', measured: '0V all', diag: 'No input'},
-        feedback: {x: 450, y: 250, w: 80, h: 60, label: 'Feedback\nControl', status: 'WARN', expected: '12V Vcc', measured: '8V', diag: 'Low Vcc'},
-        standby: {x: 550, y: 250, w: 80, h: 60, label: 'Standby\n5V', status: 'PASS', expected: '5V', measured: '5.1V', diag: 'Normal'}
-    };
-
-    function update() {
-        const block = blockEl.value || 'input';
-        const test = testEl.value;
-
-        const b = blocks[block] || blocks.input;
-        let statusColor = b.status === 'PASS' ? '#4f4' : (b.status === 'FAIL' ? '#f44' : '#fa4');
-
-        document.getElementById('smps-status').innerHTML = '<span style="color:' + statusColor + '">' + b.status + '</span>';
-        document.getElementById('smps-expect').textContent = b.expected;
-        document.getElementById('smps-meas').textContent = b.measured;
-        document.getElementById('smps-diag').textContent = b.diag;
-
-        // Draw block diagram
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, W, H);
-
-        // Draw all blocks
-        Object.entries(blocks).forEach(([key, bl]) => {
-            const isSelected = key === block;
-            ctx.strokeStyle = isSelected ? '#fff' : '#666';
-            ctx.lineWidth = isSelected ? 3 : 1;
-
-            let fillColor = bl.status === 'PASS' ? 'rgba(68,255,68,0.2)' :
-                           (bl.status === 'FAIL' ? 'rgba(255,68,68,0.3)' : 'rgba(255,170,68,0.2)');
-            ctx.fillStyle = fillColor;
-            ctx.fillRect(bl.x, bl.y, bl.w, bl.h);
-            ctx.strokeRect(bl.x, bl.y, bl.w, bl.h);
-
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'center';
-            const lines = bl.label.split('\n');
-            lines.forEach((line, i) => {
-                ctx.fillText(line, bl.x + bl.w/2, bl.y + 25 + i * 14);
-            });
-        });
-
-        // Draw connections
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 2;
-        // Main power path
-        ctx.beginPath();
-        ctx.moveTo(130, 170); ctx.lineTo(150, 170);
-        ctx.moveTo(230, 170); ctx.lineTo(250, 170);
-        ctx.moveTo(330, 170); ctx.lineTo(350, 170);
-        ctx.moveTo(430, 170); ctx.lineTo(450, 170);
-        ctx.moveTo(530, 170); ctx.lineTo(550, 170);
-        ctx.stroke();
-
-        // Feedback path
-        ctx.strokeStyle = '#888';
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(550, 200); ctx.lineTo(550, 250);
-        ctx.moveTo(490, 280); ctx.lineTo(390, 280); ctx.lineTo(390, 200);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Aux winding (problem area)
-        ctx.strokeStyle = '#f44';
-        ctx.beginPath();
-        ctx.moveTo(490, 155); ctx.lineTo(490, 250);
-        ctx.stroke();
-        ctx.fillStyle = '#f44';
-        ctx.font = '10px monospace';
-        ctx.fillText('AUX', 505, 220);
-        ctx.fillText('← FAULT', 520, 280);
-
-        // AC/DC labels
-        ctx.fillStyle = '#888';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('AC', 20, 170);
-        ctx.fillText('DC', 650, 170);
-        ctx.fillText('Output', 650, 185);
-
-        // Title
-        ctx.fillStyle = '#fff';
-        ctx.font = '14px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('SMPS Block Diagram - Click blocks to diagnose', W/2, 30);
-
-        // Failure indicator
-        ctx.fillStyle = '#f44';
-        ctx.font = '12px monospace';
-        ctx.fillText('C15: High ESR capacitor on aux winding', W/2, H - 20);
-    }
-
-    ['smps-block', 'smps-test'].forEach(id => {
-        document.getElementById(id).addEventListener('change', update);
-    });
-
-    // Schematic
-    function drawSchematic() {
-        const container = document.getElementById('smps-schematic');
-        const svg = new SchematicSVG(600, 220);
-
-        // Simplified aux supply circuit
-        svg.text(30, 60, 'From Aux', {fontSize: 10});
-        svg.text(30, 75, 'Winding', {fontSize: 9, fill: '#888'});
-        svg.wire([[80, 65], [120, 65]]);
-
-        // Rectifier diode
-        svg.diode(140, 65, {horizontal: true});
-        svg.wire([[160, 65], [200, 65]]);
-
-        // Filter cap (failed)
-        svg.wire([[200, 65], [200, 90]]);
-        svg.capacitor(200, 110, {horizontal: false});
-        svg.wire([[200, 130], [200, 150]]);
-        svg.ground(200, 150);
-
-        // Red highlight on bad cap
-        svg.rect(185, 95, 30, 40, {fill: 'none', stroke: '#f44', strokeWidth: 2});
-        svg.text(225, 115, 'C15', {fontSize: 10, fill: '#f44'});
-        svg.text(225, 130, '47µF', {fontSize: 9});
-        svg.text(225, 145, 'HIGH ESR!', {fontSize: 9, fill: '#f44'});
-
-        // To PWM controller
-        svg.wire([[200, 65], [280, 65]]);
-        svg.rect(280, 45, 80, 50, {fill: 'none', stroke: '#4af'});
-        svg.text(320, 70, 'PWM', {fontSize: 10, fill: '#4af'});
-        svg.text(320, 85, 'Controller', {fontSize: 9});
-
-        // Vcc pin
-        svg.text(270, 55, 'Vcc', {fontSize: 9});
-
-        // UVLO threshold
-        svg.text(380, 60, 'UVLO: 12V', {fontSize: 9, fill: '#888'});
-        svg.text(380, 75, 'Actual: 8V', {fontSize: 9, fill: '#f44'});
-        svg.text(380, 90, '→ No Start!', {fontSize: 9, fill: '#f44'});
-
-        // ESR model
-        svg.text(100, 180, 'Capacitor ESR Model:', {fontSize: 10, fill: '#888'});
-        svg.wire([[220, 175], [250, 175]]);
-        svg.resistor(270, 175, {horizontal: true});
-        svg.text(270, 165, 'ESR', {fontSize: 9});
-        svg.wire([[290, 175], [310, 175]]);
-        svg.capacitor(330, 175, {horizontal: true});
-        svg.text(330, 165, 'C', {fontSize: 9});
-        svg.wire([[350, 175], [380, 175]]);
-
-        svg.text(420, 175, 'Good: ESR < 0.5Ω', {fontSize: 9, fill: '#4f4'});
-        svg.text(420, 190, 'Bad:  ESR = 8Ω', {fontSize: 9, fill: '#f44'});
-
-        container.innerHTML = svg.render();
-    }
-
-    // SPICE
-    function initSpice() {
-        new SpiceNetlistWidget('smps-spice', {
-            title: 'Aux Supply with ESR Effect',
-            netlist: `* Auxiliary Winding Supply
-* Shows effect of capacitor ESR on Vcc
-
-* Aux winding source (simplified)
-Vaux aux_ac 0 SIN(0 15 100k)
-
-* Rectifier
-D1 aux_ac vcc_raw 1N4148
-
-* Filter capacitor with ESR
-* Good cap: ESR = 0.1Ω
-* Bad cap: ESR = 8Ω
-Resr vcc_raw vcc_cap 8  ; <-- Change to 0.1 for good cap
-Cfilt vcc_cap 0 47u IC=0
-
-* Load (PWM controller)
-Rload vcc_cap 0 1k  ; ~12mA typical
-
-* UVLO threshold detector
-Buvlo uvlo_out 0 V = V(vcc_cap) > 12 ? 5 : 0
-
-.tran 1u 1m
-.probe V(vcc_cap) V(uvlo_out)
-
-* With ESR=8Ω:
-* Vcc cannot reach 12V UVLO threshold
-* Controller never starts
-* Results in "hiccup" mode
-.end`
-        });
-    }
-
-    // Checklist
-    function initChecklist() {
-        new ChecklistWidget('smps-checklist', {
-            title: 'SMPS Repair Checklist',
-            items: [
-                'SAFETY: Discharge main capacitor before work',
-                'Visual inspection for burn marks, swollen caps',
-                'Check fuse continuity and rating',
-                'Verify AC input and bulk DC voltage',
-                'Test standby supply (5VSB)',
-                'Check PWM controller Vcc supply',
-                'ESR test all electrolytic capacitors',
-                'Test output rectifiers for shorts',
-                'Verify optocoupler CTR if regulation issue',
-                'Load test all outputs after repair'
-            ]
-        });
-    }
-
-    // Exercises
-    function initExercises() {
-        new ExerciseWidget('smps-exercises', {
-            exercises: [
-                {
-                    question: 'A 47µF cap with 8Ω ESR at 100kHz. What ripple voltage for 10mA ripple current?',
-                    answer: '80mV',
-                    solution: 'V_ripple = I × ESR = 10mA × 8Ω = 80mV. With good cap (0.1Ω), it would be only 1mV.'
-                },
-                {
-                    question: 'PWM controller UVLO is 10V start, 8V stop. If aux supply droops to 9V during load, what happens?',
-                    answer: 'Hiccup mode (start-stop cycling)',
-                    solution: 'Controller starts at 10V, load increases, voltage drops below 8V stop threshold, controller stops, voltage recovers, cycle repeats.'
-                },
-                {
-                    question: 'Main bulk cap is 330µF. At 500W output and 85% efficiency, what ripple voltage at 120Hz?',
-                    answer: '14.5V',
-                    solution: 'Pin = 500/0.85 = 588W. I = 588/320 = 1.84A. ΔV = I/(2×f×C) = 1.84/(2×120×330µ) = 14.5V'
-                }
-            ]
-        });
-    }
-
-    update();
-    drawSchematic();
-    initSpice();
-    initChecklist();
-    initExercises();
-})();
-</script>

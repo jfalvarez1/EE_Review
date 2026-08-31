@@ -1,1401 +1,1020 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Motor Control System - Complex Real-World Projects</title>
-</head>
-<body>
-    <div class="lesson-content" data-module="24" data-lesson="8">
-        <div class="card">
-            <h2>Motor Control System</h2>
-            <p>This project integrates power electronics, control theory, and precision sensing to create
-            a complete motor control system. We'll design a brushless DC (BLDC) motor driver with field-oriented
-            control (FOC), current sensing, and closed-loop speed/position control. These techniques are used
-            in drones, electric vehicles, industrial automation, and robotics.</p>
+<!-- Module 24, Lesson 8: Sensor Interface Design -->
+<div class="lesson-content" data-module="24" data-lesson="8">
 
-            <div class="kv">
-                <div class="kv-item"><span class="kv-label">Motor Type:</span><span class="kv-value">3-Phase BLDC</span></div>
-                <div class="kv-item"><span class="kv-label">Control:</span><span class="kv-value">FOC (Vector Control)</span></div>
-                <div class="kv-item"><span class="kv-label">PWM Frequency:</span><span class="kv-value">20-50 kHz</span></div>
-                <div class="kv-item"><span class="kv-label">Current Sensing:</span><span class="kv-value">Inline shunt</span></div>
-            </div>
+    <div class="card">
+        <h2>Sensor Interface Design</h2>
+        <p>Sensors convert physical quantities into electrical signals that require careful analog signal conditioning before digitization. This lesson covers common sensor types and their interface circuits for industrial, automotive, and consumer applications.</p>
 
-            <div class="notice">
-                <strong>Design Philosophy:</strong> Motor control requires tight integration of power stage
-                design, current measurement, and control algorithms. The power stage must handle high currents
-                efficiently, while the control loop must respond in microseconds to maintain smooth operation.
-            </div>
-        </div>
-
-        <!-- System Architecture -->
-        <div class="card">
-            <h3>System Architecture</h3>
-            <div class="canvas-wrap">
-                <canvas id="motor-arch-canvas" width="980" height="340"></canvas>
-            </div>
-        </div>
-
-        <!-- Interactive 1: 3-Phase Inverter Operation -->
-        <div class="card">
-            <h3>Interactive: 3-Phase Inverter Waveforms</h3>
-            <p>Visualize the PWM waveforms and resulting motor phase voltages:</p>
-
-            <div class="controls">
-                <label>Modulation Index:
-                    <input type="range" id="mod-index" min="0.1" max="1.0" value="0.8" step="0.05">
-                    <span id="mod-index-val">0.8</span>
-                </label>
-                <label>Electrical Frequency (Hz):
-                    <input type="range" id="elec-freq" min="10" max="200" value="50" step="10">
-                    <span id="elec-freq-val">50 Hz</span>
-                </label>
-                <label>PWM Frequency (kHz):
-                    <input type="range" id="pwm-freq" min="10" max="50" value="20" step="5">
-                    <span id="pwm-freq-val">20 kHz</span>
-                </label>
-                <label>Modulation:
-                    <select id="modulation">
-                        <option value="svpwm">SVPWM</option>
-                        <option value="spwm">Sinusoidal PWM</option>
-                        <option value="trap">Trapezoidal</option>
-                    </select>
-                </label>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="inverter-canvas" width="980" height="380"></canvas>
-            </div>
-
-            <div class="kv">
-                <div class="kv-item"><span class="kv-label">DC Bus Utilization:</span><span class="kv-value" id="bus-util">92%</span></div>
-                <div class="kv-item"><span class="kv-label">THD:</span><span class="kv-value" id="thd">3.2%</span></div>
-                <div class="kv-item"><span class="kv-label">Fundamental RMS:</span><span class="kv-value" id="fund-rms">27.7 V</span></div>
-                <div class="kv-item"><span class="kv-label">Dead Time:</span><span class="kv-value" id="dead-time">500 ns</span></div>
-            </div>
-        </div>
-
-        <!-- Interactive 2: Current Sensing -->
-        <div class="card">
-            <h3>Interactive: Current Sensing Design</h3>
-            <p>Design the current sense amplifier for motor phase currents:</p>
-
-            <div class="controls">
-                <label>Peak Current (A):
-                    <input type="range" id="peak-current" min="1" max="50" value="10" step="1">
-                    <span id="peak-current-val">10 A</span>
-                </label>
-                <label>Shunt Value (mΩ):
-                    <input type="range" id="shunt-value" min="1" max="50" value="10" step="1">
-                    <span id="shunt-value-val">10 mΩ</span>
-                </label>
-                <label>Amplifier Gain:
-                    <input type="range" id="amp-gain" min="10" max="100" value="20" step="5">
-                    <span id="amp-gain-val">20</span>
-                </label>
-                <label>ADC Reference (V):
-                    <select id="adc-ref">
-                        <option value="3.3">3.3V</option>
-                        <option value="5">5V</option>
-                    </select>
-                </label>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="current-sense-canvas" width="980" height="350"></canvas>
-            </div>
-
-            <div class="kv">
-                <div class="kv-item"><span class="kv-label">Shunt Voltage:</span><span class="kv-value" id="shunt-voltage">±100 mV</span></div>
-                <div class="kv-item"><span class="kv-label">Amp Output:</span><span class="kv-value" id="amp-output">1.65 ± 2V</span></div>
-                <div class="kv-item"><span class="kv-label">Shunt Power:</span><span class="kv-value" id="shunt-power">1W</span></div>
-                <div class="kv-item"><span class="kv-label">Resolution:</span><span class="kv-value" id="current-res">24 mA/LSB</span></div>
-            </div>
-        </div>
-
-        <!-- Interactive 3: FOC Clarke/Park Transform -->
-        <div class="card">
-            <h3>Interactive: Field-Oriented Control</h3>
-            <p>Visualize the Clarke and Park transforms used in FOC:</p>
-
-            <div class="controls">
-                <label>Phase A Current:
-                    <input type="range" id="ia-current" min="-10" max="10" value="5" step="0.5">
-                    <span id="ia-current-val">5 A</span>
-                </label>
-                <label>Phase B Current:
-                    <input type="range" id="ib-current" min="-10" max="10" value="-2.5" step="0.5">
-                    <span id="ib-current-val">-2.5 A</span>
-                </label>
-                <label>Rotor Angle (°):
-                    <input type="range" id="rotor-angle" min="0" max="360" value="30" step="5">
-                    <span id="rotor-angle-val">30°</span>
-                </label>
-                <label>Auto Rotate:
-                    <input type="checkbox" id="auto-rotate">
-                </label>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="foc-canvas" width="980" height="400"></canvas>
-            </div>
-
-            <div class="kv">
-                <div class="kv-item"><span class="kv-label">Iα:</span><span class="kv-value" id="i-alpha">5.0 A</span></div>
-                <div class="kv-item"><span class="kv-label">Iβ:</span><span class="kv-value" id="i-beta">2.9 A</span></div>
-                <div class="kv-item"><span class="kv-label">Id (flux):</span><span class="kv-value" id="i-d">0.0 A</span></div>
-                <div class="kv-item"><span class="kv-label">Iq (torque):</span><span class="kv-value" id="i-q">5.8 A</span></div>
-            </div>
-        </div>
-
-        <!-- Interactive 4: Speed Control Loop -->
-        <div class="card">
-            <h3>Interactive: Speed Control Loop</h3>
-            <p>Tune the PI controller for motor speed regulation:</p>
-
-            <div class="controls">
-                <label>Kp (Proportional):
-                    <input type="range" id="kp-speed" min="0.1" max="10" value="2" step="0.1">
-                    <span id="kp-speed-val">2.0</span>
-                </label>
-                <label>Ki (Integral):
-                    <input type="range" id="ki-speed" min="0.1" max="50" value="10" step="0.5">
-                    <span id="ki-speed-val">10</span>
-                </label>
-                <label>Setpoint (RPM):
-                    <input type="range" id="setpoint-rpm" min="100" max="3000" value="1000" step="100">
-                    <span id="setpoint-rpm-val">1000</span>
-                </label>
-                <label>Load Torque (%):
-                    <input type="range" id="load-torque" min="0" max="100" value="50" step="10">
-                    <span id="load-torque-val">50%</span>
-                </label>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="control-canvas" width="980" height="350"></canvas>
-            </div>
-
-            <div class="kv">
-                <div class="kv-item"><span class="kv-label">Rise Time:</span><span class="kv-value" id="rise-time">85 ms</span></div>
-                <div class="kv-item"><span class="kv-label">Overshoot:</span><span class="kv-value" id="overshoot">12%</span></div>
-                <div class="kv-item"><span class="kv-label">Settling Time:</span><span class="kv-value" id="settle-time">250 ms</span></div>
-                <div class="kv-item"><span class="kv-label">Steady-State Error:</span><span class="kv-value" id="ss-error">0%</span></div>
-            </div>
-        </div>
-
-        <!-- Gate Driver Requirements -->
-        <div class="card">
-            <h3>Gate Driver Requirements</h3>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Parameter</th>
-                        <th>Low-Side</th>
-                        <th>High-Side</th>
-                        <th>Notes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Gate Drive Voltage</td>
-                        <td>10-15V</td>
-                        <td>10-15V (floating)</td>
-                        <td>Above Vgs(th) + margin</td>
-                    </tr>
-                    <tr>
-                        <td>Source/Sink Current</td>
-                        <td>1-4A peak</td>
-                        <td>1-4A peak</td>
-                        <td>Fast switching</td>
-                    </tr>
-                    <tr>
-                        <td>Propagation Delay</td>
-                        <td><50ns</td>
-                        <td><50ns</td>
-                        <td>Matched H/L</td>
-                    </tr>
-                    <tr>
-                        <td>Dead Time</td>
-                        <td colspan="2">200-1000ns</td>
-                        <td>Prevent shoot-through</td>
-                    </tr>
-                    <tr>
-                        <td>Bootstrap Cap</td>
-                        <td>N/A</td>
-                        <td>100nF-1μF</td>
-                        <td>High-side supply</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Schematic -->
-        <div class="card">
-            <h3>Half-Bridge Schematic</h3>
-            <div id="motor-schematic"></div>
-        </div>
-
-        <!-- Design Checklist -->
-        <div class="card">
-            <h3>Design Checklist</h3>
-            <div id="motor-checklist"></div>
-        </div>
-
-        <!-- Exercises -->
-        <div class="card">
-            <h3>Practice Exercises</h3>
-            <div id="motor-exercises"></div>
+        <div class="notice">
+            <strong>Industry Reference:</strong> Based on <a href="https://www.analog.com/en/resources/technical-articles/rtd-measurement-signal-conditioning.html" target="_blank">Analog Devices RTD Measurement</a>, <a href="https://www.ti.com/lit/an/sbaa265a/sbaa265a.pdf" target="_blank">TI Precision Labs - Sensors</a>, and <a href="https://www.analog.com/en/resources/technical-articles/choosing-the-optimal-decoupling-capacitor.html" target="_blank">Sensor Signal Chain Design</a>.
         </div>
     </div>
 
-    <script>
-        // Canvas 1: Inverter Waveforms
-        const inverterCanvas = document.getElementById('inverter-canvas');
-        const inverterCtx = inverterCanvas.getContext('2d');
+    <div class="card">
+        <h3>Common Industrial Sensors</h3>
 
-        function drawInverterWaveforms() {
-            const modIndex = AD.num('mod-index') || 0.8;
-            const elecFreq = AD.num('elec-freq') || 50;
-            const pwmFreq = AD.num('pwm-freq') || 20;
-            const modulation = document.getElementById('modulation').value || 'svpwm';
+        <table class="table">
+            <tr>
+                <th>Sensor Type</th>
+                <th>Measures</th>
+                <th>Output Type</th>
+                <th>Typical Range</th>
+                <th>Interface</th>
+            </tr>
+            <tr>
+                <td>RTD (PT100/PT1000)</td>
+                <td>Temperature</td>
+                <td>Resistance</td>
+                <td>-200 to +850°C</td>
+                <td>Excitation + ADC</td>
+            </tr>
+            <tr>
+                <td>Thermocouple</td>
+                <td>Temperature</td>
+                <td>Voltage (µV/°C)</td>
+                <td>-270 to +2300°C</td>
+                <td>Low-noise amplifier</td>
+            </tr>
+            <tr>
+                <td>Strain Gauge</td>
+                <td>Force/Pressure</td>
+                <td>Resistance (ΔR/R)</td>
+                <td>0.1% to 2% ΔR</td>
+                <td>Bridge + IA</td>
+            </tr>
+            <tr>
+                <td>Pressure Transducer</td>
+                <td>Pressure</td>
+                <td>4-20mA or 0-5V</td>
+                <td>0-1000 bar</td>
+                <td>Current loop or ADC</td>
+            </tr>
+            <tr>
+                <td>Hall Effect</td>
+                <td>Magnetic Field</td>
+                <td>Voltage</td>
+                <td>mT to T</td>
+                <td>Diff amp or comparator</td>
+            </tr>
+            <tr>
+                <td>Photodiode</td>
+                <td>Light Intensity</td>
+                <td>Current</td>
+                <td>pA to mA</td>
+                <td>Transimpedance amp</td>
+            </tr>
+        </table>
+    </div>
 
-            document.getElementById('mod-index-val').textContent = modIndex.toFixed(2);
-            document.getElementById('elec-freq-val').textContent = elecFreq + ' Hz';
-            document.getElementById('pwm-freq-val').textContent = pwmFreq + ' kHz';
+    <div class="card">
+        <h3>Section 1: RTD Temperature Measurement</h3>
 
-            inverterCtx.fillStyle = '#181818';
-            inverterCtx.fillRect(0, 0, inverterCanvas.width, inverterCanvas.height);
+        <p>RTDs (Resistance Temperature Detectors) are highly accurate temperature sensors. PT100 has 100Ω at 0°C; PT1000 has 1000Ω at 0°C.</p>
 
-            const w = inverterCanvas.width;
-            const h = inverterCanvas.height;
-            const margin = { left: 60, right: 40, top: 30, bottom: 40 };
-            const plotW = w - margin.left - margin.right;
-            const plotH = (h - margin.top - margin.bottom) / 3 - 10;
+        <canvas id="rtd-4wire-canvas" width="900" height="400" style="width:100%;max-width:900px;background:#0d1117;border-radius:8px;"></canvas>
 
-            // Calculate metrics
-            let busUtil, thd;
-            switch(modulation) {
-                case 'svpwm':
-                    busUtil = modIndex * 1.15 * 100;
-                    thd = 2 + (1 - modIndex) * 5;
-                    break;
-                case 'spwm':
-                    busUtil = modIndex * 100;
-                    thd = 3 + (1 - modIndex) * 8;
-                    break;
-                case 'trap':
-                    busUtil = modIndex * 100;
-                    thd = 10 + (1 - modIndex) * 15;
-                    break;
-                default:
-                    busUtil = modIndex * 100;
-                    thd = 3 + (1 - modIndex) * 8;
-                    break;
-            }
+        <div class="subsection">
+            <h4>Interactive: RTD Calculator</h4>
 
-            document.getElementById('bus-util').textContent = Math.min(busUtil, 100).toFixed(0) + '%';
-            document.getElementById('thd').textContent = thd.toFixed(1) + '%';
-            document.getElementById('fund-rms').textContent = (48 * modIndex * 0.707).toFixed(1) + ' V';
-            document.getElementById('dead-time').textContent = '500 ns';
+            <div class="controls">
+                <div class="c3">
+                    <label for="rtd-temp">Temperature (°C)</label>
+                    <input type="range" id="rtd-temp" min="-50" max="500" step="1" value="25">
+                    <span id="rtd-temp-val" class="mono">25°C</span>
+                </div>
+                <div class="c3">
+                    <label for="rtd-r0">R<sub>0</sub> (Ω at 0°C)</label>
+                    <input type="range" id="rtd-r0" min="100" max="1000" step="100" value="100">
+                    <span id="rtd-r0-val" class="mono">100Ω (PT100)</span>
+                </div>
+                <div class="c3">
+                    <label for="rtd-iex">Excitation Current (mA)</label>
+                    <input type="range" id="rtd-iex" min="0.1" max="2" step="0.1" value="1">
+                    <span id="rtd-iex-val" class="mono">1.0mA</span>
+                </div>
+            </div>
 
-            const colors = ['#FFFF00', '#00FFFF', '#FF66FF'];
-            const phaseNames = ['Phase A', 'Phase B', 'Phase C'];
+            <div class="kv">
+                <div class="box">
+                    <div class="k">RTD Resistance</div>
+                    <div class="v mono" id="rtd-resistance">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Sense Voltage</div>
+                    <div class="v mono" id="rtd-voltage">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Self-Heating Power</div>
+                    <div class="v mono" id="rtd-power">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Temperature Error from Self-Heat</div>
+                    <div class="v mono" id="rtd-error">--</div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-            for (let phase = 0; phase < 3; phase++) {
-                const y0 = margin.top + phase * (plotH + 20) + plotH / 2;
-                const phaseShift = phase * 2 * Math.PI / 3;
+    <div class="card">
+        <h3>Section 2: Thermocouple Interface</h3>
 
-                // Draw axis
-                inverterCtx.strokeStyle = '#444';
-                inverterCtx.lineWidth = 1;
-                inverterCtx.beginPath();
-                inverterCtx.moveTo(margin.left, y0);
-                inverterCtx.lineTo(margin.left + plotW, y0);
-                inverterCtx.stroke();
+        <p>Thermocouples generate a voltage proportional to temperature difference between hot and cold junctions. Cold junction compensation (CJC) is required.</p>
 
-                // Draw phase label
-                inverterCtx.fillStyle = colors[phase];
-                inverterCtx.font = '12px monospace';
-                inverterCtx.textAlign = 'right';
-                inverterCtx.fillText(phaseNames[phase], margin.left - 10, y0 + 4);
+        <canvas id="thermocouple-canvas" width="900" height="380" style="width:100%;max-width:900px;background:#0d1117;border-radius:8px;"></canvas>
 
-                // Draw waveform
-                inverterCtx.strokeStyle = colors[phase];
-                inverterCtx.lineWidth = 2;
-                inverterCtx.beginPath();
+        <table class="table">
+            <tr>
+                <th>Type</th>
+                <th>Materials</th>
+                <th>Range</th>
+                <th>Sensitivity</th>
+            </tr>
+            <tr>
+                <td>K</td>
+                <td>Chromel/Alumel</td>
+                <td>-200 to +1350°C</td>
+                <td>~41 µV/°C</td>
+            </tr>
+            <tr>
+                <td>J</td>
+                <td>Iron/Constantan</td>
+                <td>-40 to +750°C</td>
+                <td>~52 µV/°C</td>
+            </tr>
+            <tr>
+                <td>T</td>
+                <td>Copper/Constantan</td>
+                <td>-200 to +350°C</td>
+                <td>~43 µV/°C</td>
+            </tr>
+            <tr>
+                <td>E</td>
+                <td>Chromel/Constantan</td>
+                <td>-200 to +900°C</td>
+                <td>~68 µV/°C</td>
+            </tr>
+        </table>
+    </div>
 
-                const periods = 2;
-                for (let i = 0; i <= plotW; i++) {
-                    const t = (i / plotW) * periods * (1 / elecFreq);
-                    const angle = 2 * Math.PI * elecFreq * t + phaseShift;
+    <div class="card">
+        <h3>Section 3: Strain Gauge / Load Cell</h3>
 
-                    let duty;
-                    switch(modulation) {
-                        case 'svpwm':
-                            // SVPWM with third harmonic injection
-                            const fund = Math.sin(angle);
-                            const third = Math.sin(3 * angle) / 6;
-                            duty = 0.5 + 0.5 * modIndex * (fund - third);
-                            break;
-                        case 'spwm':
-                            duty = 0.5 + 0.5 * modIndex * Math.sin(angle);
-                            break;
-                        case 'trap':
-                            const normAngle = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-                            if (normAngle < Math.PI / 3) duty = 0.5 + modIndex * 1.5 * normAngle / Math.PI;
-                            else if (normAngle < 2 * Math.PI / 3) duty = 0.5 + modIndex * 0.5;
-                            else if (normAngle < Math.PI) duty = 0.5 + modIndex * 0.5 - modIndex * 1.5 * (normAngle - 2*Math.PI/3) / Math.PI;
-                            else if (normAngle < 4 * Math.PI / 3) duty = 0.5 - modIndex * 1.5 * (normAngle - Math.PI) / Math.PI;
-                            else if (normAngle < 5 * Math.PI / 3) duty = 0.5 - modIndex * 0.5;
-                            else duty = 0.5 - modIndex * 0.5 + modIndex * 1.5 * (normAngle - 5*Math.PI/3) / Math.PI;
-                            break;
-                    }
+        <p>Strain gauges measure deformation by resistance change. Typical gauge factor is 2, meaning ΔR/R = 2 × strain.</p>
 
-                    const y = y0 - (duty - 0.5) * plotH * 0.9;
-                    if (i === 0) inverterCtx.moveTo(margin.left + i, y);
-                    else inverterCtx.lineTo(margin.left + i, y);
-                }
-                inverterCtx.stroke();
+        <div class="system-diagram" style="background:#1a1f2e;padding:15px;border-radius:8px;overflow-x:auto;">
+            <svg viewBox="0 0 600 360" style="width:100%;max-width:600px;height:auto;">
+                <defs>
+                    <marker id="arrow-bridge" viewBox="0 0 5 4" refX="5" refY="2" markerWidth="5" markerHeight="4" orient="auto">
+                        <path d="M 0 0 L 5 2 L 0 4 z" fill="#fbbf24"/>
+                    </marker>
+                </defs>
 
-                // Draw reference levels
-                inverterCtx.strokeStyle = '#666';
-                inverterCtx.setLineDash([3, 3]);
-                inverterCtx.beginPath();
-                inverterCtx.moveTo(margin.left, y0 - plotH * 0.45);
-                inverterCtx.lineTo(margin.left + plotW, y0 - plotH * 0.45);
-                inverterCtx.moveTo(margin.left, y0 + plotH * 0.45);
-                inverterCtx.lineTo(margin.left + plotW, y0 + plotH * 0.45);
-                inverterCtx.stroke();
-                inverterCtx.setLineDash([]);
-            }
+                <!-- Title -->
+                <text x="180" y="20" fill="#6ee7ff" font-size="13" font-weight="bold" text-anchor="middle">WHEATSTONE BRIDGE LOAD CELL</text>
 
-            // Time axis
-            inverterCtx.fillStyle = '#888';
-            inverterCtx.font = '11px monospace';
-            inverterCtx.textAlign = 'center';
-            inverterCtx.fillText('Time (2 electrical cycles)', margin.left + plotW / 2, h - 10);
+                <!-- V_excite label at top -->
+                <text x="180" y="45" fill="#34d399" font-size="10" text-anchor="middle">V_excite (5-10V)</text>
+                <line x1="180" y1="50" x2="180" y2="65" stroke="#34d399" stroke-width="1.5"/>
 
-            // Modulation label
-            inverterCtx.fillStyle = '#FFF';
-            inverterCtx.font = 'bold 14px monospace';
-            inverterCtx.textAlign = 'right';
-            const modLabels = { svpwm: 'Space Vector PWM', spwm: 'Sinusoidal PWM', trap: 'Trapezoidal' };
-            inverterCtx.fillText(modLabels[modulation], w - 50, 25);
+                <!-- Top junction -->
+                <circle cx="180" cy="65" r="3" fill="#e6edf3"/>
+
+                <!-- Wires to R1 and R2 -->
+                <line x1="180" y1="65" x2="100" y2="65" stroke="#e6edf3" stroke-width="1.5"/>
+                <line x1="100" y1="65" x2="100" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <line x1="180" y1="65" x2="260" y2="65" stroke="#e6edf3" stroke-width="1.5"/>
+                <line x1="260" y1="65" x2="260" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+
+                <!-- R1 (top left) -->
+                <rect x="85" y="80" width="30" height="50" rx="3" fill="none" stroke="#6ee7ff" stroke-width="1.5"/>
+                <text x="100" y="110" fill="#6ee7ff" font-size="9" text-anchor="middle">R1</text>
+                <text x="65" y="105" fill="#9fb0c0" font-size="8">120Ω</text>
+                <text x="65" y="117" fill="#34d399" font-size="8">+ε</text>
+
+                <!-- R2 (top right) -->
+                <rect x="245" y="80" width="30" height="50" rx="3" fill="none" stroke="#6ee7ff" stroke-width="1.5"/>
+                <text x="260" y="110" fill="#6ee7ff" font-size="9" text-anchor="middle">R2</text>
+                <text x="290" y="105" fill="#9fb0c0" font-size="8">120Ω</text>
+                <text x="290" y="117" fill="#ff6b6b" font-size="8">−ε</text>
+
+                <!-- Middle junction line (V+ and V-) -->
+                <line x1="100" y1="130" x2="100" y2="145" stroke="#e6edf3" stroke-width="1.5"/>
+                <line x1="260" y1="130" x2="260" y2="145" stroke="#e6edf3" stroke-width="1.5"/>
+                <circle cx="100" cy="145" r="3" fill="#fbbf24"/>
+                <circle cx="260" cy="145" r="3" fill="#fbbf24"/>
+                <text x="70" y="148" fill="#fbbf24" font-size="9">V+</text>
+                <text x="280" y="148" fill="#fbbf24" font-size="9">V−</text>
+
+                <!-- R4 (bottom left) -->
+                <line x1="100" y1="145" x2="100" y2="160" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="85" y="160" width="30" height="50" rx="3" fill="none" stroke="#6ee7ff" stroke-width="1.5"/>
+                <text x="100" y="190" fill="#6ee7ff" font-size="9" text-anchor="middle">R4</text>
+                <text x="65" y="185" fill="#9fb0c0" font-size="8">120Ω</text>
+                <text x="65" y="197" fill="#ff6b6b" font-size="8">−ε</text>
+
+                <!-- R3 (bottom right) -->
+                <line x1="260" y1="145" x2="260" y2="160" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="245" y="160" width="30" height="50" rx="3" fill="none" stroke="#6ee7ff" stroke-width="1.5"/>
+                <text x="260" y="190" fill="#6ee7ff" font-size="9" text-anchor="middle">R3</text>
+                <text x="290" y="185" fill="#9fb0c0" font-size="8">120Ω</text>
+                <text x="290" y="197" fill="#34d399" font-size="8">+ε</text>
+
+                <!-- Bottom connections to GND -->
+                <line x1="100" y1="210" x2="100" y2="230" stroke="#e6edf3" stroke-width="1.5"/>
+                <line x1="260" y1="210" x2="260" y2="230" stroke="#e6edf3" stroke-width="1.5"/>
+                <line x1="100" y1="230" x2="260" y2="230" stroke="#e6edf3" stroke-width="1.5"/>
+                <line x1="180" y1="230" x2="180" y2="245" stroke="#e6edf3" stroke-width="1.5"/>
+
+                <!-- GND symbol -->
+                <line x1="165" y1="245" x2="195" y2="245" stroke="#9fb0c0" stroke-width="2"/>
+                <line x1="170" y1="250" x2="190" y2="250" stroke="#9fb0c0" stroke-width="1.5"/>
+                <line x1="175" y1="255" x2="185" y2="255" stroke="#9fb0c0" stroke-width="1"/>
+                <text x="180" y="270" fill="#9fb0c0" font-size="9" text-anchor="middle">GND</text>
+
+                <!-- Instrumentation Amp section -->
+                <rect x="350" y="95" width="220" height="110" rx="6" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
+                <text x="460" y="115" fill="#6ee7ff" font-size="11" text-anchor="middle" font-weight="bold">Instrumentation Amplifier</text>
+                <text x="460" y="130" fill="#9fb0c0" font-size="9" text-anchor="middle">(INA128, AD8421)</text>
+                <text x="460" y="150" fill="#9fb0c0" font-size="9" text-anchor="middle">Gain = 100-500 for mV→V</text>
+                <text x="460" y="165" fill="#9fb0c0" font-size="9" text-anchor="middle">CMRR &gt; 100dB critical</text>
+                <text x="460" y="180" fill="#9fb0c0" font-size="9" text-anchor="middle">Low offset drift (&lt;1µV/°C)</text>
+
+                <!-- V+ to IN+ -->
+                <line x1="100" y1="145" x2="100" y2="125" stroke="#fbbf24" stroke-width="1.5"/>
+                <line x1="100" y1="125" x2="350" y2="125" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-bridge)"/>
+                <text x="330" y="118" fill="#fbbf24" font-size="8">IN+</text>
+
+                <!-- V- to IN- -->
+                <line x1="260" y1="145" x2="260" y2="170" stroke="#fbbf24" stroke-width="1.5"/>
+                <line x1="260" y1="170" x2="350" y2="170" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-bridge)"/>
+                <text x="330" y="163" fill="#fbbf24" font-size="8">IN−</text>
+
+                <!-- Output to ADC -->
+                <line x1="570" y1="150" x2="590" y2="150" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-bridge)"/>
+                <text x="595" y="153" fill="#fbbf24" font-size="9">ADC</text>
+
+                <!-- Equations box -->
+                <rect x="50" y="285" width="500" height="65" rx="4" fill="#2d2d4a" stroke="#9fb0c0" stroke-width="1"/>
+                <text x="65" y="302" fill="#e6edf3" font-size="10" font-weight="bold">Full bridge output:</text>
+                <text x="175" y="302" fill="#9fb0c0" font-size="10">V_out = V_exc × (ΔR/R) = V_exc × GF × ε</text>
+                <text x="65" y="320" fill="#9fb0c0" font-size="9">Typical strain: 1000 microstrain (µε) = 0.1%</text>
+                <text x="65" y="338" fill="#9fb0c0" font-size="9">With 10V excitation and GF=2: V_out = 10V × 2 × 0.001 = 20mV</text>
+            </svg>
+        </div>
+
+        <div class="subsection">
+            <h4>Interactive: Load Cell Calculator</h4>
+
+            <div class="controls">
+                <div class="c3">
+                    <label for="lc-vex">Excitation (V)</label>
+                    <input type="range" id="lc-vex" min="2" max="15" step="0.5" value="10">
+                    <span id="lc-vex-val" class="mono">10V</span>
+                </div>
+                <div class="c3">
+                    <label for="lc-sens">Sensitivity (mV/V)</label>
+                    <input type="range" id="lc-sens" min="0.5" max="3" step="0.1" value="2">
+                    <span id="lc-sens-val" class="mono">2 mV/V</span>
+                </div>
+                <div class="c3">
+                    <label for="lc-cap">Full Scale Capacity (kg)</label>
+                    <input type="range" id="lc-cap" min="1" max="1000" step="1" value="100">
+                    <span id="lc-cap-val" class="mono">100 kg</span>
+                </div>
+                <div class="c3">
+                    <label for="lc-load">Applied Load (kg)</label>
+                    <input type="range" id="lc-load" min="0" max="1000" step="1" value="50">
+                    <span id="lc-load-val" class="mono">50 kg</span>
+                </div>
+            </div>
+
+            <div class="kv">
+                <div class="box">
+                    <div class="k">Full Scale Output</div>
+                    <div class="v mono" id="lc-fso">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Signal at Load</div>
+                    <div class="v mono" id="lc-signal">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Required Gain for 5V</div>
+                    <div class="v mono" id="lc-gain">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Resolution (24-bit ADC)</div>
+                    <div class="v mono" id="lc-resolution">--</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 4: Pressure Sensor Interface</h3>
+
+        <p>MEMS pressure sensors typically output mV-level signals that require amplification. Many modern sensors include on-chip signal conditioning.</p>
+
+        <canvas id="pressure-sensor-canvas" width="900" height="300" style="width:100%;max-width:900px;background:#0d1117;border-radius:8px;"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    // 4-Wire RTD Measurement Canvas
+    (function() {
+        const canvas = document.getElementById('rtd-4wire-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+        function roundRect(c, x, y, w, h, r) {
+            c.beginPath();
+            c.moveTo(x + r, y);
+            c.lineTo(x + w - r, y);
+            c.quadraticCurveTo(x + w, y, x + w, y + r);
+            c.lineTo(x + w, y + h - r);
+            c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            c.lineTo(x + r, y + h);
+            c.quadraticCurveTo(x, y + h, x, y + h - r);
+            c.lineTo(x, y + r);
+            c.quadraticCurveTo(x, y, x + r, y);
+            c.closePath();
         }
 
-        // Canvas 2: Current Sensing
-        const currentCanvas = document.getElementById('current-sense-canvas');
-        const currentCtx = currentCanvas.getContext('2d');
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        function drawCurrentSensing() {
-            const peakI = AD.num('peak-current');
-            const shuntR = AD.num('shunt-value');
-            const gain = AD.num('amp-gain');
-            const adcRef = AD.num('adc-ref');
+        // Title
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('4-WIRE RTD MEASUREMENT (Highest Accuracy)', 450, 25);
 
-            document.getElementById('peak-current-val').textContent = peakI + ' A';
-            document.getElementById('shunt-value-val').textContent = shuntR + ' mΩ';
-            document.getElementById('amp-gain-val').textContent = gain;
+        // Current Source block
+        roundRect(ctx, 40, 60, 130, 100, 6);
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#1a1f2e';
+        ctx.fill();
 
-            currentCtx.fillStyle = '#181818';
-            currentCtx.fillRect(0, 0, currentCanvas.width, currentCanvas.height);
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Current Source', 105, 85);
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '11px monospace';
+        ctx.fillText('I_excite', 105, 105);
+        ctx.fillText('(typically 1mA)', 105, 120);
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('I+ →', 75, 140);
+        ctx.fillText('I- →', 125, 140);
 
-            const w = currentCanvas.width;
-            const h = currentCanvas.height;
+        // RTD Sensor block
+        roundRect(ctx, 550, 60, 180, 180, 6);
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#1a1f2e';
+        ctx.fill();
 
-            // Calculate sensing parameters
-            const shuntV = peakI * shuntR / 1000; // V
-            const ampOut = gain * shuntV;
-            const shuntPower = peakI * peakI * shuntR / 1000; // W (RMS for sine)
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('RTD Sensor', 640, 85);
+        ctx.fillStyle = '#9fb0c0';
+        ctx.fillText('(PT100 at probe)', 640, 105);
 
-            document.getElementById('shunt-voltage').textContent = '±' + (shuntV * 1000).toFixed(0) + ' mV';
-            document.getElementById('amp-output').textContent = (adcRef / 2).toFixed(2) + ' ± ' + ampOut.toFixed(2) + 'V';
-            document.getElementById('shunt-power').textContent = (shuntPower / 2).toFixed(2) + 'W (RMS)';
+        // RTD element inside
+        roundRect(ctx, 600, 130, 80, 50, 4);
+        ctx.strokeStyle = TEK.ch1;
+        ctx.stroke();
+        ctx.fillStyle = '#2a2a4a';
+        ctx.fill();
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '11px monospace';
+        ctx.fillText('RTD 100Ω', 640, 150);
+        ctx.fillText('@0°C', 640, 165);
 
-            // ADC resolution
-            const adcBits = 12;
-            const lsb = adcRef / Math.pow(2, adcBits);
-            const currentRes = lsb / (gain * shuntR / 1000);
-            document.getElementById('current-res').textContent = (currentRes * 1000).toFixed(1) + ' mA/LSB';
+        // Force + / Force -
+        ctx.fillStyle = TEK.ch4;
+        ctx.textAlign = 'left';
+        ctx.fillText('Force+', 560, 130);
+        ctx.fillText('Force-', 700, 130);
 
-            // Draw block diagram
-            const blockY = 120;
+        // Sense + / Sense -
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('Sense+', 560, 210);
+        ctx.fillText('Sense-', 700, 210);
 
-            // Current source
-            currentCtx.strokeStyle = '#00FFFF';
-            currentCtx.lineWidth = 3;
-            currentCtx.beginPath();
-            currentCtx.moveTo(50, blockY);
-            currentCtx.lineTo(120, blockY);
-            currentCtx.stroke();
+        // Lead resistances - Force lines
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
 
-            currentCtx.fillStyle = '#00FFFF';
-            currentCtx.beginPath();
-            currentCtx.arc(85, blockY, 15, 0, Math.PI * 2);
-            currentCtx.stroke();
-            currentCtx.fillText('I', 85, blockY + 5);
+        // I+ to Force+
+        ctx.beginPath();
+        ctx.moveTo(170, 100);
+        ctx.lineTo(280, 100);
+        ctx.stroke();
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('R_lead1', 225, 95);
 
-            // Shunt resistor
-            currentCtx.fillStyle = '#333';
-            currentCtx.fillRect(130, blockY - 15, 60, 30);
-            currentCtx.strokeStyle = '#FFFF00';
-            currentCtx.strokeRect(130, blockY - 15, 60, 30);
-            currentCtx.fillStyle = '#FFFF00';
-            currentCtx.font = '11px monospace';
-            currentCtx.textAlign = 'center';
-            currentCtx.fillText(shuntR + 'mΩ', 160, blockY + 5);
+        ctx.beginPath();
+        ctx.moveTo(320, 100);
+        ctx.lineTo(550, 100);
+        ctx.lineTo(550, 125);
+        ctx.stroke();
 
-            // Sense voltage
-            currentCtx.strokeStyle = '#888';
-            currentCtx.lineWidth = 1;
-            currentCtx.setLineDash([3, 3]);
-            currentCtx.beginPath();
-            currentCtx.moveTo(130, blockY + 30);
-            currentCtx.lineTo(130, blockY + 60);
-            currentCtx.moveTo(190, blockY + 30);
-            currentCtx.lineTo(190, blockY + 60);
-            currentCtx.stroke();
-            currentCtx.setLineDash([]);
+        // I- to Force-
+        ctx.beginPath();
+        ctx.moveTo(170, 120);
+        ctx.lineTo(280, 120);
+        ctx.stroke();
+        ctx.fillText('R_lead4', 225, 135);
 
-            currentCtx.fillStyle = '#888';
-            currentCtx.fillText('Vsense', 160, blockY + 55);
-            currentCtx.fillText('±' + (shuntV * 1000).toFixed(0) + 'mV', 160, blockY + 70);
+        ctx.beginPath();
+        ctx.moveTo(320, 120);
+        ctx.lineTo(400, 120);
+        ctx.lineTo(400, 220);
+        ctx.lineTo(730, 220);
+        ctx.lineTo(730, 125);
+        ctx.stroke();
 
-            // Current continues
-            currentCtx.strokeStyle = '#00FFFF';
-            currentCtx.lineWidth = 3;
-            currentCtx.beginPath();
-            currentCtx.moveTo(190, blockY);
-            currentCtx.lineTo(260, blockY);
-            currentCtx.stroke();
+        // Instrumentation Amplifier block
+        roundRect(ctx, 40, 260, 260, 120, 6);
+        ctx.strokeStyle = TEK.ch3;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#1a1f2e';
+        ctx.fill();
 
-            // Amplifier
-            currentCtx.fillStyle = '#333';
-            currentCtx.beginPath();
-            currentCtx.moveTo(300, blockY - 40);
-            currentCtx.lineTo(380, blockY);
-            currentCtx.lineTo(300, blockY + 40);
-            currentCtx.closePath();
-            currentCtx.fill();
-            currentCtx.strokeStyle = '#00FF00';
-            currentCtx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Instrumentation Amplifier', 170, 285);
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '11px monospace';
+        ctx.fillText('Gain = 1 to 100', 170, 310);
+        ctx.fillText('VOUT = I × R_RTD × Gain', 170, 330);
+        ctx.fillStyle = TEK.ch1;
+        ctx.textAlign = 'left';
+        ctx.fillText('IN+ ←', 55, 300);
+        ctx.fillText('IN- ←', 55, 340);
+        ctx.fillStyle = TEK.ch2;
+        ctx.textAlign = 'right';
+        ctx.fillText('→ ADC', 285, 355);
 
-            currentCtx.fillStyle = '#00FF00';
-            currentCtx.fillText('G=' + gain, 330, blockY + 5);
+        // Sense lines (no current - different color)
+        ctx.strokeStyle = TEK.ch1;
+        ctx.setLineDash([5, 3]);
 
-            // Input connections to amp
-            currentCtx.strokeStyle = '#888';
-            currentCtx.lineWidth = 1;
-            currentCtx.beginPath();
-            currentCtx.moveTo(130, blockY + 60);
-            currentCtx.lineTo(130, blockY + 90);
-            currentCtx.lineTo(280, blockY + 90);
-            currentCtx.lineTo(280, blockY + 20);
-            currentCtx.lineTo(300, blockY + 20);
-            currentCtx.stroke();
+        // Sense+ line
+        ctx.beginPath();
+        ctx.moveTo(100, 295);
+        ctx.lineTo(450, 295);
+        ctx.lineTo(450, 205);
+        ctx.lineTo(550, 205);
+        ctx.stroke();
+        ctx.fillStyle = '#9fb0c0';
+        ctx.textAlign = 'center';
+        ctx.fillText('R_lead2', 500, 200);
 
-            currentCtx.beginPath();
-            currentCtx.moveTo(190, blockY + 60);
-            currentCtx.lineTo(190, blockY + 100);
-            currentCtx.lineTo(270, blockY + 100);
-            currentCtx.lineTo(270, blockY - 20);
-            currentCtx.lineTo(300, blockY - 20);
-            currentCtx.stroke();
+        // Sense- line
+        ctx.beginPath();
+        ctx.moveTo(100, 335);
+        ctx.lineTo(480, 335);
+        ctx.lineTo(480, 225);
+        ctx.lineTo(700, 225);
+        ctx.stroke();
+        ctx.fillText('R_lead3', 590, 235);
 
-            // Amp output
-            currentCtx.strokeStyle = '#00FF00';
-            currentCtx.lineWidth = 2;
-            currentCtx.beginPath();
-            currentCtx.moveTo(380, blockY);
-            currentCtx.lineTo(450, blockY);
-            currentCtx.stroke();
+        ctx.setLineDash([]);
 
-            // ADC
-            currentCtx.fillStyle = '#333';
-            currentCtx.fillRect(460, blockY - 30, 80, 60);
-            currentCtx.strokeStyle = '#FF6600';
-            currentCtx.strokeRect(460, blockY - 30, 80, 60);
-            currentCtx.fillStyle = '#FF6600';
-            currentCtx.fillText('12-bit', 500, blockY - 5);
-            currentCtx.fillText('ADC', 500, blockY + 15);
+        // Key insight box
+        roundRect(ctx, 550, 270, 320, 100, 4);
+        ctx.fillStyle = '#1a3a2a';
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 1;
+        ctx.stroke();
 
-            // Digital output
-            currentCtx.strokeStyle = '#FF6600';
-            currentCtx.beginPath();
-            currentCtx.moveTo(540, blockY);
-            currentCtx.lineTo(600, blockY);
-            currentCtx.stroke();
-            currentCtx.fillStyle = '#FF6600';
-            currentCtx.fillText('Digital', 620, blockY);
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Lead resistance CANCELS because', 565, 295);
+        ctx.fillText('sense leads carry NO current!', 565, 312);
 
-            // Transfer function graph
-            const graphX = 650;
-            const graphY = 50;
-            const graphW = 280;
-            const graphH = 200;
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '10px monospace';
+        ctx.fillText('PT100: R(T) = R₀×(1+αT+βT²+...)', 565, 335);
+        ctx.fillText('α = 0.00385055/°C (IEC 60751)', 565, 350);
+        ctx.fillText('At 100°C: R=138.5Ω → V=138.5mV @1mA', 565, 365);
+    })();
 
-            currentCtx.fillStyle = '#111';
-            currentCtx.fillRect(graphX, graphY, graphW, graphH);
-            currentCtx.strokeStyle = '#444';
-            currentCtx.strokeRect(graphX, graphY, graphW, graphH);
+    // Thermocouple Signal Chain Canvas
+    (function() {
+        const canvas = document.getElementById('thermocouple-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
 
-            // Grid
-            currentCtx.strokeStyle = '#333';
-            currentCtx.lineWidth = 1;
-            currentCtx.beginPath();
-            currentCtx.moveTo(graphX + graphW / 2, graphY);
-            currentCtx.lineTo(graphX + graphW / 2, graphY + graphH);
-            currentCtx.moveTo(graphX, graphY + graphH / 2);
-            currentCtx.lineTo(graphX + graphW, graphY + graphH / 2);
-            currentCtx.stroke();
+        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
 
-            // Transfer line
-            currentCtx.strokeStyle = '#00FF00';
-            currentCtx.lineWidth = 2;
-            currentCtx.beginPath();
-
-            for (let i = -peakI; i <= peakI; i += 0.5) {
-                const vOut = adcRef / 2 + gain * (i * shuntR / 1000);
-                const x = graphX + ((i + peakI) / (2 * peakI)) * graphW;
-                const y = graphY + graphH - (vOut / adcRef) * graphH;
-
-                if (i === -peakI) currentCtx.moveTo(x, Math.max(graphY, Math.min(graphY + graphH, y)));
-                else currentCtx.lineTo(x, Math.max(graphY, Math.min(graphY + graphH, y)));
-            }
-            currentCtx.stroke();
-
-            // Clipping indicators
-            const vMax = adcRef / 2 + ampOut;
-            const vMin = adcRef / 2 - ampOut;
-
-            if (vMax > adcRef || vMin < 0) {
-                currentCtx.fillStyle = '#FF0000';
-                currentCtx.font = 'bold 12px monospace';
-                currentCtx.fillText('CLIPPING!', graphX + graphW / 2, graphY + 20);
-            }
-
-            // Labels
-            currentCtx.fillStyle = '#888';
-            currentCtx.font = '10px monospace';
-            currentCtx.textAlign = 'center';
-            currentCtx.fillText('Current (A)', graphX + graphW / 2, graphY + graphH + 15);
-            currentCtx.fillText(-peakI + '', graphX + 15, graphY + graphH + 15);
-            currentCtx.fillText('+' + peakI, graphX + graphW - 15, graphY + graphH + 15);
-
-            currentCtx.save();
-            currentCtx.translate(graphX - 15, graphY + graphH / 2);
-            currentCtx.rotate(-Math.PI / 2);
-            currentCtx.fillText('Vout (V)', 0, 0);
-            currentCtx.restore();
-
-            currentCtx.textAlign = 'right';
-            currentCtx.fillText(adcRef + 'V', graphX - 5, graphY + 5);
-            currentCtx.fillText('0V', graphX - 5, graphY + graphH);
-            currentCtx.fillText(adcRef / 2 + 'V', graphX - 5, graphY + graphH / 2 + 5);
+        function roundRect(c, x, y, w, h, r) {
+            c.beginPath();
+            c.moveTo(x + r, y);
+            c.lineTo(x + w - r, y);
+            c.quadraticCurveTo(x + w, y, x + w, y + r);
+            c.lineTo(x + w, y + h - r);
+            c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            c.lineTo(x + r, y + h);
+            c.quadraticCurveTo(x, y + h, x, y + h - r);
+            c.lineTo(x, y + r);
+            c.quadraticCurveTo(x, y, x + r, y);
+            c.closePath();
         }
 
-        // Canvas 3: FOC
-        const focCanvas = document.getElementById('foc-canvas');
-        const focCtx = focCanvas.getContext('2d');
-        let rotorAngle = 30;
-        let animating = false;
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        function drawFOC() {
-            const Ia = AD.num('ia-current');
-            const Ib = AD.num('ib-current');
-            const theta = rotorAngle * Math.PI / 180;
+        // Title
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('THERMOCOUPLE SIGNAL CHAIN', 450, 25);
 
-            document.getElementById('ia-current-val').textContent = Ia.toFixed(1) + ' A';
-            document.getElementById('ib-current-val').textContent = Ib.toFixed(1) + ' A';
-            document.getElementById('rotor-angle-val').textContent = rotorAngle.toFixed(0) + '°';
+        // Hot Junction
+        roundRect(ctx, 60, 60, 120, 100, 6);
+        ctx.strokeStyle = '#ff6b6b';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#2a1a1a';
+        ctx.fill();
 
-            // Calculate Ic (balanced 3-phase: Ia + Ib + Ic = 0)
-            const Ic = -(Ia + Ib);
+        ctx.fillStyle = '#ff6b6b';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Hot Junction', 120, 85);
+        ctx.fillText('(measurement)', 120, 100);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Type K', 120, 125);
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '10px monospace';
+        ctx.fillText('Chromel +', 120, 140);
+        ctx.fillText('Alumel -', 120, 153);
 
-            // Clarke transform: abc -> αβ
-            const Ialpha = Ia;
-            const Ibeta = (Ia + 2 * Ib) / Math.sqrt(3);
+        // Cold Junction / Isothermal Block
+        roundRect(ctx, 280, 60, 140, 100, 6);
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#1a2a3a';
+        ctx.fill();
 
-            // Park transform: αβ -> dq
-            const Id = Ialpha * Math.cos(theta) + Ibeta * Math.sin(theta);
-            const Iq = -Ialpha * Math.sin(theta) + Ibeta * Math.cos(theta);
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Cold Junction', 350, 85);
+        ctx.fillText('(Isothermal Block)', 350, 100);
+        ctx.fillStyle = '#9fb0c0';
+        ctx.fillText('Known temp', 350, 120);
+        ctx.fillText('reference', 350, 135);
 
-            document.getElementById('i-alpha').textContent = Ialpha.toFixed(2) + ' A';
-            document.getElementById('i-beta').textContent = Ibeta.toFixed(2) + ' A';
-            document.getElementById('i-d').textContent = Id.toFixed(2) + ' A';
-            document.getElementById('i-q').textContent = Iq.toFixed(2) + ' A';
+        // CJC Sensor
+        roundRect(ctx, 300, 175, 100, 40, 4);
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = '#2a2a3a';
+        ctx.fill();
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '10px monospace';
+        ctx.fillText('CJC Sensor', 350, 200);
 
-            focCtx.fillStyle = '#181818';
-            focCtx.fillRect(0, 0, focCanvas.width, focCanvas.height);
+        // Connections hot to cold
+        ctx.strokeStyle = '#9fb0c0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(180, 100);
+        ctx.lineTo(280, 100);
+        ctx.stroke();
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '9px monospace';
+        ctx.fillText('+ lead', 230, 95);
 
-            const w = focCanvas.width;
-            const h = focCanvas.height;
+        ctx.beginPath();
+        ctx.moveTo(180, 130);
+        ctx.lineTo(280, 130);
+        ctx.stroke();
+        ctx.fillText('- lead', 230, 145);
 
-            // Draw abc reference frame
-            const abcCenterX = 180;
-            const abcCenterY = 200;
-            const abcRadius = 120;
+        // Arrow to CJC
+        ctx.beginPath();
+        ctx.moveTo(350, 160);
+        ctx.lineTo(350, 175);
+        ctx.stroke();
 
-            // Draw circle
-            focCtx.strokeStyle = '#444';
-            focCtx.lineWidth = 1;
-            focCtx.beginPath();
-            focCtx.arc(abcCenterX, abcCenterY, abcRadius, 0, Math.PI * 2);
-            focCtx.stroke();
+        // Voltage equation
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('V_TC = V_hot - V_cold', 80, 200);
+        ctx.fillStyle = '#9fb0c0';
+        ctx.fillText('(Type K: ~41µV/°C)', 80, 218);
 
-            // Draw abc axes
-            const phases = [
-                { name: 'a', angle: 0, current: Ia, color: '#FFFF00' },
-                { name: 'b', angle: 2 * Math.PI / 3, current: Ib, color: '#00FFFF' },
-                { name: 'c', angle: 4 * Math.PI / 3, current: Ic, color: '#FF66FF' }
-            ];
+        // ADC with PGA block
+        roundRect(ctx, 60, 250, 800, 110, 6);
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#1a1f2e';
+        ctx.fill();
 
-            phases.forEach(phase => {
-                const endX = abcCenterX + abcRadius * Math.cos(phase.angle);
-                const endY = abcCenterY - abcRadius * Math.sin(phase.angle);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('ADC with PGA', 460, 275);
 
-                focCtx.strokeStyle = phase.color;
-                focCtx.lineWidth = 1;
-                focCtx.setLineDash([5, 5]);
-                focCtx.beginPath();
-                focCtx.moveTo(abcCenterX, abcCenterY);
-                focCtx.lineTo(endX, endY);
-                focCtx.stroke();
-                focCtx.setLineDash([]);
+        // Signal chain inside
+        const stages = [
+            { x: 100, label: 'EMI Filter', sub: '(RC 1-10Hz)' },
+            { x: 280, label: 'Low-Noise PGA', sub: '(Gain 32-128)' },
+            { x: 480, label: 'ΔΣ ADC', sub: '24-bit' },
+            { x: 660, label: 'Digital Output', sub: '' }
+        ];
 
-                // Phase label
-                focCtx.fillStyle = phase.color;
-                focCtx.font = '14px monospace';
-                focCtx.textAlign = 'center';
-                focCtx.fillText(phase.name, endX + 15 * Math.cos(phase.angle), endY - 15 * Math.sin(phase.angle));
+        stages.forEach((s, i) => {
+            roundRect(ctx, s.x, 290, 120, 40, 4);
+            ctx.fillStyle = '#2a2a4a';
+            ctx.fill();
+            ctx.strokeStyle = TEK.ch4;
+            ctx.lineWidth = 1;
+            ctx.stroke();
 
-                // Draw current vector on this axis
-                const currentLen = (phase.current / 10) * abcRadius * 0.8;
-                const currEndX = abcCenterX + currentLen * Math.cos(phase.angle);
-                const currEndY = abcCenterY - currentLen * Math.sin(phase.angle);
+            ctx.fillStyle = TEK.ch4;
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(s.label, s.x + 60, 308);
+            ctx.fillStyle = '#9fb0c0';
+            ctx.font = '9px monospace';
+            ctx.fillText(s.sub, s.x + 60, 323);
 
-                focCtx.strokeStyle = phase.color;
-                focCtx.lineWidth = 3;
-                focCtx.beginPath();
-                focCtx.moveTo(abcCenterX, abcCenterY);
-                focCtx.lineTo(currEndX, currEndY);
-                focCtx.stroke();
-            });
-
-            focCtx.fillStyle = '#CCC';
-            focCtx.font = 'bold 14px monospace';
-            focCtx.textAlign = 'center';
-            focCtx.fillText('abc Frame', abcCenterX, 350);
-
-            // Draw αβ frame (Clarke)
-            const abCenterX = 490;
-            const abCenterY = 200;
-
-            focCtx.strokeStyle = '#444';
-            focCtx.beginPath();
-            focCtx.arc(abCenterX, abCenterY, abcRadius, 0, Math.PI * 2);
-            focCtx.stroke();
-
-            // α axis (horizontal)
-            focCtx.strokeStyle = '#FF6600';
-            focCtx.lineWidth = 1;
-            focCtx.setLineDash([5, 5]);
-            focCtx.beginPath();
-            focCtx.moveTo(abCenterX - abcRadius, abCenterY);
-            focCtx.lineTo(abCenterX + abcRadius, abCenterY);
-            focCtx.stroke();
-
-            // β axis (vertical)
-            focCtx.beginPath();
-            focCtx.moveTo(abCenterX, abCenterY + abcRadius);
-            focCtx.lineTo(abCenterX, abCenterY - abcRadius);
-            focCtx.stroke();
-            focCtx.setLineDash([]);
-
-            focCtx.fillStyle = '#FF6600';
-            focCtx.fillText('α', abCenterX + abcRadius + 10, abCenterY);
-            focCtx.fillText('β', abCenterX, abCenterY - abcRadius - 10);
-
-            // Draw Iαβ vector
-            const IalphaLen = (Ialpha / 10) * abcRadius * 0.8;
-            const IbetaLen = (Ibeta / 10) * abcRadius * 0.8;
-
-            focCtx.strokeStyle = '#00FF00';
-            focCtx.lineWidth = 3;
-            focCtx.beginPath();
-            focCtx.moveTo(abCenterX, abCenterY);
-            focCtx.lineTo(abCenterX + IalphaLen, abCenterY - IbetaLen);
-            focCtx.stroke();
-
-            // Arrowhead
-            const vecAngle = Math.atan2(IbetaLen, IalphaLen);
-            focCtx.fillStyle = '#00FF00';
-            focCtx.beginPath();
-            focCtx.moveTo(abCenterX + IalphaLen, abCenterY - IbetaLen);
-            focCtx.lineTo(abCenterX + IalphaLen - 10 * Math.cos(vecAngle - 0.3),
-                         abCenterY - IbetaLen + 10 * Math.sin(vecAngle - 0.3));
-            focCtx.lineTo(abCenterX + IalphaLen - 10 * Math.cos(vecAngle + 0.3),
-                         abCenterY - IbetaLen + 10 * Math.sin(vecAngle + 0.3));
-            focCtx.closePath();
-            focCtx.fill();
-
-            focCtx.fillStyle = '#CCC';
-            focCtx.font = 'bold 14px monospace';
-            focCtx.fillText('αβ Frame (Clarke)', abCenterX, 350);
-
-            // Draw dq frame (Park)
-            const dqCenterX = 800;
-            const dqCenterY = 200;
-
-            focCtx.strokeStyle = '#444';
-            focCtx.beginPath();
-            focCtx.arc(dqCenterX, dqCenterY, abcRadius, 0, Math.PI * 2);
-            focCtx.stroke();
-
-            // d axis (along rotor)
-            const dEndX = dqCenterX + abcRadius * Math.cos(theta);
-            const dEndY = dqCenterY - abcRadius * Math.sin(theta);
-
-            focCtx.strokeStyle = '#00FFFF';
-            focCtx.lineWidth = 1;
-            focCtx.setLineDash([5, 5]);
-            focCtx.beginPath();
-            focCtx.moveTo(dqCenterX - abcRadius * Math.cos(theta), dqCenterY + abcRadius * Math.sin(theta));
-            focCtx.lineTo(dEndX, dEndY);
-            focCtx.stroke();
-
-            // q axis (90° ahead)
-            const qAngle = theta + Math.PI / 2;
-            focCtx.beginPath();
-            focCtx.moveTo(dqCenterX - abcRadius * Math.cos(qAngle), dqCenterY + abcRadius * Math.sin(qAngle));
-            focCtx.lineTo(dqCenterX + abcRadius * Math.cos(qAngle), dqCenterY - abcRadius * Math.sin(qAngle));
-            focCtx.stroke();
-            focCtx.setLineDash([]);
-
-            focCtx.fillStyle = '#00FFFF';
-            focCtx.fillText('d', dEndX + 15 * Math.cos(theta), dEndY - 15 * Math.sin(theta));
-            focCtx.fillText('q', dqCenterX + (abcRadius + 15) * Math.cos(qAngle),
-                           dqCenterY - (abcRadius + 15) * Math.sin(qAngle));
-
-            // Draw rotor indicator
-            focCtx.strokeStyle = '#FF0000';
-            focCtx.lineWidth = 4;
-            focCtx.beginPath();
-            focCtx.moveTo(dqCenterX, dqCenterY);
-            focCtx.lineTo(dqCenterX + 40 * Math.cos(theta), dqCenterY - 40 * Math.sin(theta));
-            focCtx.stroke();
-            focCtx.fillStyle = '#FF0000';
-            focCtx.fillText('θ=' + rotorAngle + '°', dqCenterX + 50, dqCenterY + 50);
-
-            // Draw Id, Iq components
-            const IdLen = (Id / 10) * abcRadius * 0.8;
-            const IqLen = (Iq / 10) * abcRadius * 0.8;
-
-            // Iq vector (along q axis - torque producing)
-            focCtx.strokeStyle = '#00FF00';
-            focCtx.lineWidth = 3;
-            focCtx.beginPath();
-            focCtx.moveTo(dqCenterX, dqCenterY);
-            focCtx.lineTo(dqCenterX + IqLen * Math.cos(qAngle), dqCenterY - IqLen * Math.sin(qAngle));
-            focCtx.stroke();
-
-            // Id vector (along d axis - flux)
-            focCtx.strokeStyle = '#FFFF00';
-            focCtx.beginPath();
-            focCtx.moveTo(dqCenterX, dqCenterY);
-            focCtx.lineTo(dqCenterX + IdLen * Math.cos(theta), dqCenterY - IdLen * Math.sin(theta));
-            focCtx.stroke();
-
-            focCtx.fillStyle = '#CCC';
-            focCtx.font = 'bold 14px monospace';
-            focCtx.fillText('dq Frame (Park)', dqCenterX, 350);
-
-            // Labels for Id, Iq
-            focCtx.fillStyle = '#FFFF00';
-            focCtx.font = '12px monospace';
-            focCtx.fillText('Id (flux)', dqCenterX - 80, 380);
-            focCtx.fillStyle = '#00FF00';
-            focCtx.fillText('Iq (torque)', dqCenterX + 20, 380);
-
-            // Transform arrows
-            focCtx.strokeStyle = '#888';
-            focCtx.lineWidth = 2;
-            focCtx.beginPath();
-            focCtx.moveTo(310, 200);
-            focCtx.lineTo(370, 200);
-            focCtx.stroke();
-            focCtx.fillStyle = '#888';
-            focCtx.beginPath();
-            focCtx.moveTo(370, 200);
-            focCtx.lineTo(360, 195);
-            focCtx.lineTo(360, 205);
-            focCtx.closePath();
-            focCtx.fill();
-            focCtx.font = '11px monospace';
-            focCtx.textAlign = 'center';
-            focCtx.fillText('Clarke', 340, 185);
-
-            focCtx.beginPath();
-            focCtx.moveTo(620, 200);
-            focCtx.lineTo(680, 200);
-            focCtx.stroke();
-            focCtx.beginPath();
-            focCtx.moveTo(680, 200);
-            focCtx.lineTo(670, 195);
-            focCtx.lineTo(670, 205);
-            focCtx.closePath();
-            focCtx.fill();
-            focCtx.fillText('Park', 650, 185);
-        }
-
-        // Animation for auto-rotate
-        function animateFOC() {
-            if (document.getElementById('auto-rotate').checked) {
-                rotorAngle = (rotorAngle + 2) % 360;
-                document.getElementById('rotor-angle').value = rotorAngle;
-                drawFOC();
+            // Arrows between stages
+            if (i < stages.length - 1) {
+                ctx.strokeStyle = TEK.ch1;
+                ctx.beginPath();
+                ctx.moveTo(s.x + 120, 310);
+                ctx.lineTo(stages[i + 1].x, 310);
+                ctx.stroke();
+                // Arrowhead
+                ctx.beginPath();
+                ctx.moveTo(stages[i + 1].x - 8, 305);
+                ctx.lineTo(stages[i + 1].x, 310);
+                ctx.lineTo(stages[i + 1].x - 8, 315);
+                ctx.stroke();
             }
-            requestAnimationFrame(animateFOC);
-        }
-
-        // Canvas 4: Control Loop
-        const controlCanvas = document.getElementById('control-canvas');
-        const controlCtx = controlCanvas.getContext('2d');
-
-        function drawControlLoop() {
-            const Kp = AD.num('kp-speed');
-            const Ki = AD.num('ki-speed');
-            const setpoint = AD.num('setpoint-rpm');
-            const loadTorque = AD.num('load-torque');
-
-            document.getElementById('kp-speed-val').textContent = Kp.toFixed(1);
-            document.getElementById('ki-speed-val').textContent = Ki.toFixed(1);
-            document.getElementById('setpoint-rpm-val').textContent = setpoint;
-            document.getElementById('load-torque-val').textContent = loadTorque + '%';
-
-            controlCtx.fillStyle = '#181818';
-            controlCtx.fillRect(0, 0, controlCanvas.width, controlCanvas.height);
-
-            const w = controlCanvas.width;
-            const h = controlCanvas.height;
-            const margin = { left: 80, right: 40, top: 50, bottom: 60 };
-            const plotW = w - margin.left - margin.right;
-            const plotH = h - margin.top - margin.bottom;
-
-            // Simple motor model simulation
-            const J = 0.01; // Inertia
-            const B = 0.001; // Friction
-            const Kt = 0.1; // Torque constant
-            const dt = 0.001; // 1ms steps
-            const tMax = 0.5; // 500ms simulation
-
-            let speed = 0;
-            let integral = 0;
-            const speedHistory = [];
-            let riseTime = 0, settleTime = 0, overshoot = 0;
-            let reachedSetpoint = false;
-
-            for (let t = 0; t <= tMax; t += dt) {
-                const error = setpoint - speed;
-                integral += error * dt;
-
-                const control = Kp * error + Ki * integral;
-                const torque = Math.max(0, Math.min(control, 100)) * Kt;
-                const loadT = (loadTorque / 100) * setpoint * Kt * 0.5;
-
-                const accel = (torque - loadT - B * speed) / J;
-                speed += accel * dt;
-                speed = Math.max(0, speed);
-
-                speedHistory.push({ t, speed });
-
-                if (!reachedSetpoint && speed >= setpoint * 0.9) {
-                    riseTime = t * 1000;
-                    reachedSetpoint = true;
-                }
-
-                if (speed > setpoint) {
-                    overshoot = Math.max(overshoot, ((speed - setpoint) / setpoint) * 100);
-                }
-            }
-
-            // Find settling time (within 2%)
-            for (let i = speedHistory.length - 1; i >= 0; i--) {
-                if (Math.abs(speedHistory[i].speed - setpoint) > setpoint * 0.02) {
-                    settleTime = speedHistory[i].t * 1000;
-                    break;
-                }
-            }
-
-            document.getElementById('rise-time').textContent = riseTime.toFixed(0) + ' ms';
-            document.getElementById('overshoot').textContent = overshoot.toFixed(0) + '%';
-            document.getElementById('settle-time').textContent = settleTime.toFixed(0) + ' ms';
-            document.getElementById('ss-error').textContent = '0%';
-
-            // Draw grid
-            controlCtx.strokeStyle = '#333';
-            controlCtx.lineWidth = 1;
-            for (let i = 0; i <= 5; i++) {
-                const x = margin.left + (i / 5) * plotW;
-                controlCtx.beginPath();
-                controlCtx.moveTo(x, margin.top);
-                controlCtx.lineTo(x, margin.top + plotH);
-                controlCtx.stroke();
-            }
-
-            // Draw setpoint line
-            const setpointY = margin.top + plotH - (setpoint / (setpoint * 1.5)) * plotH;
-            controlCtx.strokeStyle = '#FF0000';
-            controlCtx.setLineDash([5, 5]);
-            controlCtx.beginPath();
-            controlCtx.moveTo(margin.left, setpointY);
-            controlCtx.lineTo(margin.left + plotW, setpointY);
-            controlCtx.stroke();
-            controlCtx.setLineDash([]);
-
-            // Draw 2% settling band
-            controlCtx.fillStyle = 'rgba(0, 255, 0, 0.1)';
-            const bandTop = margin.top + plotH - (setpoint * 1.02 / (setpoint * 1.5)) * plotH;
-            const bandBot = margin.top + plotH - (setpoint * 0.98 / (setpoint * 1.5)) * plotH;
-            controlCtx.fillRect(margin.left, bandTop, plotW, bandBot - bandTop);
-
-            // Draw speed response
-            controlCtx.strokeStyle = '#00FF00';
-            controlCtx.lineWidth = 2;
-            controlCtx.beginPath();
-
-            speedHistory.forEach((point, i) => {
-                const x = margin.left + (point.t / tMax) * plotW;
-                const y = margin.top + plotH - (point.speed / (setpoint * 1.5)) * plotH;
-
-                if (i === 0) controlCtx.moveTo(x, y);
-                else controlCtx.lineTo(x, y);
-            });
-            controlCtx.stroke();
-
-            // Labels
-            controlCtx.fillStyle = '#CCC';
-            controlCtx.font = '14px monospace';
-            controlCtx.textAlign = 'center';
-            controlCtx.fillText('Time (ms)', margin.left + plotW / 2, h - 15);
-
-            controlCtx.save();
-            controlCtx.translate(25, margin.top + plotH / 2);
-            controlCtx.rotate(-Math.PI / 2);
-            controlCtx.fillText('Speed (RPM)', 0, 0);
-            controlCtx.restore();
-
-            // Time scale
-            controlCtx.font = '11px monospace';
-            controlCtx.fillStyle = '#888';
-            for (let t = 0; t <= tMax * 1000; t += 100) {
-                const x = margin.left + (t / (tMax * 1000)) * plotW;
-                controlCtx.fillText(t.toString(), x, margin.top + plotH + 20);
-            }
-
-            // Speed scale
-            controlCtx.textAlign = 'right';
-            for (let s = 0; s <= setpoint * 1.5; s += setpoint / 2) {
-                const y = margin.top + plotH - (s / (setpoint * 1.5)) * plotH;
-                controlCtx.fillText(s.toFixed(0), margin.left - 10, y + 4);
-            }
-
-            // Legend
-            controlCtx.textAlign = 'left';
-            controlCtx.fillStyle = '#00FF00';
-            controlCtx.fillRect(margin.left + plotW - 150, margin.top + 10, 20, 3);
-            controlCtx.fillStyle = '#CCC';
-            controlCtx.fillText('Speed', margin.left + plotW - 125, margin.top + 15);
-
-            controlCtx.fillStyle = '#FF0000';
-            controlCtx.fillRect(margin.left + plotW - 150, margin.top + 30, 20, 3);
-            controlCtx.fillStyle = '#CCC';
-            controlCtx.fillText('Setpoint', margin.left + plotW - 125, margin.top + 35);
-
-            // Title
-            controlCtx.fillStyle = '#FFF';
-            controlCtx.font = 'bold 16px monospace';
-            controlCtx.textAlign = 'center';
-            controlCtx.fillText('PI Speed Control Response', w / 2, 25);
-        }
-
-        // Canvas 0: System Architecture
-        const motorArchCanvas = document.getElementById('motor-arch-canvas');
-        const motorArchCtx = motorArchCanvas.getContext('2d');
-
-        function drawMotorArchitecture() {
-            motorArchCtx.fillStyle = '#181818';
-            motorArchCtx.fillRect(0, 0, motorArchCanvas.width, motorArchCanvas.height);
-
-            const w = motorArchCanvas.width;
-            const h = motorArchCanvas.height;
-
-            // Title
-            motorArchCtx.fillStyle = '#FFF';
-            motorArchCtx.font = 'bold 16px monospace';
-            motorArchCtx.textAlign = 'center';
-            motorArchCtx.fillText('BLDC MOTOR CONTROL SYSTEM', w / 2, 25);
-
-            // DC Bus
-            motorArchCtx.fillStyle = '#222';
-            motorArchCtx.fillRect(30, 50, 100, 50);
-            motorArchCtx.strokeStyle = '#FF0000';
-            motorArchCtx.lineWidth = 2;
-            motorArchCtx.strokeRect(30, 50, 100, 50);
-            motorArchCtx.fillStyle = '#FF0000';
-            motorArchCtx.font = 'bold 12px monospace';
-            motorArchCtx.fillText('DC BUS', 80, 72);
-            motorArchCtx.font = '10px monospace';
-            motorArchCtx.fillText('24-48V', 80, 90);
-
-            // 3-Phase Inverter
-            motorArchCtx.fillStyle = '#222';
-            motorArchCtx.fillRect(180, 45, 350, 110);
-            motorArchCtx.strokeStyle = '#00FFFF';
-            motorArchCtx.lineWidth = 2;
-            motorArchCtx.strokeRect(180, 45, 350, 110);
-            motorArchCtx.fillStyle = '#00FFFF';
-            motorArchCtx.font = 'bold 12px monospace';
-            motorArchCtx.fillText('3-PHASE INVERTER', 355, 65);
-
-            // Draw MOSFET pairs
-            const mosX = [230, 330, 430];
-            const mosLabels = [['Q1', 'Q2'], ['Q3', 'Q4'], ['Q5', 'Q6']];
-            const phaseLabels = ['A', 'B', 'C'];
-
-            mosX.forEach((x, i) => {
-                // High-side
-                motorArchCtx.fillStyle = '#333';
-                motorArchCtx.fillRect(x, 80, 40, 25);
-                motorArchCtx.strokeStyle = '#00FF00';
-                motorArchCtx.strokeRect(x, 80, 40, 25);
-                motorArchCtx.fillStyle = '#00FF00';
-                motorArchCtx.font = '10px monospace';
-                motorArchCtx.fillText(mosLabels[i][0], x + 20, 97);
-
-                // Low-side
-                motorArchCtx.fillStyle = '#333';
-                motorArchCtx.fillRect(x, 115, 40, 25);
-                motorArchCtx.strokeStyle = '#FFFF00';
-                motorArchCtx.strokeRect(x, 115, 40, 25);
-                motorArchCtx.fillStyle = '#FFFF00';
-                motorArchCtx.fillText(mosLabels[i][1], x + 20, 132);
-
-                // Connection between MOSFETs (phase output)
-                motorArchCtx.strokeStyle = '#FF6600';
-                motorArchCtx.lineWidth = 2;
-                motorArchCtx.beginPath();
-                motorArchCtx.moveTo(x + 40, 105);
-                motorArchCtx.lineTo(x + 60, 105);
-                motorArchCtx.stroke();
-
-                motorArchCtx.fillStyle = '#FF6600';
-                motorArchCtx.font = '9px monospace';
-                motorArchCtx.fillText(phaseLabels[i], x + 50, 100);
-            });
-
-            // "High-side" label
-            motorArchCtx.fillStyle = '#888';
-            motorArchCtx.font = '9px monospace';
-            motorArchCtx.textAlign = 'right';
-            motorArchCtx.fillText('High-side', 225, 95);
-            motorArchCtx.fillText('Low-side', 225, 130);
-            motorArchCtx.textAlign = 'center';
-
-            // Arrow from DC Bus to inverter
-            motorArchCtx.strokeStyle = '#FF0000';
-            motorArchCtx.lineWidth = 2;
-            motorArchCtx.beginPath();
-            motorArchCtx.moveTo(130, 75);
-            motorArchCtx.lineTo(172, 75);
-            motorArchCtx.stroke();
-            motorArchCtx.fillStyle = '#FF0000';
-            motorArchCtx.beginPath();
-            motorArchCtx.moveTo(172, 75);
-            motorArchCtx.lineTo(165, 70);
-            motorArchCtx.lineTo(165, 80);
-            motorArchCtx.closePath();
-            motorArchCtx.fill();
-
-            // Motor
-            motorArchCtx.beginPath();
-            motorArchCtx.arc(650, 100, 50, 0, Math.PI * 2);
-            motorArchCtx.fillStyle = '#222';
-            motorArchCtx.fill();
-            motorArchCtx.strokeStyle = '#FF6600';
-            motorArchCtx.lineWidth = 3;
-            motorArchCtx.stroke();
-            motorArchCtx.fillStyle = '#FF6600';
-            motorArchCtx.font = 'bold 14px monospace';
-            motorArchCtx.fillText('BLDC', 650, 95);
-            motorArchCtx.font = '11px monospace';
-            motorArchCtx.fillText('Motor', 650, 112);
-
-            // Phase connections to motor
-            motorArchCtx.strokeStyle = '#FF6600';
-            motorArchCtx.lineWidth = 2;
-            motorArchCtx.beginPath();
-            motorArchCtx.moveTo(530, 100);
-            motorArchCtx.lineTo(600, 100);
-            motorArchCtx.stroke();
-
-            // Encoder/Hall
-            motorArchCtx.fillStyle = '#222';
-            motorArchCtx.fillRect(700, 70, 80, 60);
-            motorArchCtx.strokeStyle = '#00FF00';
-            motorArchCtx.lineWidth = 1;
-            motorArchCtx.strokeRect(700, 70, 80, 60);
-            motorArchCtx.fillStyle = '#00FF00';
-            motorArchCtx.font = '10px monospace';
-            motorArchCtx.fillText('Encoder', 740, 95);
-            motorArchCtx.fillText('/Hall', 740, 110);
-
-            // Current Sense Amplifiers
-            motorArchCtx.fillStyle = '#222';
-            motorArchCtx.fillRect(180, 180, 150, 60);
-            motorArchCtx.strokeStyle = '#FF66FF';
-            motorArchCtx.lineWidth = 2;
-            motorArchCtx.strokeRect(180, 180, 150, 60);
-            motorArchCtx.fillStyle = '#FF66FF';
-            motorArchCtx.font = 'bold 11px monospace';
-            motorArchCtx.fillText('Current Sense', 255, 200);
-            motorArchCtx.font = '10px monospace';
-            motorArchCtx.fillText('Amplifiers (Ia, Ib, Ic)', 255, 220);
-
-            // Arrow from shunts to current sense
-            motorArchCtx.strokeStyle = '#888';
-            motorArchCtx.lineWidth = 1;
-            motorArchCtx.beginPath();
-            motorArchCtx.moveTo(355, 155);
-            motorArchCtx.lineTo(355, 165);
-            motorArchCtx.lineTo(255, 165);
-            motorArchCtx.lineTo(255, 172);
-            motorArchCtx.stroke();
-            motorArchCtx.fillStyle = '#888';
-            motorArchCtx.beginPath();
-            motorArchCtx.moveTo(255, 172);
-            motorArchCtx.lineTo(250, 165);
-            motorArchCtx.lineTo(260, 165);
-            motorArchCtx.closePath();
-            motorArchCtx.fill();
-
-            // MCU
-            motorArchCtx.fillStyle = '#222';
-            motorArchCtx.fillRect(400, 180, 250, 120);
-            motorArchCtx.strokeStyle = '#00FFFF';
-            motorArchCtx.lineWidth = 2;
-            motorArchCtx.strokeRect(400, 180, 250, 120);
-            motorArchCtx.fillStyle = '#00FFFF';
-            motorArchCtx.font = 'bold 12px monospace';
-            motorArchCtx.fillText('MCU (Motor Control)', 525, 200);
-            motorArchCtx.font = '9px monospace';
-            motorArchCtx.fillStyle = '#CCC';
-            const mcuFeatures = [
-                'ADC for current sensing',
-                'PWM generation (complementary)',
-                'FOC algorithm (Park/Clarke)',
-                'PI current/speed controllers',
-                'Position/speed estimation'
-            ];
-            mcuFeatures.forEach((feat, i) => {
-                motorArchCtx.fillText('• ' + feat, 525, 220 + i * 15);
-            });
-
-            // Connections
-            // Current sense to MCU
-            motorArchCtx.strokeStyle = '#FF66FF';
-            motorArchCtx.lineWidth = 1;
-            motorArchCtx.beginPath();
-            motorArchCtx.moveTo(330, 210);
-            motorArchCtx.lineTo(392, 210);
-            motorArchCtx.stroke();
-
-            // Encoder to MCU
-            motorArchCtx.strokeStyle = '#00FF00';
-            motorArchCtx.beginPath();
-            motorArchCtx.moveTo(740, 130);
-            motorArchCtx.lineTo(740, 240);
-            motorArchCtx.lineTo(658, 240);
-            motorArchCtx.stroke();
-            motorArchCtx.fillStyle = '#00FF00';
-            motorArchCtx.beginPath();
-            motorArchCtx.moveTo(658, 240);
-            motorArchCtx.lineTo(665, 235);
-            motorArchCtx.lineTo(665, 245);
-            motorArchCtx.closePath();
-            motorArchCtx.fill();
-
-            // PWM from MCU to inverter
-            motorArchCtx.strokeStyle = '#00FFFF';
-            motorArchCtx.setLineDash([4, 4]);
-            motorArchCtx.beginPath();
-            motorArchCtx.moveTo(525, 180);
-            motorArchCtx.lineTo(525, 165);
-            motorArchCtx.lineTo(450, 165);
-            motorArchCtx.lineTo(450, 155);
-            motorArchCtx.stroke();
-            motorArchCtx.setLineDash([]);
-            motorArchCtx.font = '8px monospace';
-            motorArchCtx.fillStyle = '#00FFFF';
-            motorArchCtx.fillText('PWM', 485, 162);
-
-            // Labels
-            motorArchCtx.fillStyle = '#666';
-            motorArchCtx.font = '8px monospace';
-            motorArchCtx.fillText('Current shunts', 355, 150);
-        }
-
-        // Event listeners
-        ['mod-index', 'elec-freq', 'pwm-freq', 'modulation'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawInverterWaveforms);
         });
 
-        ['peak-current', 'shunt-value', 'amp-gain', 'adc-ref'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawCurrentSensing);
-        });
+        // Specs
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Input: ±50mV full scale', 100, 345);
+        ctx.fillText('Resolution: <1µV (0.025°C for Type K)', 350, 345);
 
-        ['ia-current', 'ib-current', 'rotor-angle'].forEach(id => {
-            document.getElementById(id).addEventListener('input', () => {
-                rotorAngle = AD.num('rotor-angle');
-                drawFOC();
-            });
-        });
+        // CJC input arrow
+        ctx.strokeStyle = TEK.ch1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(350, 215);
+        ctx.lineTo(350, 250);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '9px monospace';
+        ctx.fillText('CJC Input', 355, 245);
 
-        ['kp-speed', 'ki-speed', 'setpoint-rpm', 'load-torque'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawControlLoop);
-        });
+        // Common ADCs
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Common ADCs: AD7124, MAX31856, ADS1220 (include CJC + linearization)', 460, 375);
+    })();
 
-        // Schematic
-        function createMotorSchematic() {
-            const container = document.getElementById('motor-schematic');
-            const svg = new SchematicSVG(700, 300);
+    // Pressure Sensor Canvas
+    (function() {
+        const canvas = document.getElementById('pressure-sensor-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
 
-            // DC Bus
-            svg.addText(30, 50, 'Vdc+', '12px', 'end', '#FF0000');
-            svg.line(40, 50, 600, 50, '#FF0000', 2);
+        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
 
-            // High-side MOSFET
-            svg.rect(120, 70, 50, 40, '#181818', '#00FFFF');
-            svg.addText(145, 95, 'Q1', '11px', 'middle', '#00FFFF');
-            svg.line(145, 50, 145, 70);
-            svg.line(145, 110, 145, 150);
-
-            // Low-side MOSFET
-            svg.rect(120, 170, 50, 40, '#181818', '#FFFF00');
-            svg.addText(145, 195, 'Q2', '11px', 'middle', '#FFFF00');
-            svg.line(145, 150, 145, 170);
-            svg.line(145, 210, 145, 250);
-
-            // Phase output
-            svg.line(145, 150, 250, 150, '#FF6600', 2);
-            svg.addText(200, 140, 'Phase A', '10px', 'middle');
-
-            // Gate driver
-            svg.rect(50, 100, 60, 80, '#181818', '#00FF00');
-            svg.addText(80, 135, 'Gate', '10px', 'middle', '#00FF00');
-            svg.addText(80, 150, 'Driver', '10px', 'middle', '#00FF00');
-
-            // Gate driver connections
-            svg.line(110, 120, 120, 90);
-            svg.line(110, 160, 120, 190);
-
-            // Bootstrap circuit
-            svg.line(170, 70, 200, 70);
-            svg.addCapacitor(200, 90, 'vertical', 'Cboot', '100nF');
-            svg.line(200, 110, 200, 150);
-
-            // Shunt resistor
-            svg.line(145, 250, 145, 270);
-            svg.rect(130, 270, 30, 15, '#181818', '#FFFF00');
-            svg.addText(145, 295, 'Rshunt', '9px', 'middle');
-            svg.line(145, 285, 145, 310);
-
-            // Ground
-            svg.line(40, 310, 600, 310);
-            svg.addText(30, 310, 'GND', '12px', 'end');
-
-            // Current sense amp
-            svg.line(160, 275, 220, 275);
-            svg.line(160, 285, 220, 285);
-
-            svg.rect(230, 260, 60, 40, '#181818', '#FF66FF');
-            svg.addText(260, 285, 'CSA', '11px', 'middle', '#FF66FF');
-
-            svg.line(290, 280, 330, 280);
-            svg.addText(350, 280, 'to ADC', '10px', 'start', '#888');
-
-            // Motor symbol
-            svg.circle(450, 180, 60, '#181818', '#FF6600');
-            svg.addText(450, 175, 'BLDC', '14px', 'middle', '#FF6600');
-            svg.addText(450, 195, 'Motor', '12px', 'middle');
-
-            // Phase connections to motor
-            svg.line(250, 150, 390, 150);
-            svg.line(390, 150, 390, 160);
-
-            // Labels
-            svg.addText(145, 35, 'Half-Bridge', '11px', 'middle', '#888');
-            svg.addText(450, 260, '(× 3 phases)', '10px', 'middle', '#888');
-
-            container.appendChild(svg.svg);
+        function roundRect(c, x, y, w, h, r) {
+            c.beginPath();
+            c.moveTo(x + r, y);
+            c.lineTo(x + w - r, y);
+            c.quadraticCurveTo(x + w, y, x + w, y + r);
+            c.lineTo(x + w, y + h - r);
+            c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            c.lineTo(x + r, y + h);
+            c.quadraticCurveTo(x, y + h, x, y + h - r);
+            c.lineTo(x, y + r);
+            c.quadraticCurveTo(x, y, x + r, y);
+            c.closePath();
         }
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            drawMotorArchitecture();
-            drawInverterWaveforms();
-            drawCurrentSensing();
-            drawFOC();
-            drawControlLoop();
-            createMotorSchematic();
-            animateFOC();
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Design checklist
-            new ChecklistWidget('motor-checklist', {
-                title: 'Motor Control Design',
-                items: [
-                    { text: 'Size MOSFETs for peak current + margin', critical: true },
-                    { text: 'Calculate dead time to prevent shoot-through', critical: true },
-                    { text: 'Design gate driver with adequate drive current', critical: true },
-                    { text: 'Size bootstrap capacitor for high-side gate charge', critical: false },
-                    { text: 'Select current shunt for accuracy vs power loss', critical: true },
-                    { text: 'Implement hardware overcurrent protection', critical: true },
-                    { text: 'Add bulk capacitance for DC bus stability', critical: true },
-                    { text: 'Design PCB for minimal power loop inductance', critical: true },
-                    { text: 'Tune current loop before speed loop', critical: false },
-                    { text: 'Implement soft-start for inrush limiting', critical: false },
-                    { text: 'Add regenerative braking or brake resistor', critical: false },
-                    { text: 'Include thermal monitoring of MOSFETs', critical: false }
+        // Title
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('INTEGRATED PRESSURE SENSOR (I2C Output)', 450, 25);
+
+        // Main IC block
+        roundRect(ctx, 50, 50, 800, 160, 8);
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#1a1f2e';
+        ctx.fill();
+
+        // IC name
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('BMP280 / LPS22HH / MS5611', 450, 75);
+
+        // Internal blocks
+        const blocks = [
+            { x: 80, w: 130, label: 'Piezoresistive', sub: 'Bridge', sub2: '(on diaphragm)' },
+            { x: 250, w: 110, label: 'Signal Cond.', sub: '(PGA)', sub2: '' },
+            { x: 400, w: 100, label: 'ADC', sub: '24-bit', sub2: '' },
+            { x: 540, w: 120, label: 'I2C Digital', sub: 'Output', sub2: '' }
+        ];
+
+        blocks.forEach((b, i) => {
+            roundRect(ctx, b.x, 95, b.w, 55, 4);
+            ctx.fillStyle = '#2a2a4a';
+            ctx.fill();
+            ctx.strokeStyle = TEK.ch4;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.fillStyle = TEK.ch4;
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(b.label, b.x + b.w/2, 113);
+            ctx.fillStyle = '#9fb0c0';
+            ctx.fillText(b.sub, b.x + b.w/2, 128);
+            if (b.sub2) ctx.fillText(b.sub2, b.x + b.w/2, 143);
+
+            // Arrows between
+            if (i < blocks.length - 1) {
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(b.x + b.w, 122);
+                ctx.lineTo(blocks[i + 1].x, 122);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(blocks[i + 1].x - 8, 117);
+                ctx.lineTo(blocks[i + 1].x, 122);
+                ctx.lineTo(blocks[i + 1].x - 8, 127);
+                ctx.stroke();
+            }
+        });
+
+        // SCL/SDA outputs
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(660, 110);
+        ctx.lineTo(720, 110);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(660, 135);
+        ctx.lineTo(720, 135);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('→ SCL', 725, 113);
+        ctx.fillText('→ SDA', 725, 138);
+
+        // Pressure input arrow
+        ctx.strokeStyle = '#ff6b6b';
+        ctx.beginPath();
+        ctx.moveTo(145, 170);
+        ctx.lineTo(145, 150);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(140, 158);
+        ctx.lineTo(145, 150);
+        ctx.lineTo(150, 158);
+        ctx.stroke();
+        ctx.fillStyle = '#ff6b6b';
+        ctx.textAlign = 'center';
+        ctx.fillText('Pressure', 145, 185);
+        ctx.fillText('Input', 145, 198);
+
+        // Temperature note
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Also measures temperature for compensation', 350, 175);
+
+        // VDD
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('VDD (1.7-3.6V) → Internal LDO', 350, 195);
+
+        // Specs at bottom
+        roundRect(ctx, 100, 225, 700, 60, 4);
+        ctx.fillStyle = '#1a2a2a';
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Resolution: 0.01 hPa (<10cm altitude)  |  Range: 300-1100 hPa  |  Interface: I2C or SPI', 450, 250);
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('Output is already digital - just read registers!', 450, 270);
+    })();
+
+    // RTD Calculator
+    function updateRTD() {
+        const temp = AD.num('rtd-temp');
+        const r0 = AD.num('rtd-r0');
+        const iex = AD.num('rtd-iex') / 1000; // A
+
+        document.getElementById('rtd-temp-val').textContent = temp + '°C';
+        document.getElementById('rtd-r0-val').textContent = r0 + 'Ω (PT' + r0 + ')';
+        document.getElementById('rtd-iex-val').textContent = (iex * 1000).toFixed(1) + 'mA';
+
+        // Callendar-Van Dusen equation (simplified)
+        const alpha = 0.00385055;
+        const resistance = r0 * (1 + alpha * temp);
+        const voltage = iex * resistance * 1000; // mV
+        const power = iex * iex * resistance * 1000; // mW
+
+        // Self-heating error (assuming ~0.5°C/mW typical)
+        const thermalCoeff = 0.5; // °C/mW
+        const tempError = power * thermalCoeff;
+
+        document.getElementById('rtd-resistance').textContent = resistance.toFixed(2) + 'Ω';
+        document.getElementById('rtd-voltage').textContent = voltage.toFixed(2) + 'mV';
+        document.getElementById('rtd-power').textContent = power.toFixed(3) + 'mW';
+        document.getElementById('rtd-error').textContent = tempError.toFixed(3) + '°C';
+    }
+
+    ['rtd-temp', 'rtd-r0', 'rtd-iex'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateRTD);
+    });
+    updateRTD();
+
+    // Load Cell Calculator
+    function updateLC() {
+        const vex = AD.num('lc-vex');
+        const sens = AD.num('lc-sens');
+        const cap = AD.num('lc-cap');
+        const load = AD.num('lc-load');
+
+        document.getElementById('lc-vex-val').textContent = vex + 'V';
+        document.getElementById('lc-sens-val').textContent = sens + ' mV/V';
+        document.getElementById('lc-cap-val').textContent = cap + ' kg';
+        document.getElementById('lc-load-val').textContent = Math.min(load, cap) + ' kg';
+
+        const fso = vex * sens; // Full scale output in mV
+        const signal = fso * (Math.min(load, cap) / cap); // Signal at current load
+        const gain = 5000 / fso; // Gain to get 5V at full scale
+        const resolution = cap / Math.pow(2, 24); // Resolution with 24-bit ADC
+
+        document.getElementById('lc-fso').textContent = fso.toFixed(1) + 'mV';
+        document.getElementById('lc-signal').textContent = signal.toFixed(2) + 'mV';
+        document.getElementById('lc-gain').textContent = gain.toFixed(0) + '×';
+        document.getElementById('lc-resolution').textContent = (resolution * 1000).toFixed(3) + 'g';
+    }
+
+    ['lc-vex', 'lc-sens', 'lc-cap', 'lc-load'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateLC);
+    });
+    updateLC();
+
+    // SPICE netlist
+    if (typeof SpiceNetlistWidget !== 'undefined') {
+        new SpiceNetlistWidget('spice-container', {
+            title: 'Instrumentation Amplifier for Load Cell',
+            netlist: `* Load Cell Instrumentation Amplifier
+* INA128 model (simplified)
+
+.param VEXC=10 SENS=2m LOAD=0.5
+
+* Excitation
+VEX vexc 0 DC {VEXC}
+
+* Load cell bridge (simplified)
+* Full bridge with 120 ohm gauges
+R1 vexc vp 120
+R2 vexc vn 120
+R3 vp 0 120
+R4 vn 0 120
+* Imbalance source (represents strain)
+Vimbal vp vp_sense DC {VEXC*SENS*LOAD}
+
+* Instrumentation Amplifier (ideal)
+* Gain set by Rgain (50k/Rg + 1)
+.param GAIN=200
+E1 out 0 vp_sense vn {GAIN}
+
+* Output buffer
+Rout out vout_buf 100
+Cout vout_buf 0 100p
+
+.dc LOAD 0 1 0.01
+.probe V(vp_sense,vn) V(out)
+.end`
+        });
+    }
+
+    // Checklist
+    if (typeof ChecklistWidget !== 'undefined') {
+        new ChecklistWidget('checklist-container', {
+            lessonKey: 'm23l8',
+            items: [
+                'Understand 2/3/4-wire RTD measurement configurations',
+                'Know thermocouple voltage levels and CJC requirement',
+                'Calculate Wheatstone bridge output voltage',
+                'Select appropriate instrumentation amplifier gain',
+                'Understand self-heating error in RTDs',
+                'Know common sensor interface ICs'
+            ]
+        });
+    }
+
+    // Exercises
+    const container = document.getElementById('exercise-container');
+    if (typeof ExerciseWidget !== 'undefined') {
+        const exercises = [
+            {
+                id: 'M23-8-L1',
+                type: 'numeric',
+                question: 'A PT100 has R0=100Ω and α=0.00385/°C. What is its resistance at 200°C?',
+                hint: 'R = R0(1 + αT)',
+                expected: 177,
+                tolerance: 1,
+                unit: 'Ω'
+            },
+            {
+                id: 'M23-8-L2',
+                type: 'numeric',
+                question: 'A load cell has 2mV/V sensitivity with 10V excitation. What is the output at 75% load?',
+                hint: 'FSO = Vex × sens, then scale by load percentage',
+                expected: 15,
+                tolerance: 0.5,
+                unit: 'mV'
+            },
+            {
+                id: 'M23-8-L3',
+                type: 'choice',
+                question: 'Why does a 4-wire RTD measurement eliminate lead resistance error?',
+                choices: [
+                    { text: 'The four wires average out the resistance', correct: false },
+                    { text: 'Sense leads carry no current, so no voltage drop', correct: true },
+                    { text: 'The ADC compensates automatically', correct: false },
+                    { text: 'Lead resistance is measured and subtracted', correct: false }
                 ]
-            });
-
-            // Exercises
-            new ExerciseWidget('motor-exercises', {
-                exercises: [
-                    {
-                        question: 'Calculate the shunt resistor value for a 20A peak current motor driver. The current sense amplifier has a gain of 20 and the ADC has a 3.3V reference with a 1.65V mid-point.',
-                        hint: 'The amplifier output must stay within ADC range: Vout = Vref/2 ± Gain × Ishunt × Rshunt',
-                        answer: 'Max output swing = 1.65V (half of 3.3V range). Vshunt_max = 1.65V / 20 = 82.5mV. Rshunt = 82.5mV / 20A = 4.125mΩ. Use 4mΩ standard value. Power dissipation = 20² × 0.004 = 1.6W peak, 0.8W RMS for sinusoidal current. Choose 2W rated shunt.'
-                    },
-                    {
-                        question: 'A BLDC motor runs at 3000 RPM with 4 pole pairs. Calculate the electrical frequency and the PWM frequency if at least 10 PWM cycles per electrical cycle is required.',
-                        hint: 'Electrical frequency = mechanical frequency × pole pairs',
-                        answer: 'Mechanical freq = 3000 RPM / 60 = 50 Hz. Electrical freq = 50 Hz × 4 = 200 Hz. For 10 PWM cycles per electrical cycle: PWM freq = 200 × 10 = 2000 Hz minimum. In practice, use 20 kHz for smooth operation and to be above audible range.'
-                    },
-                    {
-                        question: 'Calculate the required dead time if the MOSFET turn-off time is 80ns and turn-on time is 40ns. Include a safety margin.',
-                        hint: 'Dead time must be longer than the slower MOSFET transition.',
-                        answer: 'Turn-off = 80ns, Turn-on = 40ns. Dead time must exceed turn-off time (the high-side must fully turn off before low-side turns on). Minimum dead time = 80ns. With 50% safety margin: 80ns × 1.5 = 120ns. With gate driver propagation delay mismatch (~20ns typical): use 150-200ns. Typical implementations use 200-500ns.'
-                    },
-                    {
-                        question: 'Why does SVPWM provide 15% more DC bus utilization compared to sinusoidal PWM?',
-                        hint: 'Consider the third harmonic injection and the space vector synthesis.',
-                        answer: 'SVPWM adds a zero-sequence (common-mode) component to all three phases, which is equivalent to third harmonic injection. This shifts the reference waveforms toward the center of the PWM period, reducing the peak values needed. The modulation index can reach 2/√3 ≈ 1.15 (115%) compared to 1.0 for SPWM before overmodulation. This means 15% higher line-to-line voltage for the same DC bus voltage, improving power capability without increasing bus voltage.'
-                    }
-                ]
-            });
+            }
+        ];
+        exercises.forEach((ex, i) => {
+            const div = document.createElement('div');
+            div.id = `ex-m23l8-${i}`;
+            container.appendChild(div);
+            new ExerciseWidget(`ex-m23l8-${i}`, ex);
         });
-    </script>
-</body>
-</html>
+    }
+})();
+</script>

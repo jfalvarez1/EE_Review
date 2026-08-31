@@ -1,669 +1,699 @@
-<!-- Module 19, Lesson 7: Protection Circuits -->
+<!-- Module 19, Lesson 7: I2C Repeaters and Buffers -->
 <div class="lesson-content" data-module="19" data-lesson="7">
 
     <div class="card">
-        <h2>Battery Protection Circuits</h2>
-        <p>Battery protection prevents damage from overcharge, over-discharge, overcurrent, and short circuits. Learn protection IC architectures and design considerations for safe battery operation.</p>
+        <h2>I2C Repeaters and Buffers</h2>
+        <p>When I2C buses become long, heavily loaded, or need isolation between voltage domains, repeaters and buffers solve capacitance, level-shifting, and hot-swap challenges while maintaining bidirectional communication.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">OVP</div>
-                <div class="v">Overvoltage (4.25-4.35V)</div>
+                <div class="k">Bus Buffer</div>
+                <div class="v">Isolates capacitance, bidirectional</div>
             </div>
             <div class="box">
-                <div class="k">UVP</div>
-                <div class="v">Undervoltage (2.5-3.0V)</div>
+                <div class="k">Repeater</div>
+                <div class="v">Restores signal edges</div>
             </div>
             <div class="box">
-                <div class="k">OCP</div>
-                <div class="v">Overcurrent limit</div>
+                <div class="k">Level Shifter</div>
+                <div class="v">3.3V ↔ 5V translation</div>
             </div>
             <div class="box">
-                <div class="k">SCP</div>
-                <div class="v">Short circuit (<100µs)</div>
+                <div class="k">Switch/Mux</div>
+                <div class="v">Route to multiple buses</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Safety Critical:</strong> Li-ion batteries can catch fire or explode if abused. Protection circuits are your last line of defense. Never bypass or defeat protection features.
+            <strong>Key Insight:</strong> I2C's bidirectional open-drain nature makes buffering challenging—both sides can drive the bus low at any time. Specialized I2C buffer ICs detect the driving side and pass the signal through while blocking reverse flow, preventing bus contention.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Protection Threshold Analyzer</h3>
+        <h3>Interactive: I2C Bus Capacitance Budget</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="prot-ovp">OVP Threshold (V)</label>
-                <input type="range" id="prot-ovp" min="4.2" max="4.4" step="0.01" value="4.28">
-                <span id="prot-ovp-val" class="mono">4.28V</span>
+                <label for="i2c-rp">Pull-Up R (Ω)</label>
+                <input type="text" id="i2c-rp" value="2.2k">
             </div>
             <div class="c3">
-                <label for="prot-uvp">UVP Threshold (V)</label>
-                <input type="range" id="prot-uvp" min="2.3" max="3.2" step="0.1" value="2.8">
-                <span id="prot-uvp-val" class="mono">2.8V</span>
+                <label for="i2c-cbus">Bus Capacitance (F)</label>
+                <input type="text" id="i2c-cbus" value="200p">
             </div>
             <div class="c3">
-                <label for="prot-ocp">OCP Threshold (A)</label>
-                <input type="range" id="prot-ocp" min="1" max="20" step="1" value="5">
-                <span id="prot-ocp-val" class="mono">5A</span>
-            </div>
-        </div>
-
-        <div class="controls">
-            <div class="c3">
-                <label for="prot-vcell">Cell Voltage (V)</label>
-                <input type="range" id="prot-vcell" min="2" max="4.5" step="0.05" value="3.7">
-                <span id="prot-vcell-val" class="mono">3.7V</span>
+                <label for="i2c-vcc">V<sub>CC</sub> (V)</label>
+                <select id="i2c-vcc">
+                    <option value="3.3" selected>3.3V</option>
+                    <option value="5">5V</option>
+                </select>
             </div>
             <div class="c3">
-                <label for="prot-icell">Cell Current (A)</label>
-                <input type="range" id="prot-icell" min="0" max="15" step="0.5" value="2">
-                <span id="prot-icell-val" class="mono">2.0A</span>
+                <label for="i2c-mode">Speed Mode</label>
+                <select id="i2c-mode">
+                    <option value="100000">Standard (100 kHz)</option>
+                    <option value="400000" selected>Fast (400 kHz)</option>
+                    <option value="1000000">Fast+ (1 MHz)</option>
+                </select>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="prot-canvas" width="980" height="320"></canvas>
+            <canvas id="i2c-canvas" width="980" height="320"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">OVP Status</div>
-                <div class="v mono" id="prot-ovp-status">—</div>
+                <div class="k">Rise Time (t<sub>r</sub>)</div>
+                <div class="v mono" id="i2c-trise">—</div>
             </div>
             <div class="box">
-                <div class="k">UVP Status</div>
-                <div class="v mono" id="prot-uvp-status">—</div>
+                <div class="k">Max t<sub>r</sub></div>
+                <div class="v mono" id="i2c-maxtr">—</div>
             </div>
             <div class="box">
-                <div class="k">OCP Status</div>
-                <div class="v mono" id="prot-ocp-status">—</div>
+                <div class="k">Timing Margin</div>
+                <div class="v mono" id="i2c-margin">—</div>
             </div>
             <div class="box">
-                <div class="k">FET State</div>
-                <div class="v mono" id="prot-fet">—</div>
+                <div class="k">Recommendation</div>
+                <div class="v mono" id="i2c-recommend">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Protection Features</h3>
+        <h3>Buffer/Repeater Solutions</h3>
+        <div id="i2c-buffer-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>When to Use Each Solution</h3>
 
         <table class="table">
             <tr>
-                <th>Protection</th>
-                <th>Trigger</th>
-                <th>Action</th>
-                <th>Recovery</th>
+                <th>Problem</th>
+                <th>Solution</th>
+                <th>Example ICs</th>
+                <th>Notes</th>
             </tr>
             <tr>
-                <td>Overcharge (OVP)</td>
-                <td>Vcell > 4.25-4.35V</td>
-                <td>Turn off charge FET</td>
-                <td>Voltage drops below threshold</td>
+                <td>High capacitance (>400pF)</td>
+                <td>Bus Buffer</td>
+                <td>PCA9600, LTC4311</td>
+                <td>Splits bus capacitance</td>
             </tr>
             <tr>
-                <td>Over-discharge (UVP)</td>
-                <td>Vcell < 2.5-3.0V</td>
-                <td>Turn off discharge FET</td>
-                <td>Charger connected</td>
+                <td>Level translation</td>
+                <td>Level Shifter</td>
+                <td>PCA9306, TXS0102</td>
+                <td>Bidirectional voltage translation</td>
             </tr>
             <tr>
-                <td>Overcurrent discharge</td>
-                <td>I > limit (5-30A)</td>
-                <td>Turn off discharge FET</td>
-                <td>Load removed, delay</td>
+                <td>Hot-swap / fault isolation</td>
+                <td>Hot-Swap Buffer</td>
+                <td>PCA9511, LTC4300</td>
+                <td>Precharges bus capacitance</td>
             </tr>
             <tr>
-                <td>Overcurrent charge</td>
-                <td>I > charge limit</td>
-                <td>Turn off charge FET</td>
-                <td>Current drops, delay</td>
+                <td>Multiple bus segments</td>
+                <td>I2C Switch/Mux</td>
+                <td>PCA9548, TCA9548</td>
+                <td>1:8 or other topologies</td>
             </tr>
             <tr>
-                <td>Short circuit</td>
-                <td>I >> limit, fast</td>
-                <td>Immediate FET off</td>
-                <td>Load removed, long delay</td>
-            </tr>
-            <tr>
-                <td>Overtemperature</td>
-                <td>T > 60-80°C</td>
-                <td>Turn off both FETs</td>
-                <td>Temperature drops</td>
+                <td>Slow rise times</td>
+                <td>Active Terminator</td>
+                <td>LTC4311</td>
+                <td>Accelerates rising edge</td>
             </tr>
         </table>
+
+        <div class="warn">
+            <strong>Address Conflicts:</strong> I2C switches/muxes can solve address conflicts by putting identical devices on separate bus segments. Only enable one segment at a time to avoid contention.
+        </div>
     </div>
 
     <div class="card">
-        <h3>Design Equations</h3>
-        <pre style="color:#4af; background:#111; padding:15px; border-radius:4px; font-size:11px;">
-Current Sensing:
-    Vsense = I × Rsense
-    Rsense = Vth_ocp / Iocp
-
-    Example: 100mV threshold, 5A limit
-    Rsense = 0.1V / 5A = 20mΩ
-
-Power Dissipation:
-    Psense = I² × Rsense = 5² × 0.02 = 0.5W
-
-MOSFET Selection:
-    Vds_rating > Vpack × 1.5 (margin)
-    Id_rating > Iocp × 1.5
-    Rds_on: Lower = less loss, higher = self-limiting
-
-    Power in FET: Pfet = I² × Rds_on
-
-Protection Delay Times:
-    OVP delay: 50-500ms (filter noise)
-    UVP delay: 50-500ms
-    OCP delay: 5-20ms
-    SCP delay: <100µs (must be fast!)
-
-Hysteresis:
-    OVP: ~50-100mV below trip
-    UVP: ~100-300mV above trip
-    Prevents oscillation near threshold
-        </pre>
+        <h3>I2C Buffer Operation</h3>
+        <canvas id="i2c-buffer-operation-canvas" width="900" height="340"></canvas>
     </div>
 
     <div class="card">
-        <h3>Protection Circuit Schematic</h3>
-        <div id="prot-schematic"></div>
+        <h3>Level Shifter Circuit</h3>
+        <div id="i2c-level-shift-schematic"></div>
     </div>
 
     <div class="card">
         <h3>SPICE Netlist</h3>
-        <div id="prot-spice"></div>
+        <div id="spice-container"></div>
     </div>
 
     <div class="card">
-        <h3>Design Checklist</h3>
-        <div id="prot-checklist"></div>
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
     </div>
 
     <div class="card">
         <h3>Practice Exercises</h3>
-        <div id="prot-exercises"></div>
+        <div id="exercise-container"></div>
     </div>
 
 </div>
 
 <script>
 (function() {
-    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
-
-    const canvas = document.getElementById('prot-canvas');
+    const canvas = document.getElementById('i2c-canvas');
     const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const mL = 80, mR = 40, mT = 40, mB = 50;
+    const TEK = AD.TEK_COLORS;
 
     function update() {
-        const ovpTh = AD.num('prot-ovp') || 4.28;
-        const uvpTh = AD.num('prot-uvp') || 2.8;
-        const ocpTh = AD.num('prot-ocp') || 5;
-        const Vcell = AD.num('prot-vcell') || 3.7;
-        const Icell = AD.num('prot-icell') || 2;
+        const rp = AD.parseValue(document.getElementById('i2c-rp').value) || 2200;
+        const cbus = AD.parseValue(document.getElementById('i2c-cbus').value) || 200e-12;
+        const vcc = AD.num('i2c-vcc');
+        const mode = parseInt(document.getElementById('i2c-mode').value);
 
-        document.getElementById('prot-ovp-val').textContent = ovpTh.toFixed(2) + 'V';
-        document.getElementById('prot-uvp-val').textContent = uvpTh.toFixed(1) + 'V';
-        document.getElementById('prot-ocp-val').textContent = ocpTh + 'A';
-        document.getElementById('prot-vcell-val').textContent = Vcell.toFixed(2) + 'V';
-        document.getElementById('prot-icell-val').textContent = Icell.toFixed(1) + 'A';
+        // Rise time: tr ≈ 2.2 × R × C (10% to 90%)
+        const trise = 2.2 * rp * cbus;
 
-        // Determine protection status
-        const ovpTripped = Vcell > ovpTh;
-        const uvpTripped = Vcell < uvpTh;
-        const ocpTripped = Icell > ocpTh;
+        // Max rise time by mode
+        const maxTr = {
+            100000: 1000e-9,   // Standard mode: 1000ns
+            400000: 300e-9,    // Fast mode: 300ns
+            1000000: 120e-9    // Fast+ mode: 120ns
+        }[mode];
 
-        const chargeFetOn = !ovpTripped;
-        const dischargeFetOn = !uvpTripped && !ocpTripped;
+        // Timing margin
+        const margin = (maxTr - trise) / maxTr * 100;
 
-        document.getElementById('prot-ovp-status').innerHTML = ovpTripped ?
-            '<span style="color:#f44">TRIPPED</span>' : '<span style="color:#4f4">OK</span>';
-        document.getElementById('prot-uvp-status').innerHTML = uvpTripped ?
-            '<span style="color:#f44">TRIPPED</span>' : '<span style="color:#4f4">OK</span>';
-        document.getElementById('prot-ocp-status').innerHTML = ocpTripped ?
-            '<span style="color:#f44">TRIPPED</span>' : '<span style="color:#4f4">OK</span>';
-        document.getElementById('prot-fet').innerHTML =
-            (chargeFetOn ? '<span style="color:#4f4">CHG:ON</span>' : '<span style="color:#f44">CHG:OFF</span>') +
-            ' ' +
-            (dischargeFetOn ? '<span style="color:#4f4">DSG:ON</span>' : '<span style="color:#f44">DSG:OFF</span>');
+        // Recommendation
+        let recommend = 'OK - No buffer needed';
+        let recommendColor = 'var(--ok)';
 
-        // Draw visualization
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, W, H);
+        if (trise > maxTr) {
+            recommend = 'Add buffer or reduce R';
+            recommendColor = 'var(--bad)';
+        } else if (margin < 20) {
+            recommend = 'Consider buffer for margin';
+            recommendColor = 'var(--warn)';
+        } else if (cbus > 400e-12) {
+            recommend = 'Near spec limit';
+            recommendColor = 'var(--warn)';
+        }
 
-        // Voltage operating range (left)
-        const vBarX = mL, vBarY = mT + 20;
-        const vBarW = 60, vBarH = 200;
+        document.getElementById('i2c-trise').textContent = AD.fmtUnit(trise, 's');
+        document.getElementById('i2c-maxtr').textContent = AD.fmtUnit(maxTr, 's');
+        document.getElementById('i2c-margin').textContent = margin.toFixed(0) + '%';
+        document.getElementById('i2c-margin').style.color = margin > 20 ? 'var(--ok)' : (margin > 0 ? 'var(--warn)' : 'var(--bad)');
+        document.getElementById('i2c-recommend').textContent = recommend;
+        document.getElementById('i2c-recommend').style.color = recommendColor;
 
-        ctx.fillStyle = '#222';
-        ctx.fillRect(vBarX, vBarY, vBarW, vBarH);
-        ctx.strokeStyle = '#444';
-        ctx.strokeRect(vBarX, vBarY, vBarW, vBarH);
-
-        // OVP zone (red at top)
-        const ovpY = vBarY + ((4.5 - ovpTh) / 2.5) * vBarH;
-        ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
-        ctx.fillRect(vBarX, vBarY, vBarW, ovpY - vBarY);
-
-        // UVP zone (red at bottom)
-        const uvpY = vBarY + ((4.5 - uvpTh) / 2.5) * vBarH;
-        ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
-        ctx.fillRect(vBarX, uvpY, vBarW, vBarY + vBarH - uvpY);
-
-        // Safe zone (green)
-        ctx.fillStyle = 'rgba(68, 255, 68, 0.2)';
-        ctx.fillRect(vBarX, ovpY, vBarW, uvpY - ovpY);
-
-        // Threshold lines
-        ctx.strokeStyle = '#f44';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 3]);
-        ctx.beginPath();
-        ctx.moveTo(vBarX, ovpY);
-        ctx.lineTo(vBarX + vBarW, ovpY);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(vBarX, uvpY);
-        ctx.lineTo(vBarX + vBarW, uvpY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Current voltage indicator
-        const vcellY = vBarY + ((4.5 - Vcell) / 2.5) * vBarH;
-        ctx.fillStyle = Vcell > ovpTh || Vcell < uvpTh ? '#f44' : '#4f4';
-        ctx.beginPath();
-        ctx.moveTo(vBarX + vBarW + 5, vcellY);
-        ctx.lineTo(vBarX + vBarW + 20, vcellY - 8);
-        ctx.lineTo(vBarX + vBarW + 20, vcellY + 8);
-        ctx.fill();
-
-        // Labels
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'right';
-        ctx.fillText('4.5V', vBarX - 5, vBarY + 4);
-        ctx.fillText('2.0V', vBarX - 5, vBarY + vBarH + 4);
-
-        ctx.fillStyle = '#f44';
-        ctx.fillText('OVP', vBarX - 5, ovpY + 4);
-        ctx.fillText('UVP', vBarX - 5, uvpY + 4);
-
-        ctx.fillStyle = '#4f4';
-        ctx.textAlign = 'left';
-        ctx.fillText(Vcell.toFixed(2) + 'V', vBarX + vBarW + 25, vcellY + 4);
-
-        ctx.textAlign = 'center';
-        ctx.fillText('Voltage', vBarX + vBarW/2, vBarY + vBarH + 20);
-
-        // Current bar (right of voltage)
-        const iBarX = mL + 150, iBarY = mT + 20;
-        const iBarW = 60, iBarH = 200;
-
-        ctx.fillStyle = '#222';
-        ctx.fillRect(iBarX, iBarY, iBarW, iBarH);
-        ctx.strokeStyle = '#444';
-        ctx.strokeRect(iBarX, iBarY, iBarW, iBarH);
-
-        // OCP zone
-        const ocpY = iBarY + ((20 - ocpTh) / 20) * iBarH;
-        ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
-        ctx.fillRect(iBarX, iBarY, iBarW, ocpY - iBarY);
-
-        // OCP line
-        ctx.strokeStyle = '#f44';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 3]);
-        ctx.beginPath();
-        ctx.moveTo(iBarX, ocpY);
-        ctx.lineTo(iBarX + iBarW, ocpY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Current indicator
-        const icellY = iBarY + ((20 - Icell) / 20) * iBarH;
-        ctx.fillStyle = Icell > ocpTh ? '#f44' : '#4f4';
-        ctx.beginPath();
-        ctx.moveTo(iBarX + iBarW + 5, icellY);
-        ctx.lineTo(iBarX + iBarW + 20, icellY - 8);
-        ctx.lineTo(iBarX + iBarW + 20, icellY + 8);
-        ctx.fill();
-
-        // Labels
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'right';
-        ctx.fillText('20A', iBarX - 5, iBarY + 4);
-        ctx.fillText('0A', iBarX - 5, iBarY + iBarH + 4);
-
-        ctx.fillStyle = '#f44';
-        ctx.fillText('OCP', iBarX - 5, ocpY + 4);
-
-        ctx.fillStyle = '#4f4';
-        ctx.textAlign = 'left';
-        ctx.fillText(Icell.toFixed(1) + 'A', iBarX + iBarW + 25, icellY + 4);
-
-        ctx.textAlign = 'center';
-        ctx.fillText('Current', iBarX + iBarW/2, iBarY + iBarH + 20);
-
-        // Protection circuit diagram
-        const circX = 350, circY = mT;
-
-        ctx.fillStyle = '#222';
-        ctx.fillRect(circX, circY, 580, 250);
-        ctx.strokeStyle = '#444';
-        ctx.strokeRect(circX, circY, 580, 250);
-
-        ctx.fillStyle = '#4af';
-        ctx.font = '12px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('Protection Circuit Status:', circX + 10, circY + 20);
-
-        // Draw simplified circuit
-        // Battery
-        ctx.strokeStyle = '#888';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(circX + 40, circY + 60, 50, 80);
-        ctx.fillStyle = '#888';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('Cell', circX + 65, circY + 105);
-
-        // Charge FET
-        ctx.fillStyle = chargeFetOn ? '#4f4' : '#f44';
-        ctx.fillRect(circX + 130, circY + 80, 40, 30);
-        ctx.fillStyle = '#000';
-        ctx.font = '9px monospace';
-        ctx.fillText('CHG', circX + 150, circY + 100);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(chargeFetOn ? 'ON' : 'OFF', circX + 150, circY + 125);
-
-        // Discharge FET
-        ctx.fillStyle = dischargeFetOn ? '#4f4' : '#f44';
-        ctx.fillRect(circX + 200, circY + 80, 40, 30);
-        ctx.fillStyle = '#000';
-        ctx.fillText('DSG', circX + 220, circY + 100);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(dischargeFetOn ? 'ON' : 'OFF', circX + 220, circY + 125);
-
-        // Sense resistor
-        ctx.fillStyle = '#fa4';
-        ctx.fillRect(circX + 270, circY + 85, 40, 20);
-        ctx.fillStyle = '#000';
-        ctx.font = '8px monospace';
-        ctx.fillText('Rsense', circX + 290, circY + 98);
-
-        // Protection IC
-        ctx.strokeStyle = '#4af';
-        ctx.strokeRect(circX + 120, circY + 150, 130, 70);
-        ctx.fillStyle = '#4af';
-        ctx.font = '10px monospace';
-        ctx.fillText('Protection IC', circX + 185, circY + 175);
-
-        // Status LEDs
-        ctx.font = '9px monospace';
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'left';
-
-        ctx.fillText('OVP: ', circX + 130, circY + 195);
-        ctx.fillStyle = ovpTripped ? '#f44' : '#4f4';
-        ctx.beginPath();
-        ctx.arc(circX + 175, circY + 192, 5, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#fff';
-        ctx.fillText('UVP: ', circX + 190, circY + 195);
-        ctx.fillStyle = uvpTripped ? '#f44' : '#4f4';
-        ctx.beginPath();
-        ctx.arc(circX + 235, circY + 192, 5, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#fff';
-        ctx.fillText('OCP: ', circX + 130, circY + 210);
-        ctx.fillStyle = ocpTripped ? '#f44' : '#4f4';
-        ctx.beginPath();
-        ctx.arc(circX + 175, circY + 207, 5, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Connection wires
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(circX + 90, circY + 95);
-        ctx.lineTo(circX + 130, circY + 95);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(circX + 170, circY + 95);
-        ctx.lineTo(circX + 200, circY + 95);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(circX + 240, circY + 95);
-        ctx.lineTo(circX + 270, circY + 95);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(circX + 310, circY + 95);
-        ctx.lineTo(circX + 350, circY + 95);
-        ctx.stroke();
-
-        // Output
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px monospace';
-        ctx.fillText('P+', circX + 355, circY + 90);
-        ctx.fillText('P-', circX + 355, circY + 140);
-
-        // Wire to bottom
-        ctx.strokeStyle = '#666';
-        ctx.beginPath();
-        ctx.moveTo(circX + 65, circY + 140);
-        ctx.lineTo(circX + 65, circY + 180);
-        ctx.lineTo(circX + 120, circY + 180);
-        ctx.stroke();
-
-        // Bottom connection
-        ctx.beginPath();
-        ctx.moveTo(circX + 250, circY + 180);
-        ctx.lineTo(circX + 350, circY + 180);
-        ctx.lineTo(circX + 350, circY + 135);
-        ctx.stroke();
-
-        // Operating info
-        ctx.fillStyle = '#888';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'left';
-
-        const info = [];
-        if (ovpTripped) info.push('OVP: Charge blocked to prevent overcharge');
-        if (uvpTripped) info.push('UVP: Discharge blocked to prevent deep discharge');
-        if (ocpTripped) info.push('OCP: Discharge blocked due to overcurrent');
-        if (info.length === 0) info.push('Normal operation - all protection inactive');
-
-        info.forEach((line, i) => {
-            ctx.fillStyle = line.includes('blocked') ? '#fa4' : '#4f4';
-            ctx.fillText(line, circX + 370, circY + 60 + i * 15);
-        });
+        plotI2CWaveforms(rp, cbus, vcc, trise, maxTr);
     }
 
-    ['prot-ovp', 'prot-uvp', 'prot-ocp', 'prot-vcell', 'prot-icell'].forEach(id => {
+    function plotI2CWaveforms(rp, cbus, vcc, trise, maxTr) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Time for 4 rise times
+        const tMax = Math.max(trise * 8, maxTr * 4);
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: tMax * 1e9,
+            yMin: -0.2,
+            yMax: vcc + 0.3,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 'ns',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 8
+        });
+
+        // Generate SDA waveform with RC charging
+        const N = 400;
+        const tData = [];
+        const vData = [];
+        const vIdealData = [];
+
+        const pulseWidth = tMax / 4;
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * tMax;
+            const phase = t % (pulseWidth * 2);
+
+            let v, vIdeal;
+            if (phase < pulseWidth) {
+                // Low period (driven low)
+                v = 0;
+                vIdeal = 0;
+            } else {
+                // Rising period (RC charge)
+                const tInRise = phase - pulseWidth;
+                const tau = rp * cbus;
+                v = vcc * (1 - Math.exp(-tInRise / tau));
+                // Ideal (fast buffer) rise
+                const tauIdeal = (rp / 3) * (cbus / 3);
+                vIdeal = vcc * (1 - Math.exp(-tInRise / tauIdeal));
+            }
+
+            tData.push(t * 1e9);
+            vData.push(v);
+            vIdealData.push(Math.min(vIdeal, vcc));
+        }
+
+        // Plot actual RC waveform
+        AD.plotData(ctx, axes, tData, vData, {
+            color: TEK.ch1,
+            lineWidth: 2
+        });
+
+        // Plot buffered (faster) waveform
+        AD.plotData(ctx, axes, tData, vIdealData, {
+            color: TEK.ch2,
+            lineWidth: 2
+        });
+
+        // Draw threshold lines
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+
+        // VIH threshold (0.7 × VCC)
+        const vih = vcc * 0.7;
+        const vihPt = axes.toCanvas(0, vih);
+        ctx.beginPath();
+        ctx.moveTo(axes.left, vihPt.y);
+        ctx.lineTo(axes.left + axes.width, vihPt.y);
+        ctx.stroke();
+
+        // VIL threshold (0.3 × VCC)
+        const vil = vcc * 0.3;
+        const vilPt = axes.toCanvas(0, vil);
+        ctx.beginPath();
+        ctx.moveTo(axes.left, vilPt.y);
+        ctx.lineTo(axes.left + axes.width, vilPt.y);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('VIH = 0.7×VCC', axes.left + 5, vihPt.y - 5);
+        ctx.fillText('VIL = 0.3×VCC', axes.left + 5, vilPt.y + 12);
+        ctx.restore();
+
+        // Legend
+        ctx.save();
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('● Without buffer', axes.left + 10, axes.top + 20);
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('● With buffer (3× faster)', axes.left + 140, axes.top + 20);
+        ctx.restore();
+    }
+
+    // Event listeners
+    ['i2c-rp', 'i2c-cbus'].forEach(id => {
         document.getElementById(id).addEventListener('input', update);
     });
-
-    // Schematic
-    function drawSchematic() {
-        const container = document.getElementById('prot-schematic');
-        const svg = new SchematicSVG(700, 220);
-
-        svg.text(50, 25, 'Battery Protection Circuit:', {fontSize: 12, fill: '#4af'});
-
-        // Cell
-        svg.rect(50, 60, 40, 60, {fill: 'none', stroke: '#888'});
-        svg.text(70, 95, 'Cell', {fontSize: 9});
-        svg.wire([[50, 60], [50, 50]]);
-        svg.text(45, 45, 'B+', {fontSize: 9});
-
-        // Protection IC
-        svg.rect(120, 50, 100, 80, {fill: 'none', stroke: '#888'});
-        svg.text(170, 75, 'Protection', {fontSize: 9});
-        svg.text(170, 90, 'IC', {fontSize: 9});
-
-        // Connections to IC
-        svg.wire([[90, 70], [120, 70]]);
-        svg.text(100, 65, 'VCC', {fontSize: 8});
-        svg.wire([[90, 110], [120, 110]]);
-        svg.text(100, 118, 'VSS', {fontSize: 8});
-
-        // FETs
-        svg.wire([[220, 80], [280, 80]]);
-        svg.rect(280, 65, 30, 30, {fill: 'none', stroke: '#888'});
-        svg.text(295, 85, 'Q1', {fontSize: 9});
-
-        svg.wire([[310, 80], [340, 80]]);
-        svg.rect(340, 65, 30, 30, {fill: 'none', stroke: '#888'});
-        svg.text(355, 85, 'Q2', {fontSize: 9});
-
-        // Sense resistor
-        svg.wire([[370, 80], [400, 80]]);
-        svg.resistor(420, 80, {horizontal: true});
-        svg.text(420, 65, 'Rs', {fontSize: 9});
-        svg.wire([[440, 80], [480, 80]]);
-
-        // Output
-        svg.text(490, 75, 'P+', {fontSize: 10});
-        svg.wire([[50, 120], [50, 150]]);
-        svg.wire([[50, 150], [480, 150]]);
-        svg.text(490, 155, 'P-', {fontSize: 10});
-
-        // Gate drives
-        svg.wire([[220, 100], [295, 100], [295, 95]]);
-        svg.text(250, 115, 'DO', {fontSize: 8});
-        svg.wire([[220, 110], [240, 110], [240, 130], [355, 130], [355, 95]]);
-        svg.text(250, 140, 'CO', {fontSize: 8});
-
-        // Current sense
-        svg.wire([[430, 80], [430, 130], [220, 130]]);
-        svg.text(320, 138, 'CS', {fontSize: 8});
-
-        // Annotations
-        svg.text(500, 60, 'Q1: Discharge FET', {fontSize: 9, fill: '#888'});
-        svg.text(500, 75, 'Q2: Charge FET', {fontSize: 9, fill: '#888'});
-        svg.text(500, 90, 'Rs: Current sense', {fontSize: 9, fill: '#888'});
-        svg.text(500, 110, 'DO: Discharge gate', {fontSize: 9, fill: '#888'});
-        svg.text(500, 125, 'CO: Charge gate', {fontSize: 9, fill: '#888'});
-
-        svg.text(50, 190, 'Common ICs: DW01, FS312, S8261, BQ2970', {fontSize: 10, fill: '#888'});
-
-        container.innerHTML = svg.render();
-    }
-
-    // SPICE
-    function initSpice() {
-        new SpiceNetlistWidget('prot-spice', {
-            title: 'Protection Circuit Simulation',
-            netlist: `* Battery Protection Circuit
-* Single-cell Li-ion with OVP, UVP, OCP
-
-* Cell model
-Vcell cell_pos cell_neg DC 3.7
-
-* Protection IC (behavioral model)
-.subckt prot_ic vcc vss do co cs
-* OVP comparator (trip at 4.25V)
-Bovp ovp_int 0 V=V(vcc,vss)>4.25 ? 0 : 5
-Rovp ovp_int ovp 1k
-Covp ovp 0 100n
-
-* UVP comparator (trip at 2.8V)
-Buvp uvp_int 0 V=V(vcc,vss)<2.8 ? 0 : 5
-Ruvp uvp_int uvp 1k
-Cuvp uvp 0 100n
-
-* OCP comparator (trip at 100mV = 5A with 20mΩ)
-Bocp ocp_int 0 V=V(cs)>0.1 ? 0 : 5
-Rocp ocp_int ocp 1k
-Cocp ocp 0 10n  ; Fast for short circuit
-
-* Gate drives
-Bdo do 0 V=V(uvp)>2.5 & V(ocp)>2.5 ? 5 : 0
-Bco co 0 V=V(ovp)>2.5 ? 5 : 0
-.ends
-
-Xprot cell_pos cell_neg do co cs prot_ic
-
-* Discharge FET
-Mdsg p_pos gate_d cell_pos cell_pos PMOS
-Smdo gate_d cell_pos do cell_neg SMOD
-.model PMOS PMOS(Vto=-2 Kp=50)
-
-* Charge FET (body diode allows discharge)
-Mchg p_pos gate_c p_mid p_mid PMOS
-Smco gate_c p_mid co cell_neg SMOD
-
-* Current sense
-Rsense p_mid cs 0.02  ; 20mΩ
-.wire cs p_neg
-
-* Load
-Rload p_pos p_neg 1  ; 3.7A at 3.7V
-
-.model SMOD SW(Ron=1 Roff=1MEG Vt=2.5)
-
-.tran 1m 100m
-.dc Vcell 2 4.5 0.1
-
-.probe V(cell_pos) V(do) V(co) I(Rload)
-.end`
-        });
-    }
-
-    // Checklist
-    function initChecklist() {
-        new ChecklistWidget('prot-checklist', {
-            title: 'Protection Circuit Checklist',
-            items: [
-                'Select protection IC for cell count',
-                'Set OVP threshold (typically 4.25-4.30V)',
-                'Set UVP threshold (typically 2.5-3.0V)',
-                'Calculate sense resistor for OCP',
-                'Select MOSFETs for current rating',
-                'Verify MOSFET Vds rating > pack voltage',
-                'Check short circuit response time',
-                'Verify thermal shutdown threshold',
-                'Test all protection triggers',
-                'Confirm recovery conditions work'
-            ]
-        });
-    }
-
-    // Exercises
-    function initExercises() {
-        new ExerciseWidget('prot-exercises', {
-            exercises: [
-                {
-                    question: 'OCP threshold is 100mV, limit is 8A. What sense resistor?',
-                    answer: '12.5mΩ',
-                    solution: 'R = V/I = 100mV / 8A = 12.5mΩ. Choose nearest standard: 10mΩ (10A limit) or 15mΩ (6.7A limit).'
-                },
-                {
-                    question: 'Cell at 4.3V, OVP = 4.25V. What happens?',
-                    answer: 'Charge FET turns off',
-                    solution: 'Voltage exceeds OVP threshold. Protection IC turns off charge FET to prevent further charging. Discharge still allowed through body diode or if separate FET.'
-                },
-                {
-                    question: '10mΩ sense resistor, 10A max current. Power dissipation?',
-                    answer: '1W',
-                    solution: 'P = I²R = 10² × 0.01 = 1W. Need resistor rated for at least 1W, preferably 2W for margin and derating.'
-                }
-            ]
-        });
-    }
+    ['i2c-vcc', 'i2c-mode'].forEach(id => {
+        document.getElementById(id).addEventListener('change', update);
+    });
 
     update();
-    drawSchematic();
-    initSpice();
-    initChecklist();
-    initExercises();
+
+    // ==================== I2C BUFFER OPERATION CANVAS ====================
+    (function() {
+        const canvas = document.getElementById('i2c-buffer-operation-canvas');
+        if (!canvas || typeof AD === 'undefined') return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const TEK = AD.TEK_COLORS;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Title
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 12px ui-sans-serif';
+        ctx.fillText('I2C Bus Buffer Block Diagram', 20, 25);
+
+        // Central buffer box
+        ctx.fillStyle = 'rgba(30,41,59,0.9)';
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        AD.roundRect(ctx, 300, 60, 200, 120, 8);
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 12px ui-sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Current Source Logic', 400, 90);
+
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('• Senses which side is pulling low', 400, 115);
+        ctx.fillText('• Passes signal through', 400, 130);
+        ctx.fillText('• Blocks reverse latch', 400, 145);
+
+        // Direction Detection label
+        ctx.fillStyle = TEK.ch3;
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('Direction Detection', 400, 50);
+        ctx.strokeStyle = TEK.ch3;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(400, 55);
+        ctx.lineTo(400, 60);
+        ctx.stroke();
+
+        // Side A labels and arrows
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 11px ui-sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText('Side A', 120, 105);
+
+        ctx.textAlign = 'center';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillStyle = '#9fb0c0';
+        ctx.fillText('SDA_A', 180, 85);
+        ctx.fillText('SCL_A', 180, 150);
+
+        // Side A lines with arrows
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        AD.drawArrow(ctx, 140, 100, 295, 100, { headSize: 8 });
+        AD.drawArrow(ctx, 140, 145, 295, 145, { headSize: 8 });
+
+        // Side B labels and arrows
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 11px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Side B', 680, 105);
+
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '10px ui-sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('SDA_B', 620, 85);
+        ctx.fillText('SCL_B', 620, 150);
+
+        // Side B lines with arrows
+        ctx.strokeStyle = TEK.ch4;
+        AD.drawArrow(ctx, 660, 100, 505, 100, { headSize: 8 });
+        AD.drawArrow(ctx, 660, 145, 505, 145, { headSize: 8 });
+
+        // Bidirectional indicators
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(250, 100); ctx.lineTo(210, 100);
+        ctx.moveTo(550, 100); ctx.lineTo(590, 100);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Operation steps
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 11px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Operation:', 50, 210);
+
+        const steps = [
+            { num: '1.', text: 'Side A pulls SDA low → Buffer detects current flow' },
+            { num: '2.', text: 'Buffer drives Side B SDA low (pass-through)' },
+            { num: '3.', text: 'When A releases, buffer allows both sides to rise' },
+            { num: '4.', text: 'If B pulls low first, it drives A low instead' }
+        ];
+
+        ctx.font = '11px ui-sans-serif';
+        steps.forEach((step, i) => {
+            ctx.fillStyle = TEK.ch2;
+            ctx.fillText(step.num, 70, 230 + i * 18);
+            ctx.fillStyle = '#e6edf3';
+            ctx.fillText(step.text, 90, 230 + i * 18);
+        });
+
+        // Key Benefit box
+        ctx.fillStyle = 'rgba(30,41,59,0.8)';
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        AD.roundRect(ctx, 500, 200, 350, 90, 6);
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 11px ui-sans-serif';
+        ctx.fillText('Key Benefit: Capacitance is isolated!', 520, 225);
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.fillText('C_total on each side = C_local only', 520, 250);
+        ctx.fillText('Not C_sideA + C_sideB', 520, 270);
+    })();
+
+    // I2C Buffer schematic
+    (function() {
+        const container = document.getElementById('i2c-buffer-schematic');
+        if (!container) return;
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '700');
+        svg.setAttribute('height', '180');
+        svg.setAttribute('viewBox', '0 0 700 180');
+        svg.innerHTML = `
+            <style>
+                .wire { stroke: #e6edf3; stroke-width: 1.5; fill: none; }
+                .comp { stroke: #6ee7ff; stroke-width: 1.5; fill: none; }
+                .box { stroke: #6ee7ff; stroke-width: 1.5; fill: rgba(30,41,59,0.8); }
+                .lbl { fill: #e6edf3; font: 11px ui-sans-serif; }
+                .lblsm { fill: #9fb0c0; font: 9px ui-sans-serif; }
+            </style>
+
+            <!-- Side A -->
+            <text x="30" y="25" class="lbl">Side A (3.3V)</text>
+
+            <!-- VCC A pull-ups -->
+            <line x1="80" y1="50" x2="80" y2="35" class="wire"/>
+            <text x="60" y="32" class="lblsm">3.3V</text>
+            <rect x="74" y="50" width="12" height="25" class="comp"/>
+            <text x="65" y="85" class="lblsm">2.2k</text>
+            <line x1="80" y1="75" x2="80" y2="100" class="wire"/>
+
+            <line x1="140" y1="50" x2="140" y2="35" class="wire"/>
+            <rect x="134" y="50" width="12" height="25" class="comp"/>
+            <text x="125" y="85" class="lblsm">2.2k</text>
+            <line x1="140" y1="75" x2="140" y2="120" class="wire"/>
+
+            <!-- SDA and SCL labels -->
+            <text x="85" y="105" class="lblsm">SDA</text>
+            <text x="145" y="125" class="lblsm">SCL</text>
+
+            <!-- Buffer IC -->
+            <rect x="250" y="70" width="120" height="80" class="box"/>
+            <text x="275" y="115" class="lbl">I2C Buffer</text>
+            <text x="275" y="130" class="lblsm">PCA9600</text>
+
+            <!-- Connections to buffer -->
+            <line x1="80" y1="100" x2="250" y2="100" class="wire"/>
+            <line x1="140" y1="120" x2="250" y2="120" class="wire"/>
+            <circle cx="80" cy="100" r="3" fill="#6ee7ff"/>
+            <circle cx="140" cy="120" r="3" fill="#6ee7ff"/>
+
+            <!-- Side B connections -->
+            <line x1="370" y1="100" x2="550" y2="100" class="wire"/>
+            <line x1="370" y1="120" x2="610" y2="120" class="wire"/>
+            <circle cx="550" cy="100" r="3" fill="#6ee7ff"/>
+            <circle cx="610" cy="120" r="3" fill="#6ee7ff"/>
+
+            <!-- VCC B pull-ups -->
+            <line x1="550" y1="50" x2="550" y2="35" class="wire"/>
+            <text x="535" y="32" class="lblsm">5V</text>
+            <rect x="544" y="50" width="12" height="25" class="comp"/>
+            <text x="535" y="85" class="lblsm">4.7k</text>
+            <line x1="550" y1="75" x2="550" y2="100" class="wire"/>
+
+            <line x1="610" y1="50" x2="610" y2="35" class="wire"/>
+            <rect x="604" y="50" width="12" height="25" class="comp"/>
+            <text x="595" y="85" class="lblsm">4.7k</text>
+            <line x1="610" y1="75" x2="610" y2="120" class="wire"/>
+
+            <!-- Side B labels -->
+            <text x="500" y="25" class="lbl">Side B (5V)</text>
+            <text x="555" y="105" class="lblsm">SDA</text>
+            <text x="615" y="125" class="lblsm">SCL</text>
+
+            <!-- Capacitance annotations -->
+            <text x="100" y="160" class="lblsm">C = 100pF</text>
+            <text x="470" y="160" class="lblsm">C = 300pF</text>
+            <text x="260" y="165" class="lblsm">Isolated! Each side sees only its local C</text>
+        `;
+        container.appendChild(svg);
+    })();
+
+    // Level shifter schematic (MOSFET-based)
+    (function() {
+        const container = document.getElementById('i2c-level-shift-schematic');
+        if (!container) return;
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '500');
+        svg.setAttribute('height', '200');
+        svg.setAttribute('viewBox', '0 0 500 200');
+        svg.innerHTML = `
+            <style>
+                .wire { stroke: #e6edf3; stroke-width: 1.5; fill: none; }
+                .comp { stroke: #6ee7ff; stroke-width: 1.5; fill: none; }
+                .lbl { fill: #e6edf3; font: 11px ui-sans-serif; }
+                .lblsm { fill: #9fb0c0; font: 9px ui-sans-serif; }
+            </style>
+
+            <!-- Title -->
+            <text x="150" y="20" class="lbl">MOSFET Bidirectional Level Shifter</text>
+
+            <!-- 3.3V side -->
+            <text x="50" y="45" class="lblsm">3.3V</text>
+            <line x1="80" y1="50" x2="80" y2="65" class="wire"/>
+            <rect x="74" y="65" width="12" height="25" class="comp"/>
+            <text x="90" y="80" class="lblsm">10k</text>
+            <line x1="80" y1="90" x2="80" y2="120" class="wire"/>
+            <circle cx="80" cy="120" r="3" fill="#6ee7ff"/>
+            <text x="60" y="145" class="lblsm">SDA_3V3</text>
+
+            <!-- NMOS symbol -->
+            <line x1="80" y1="120" x2="180" y2="120" class="wire"/>
+            <line x1="180" y1="100" x2="180" y2="140" class="comp" stroke-width="2"/>
+            <line x1="195" y1="105" x2="195" y2="115" class="wire"/>
+            <line x1="195" y1="125" x2="195" y2="135" class="wire"/>
+            <line x1="195" y1="115" x2="220" y2="115" class="wire"/>
+            <line x1="195" y1="125" x2="220" y2="125" class="wire"/>
+            <line x1="220" y1="115" x2="220" y2="125" class="wire"/>
+            <line x1="220" y1="120" x2="280" y2="120" class="wire"/>
+            <text x="185" y="165" class="lblsm">BSS138</text>
+
+            <!-- Gate connection to 3.3V -->
+            <line x1="180" y1="120" x2="160" y2="120" class="wire"/>
+            <line x1="160" y1="120" x2="160" y2="50" class="wire"/>
+            <line x1="160" y1="50" x2="80" y2="50" class="wire"/>
+            <text x="130" y="45" class="lblsm">Gate = VCC_L</text>
+
+            <!-- 5V side -->
+            <text x="330" y="45" class="lblsm">5V</text>
+            <line x1="320" y1="50" x2="320" y2="65" class="wire"/>
+            <rect x="314" y="65" width="12" height="25" class="comp"/>
+            <text x="330" y="80" class="lblsm">10k</text>
+            <line x1="320" y1="90" x2="320" y2="120" class="wire"/>
+            <circle cx="320" cy="120" r="3" fill="#6ee7ff"/>
+            <line x1="280" y1="120" x2="320" y2="120" class="wire"/>
+            <text x="340" y="125" class="lblsm">SDA_5V</text>
+
+            <!-- Operation description -->
+            <text x="50" y="185" class="lblsm">When either side pulls low, MOSFET conducts and pulls the other side low</text>
+        `;
+        container.appendChild(svg);
+    })();
+
+    // SPICE Netlist
+    new SpiceNetlistWidget('spice-container', {
+        title: 'I2C Bus Buffer Model',
+        netlist: `* I2C Bus Buffer Effect on Rise Time
+* Compares buffered vs unbuffered bus
+
+* Pull-up resistors (unbuffered bus)
+VCC1 vcc1 0 DC 3.3
+RP1 vcc1 sda_unbuf 2.2k
+
+* Bus capacitance (unbuffered - 400pF total)
+CBUS sda_unbuf 0 400p
+
+* Driver (open-drain)
+M1 sda_unbuf gate 0 0 NMOS W=10u L=1u
+VGATE gate 0 PULSE(3.3 0 0 10n 10n 2u 4u)
+
+* Buffered bus - Side A
+VCC2 vcc2 0 DC 3.3
+RP2A vcc2 sda_a 2.2k
+CA sda_a 0 100p
+
+* Buffered bus - Side B (isolated capacitance)
+RP2B vcc2 sda_b 2.2k
+CB sda_b 0 300p
+
+* Ideal buffer model (just shows effect)
+* In reality, buffer IC has internal logic
+EBUF sda_b 0 sda_a 0 1
+
+* Driver on buffered side A
+M2 sda_a gate 0 0 NMOS W=10u L=1u
+
+.MODEL NMOS NMOS (VTO=1 KP=1m)
+
+.TRAN 10n 10u
+
+.PROBE V(sda_unbuf) V(sda_a) V(sda_b)
+.END
+
+* Compare rise times: unbuffered (slow) vs buffered (fast)`
+    });
+
+    // Checklist
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm13l7',
+        items: [
+            'Calculate rise time: tr ≈ 2.2 × Rp × Cbus',
+            'Check against mode limit (SM: 1µs, FM: 300ns, FM+: 120ns)',
+            'Add buffer when Cbus > 400pF',
+            'Use level shifter for 3.3V ↔ 5V translation',
+            'Consider I2C switch for address conflicts',
+            'Account for buffer propagation delay',
+            'Verify hot-swap precharge if needed',
+            'Each side needs its own pull-ups after buffer'
+        ]
+    });
+
+    // Exercises
+    const exercises = [
+        {
+            id: 'M13L7-1',
+            type: 'numeric',
+            question: 'An I2C bus has 2.2kΩ pull-ups and 400pF total capacitance. What is the rise time in nanoseconds?',
+            hint: 'tr = 2.2 × R × C',
+            expected: 1936,
+            tolerance: 0.05,
+            unit: 'ns',
+            solution: 'tr = 2.2 × 2200Ω × 400pF = 2.2 × 2200 × 400×10⁻¹² = 1.936µs = 1936ns',
+            explanation: 'This exceeds the Fast mode limit of 300ns, so a buffer is required.'
+        },
+        {
+            id: 'M13L7-2',
+            type: 'choice',
+            question: 'Why do I2C buffers need special bidirectional design?',
+            choices: [
+                { text: 'Because I2C runs at high speed', correct: false, explanation: 'Speed is not the reason for bidirectional design.' },
+                { text: 'Because SDA is bidirectional open-drain', correct: true, explanation: 'Correct! Both master and slave can pull SDA low, so the buffer must detect which side is driving and pass through accordingly.' },
+                { text: 'Because I2C needs level shifting', correct: false, explanation: 'Level shifting is a separate function; the bidirectional nature is inherent to I2C protocol.' },
+                { text: 'To increase current capacity', correct: false, explanation: 'Current capacity is a secondary benefit, not the primary reason.' }
+            ]
+        },
+        {
+            id: 'M13L7-3',
+            type: 'numeric',
+            question: 'An I2C bus segment with buffer has 150pF on side A and 250pF on side B. With 2.2kΩ pull-ups on each side, what is the slower rise time (ns)?',
+            hint: 'Each side is independent; calculate both and take the slower one',
+            expected: 1210,
+            tolerance: 0.05,
+            unit: 'ns',
+            solution: 'Side A: 2.2 × 2200 × 150pF = 726ns. Side B: 2.2 × 2200 × 250pF = 1210ns. Slower = 1210ns',
+            explanation: 'The buffer isolates capacitance, so each side charges independently at its own rate.'
+        }
+    ];
+
+    const container = document.getElementById('exercise-container');
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-${i}`, ex);
+    });
 })();
 </script>

@@ -1,123 +1,157 @@
-<!-- Module 21, Lesson 2: MOSFET Deep Dive - Parasitics & Gate Drive -->
+<!-- Module 21, Lesson 2: DNL, INL, and Missing Codes Deep Dive -->
 <div class="lesson-content" data-module="21" data-lesson="2">
 
     <div class="card">
-        <h2>MOSFET Parasitics & Gate Drive</h2>
-        <p>Real MOSFETs have significant parasitic capacitances that affect switching speed and losses. Understanding gate charge is essential for driver design.</p>
+        <h2>DNL, INL, and Missing Codes</h2>
+        <p>Differential and Integral Nonlinearity are the fundamental metrics for characterizing data converter accuracy. Understanding their relationship is essential for selecting the right converter for your application.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">C<sub>GS</sub></div>
-                <div class="v">Gate-source, 100pF-10nF</div>
+                <div class="k">DNL</div>
+                <div class="v">Step-to-step error vs ideal</div>
             </div>
             <div class="box">
-                <div class="k">C<sub>GD</sub></div>
-                <div class="v">Miller cap, nonlinear</div>
+                <div class="k">INL</div>
+                <div class="v">Cumulative deviation from line</div>
             </div>
             <div class="box">
-                <div class="k">C<sub>DS</sub></div>
-                <div class="v">Output capacitance</div>
+                <div class="k">Missing Code</div>
+                <div class="v">DNL ≤ -1 LSB</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> The Miller plateau in gate charging occurs because C<sub>GD</sub> must discharge as V<sub>DS</sub> falls. This plateau voltage equals V<sub>GS</sub> at the operating current, and its duration determines switching loss.
+            <strong>Key Insight:</strong> DNL measures local accuracy (how well each step matches the ideal 1-LSB increment), while INL measures global accuracy (how far the overall transfer function deviates from a straight line). A converter can have good INL but poor local DNL, or vice versa. For control applications, DNL is often more critical than INL.
+            <br><br>
+            <em>Sources: <a href="https://masteringelectronicsdesign.com/an-adc-and-dac-differential-non-linearity-dnl/" target="_blank">Mastering Electronics Design</a>, <a href="https://en.wikipedia.org/wiki/Differential_nonlinearity" target="_blank">Wikipedia - DNL</a></em>
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Gate Charge Analysis</h3>
+        <h3>Interactive: DNL and INL Analyzer</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="mos-qg">Total Q<sub>G</sub> (nC)</label>
-                <input type="range" id="mos-qg" min="5" max="200" step="5" value="50">
-                <span id="mos-qg-val" class="mono">50nC</span>
+                <label for="dnl-bits">Resolution (bits)</label>
+                <input type="range" id="dnl-bits" min="4" max="8" step="1" value="6">
+                <span id="dnl-bits-val" class="mono">6-bit</span>
             </div>
             <div class="c3">
-                <label for="mos-vgs">V<sub>GS</sub> drive (V)</label>
-                <input type="range" id="mos-vgs" min="5" max="15" step="0.5" value="10">
-                <span id="mos-vgs-val" class="mono">10V</span>
+                <label for="dnl-random">Random DNL (LSB rms)</label>
+                <input type="range" id="dnl-random" min="0" max="0.8" step="0.05" value="0.2">
+                <span id="dnl-random-val" class="mono">0.2 LSB</span>
             </div>
             <div class="c3">
-                <label for="mos-ig">Gate Current (A)</label>
-                <input type="range" id="mos-ig" min="0.1" max="5" step="0.1" value="1">
-                <span id="mos-ig-val" class="mono">1A</span>
+                <label for="dnl-systematic">Systematic Error</label>
+                <select id="dnl-systematic">
+                    <option value="none">None</option>
+                    <option value="msb">MSB mismatch</option>
+                    <option value="gain">Gain error</option>
+                    <option value="offset">Offset error</option>
+                </select>
             </div>
             <div class="c3">
-                <label for="mos-fsw">Switching Freq (kHz)</label>
-                <input type="range" id="mos-fsw" min="10" max="500" step="10" value="100">
-                <span id="mos-fsw-val" class="mono">100kHz</span>
+                <label for="dnl-amount">Error Magnitude (LSB)</label>
+                <input type="range" id="dnl-amount" min="0" max="2" step="0.1" value="0.5">
+                <span id="dnl-amount-val" class="mono">0.5 LSB</span>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="mos-canvas" width="980" height="300"></canvas>
+            <canvas id="dnl-canvas" width="980" height="380"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Turn-on Time</div>
-                <div class="v mono" id="mos-ton">—</div>
+                <div class="k">Max DNL</div>
+                <div class="v mono" id="dnl-max">—</div>
             </div>
             <div class="box">
-                <div class="k">Gate Drive Power</div>
-                <div class="v mono" id="mos-pgd">—</div>
+                <div class="k">Min DNL</div>
+                <div class="v mono" id="dnl-min">—</div>
             </div>
             <div class="box">
-                <div class="k">C<sub>ISS</sub> Effective</div>
-                <div class="v mono" id="mos-ciss">—</div>
+                <div class="k">Max INL</div>
+                <div class="v mono" id="inl-max">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Missing Codes</div>
+                <div class="v mono" id="dnl-missing-count">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Parasitic Capacitances</h3>
-        <div class="diagram-container">
-            <canvas id="mosfet-cap-canvas" width="850" height="520" style="width:100%;max-width:850px;background:#0d1117;border-radius:8px;"></canvas>
-        </div>
+        <h3>Mathematical Definitions</h3>
+        <canvas id="math-definitions-canvas" width="900" height="420"></canvas>
     </div>
 
     <div class="card">
-        <h3>Gate Drive Requirements</h3>
+        <h3>Common Error Patterns by Architecture</h3>
 
         <table class="table">
             <tr>
-                <th>Parameter</th>
-                <th>Formula</th>
-                <th>Practical Notes</th>
+                <th>Architecture</th>
+                <th>Typical DNL Pattern</th>
+                <th>Primary Cause</th>
+                <th>Mitigation</th>
             </tr>
             <tr>
-                <td>Turn-on time</td>
-                <td>t<sub>on</sub> ≈ Q<sub>G</sub> / I<sub>G</sub></td>
-                <td>Faster with higher gate current</td>
+                <td>R-2R Ladder</td>
+                <td>Spikes at major carries (midpoint, 1/4, 3/4)</td>
+                <td>Resistor ratio mismatch</td>
+                <td>Laser trimming, thin-film resistors</td>
             </tr>
             <tr>
-                <td>Gate drive power</td>
-                <td>P<sub>GD</sub> = Q<sub>G</sub> × V<sub>GS</sub> × f<sub>sw</sub></td>
-                <td>Significant at high frequency</td>
+                <td>Binary-Weighted Capacitor (SAR)</td>
+                <td>Repetitive 2^k pattern in histogram</td>
+                <td>Capacitor mismatch, settling</td>
+                <td>Better layout matching, calibration</td>
             </tr>
             <tr>
-                <td>Gate resistor</td>
-                <td>R<sub>G</sub> = (V<sub>DRV</sub> - V<sub>plateau</sub>) / I<sub>G</sub></td>
-                <td>Controls dV/dt and EMI</td>
+                <td>Segmented DAC</td>
+                <td>Errors at segment boundaries</td>
+                <td>Segment element mismatch</td>
+                <td>Dynamic element matching (DEM)</td>
             </tr>
             <tr>
-                <td>Driver current</td>
-                <td>I<sub>peak</sub> = V<sub>DRV</sub> / R<sub>G</sub></td>
-                <td>Driver must source/sink this</td>
+                <td>Pipeline ADC</td>
+                <td>Errors at stage boundaries</td>
+                <td>MDAC gain errors, incomplete settling</td>
+                <td>Digital correction, background cal</td>
+            </tr>
+            <tr>
+                <td>Sigma-Delta</td>
+                <td>Very low DNL (inherently)</td>
+                <td>Multi-bit DAC in loop (if used)</td>
+                <td>DEM, noise shaping moves error to HF</td>
+            </tr>
+            <tr>
+                <td>Flash ADC</td>
+                <td>Random pattern from comparator offsets</td>
+                <td>Comparator threshold variations</td>
+                <td>Bubble error correction, averaging</td>
             </tr>
         </table>
 
         <div class="warn">
-            <strong>Miller Effect in Practice:</strong>
+            <strong>MSB Mismatch is the #1 Enemy:</strong><br><br>
+            In binary-weighted architectures, each bit's influence on DNL is proportional to its weight:
             <ul style="margin: 10px 0 0 20px;">
-                <li>During turn-on, gate voltage stalls at V<sub>plateau</sub></li>
-                <li>Insufficient gate drive current extends switching loss</li>
-                <li>During turn-off, VDS rise can couple back through CGD and turn device back on</li>
-                <li>Use low gate resistance and separate turn-on/turn-off paths</li>
+                <li>MSB mismatch of 0.1% → DNL error of 0.1% × 2^(N-1) LSB = <strong>0.5 LSB for 10-bit</strong></li>
+                <li>For 12-bit, same 0.1% mismatch → <strong>2 LSB error!</strong></li>
+                <li>For 16-bit, need <0.003% matching for 1 LSB DNL</li>
             </ul>
+            <br>
+            This is why high-resolution converters often use segmented architectures or sigma-delta topology.
+            <br><br>
+            <em>Sources: <a href="https://www.ersaelectronics.com/blog/adc-inl-dnl-missing-codes" target="_blank">ERSA Electronics</a>, <a href="http://rcvt.tu-sofia.bg/ICEST2006_71.pdf" target="_blank">TU Sofia Research</a></em>
         </div>
+    </div>
+
+    <div class="card">
+        <h3>Measuring DNL: Code Density Histogram</h3>
+        <canvas id="histogram-method-canvas" width="900" height="400"></canvas>
     </div>
 
     <div class="card">
@@ -139,383 +173,696 @@
 
 <script>
 (function() {
-    const canvas = document.getElementById('mos-canvas');
+    const canvas = document.getElementById('dnl-canvas');
     const ctx = canvas.getContext('2d');
 
-    function update() {
-        const qg = AD.num('mos-qg'); // nC
-        const vgs = AD.num('mos-vgs');
-        const ig = AD.num('mos-ig');
-        const fsw = AD.num('mos-fsw');
+    // Use global Tektronix-style colors from AD framework
+    const TEK_COLORS = AD.TEK_COLORS;
 
-        document.getElementById('mos-qg-val').textContent = qg + 'nC';
-        document.getElementById('mos-vgs-val').textContent = vgs + 'V';
-        document.getElementById('mos-ig-val').textContent = ig + 'A';
-        document.getElementById('mos-fsw-val').textContent = fsw + 'kHz';
-
-        // Calculate switching time
-        const ton = qg / ig; // ns
-        document.getElementById('mos-ton').textContent = ton.toFixed(0) + 'ns';
-
-        // Gate drive power
-        const pgd = qg * 1e-9 * vgs * fsw * 1e3; // W
-        document.getElementById('mos-pgd').textContent = (pgd * 1000).toFixed(1) + 'mW';
-
-        // Effective CISS
-        const ciss = qg / vgs; // nF
-        document.getElementById('mos-ciss').textContent = (ciss * 1000).toFixed(0) + 'pF';
-
-        plotGateCharge(qg, vgs, ig);
+    // Store random seed for consistent display
+    let randomSeed = 12345;
+    function seededRandom() {
+        randomSeed = (randomSeed * 1103515245 + 12345) & 0x7fffffff;
+        return randomSeed / 0x7fffffff;
     }
 
-    function plotGateCharge(qg, vgsMax, ig) {
-        const w = canvas.width;
-        const h = canvas.height;
+    function gaussianRandom() {
+        let u = 0, v = 0;
+        while (u === 0) u = seededRandom();
+        while (v === 0) v = seededRandom();
+        return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    }
 
-        // Gate charge curve
-        const qgTotal = qg;
-        const qgs = qg * 0.25; // Charge to threshold
-        const qgd = qg * 0.35; // Miller charge
-        const vth = 3; // Threshold voltage
-        const vplateau = 5; // Plateau voltage
+    function update() {
+        randomSeed = 12345; // Reset for consistent results
 
-        const axes = AD.drawAxes(ctx, w, h, {
-            xMin: 0,
-            xMax: qgTotal * 1.2,
-            yMin: 0,
-            yMax: vgsMax * 1.2,
-            xLabel: 'Gate Charge',
-            yLabel: 'VGS',
-            xUnit: 'nC',
-            yUnit: 'V',
-            xDivs: 10,
-            yDivs: 8
-        });
+        const bits = parseInt(document.getElementById('dnl-bits').value);
+        const randomDnl = AD.num('dnl-random');
+        const systematic = document.getElementById('dnl-systematic').value;
+        const amount = AD.num('dnl-amount');
 
-        // Generate gate charge curve
-        const N = 200;
-        const qData = [];
-        const vData = [];
+        document.getElementById('dnl-bits-val').textContent = bits + '-bit';
+        document.getElementById('dnl-random-val').textContent = randomDnl.toFixed(2) + ' LSB';
+        document.getElementById('dnl-amount-val').textContent = amount.toFixed(1) + ' LSB';
 
-        for (let i = 0; i < N; i++) {
-            const q = (i / N) * qgTotal * 1.2;
-            qData.push(q);
+        const codes = Math.pow(2, bits);
 
-            let v;
-            if (q < qgs) {
-                // Pre-threshold region (charging CGS)
-                v = vth * (q / qgs);
-            } else if (q < qgs + qgd) {
-                // Miller plateau (charging CGD)
-                v = vplateau; // Flat plateau
-            } else {
-                // Post-plateau (charging CGS at higher voltage)
-                const qPost = q - qgs - qgd;
-                const qRemaining = qgTotal - qgs - qgd;
-                v = vplateau + (vgsMax - vplateau) * (qPost / qRemaining);
+        // Generate DNL values
+        const dnlValues = [];
+        for (let i = 0; i < codes; i++) {
+            let dnl = gaussianRandom() * randomDnl;
+
+            // Add systematic errors
+            if (systematic === 'msb' && i === codes / 2) {
+                dnl -= amount; // MSB transition error
+            } else if (systematic === 'gain') {
+                dnl += (i / codes - 0.5) * amount * 0.1; // Gradual gain error
+            } else if (systematic === 'offset') {
+                dnl += (i < codes / 4) ? amount * 0.5 : 0; // Low code offset
             }
 
-            vData.push(Math.min(v, vgsMax));
+            dnlValues.push(dnl);
         }
 
-        AD.plotData(ctx, axes, qData, vData, {
-            color: 'rgba(110, 231, 255, 0.95)',
-            lineWidth: 2
-        });
+        // Calculate INL (cumulative sum of DNL)
+        const inlValues = [];
+        let cumulative = 0;
+        for (let i = 0; i < codes; i++) {
+            cumulative += dnlValues[i];
+            inlValues.push(cumulative);
+        }
 
-        // Mark key points
-        ctx.save();
+        // Statistics
+        const maxDnl = Math.max(...dnlValues);
+        const minDnl = Math.min(...dnlValues);
+        const maxInl = Math.max(...inlValues.map(Math.abs));
+        const missingCodes = dnlValues.filter(d => d <= -1).length;
 
-        // QGS marker
-        const qgsPt = axes.toCanvas(qgs, vth);
-        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.moveTo(qgsPt.x, axes.top);
-        ctx.lineTo(qgsPt.x, axes.top + axes.height);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('QGS', qgsPt.x - 12, axes.top + axes.height - 5);
+        document.getElementById('dnl-max').textContent = maxDnl.toFixed(2) + ' LSB';
+        document.getElementById('dnl-min').textContent = minDnl.toFixed(2) + ' LSB';
+        document.getElementById('inl-max').textContent = maxInl.toFixed(2) + ' LSB';
 
-        // QGD marker
-        const qgdPt = axes.toCanvas(qgs + qgd, vplateau);
-        ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.moveTo(qgdPt.x, axes.top);
-        ctx.lineTo(qgdPt.x, axes.top + axes.height);
-        ctx.stroke();
+        const missingEl = document.getElementById('dnl-missing-count');
+        missingEl.textContent = missingCodes;
+        missingEl.style.color = missingCodes > 0 ? 'var(--bad)' : 'var(--ok)';
 
-        // Miller plateau line
-        ctx.beginPath();
-        ctx.moveTo(qgsPt.x, qgdPt.y);
-        ctx.lineTo(qgdPt.x, qgdPt.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
-        ctx.fillText('Miller Plateau', (qgsPt.x + qgdPt.x) / 2 - 30, qgdPt.y - 8);
-        ctx.fillText('QGD', qgdPt.x - 12, axes.top + axes.height - 5);
-
-        ctx.restore();
-
-        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
-            { color: 'rgba(110, 231, 255, 0.95)', label: 'VGS vs QG' }
-        ]);
+        plotDnlInl(dnlValues, inlValues, bits);
     }
 
-    ['mos-qg', 'mos-vgs', 'mos-ig', 'mos-fsw'].forEach(id => {
+    function plotDnlInl(dnlValues, inlValues, bits) {
+        const w = canvas.width;
+        const h = canvas.height;
+        const codes = dnlValues.length;
+
+        // Clear
+        ctx.fillStyle = '#0b0f16';
+        ctx.fillRect(0, 0, w, h);
+
+        const margin = { left: 60, right: 20, top: 30, bottom: 40 };
+        const plotW = w - margin.left - margin.right;
+        const plotH = (h - margin.top - margin.bottom - 40) / 2;
+
+        // Find scales
+        const dnlMax = Math.max(2, Math.max(...dnlValues.map(Math.abs)) * 1.2);
+        const inlMax = Math.max(2, Math.max(...inlValues.map(Math.abs)) * 1.2);
+
+        // Draw DNL plot (top)
+        const dnlTop = margin.top;
+        drawPlot(dnlValues, dnlTop, plotW, plotH, -dnlMax, dnlMax, 'DNL (LSB)', TEK_COLORS.ch1);
+
+        // Draw INL plot (bottom)
+        const inlTop = margin.top + plotH + 40;
+        drawPlot(inlValues, inlTop, plotW, plotH, -inlMax, inlMax, 'INL (LSB)', TEK_COLORS.ch2);
+
+        // X-axis label
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '11px ui-sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Code Number (0 to ' + (codes - 1) + ')', margin.left + plotW / 2, h - 10);
+
+        function drawPlot(values, top, width, height, yMin, yMax, label, color) {
+            // Grid
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+
+            // Horizontal lines
+            for (let i = 0; i <= 4; i++) {
+                const y = top + (i / 4) * height;
+                ctx.beginPath();
+                ctx.moveTo(margin.left, y);
+                ctx.lineTo(margin.left + width, y);
+                ctx.stroke();
+            }
+
+            // Zero line
+            const zeroY = top + height * (yMax / (yMax - yMin));
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.beginPath();
+            ctx.moveTo(margin.left, zeroY);
+            ctx.lineTo(margin.left + width, zeroY);
+            ctx.stroke();
+
+            // ±1 LSB thresholds (important for DNL)
+            if (label.includes('DNL')) {
+                ctx.strokeStyle = 'rgba(251, 113, 133, 0.4)';
+                ctx.setLineDash([5, 5]);
+
+                const plusOneY = top + height * ((yMax - 1) / (yMax - yMin));
+                const minusOneY = top + height * ((yMax + 1) / (yMax - yMin));
+
+                ctx.beginPath();
+                ctx.moveTo(margin.left, plusOneY);
+                ctx.lineTo(margin.left + width, plusOneY);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(margin.left, minusOneY);
+                ctx.lineTo(margin.left + width, minusOneY);
+                ctx.stroke();
+
+                ctx.setLineDash([]);
+
+                // Label the threshold
+                ctx.fillStyle = 'rgba(251, 113, 133, 0.7)';
+                ctx.font = '9px ui-sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('-1 LSB (monotonicity limit)', margin.left + 5, minusOneY - 3);
+            }
+
+            // Plot data as bars for DNL, line for INL
+            if (label.includes('DNL')) {
+                // Bar chart for DNL
+                const barWidth = Math.max(1, width / values.length);
+                for (let i = 0; i < values.length; i++) {
+                    const x = margin.left + (i / values.length) * width;
+                    const val = values[i];
+                    const barHeight = (val / (yMax - yMin)) * height;
+
+                    if (val < -1) {
+                        ctx.fillStyle = TEK_COLORS.ref; // Missing code - red
+                    } else if (val < -0.5) {
+                        ctx.fillStyle = '#FFA500'; // Warning - orange
+                    } else {
+                        ctx.fillStyle = color;
+                    }
+
+                    ctx.fillRect(x, zeroY, barWidth, -barHeight);
+                }
+            } else {
+                // Line for INL
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+
+                for (let i = 0; i < values.length; i++) {
+                    const x = margin.left + (i / values.length) * width;
+                    const y = top + height * ((yMax - values[i]) / (yMax - yMin));
+
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.stroke();
+            }
+
+            // Y-axis labels
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.font = '10px ui-sans-serif';
+            ctx.textAlign = 'right';
+
+            ctx.fillText(yMax.toFixed(1), margin.left - 5, top + 4);
+            ctx.fillText('0', margin.left - 5, zeroY + 4);
+            ctx.fillText(yMin.toFixed(1), margin.left - 5, top + height + 4);
+
+            // Plot label
+            ctx.fillStyle = color;
+            ctx.font = 'bold 11px ui-sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(label, margin.left + 5, top + 15);
+        }
+    }
+
+    ['dnl-bits', 'dnl-random', 'dnl-systematic', 'dnl-amount'].forEach(id => {
         document.getElementById(id).addEventListener('input', update);
+        document.getElementById(id).addEventListener('change', update);
     });
 
     update();
 
+    // Mathematical Definitions Canvas
+    (function() {
+        const canvas = document.getElementById('math-definitions-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+        const boxW = 430, boxH = 130;
+
+        // DNL Box
+        ctx.fillStyle = 'rgba(255,255,0,0.1)';
+        roundRect(ctx, 15, 15, boxW, boxH, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('DNL (Differential Nonlinearity)', 30, 40);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.fillText('          Actual Step(n) - Ideal Step', 30, 68);
+        ctx.fillText('DNL(n) = ────────────────────────────', 30, 85);
+        ctx.fillText('              Ideal Step (1 LSB)', 30, 102);
+
+        ctx.fillStyle = '#aaa';
+        ctx.font = '11px monospace';
+        ctx.fillText('Units: LSB   Typical: ±0.5 to ±1 LSB', 30, 130);
+
+        // INL Box
+        ctx.fillStyle = 'rgba(0,255,255,0.1)';
+        roundRect(ctx, 455, 15, boxW, boxH, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 14px monospace';
+        ctx.fillText('INL (Integral Nonlinearity)', 470, 40);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.fillText('          V_actual(n) - V_ideal(n)', 470, 68);
+        ctx.fillText('INL(n) = ─────────────────────────', 470, 85);
+        ctx.fillText('                  1 LSB', 470, 102);
+
+        ctx.fillStyle = '#aaa';
+        ctx.font = '11px monospace';
+        ctx.fillText('INL(n) = Σ DNL(k) for k=1 to n', 470, 130);
+
+        // Thresholds Table
+        ctx.fillStyle = 'rgba(0,255,0,0.1)';
+        roundRect(ctx, 15, 160, w - 30, 100, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('KEY THRESHOLDS', w/2, 185);
+
+        const thresholds = [
+            { spec: 'DNL = ±0.5 LSB', meaning: 'Excellent, no issues', color: '#34d399' },
+            { spec: 'DNL = ±1 LSB', meaning: 'Monotonic, borderline', color: '#fbbf24' },
+            { spec: 'DNL < -1 LSB', meaning: 'NON-MONOTONIC!', color: '#fb7185' },
+            { spec: 'INL = ±0.5 LSB', meaning: 'Excellent linearity', color: '#34d399' },
+            { spec: 'INL > ±2 LSB', meaning: 'May need calibration', color: '#fbbf24' }
+        ];
+
+        ctx.font = '11px monospace';
+        const startX = 50;
+        let tx = startX;
+        thresholds.forEach((t, i) => {
+            if (i === 3) { tx = startX; } // wrap to second row
+            const ty = i < 3 ? 215 : 240;
+            ctx.fillStyle = t.color;
+            ctx.textAlign = 'left';
+            ctx.fillText(t.spec, tx, ty);
+            ctx.fillStyle = '#888';
+            ctx.fillText('→ ' + t.meaning, tx + 150, ty);
+            tx += 280;
+        });
+
+        // Relationship diagram
+        ctx.fillStyle = 'rgba(255,102,255,0.1)';
+        roundRect(ctx, 15, 275, w - 30, 130, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch3;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch3;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('DNL vs INL RELATIONSHIP', w/2, 300);
+
+        // Draw visual relationship
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        // DNL bars
+        const barStartX = 80;
+        const barY = 340;
+        const dnlVals = [0.2, -0.3, 0.5, -0.8, 0.1, -0.2, 0.4];
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('DNL per code', barStartX + 100, 320);
+
+        dnlVals.forEach((d, i) => {
+            const bx = barStartX + i * 35;
+            const bh = d * 30;
+            ctx.fillStyle = d < -0.5 ? '#fbbf24' : TEK.ch1;
+            ctx.fillRect(bx, barY, 25, -bh);
+        });
+        ctx.strokeStyle = '#666';
+        ctx.beginPath();
+        ctx.moveTo(barStartX - 10, barY);
+        ctx.lineTo(barStartX + 260, barY);
+        ctx.stroke();
+
+        // Arrow
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 16px monospace';
+        ctx.fillText('→', 360, 345);
+        ctx.font = '11px monospace';
+        ctx.fillText('Σ', 360, 365);
+
+        // INL line
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        let cumulative = 0;
+        const inlStartX = 420;
+        dnlVals.forEach((d, i) => {
+            cumulative += d;
+            const ix = inlStartX + i * 35;
+            const iy = 340 - cumulative * 30;
+            if (i === 0) ctx.moveTo(ix, iy);
+            else ctx.lineTo(ix, iy);
+        });
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = '10px monospace';
+        ctx.fillText('INL (cumulative)', inlStartX + 100, 320);
+
+        // Source
+        ctx.fillStyle = '#666';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Source: All About Circuits, Analog Devices MT-010', 20, h - 10);
+    })();
+
+    // Histogram Method Canvas
+    (function() {
+        const canvas = document.getElementById('histogram-method-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+        // Method 1: Histogram Setup
+        ctx.fillStyle = 'rgba(255,255,0,0.1)';
+        roundRect(ctx, 15, 15, 420, 170, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('METHOD 1: HISTOGRAM TEST', 30, 38);
+
+        // Flow diagram
+        const boxes = ['Ramp Gen', 'LPF', 'ADC', 'Counter'];
+        let bx = 50;
+        boxes.forEach((box, i) => {
+            ctx.fillStyle = 'rgba(255,255,0,0.2)';
+            roundRect(ctx, bx, 55, 70, 30, 4);
+            ctx.fill();
+            ctx.strokeStyle = TEK.ch1;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(box, bx + 35, 74);
+            if (i < 3) {
+                ctx.strokeStyle = '#888';
+                ctx.beginPath();
+                ctx.moveTo(bx + 70, 70);
+                ctx.lineTo(bx + 90, 70);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(bx + 85, 66);
+                ctx.lineTo(bx + 90, 70);
+                ctx.lineTo(bx + 85, 74);
+                ctx.fill();
+            }
+            bx += 95;
+        });
+
+        // Histogram visual
+        const histX = 50, histY = 165, histW = 350, histH = 60;
+        ctx.strokeStyle = '#888';
+        ctx.beginPath();
+        ctx.moveTo(histX, histY);
+        ctx.lineTo(histX, histY - histH);
+        ctx.moveTo(histX, histY);
+        ctx.lineTo(histX + histW, histY);
+        ctx.stroke();
+
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('Hits', histX - 5, histY - histH/2);
+
+        // Histogram bars
+        const hits = [40, 42, 38, 41, 5, 43, 39, 40, 42, 41, 38, 43];
+        hits.forEach((h, i) => {
+            const bx = histX + 10 + i * 28;
+            const bh = (h/45) * histH;
+            ctx.fillStyle = h < 10 ? '#fb7185' : TEK.ch2;
+            ctx.fillRect(bx, histY - bh, 22, bh);
+        });
+
+        // Ideal line
+        ctx.strokeStyle = '#34d399';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(histX, histY - (40/45)*histH);
+        ctx.lineTo(histX + histW, histY - (40/45)*histH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#fb7185';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Missing!', histX + 10 + 4*28 + 11, histY + 12);
+
+        // Method 2: Servo Loop
+        ctx.fillStyle = 'rgba(0,255,255,0.1)';
+        roundRect(ctx, 455, 15, 430, 170, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('METHOD 2: SERVO LOOP (DACs)', 470, 38);
+
+        // Servo loop diagram
+        const sboxes = [
+            { label: 'DAC', x: 490, y: 70 },
+            { label: 'Comp', x: 600, y: 70 },
+            { label: 'Ctrl', x: 710, y: 70 }
+        ];
+        sboxes.forEach(b => {
+            ctx.fillStyle = 'rgba(0,255,255,0.2)';
+            roundRect(ctx, b.x, b.y, 60, 30, 4);
+            ctx.fill();
+            ctx.strokeStyle = TEK.ch2;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(b.label, b.x + 30, b.y + 19);
+        });
+
+        // Arrows
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 1;
+        // DAC -> Comp
+        ctx.beginPath();
+        ctx.moveTo(550, 85);
+        ctx.lineTo(600, 85);
+        ctx.stroke();
+        // Comp -> Ctrl
+        ctx.beginPath();
+        ctx.moveTo(660, 85);
+        ctx.lineTo(710, 85);
+        ctx.stroke();
+        // Feedback
+        ctx.beginPath();
+        ctx.moveTo(740, 100);
+        ctx.lineTo(740, 130);
+        ctx.lineTo(520, 130);
+        ctx.lineTo(520, 100);
+        ctx.stroke();
+
+        // Ref input
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('V_ref', 560, 65);
+        ctx.fillText('Record', 773, 85);
+
+        // Steps
+        ctx.fillStyle = '#aaa';
+        ctx.font = '10px monospace';
+        const steps = [
+            '1. Step Vref by 1 LSB',
+            '2. Servo finds matching code',
+            '3. Record code difference',
+            '4. Non-monotonic = oscillation'
+        ];
+        steps.forEach((s, i) => {
+            ctx.fillText(s, 470, 155 + i * 14);
+        });
+
+        // Calculation box
+        ctx.fillStyle = 'rgba(0,255,0,0.1)';
+        roundRect(ctx, 15, 200, w - 30, 85, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('CALCULATING DNL FROM HISTOGRAM', w/2, 223);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('          Hits(n) - Avg_Hits', 100, 250);
+        ctx.fillText('DNL(n) = ─────────────────', 100, 267);
+        ctx.fillText('             Avg_Hits', 100, 284);
+
+        ctx.fillStyle = '#aaa';
+        ctx.font = '11px monospace';
+        ctx.fillText('Example: 100k samples, 256 codes → Avg=390', 450, 250);
+        ctx.fillText('Code 127 has 200 hits → DNL = -0.49 LSB', 450, 270);
+        ctx.fillStyle = '#fb7185';
+        ctx.fillText('Code 128 has 0 hits → Missing! DNL ≤ -1', 450, 290);
+
+        // Statistical note
+        ctx.fillStyle = 'rgba(255,102,255,0.1)';
+        roundRect(ctx, 15, 300, w - 30, 85, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch3;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch3;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('STATISTICAL CONFIDENCE', w/2, 323);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('DNL uncertainty ≈ 1/√(samples per code)', 50, 350);
+
+        ctx.fillStyle = '#aaa';
+        ctx.fillText('100 samples/code → ±10% uncertainty', 400, 345);
+        ctx.fillText('10000 samples/code → ±1% uncertainty', 400, 365);
+
+        ctx.fillStyle = '#666';
+        ctx.font = '10px monospace';
+        ctx.fillText('Source: Analog Devices Data Conversion Handbook, ERSA Electronics', 20, h - 10);
+    })();
+
     new SpiceNetlistWidget('spice-container', {
-        title: 'MOSFET Gate Charge Simulation',
-        netlist: `* MOSFET Gate Charge and Switching Analysis
+        title: 'DNL Measurement Using Histogram Method',
+        netlist: `* ADC DNL Measurement - Histogram Method
+* Apply slow ramp, count code occurrences
 
-* Power supply
-VDD drain 0 DC 48
+* Slow triangle wave input (many cycles for statistics)
+VIN inp 0 DC 0
++ PULSE(-0.1 2.6 0 100m 100m 1n 200m)
 
-* Gate driver (constant current for Qg measurement)
-* IG gate 0 DC 1
+* Simple 8-bit ADC model (ideal except for one bad code)
+* In reality, you'd use actual ADC
 
-* Realistic gate driver with resistor
-VDRV drv 0 PULSE(0 10 0 10n 10n 1u 2u)
-RG drv gate 10
+* Reference
+VREF vref 0 DC 2.5
 
-* Load
-RLOAD drain vdd_load 10
-LLOAD vdd_load vdd 10n
+* Input buffer
+E1 buf 0 inp 0 1
 
-* N-channel MOSFET with parasitics
-M1 drain gate source source NMOS_SW W=10000u L=1u
-.MODEL NMOS_SW NMOS (VTO=3 KP=100 CGS=1n CGD=0.2n CBD=0.5n)
+* Comparators (simplified - real ADC has 255 of these)
+* This is just to show the concept
 
-* Source inductance (package)
-LSOURCE source 0 2n
+* In practice, measure the output code digitally
+* and build a histogram in software
 
-.TRAN 0.1n 3u
+.TRAN 1m 1000m
 
-.PROBE V(gate) V(drain) I(RLOAD)
+* Post-processing (done externally):
+* 1. Sample ADC output at regular intervals
+* 2. Build histogram of code occurrences
+* 3. Calculate DNL(n) = (Hits(n)/Average) - 1
+* 4. Calculate INL(n) = Sum of DNL(0 to n)
+
+.PROBE V(buf)
 .END
 
-* Observe Miller plateau during turn-on
-* Note VDS falling during plateau
-* See effect of gate resistor on switching speed`
+* For actual DNL measurement, you need:
+* 1. Very linear ramp source (better than ADC under test)
+* 2. Many samples (100k+ for good statistics)
+* 3. Software to build histogram and calculate metrics`
     });
 
     new ChecklistWidget('checklist-container', {
-        lessonKey: 'm21l2',
+        lessonKey: 'm22l2',
         items: [
-            'Know CISS = CGS + CGD (input capacitance)',
-            'Understand Miller plateau and its cause',
-            'Calculate gate drive power: Qg × Vgs × fsw',
-            'Size gate resistor for desired turn-on time',
-            'Account for CGD variation with VDS'
+            'DNL measures step-to-step accuracy (local)',
+            'INL measures overall linearity (global, cumulative DNL)',
+            'Missing codes occur when DNL ≤ -1 LSB',
+            'MSB mismatch causes largest DNL errors',
+            'Histogram method is standard for ADC DNL testing'
         ]
     });
 
     new ExerciseWidget('exercise-container', {
-        id: 'EX21-2',
+        id: 'EX22-2',
         type: 'numeric',
-        question: 'A MOSFET has Qg=45nC and is driven to 10V at 200kHz. What is the gate drive power?',
-        hint: 'Pgd = Qg × Vgs × fsw',
-        expected: 90,
+        question: 'A 10-bit R-2R DAC has 0.1% mismatch on the MSB resistor. What is the worst-case DNL error in LSB at the MSB transition?',
+        hint: 'MSB represents 2^(N-1) = 512 LSBs. A 0.1% error on this gives DNL = 0.001 × 512',
+        expected: 0.512,
         tolerance: 0.05,
-        unit: 'mW',
-        solution: 'Pgd = 45nC × 10V × 200kHz = 45×10⁻⁹ × 10 × 200×10³ = 90mW',
-        explanation: 'This 90mW is dissipated in the gate driver and gate resistor. At higher frequencies or with larger MOSFETs, gate drive power becomes significant.'
-    });
-})();
-
-// MOSFET Parasitic Capacitances Canvas
-(function() {
-    const canvas = document.getElementById('mosfet-cap-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
-
-    ctx.fillStyle = '#0d1117';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Title
-    ctx.fillStyle = TEK.ch1;
-    ctx.font = 'bold 14px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('MOSFET Parasitic Capacitances', 30, 30);
-
-    // MOSFET Symbol (large)
-    const mx = 200, my = 260;
-
-    // Gate
-    ctx.strokeStyle = TEK.ch1;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(mx - 80, my);
-    ctx.lineTo(mx - 40, my);
-    ctx.stroke();
-    ctx.fillStyle = TEK.ch1;
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText('G', mx - 100, my + 5);
-
-    // Gate bar
-    ctx.strokeStyle = '#e6edf3';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(mx - 40, my - 40);
-    ctx.lineTo(mx - 40, my + 40);
-    ctx.stroke();
-
-    // Channel
-    ctx.beginPath();
-    ctx.moveTo(mx - 30, my - 35);
-    ctx.lineTo(mx - 30, my - 15);
-    ctx.moveTo(mx - 30, my - 5);
-    ctx.lineTo(mx - 30, my + 15);
-    ctx.moveTo(mx - 30, my + 25);
-    ctx.lineTo(mx - 30, my + 35);
-    ctx.stroke();
-
-    // Drain connection
-    ctx.strokeStyle = TEK.ch2;
-    ctx.beginPath();
-    ctx.moveTo(mx - 30, my - 25);
-    ctx.lineTo(mx + 20, my - 25);
-    ctx.lineTo(mx + 20, my - 80);
-    ctx.stroke();
-    ctx.fillStyle = TEK.ch2;
-    ctx.fillText('D', mx + 30, my - 70);
-
-    // Source connection
-    ctx.strokeStyle = TEK.ch4;
-    ctx.beginPath();
-    ctx.moveTo(mx - 30, my + 30);
-    ctx.lineTo(mx + 20, my + 30);
-    ctx.lineTo(mx + 20, my + 80);
-    ctx.stroke();
-    ctx.fillStyle = TEK.ch4;
-    ctx.fillText('S', mx + 30, my + 90);
-
-    // Arrow (N-channel)
-    ctx.strokeStyle = '#e6edf3';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(mx - 30, my);
-    ctx.lineTo(mx + 10, my);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(mx + 10, my);
-    ctx.lineTo(mx, my - 5);
-    ctx.lineTo(mx, my + 5);
-    ctx.closePath();
-    ctx.fillStyle = '#e6edf3';
-    ctx.fill();
-
-    // CGS Capacitor
-    ctx.strokeStyle = TEK.ch3;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(mx - 60, my + 20);
-    ctx.lineTo(mx - 60, my + 50);
-    ctx.lineTo(mx + 20, my + 50);
-    ctx.stroke();
-    ctx.fillStyle = TEK.ch3;
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('CGS', mx - 75, my + 40);
-
-    // CGD Capacitor (Miller)
-    ctx.beginPath();
-    ctx.moveTo(mx - 60, my - 20);
-    ctx.lineTo(mx - 60, my - 50);
-    ctx.lineTo(mx + 20, my - 50);
-    ctx.stroke();
-    ctx.fillStyle = TEK.ch1;
-    ctx.fillText('CGD', mx - 75, my - 35);
-    ctx.fillStyle = '#fb7185';
-    ctx.font = '9px monospace';
-    ctx.fillText('(Miller)', mx - 78, my - 22);
-
-    // CDS Capacitor
-    ctx.strokeStyle = TEK.ch2;
-    ctx.beginPath();
-    ctx.moveTo(mx + 50, my - 25);
-    ctx.lineTo(mx + 80, my - 25);
-    ctx.lineTo(mx + 80, my + 30);
-    ctx.lineTo(mx + 50, my + 30);
-    ctx.stroke();
-    ctx.fillStyle = TEK.ch2;
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('CDS', mx + 85, my + 5);
-
-    // Datasheet capacitances box
-    ctx.strokeStyle = '#374151';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(350, 60, 280, 160);
-    ctx.fillStyle = TEK.ch1;
-    ctx.font = 'bold 12px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('Datasheet Parameters:', 370, 90);
-
-    ctx.fillStyle = '#e6edf3';
-    ctx.font = '11px monospace';
-    const params = [
-        'CISS = CGS + CGD  (Input cap)',
-        'COSS = CDS + CGD  (Output cap)',
-        'CRSS = CGD        (Reverse transfer)',
-        '',
-        'CGD is nonlinear - varies with VDS!',
-        'High CGD at low VDS, low at high VDS'
-    ];
-    params.forEach((p, i) => {
-        ctx.fillText(p, 370, 115 + i * 18);
-    });
-
-    // Gate charge explanation
-    ctx.strokeRect(350, 240, 280, 200);
-    ctx.fillStyle = TEK.ch2;
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText('Gate Charge Regions:', 370, 270);
-
-    ctx.fillStyle = '#e6edf3';
-    ctx.font = '10px monospace';
-    const regions = [
-        '1. QGS1: Charge to threshold',
-        '   VGS rises, ID = 0',
-        '',
-        '2. QGD (Miller): Charge CGD',
-        '   VGS flat, VDS falls, ID rises',
-        '',
-        '3. QGS2: Charge above Miller',
-        '   VGS rises to drive level',
-        '',
-        'Total: QG = QGS + QGD'
-    ];
-    regions.forEach((r, i) => {
-        ctx.fillText(r, 370, 295 + i * 14);
-    });
-
-    // Miller effect note
-    ctx.strokeStyle = '#fb7185';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(30, 380, 280, 120);
-    ctx.fillStyle = '#fb7185';
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('Miller Effect Warning:', 50, 405);
-
-    ctx.fillStyle = '#e6edf3';
-    ctx.font = '10px monospace';
-    const miller = [
-        'During switching, CGD is multiplied',
-        'by the voltage gain of the stage.',
-        '',
-        'Ceff = CGD × (1 + Av)',
-        '',
-        'This is why Miller plateau exists!'
-    ];
-    miller.forEach((m, i) => {
-        ctx.fillText(m, 50, 425 + i * 14);
+        unit: 'LSB',
+        solution: 'DNL = 0.1% × 2^(10-1) = 0.001 × 512 = 0.512 LSB',
+        explanation: 'The MSB represents half the full scale. Any percentage mismatch on the MSB translates to that percentage of 2^(N-1) LSBs. For 0.1% mismatch: 0.001 × 512 = 0.512 LSB. This is still within the ±1 LSB monotonicity limit. Sources: ERSA Electronics, TU Sofia Research'
     });
 })();
 </script>

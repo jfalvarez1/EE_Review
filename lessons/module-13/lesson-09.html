@@ -1,776 +1,615 @@
-<!-- Module 13, Lesson 9: LVDS High-Speed Signaling -->
+<!-- Module 13, Lesson 9: Current Limiting -->
 <div class="lesson-content" data-module="13" data-lesson="9">
 
     <div class="card">
-        <h2>LVDS High-Speed Signaling</h2>
-        <p>Low-Voltage Differential Signaling (LVDS) enables high-speed data transmission with low power and reduced EMI. Its 350mV differential swing and constant-current driver architecture make it ideal for multi-gigabit applications.</p>
+        <h2>Current Limiting Design</h2>
+        <p>Current limiting protects power supplies, loads, and wiring from damage during faults. Learn foldback, constant current, and hiccup mode protection strategies.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Data Rate</div>
-                <div class="v">Up to 3.125 Gbps</div>
+                <div class="k">Constant Current</div>
+                <div class="v">Flat limit at Ilim</div>
             </div>
             <div class="box">
-                <div class="k">Swing</div>
-                <div class="v">±350mV differential</div>
+                <div class="k">Foldback</div>
+                <div class="v">Reduces I as V drops</div>
             </div>
             <div class="box">
-                <div class="k">Common Mode</div>
-                <div class="v">1.2V typical</div>
+                <div class="k">Hiccup</div>
+                <div class="v">Retry after timeout</div>
             </div>
             <div class="box">
-                <div class="k">Termination</div>
-                <div class="v">100Ω at receiver</div>
+                <div class="k">Brick Wall</div>
+                <div class="v">Hard shutdown</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> LVDS uses a constant-current driver (~3.5mA) that steers current through the differential pair. The receiver's 100Ω termination creates the 350mV voltage swing. This current-mode operation provides excellent noise immunity and minimal ground bounce.
+            <strong>Design Trade-off:</strong> Constant current is best for load compatibility but causes maximum power dissipation during short. Foldback reduces dissipation but may prevent motor/capacitor loads from starting.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: LVDS Signal Integrity</h3>
+        <h3>Interactive: Current Limit Characteristics</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="lvds-rate">Data Rate (bps)</label>
-                <input type="text" id="lvds-rate" value="1G">
+                <label for="cl-ilim">Current Limit (A)</label>
+                <input type="range" id="cl-ilim" min="0.5" max="10" step="0.5" value="3">
+                <span id="cl-ilim-val" class="mono">3A</span>
             </div>
             <div class="c3">
-                <label for="lvds-length">Trace Length (cm)</label>
-                <input type="text" id="lvds-length" value="30">
+                <label for="cl-vout">Nominal Vout (V)</label>
+                <input type="range" id="cl-vout" min="3" max="24" step="1" value="12">
+                <span id="cl-vout-val" class="mono">12V</span>
             </div>
             <div class="c3">
-                <label for="lvds-rterm">Termination (Ω)</label>
-                <input type="text" id="lvds-rterm" value="100">
+                <label for="cl-mode">Limit Mode</label>
+                <select id="cl-mode">
+                    <option value="constant">Constant Current</option>
+                    <option value="foldback">Foldback</option>
+                    <option value="hiccup">Hiccup Mode</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="cl-rload">Load Resistance (Ω)</label>
+                <input type="range" id="cl-rload" min="0.1" max="20" step="0.1" value="4">
+                <span id="cl-rload-val" class="mono">4Ω</span>
             </div>
             <div class="c3">
-                <label for="lvds-skew">Pair Skew (ps)</label>
-                <input type="range" id="lvds-skew" min="0" max="200" step="10" value="20">
-                <span id="lvds-skew-val" class="mono">20</span>
+                <label for="cl-foldback">Foldback Ratio</label>
+                <input type="range" id="cl-foldback" min="0.1" max="1" step="0.05" value="0.3">
+                <span id="cl-foldback-val" class="mono">30%</span>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="lvds-canvas" width="980" height="350"></canvas>
+            <canvas id="cl-canvas" width="980" height="340"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Unit Interval</div>
-                <div class="v mono" id="lvds-ui">—</div>
+                <div class="k">Operating Point</div>
+                <div class="v mono" id="cl-op">—</div>
             </div>
             <div class="box">
-                <div class="k">Prop Delay</div>
-                <div class="v mono" id="lvds-delay">—</div>
+                <div class="k">Power Dissipation</div>
+                <div class="v mono" id="cl-power">—</div>
             </div>
             <div class="box">
-                <div class="k">Max Skew</div>
-                <div class="v mono" id="lvds-maxskew">—</div>
-            </div>
-            <div class="box">
-                <div class="k">Status</div>
-                <div class="v mono" id="lvds-status">—</div>
+                <div class="k">Mode</div>
+                <div class="v mono" id="cl-status">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>LVDS Driver and Receiver</h3>
-        <div id="lvds-circuit-schematic"></div>
-    </div>
-
-    <div class="card">
-        <h3>LVDS vs Other Interfaces</h3>
+        <h3>Current Limit Methods</h3>
 
         <table class="table">
             <tr>
-                <th>Parameter</th>
-                <th>LVDS</th>
-                <th>LVPECL</th>
-                <th>CML</th>
+                <th>Method</th>
+                <th>Description</th>
+                <th>Pros</th>
+                <th>Cons</th>
             </tr>
             <tr>
-                <td>Differential Swing</td>
-                <td>350mV</td>
-                <td>800mV</td>
-                <td>400-800mV</td>
+                <td>Cycle-by-cycle</td>
+                <td>Limit peak current each cycle</td>
+                <td>Fast protection</td>
+                <td>Average may exceed limit</td>
             </tr>
             <tr>
-                <td>Common Mode</td>
-                <td>1.2V</td>
-                <td>VCC - 1.3V</td>
-                <td>VCC - 0.4V</td>
+                <td>Average current</td>
+                <td>Control average output current</td>
+                <td>True current limit</td>
+                <td>Slower response</td>
             </tr>
             <tr>
-                <td>Termination</td>
-                <td>100Ω at Rx</td>
-                <td>50Ω to VCC-2V</td>
-                <td>50Ω to VCC</td>
+                <td>Sense resistor</td>
+                <td>Voltage across Rs</td>
+                <td>Simple, accurate</td>
+                <td>Power loss in Rs</td>
             </tr>
             <tr>
-                <td>Power per Channel</td>
-                <td>~10mW</td>
-                <td>~40mW</td>
-                <td>~15mW</td>
+                <td>RDS(on) sensing</td>
+                <td>Use MOSFET as sensor</td>
+                <td>No extra resistor</td>
+                <td>Temperature dependent</td>
             </tr>
             <tr>
-                <td>Max Data Rate</td>
-                <td>3.125 Gbps</td>
-                <td>10+ Gbps</td>
-                <td>28+ Gbps</td>
+                <td>DCR sensing</td>
+                <td>Use inductor DCR</td>
+                <td>Lossless</td>
+                <td>Requires compensation</td>
             </tr>
         </table>
-
-        <div class="warn">
-            <strong>Impedance Matching:</strong> LVDS requires 100Ω differential impedance traces. For microstrip, this typically means tighter spacing than 50Ω single-ended traces. Use your PCB stackup calculator to determine trace width and spacing.
-        </div>
     </div>
 
     <div class="card">
-        <h3>PCB Layout Guidelines</h3>
-        <canvas id="lvds-layout-canvas" width="900" height="320"></canvas>
+        <h3>Design Equations</h3>
+        <pre style="color:#4af; background:#111; padding:15px; border-radius:4px; font-size:11px;">
+Sense Resistor:
+    Rs = Vsense / Ilimit
+    Power: Ps = Ilimit² × Rs
+
+    Example: Vsense=100mV, Ilimit=3A
+    Rs = 0.1/3 = 33mΩ
+    Ps = 3² × 0.033 = 0.3W
+
+RDS(on) Sensing:
+    Vsense = Ids × RDS(on)
+    Temperature compensation needed!
+    RDS(on) ≈ RDS(on)_25C × (1 + 0.004×ΔT)
+
+Foldback Characteristic:
+    Ilim(V) = Isc + (Inom - Isc) × (V/Vnom)
+    Where:
+        Isc = short circuit current
+        Inom = nominal current limit
+        Vnom = nominal output voltage
+
+Power Dissipation During Limit:
+    Constant current: Pdiss = Vin × Ilim (worst at short)
+    Foldback: Pdiss = Vin × Isc (much lower)
+
+Hiccup Mode Timing:
+    Ton = duty on time during retry
+    Toff = off time between retries
+    Duty = Ton / (Ton + Toff)
+    Average power = Pdiss × Duty
+        </pre>
     </div>
 
     <div class="card">
-        <h3>Eye Diagram Analysis</h3>
-        <div id="lvds-eye-canvas-container">
-            <canvas id="lvds-eye-canvas" width="400" height="300"></canvas>
-        </div>
+        <h3>Current Sense Schematic</h3>
+        <div id="cl-schematic"></div>
     </div>
 
     <div class="card">
         <h3>SPICE Netlist</h3>
-        <div id="spice-container"></div>
+        <div id="cl-spice"></div>
     </div>
 
     <div class="card">
-        <h3>Verification Checklist</h3>
-        <div id="checklist-container"></div>
+        <h3>Design Checklist</h3>
+        <div id="cl-checklist"></div>
     </div>
 
     <div class="card">
         <h3>Practice Exercises</h3>
-        <div id="exercise-container"></div>
+        <div id="cl-exercises"></div>
     </div>
 
 </div>
 
 <script>
 (function() {
-    const canvas = document.getElementById('lvds-canvas');
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('cl-canvas');
     const ctx = canvas.getContext('2d');
-    const TEK = AD.TEK_COLORS;
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
 
     function update() {
-        const dataRate = AD.parseValue(document.getElementById('lvds-rate').value) || 1e9;
-        const length = AD.parseValue(document.getElementById('lvds-length').value) || 30;
-        const rterm = AD.parseValue(document.getElementById('lvds-rterm').value) || 100;
-        const skew = parseInt(document.getElementById('lvds-skew').value);
+        const Ilim = AD.num('cl-ilim') || 3;
+        const Vout = AD.num('cl-vout') || 12;
+        const mode = document.getElementById('cl-mode').value;
+        const Rload = AD.num('cl-rload') || 4;
+        const foldbackRatio = AD.num('cl-foldback') || 0.3;
 
-        document.getElementById('lvds-skew-val').textContent = skew;
+        document.getElementById('cl-ilim-val').textContent = Ilim + 'A';
+        document.getElementById('cl-vout-val').textContent = Vout + 'V';
+        document.getElementById('cl-rload-val').textContent = Rload.toFixed(1) + 'Ω';
+        document.getElementById('cl-foldback-val').textContent = (foldbackRatio * 100).toFixed(0) + '%';
 
-        // Unit interval (bit period)
-        const ui = 1 / dataRate;
+        // Calculate operating point
+        const I_normal = Vout / Rload;
+        let V_op, I_op, status;
 
-        // Propagation delay (~6ps/mm for FR4 microstrip)
-        const propDelay = length * 0.1 * 60e-12; // 60ps/cm
-
-        // Maximum allowable skew (typically 10-15% of UI)
-        const maxSkew = ui * 0.1;
-
-        // Status check
-        let status = 'OK';
-        let statusColor = 'var(--ok)';
-
-        if (skew * 1e-12 > maxSkew) {
-            status = 'Skew too high';
-            statusColor = 'var(--bad)';
-        } else if (skew * 1e-12 > maxSkew * 0.7) {
-            status = 'Skew marginal';
-            statusColor = 'var(--warn)';
-        }
-
-        if (rterm < 90 || rterm > 110) {
-            status = 'Check termination';
-            statusColor = 'var(--warn)';
-        }
-
-        document.getElementById('lvds-ui').textContent = AD.fmtUnit(ui, 's');
-        document.getElementById('lvds-delay').textContent = AD.fmtUnit(propDelay, 's');
-        document.getElementById('lvds-maxskew').textContent = AD.fmtUnit(maxSkew, 's');
-        document.getElementById('lvds-status').textContent = status;
-        document.getElementById('lvds-status').style.color = statusColor;
-
-        plotLVDSWaveforms(dataRate, skew);
-        plotEyeDiagram(dataRate, skew);
-    }
-
-    function plotLVDSWaveforms(dataRate, skewPs) {
-        const w = canvas.width;
-        const h = canvas.height;
-
-        const ui = 1 / dataRate;
-        const tMax = ui * 10;
-
-        const axes = AD.drawAxes(ctx, w, h, {
-            xMin: 0,
-            xMax: tMax * 1e9,
-            yMin: 0.6,
-            yMax: 1.8,
-            xLabel: 'Time',
-            yLabel: 'Voltage',
-            xUnit: 'ns',
-            yUnit: 'V',
-            xDivs: 10,
-            yDivs: 6
-        });
-
-        // Generate PRBS-like data pattern
-        const pattern = [1, 0, 1, 1, 0, 0, 1, 0, 1, 0];
-        const vcm = 1.2;
-        const swing = 0.175; // ±175mV
-
-        const N = 500;
-        const tDataP = [], vDataP = [];
-        const tDataN = [], vDataN = [];
-        const tDataDiff = [], vDataDiff = [];
-
-        const skewS = skewPs * 1e-12;
-
-        for (let i = 0; i < N; i++) {
-            const t = (i / N) * tMax;
-            const bitIdx = Math.floor(t / ui) % pattern.length;
-            const bit = pattern[bitIdx];
-
-            // Rise/fall time ~300ps
-            const tr = 300e-12;
-            const inBit = (t % ui);
-            let transition = 1;
-            if (inBit < tr) {
-                transition = inBit / tr;
-            }
-
-            // D+ and D- with skew
-            const vp = bit ? vcm + swing : vcm - swing;
-            const vn = bit ? vcm - swing : vcm + swing;
-
-            tDataP.push(t * 1e9);
-            vDataP.push(vp);
-
-            // D- with skew
-            const tSkewed = t - skewS;
-            const bitIdxSkew = Math.floor(Math.max(0, tSkewed) / ui) % pattern.length;
-            const bitSkew = tSkewed < 0 ? pattern[0] : pattern[bitIdxSkew];
-            const vnSkew = bitSkew ? vcm - swing : vcm + swing;
-
-            tDataN.push(t * 1e9);
-            vDataN.push(vnSkew);
-
-            // Differential
-            tDataDiff.push(t * 1e9);
-            vDataDiff.push(vp - vnSkew);
-        }
-
-        // Plot D+ (cyan)
-        AD.plotData(ctx, axes, tDataP, vDataP, {
-            color: TEK.ch1,
-            lineWidth: 2
-        });
-
-        // Plot D- (magenta)
-        AD.plotData(ctx, axes, tDataN, vDataN, {
-            color: TEK.ch2,
-            lineWidth: 2
-        });
-
-        // Draw common mode line
-        ctx.save();
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        const vcmPt = axes.toCanvas(0, vcm);
-        ctx.beginPath();
-        ctx.moveTo(axes.left, vcmPt.y);
-        ctx.lineTo(axes.left + axes.width, vcmPt.y);
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('VCM = 1.2V', axes.left + 5, vcmPt.y - 5);
-        ctx.restore();
-
-        // Legend
-        ctx.save();
-        ctx.font = '11px ui-sans-serif';
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillText('● D+ (non-inverted)', axes.left + 10, axes.top + 20);
-        ctx.fillStyle = TEK.ch2;
-        ctx.fillText('● D- (inverted)', axes.left + 150, axes.top + 20);
-        ctx.fillStyle = TEK.text;
-        ctx.fillText('Skew: ' + skewPs + 'ps', axes.left + 280, axes.top + 20);
-        ctx.restore();
-    }
-
-    function plotEyeDiagram(dataRate, skewPs) {
-        const eyeCanvas = document.getElementById('lvds-eye-canvas');
-        const ectx = eyeCanvas.getContext('2d');
-        const w = eyeCanvas.width;
-        const h = eyeCanvas.height;
-
-        ectx.fillStyle = '#0d1117';
-        ectx.fillRect(0, 0, w, h);
-
-        const ui = 1 / dataRate;
-        const vcm = 1.2;
-        const swing = 0.175;
-
-        // Generate multiple traces overlaid
-        const pattern = [1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0];
-        const traces = 50;
-        const margin = { left: 40, right: 20, top: 20, bottom: 30 };
-
-        // Axes
-        ectx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ectx.lineWidth = 1;
-        ectx.beginPath();
-        ectx.moveTo(margin.left, h - margin.bottom);
-        ectx.lineTo(w - margin.right, h - margin.bottom);
-        ectx.moveTo(margin.left, margin.top);
-        ectx.lineTo(margin.left, h - margin.bottom);
-        ectx.stroke();
-
-        // Labels
-        ectx.fillStyle = '#9fb0c0';
-        ectx.font = '10px ui-sans-serif';
-        ectx.fillText('0', margin.left - 5, h - margin.bottom + 12);
-        ectx.fillText('1 UI', w - margin.right - 15, h - margin.bottom + 12);
-        ectx.fillText('+350mV', 2, margin.top + 10);
-        ectx.fillText('-350mV', 2, h - margin.bottom - 5);
-
-        const plotW = w - margin.left - margin.right;
-        const plotH = h - margin.top - margin.bottom;
-
-        // Draw eye traces
-        ectx.strokeStyle = 'rgba(110, 231, 255, 0.3)';
-        ectx.lineWidth = 1;
-
-        for (let tr = 0; tr < traces; tr++) {
-            const startBit = tr % pattern.length;
-            const jitter = (Math.random() - 0.5) * skewPs * 0.001; // Jitter proportional to skew
-            const noise = () => (Math.random() - 0.5) * 0.02;
-
-            ectx.beginPath();
-            for (let i = 0; i < 100; i++) {
-                const phase = i / 100 + jitter;
-                const t = phase * ui * 2; // 2 UI per trace
-
-                // Determine voltage based on bit transitions
-                const bitIdx = Math.floor(phase * 2);
-                const bit0 = pattern[(startBit + bitIdx) % pattern.length];
-                const bit1 = pattern[(startBit + bitIdx + 1) % pattern.length];
-
-                const inBit = (phase * 2) % 1;
-                let v;
-
-                if (inBit < 0.1) {
-                    // Transition region
-                    const from = bit0 ? swing : -swing;
-                    const to = bit1 ? swing : -swing;
-                    v = from + (to - from) * (inBit / 0.1);
+        if (I_normal <= Ilim) {
+            // Normal operation
+            V_op = Vout;
+            I_op = I_normal;
+            status = 'Normal operation';
+        } else {
+            // Current limited
+            if (mode === 'constant') {
+                I_op = Ilim;
+                V_op = I_op * Rload;
+                status = 'Constant current limit';
+            } else if (mode === 'foldback') {
+                // Solve for operating point on foldback curve
+                const Isc = Ilim * foldbackRatio;
+                // I = Isc + (Ilim - Isc) * V / Vout
+                // V = I * Rload
+                // I = Isc + (Ilim - Isc) * I * Rload / Vout
+                // I * (1 - (Ilim - Isc) * Rload / Vout) = Isc
+                const k = (Ilim - Isc) * Rload / Vout;
+                if (k >= 1) {
+                    I_op = Isc;
+                    V_op = Isc * Rload;
                 } else {
-                    v = bit1 ? swing : -swing;
+                    I_op = Isc / (1 - k);
+                    V_op = I_op * Rload;
                 }
-
-                v += noise();
-
-                const x = margin.left + (phase % 1) * plotW;
-                const y = margin.top + plotH / 2 - (v / (swing * 2)) * plotH * 0.8;
-
-                if (i === 0) {
-                    ectx.moveTo(x, y);
-                } else {
-                    ectx.lineTo(x, y);
-                }
+                status = 'Foldback limiting';
+            } else { // hiccup
+                I_op = Ilim * 0.1; // Average during hiccup
+                V_op = 0;
+                status = 'Hiccup mode (retrying)';
             }
-            ectx.stroke();
         }
 
-        // Title
-        ectx.fillStyle = '#e6edf3';
-        ectx.font = '11px ui-sans-serif';
-        ectx.fillText('Eye Diagram (Differential)', margin.left + 10, margin.top + 10);
-    }
+        const Vin = 15; // Assume Vin
+        const P_diss = Vin * I_op - V_op * I_op; // Power dissipated in regulator
 
-    // Event listeners
-    ['lvds-rate', 'lvds-length', 'lvds-rterm', 'lvds-skew'].forEach(id => {
-        document.getElementById(id).addEventListener('input', update);
-    });
+        document.getElementById('cl-op').textContent = V_op.toFixed(1) + 'V, ' + I_op.toFixed(2) + 'A';
+        document.getElementById('cl-power').textContent = P_diss.toFixed(1) + 'W';
+        document.getElementById('cl-status').textContent = status;
 
-    update();
-
-    // ==================== LVDS LAYOUT CANVAS ====================
-    (function() {
-        const canvas = document.getElementById('lvds-layout-canvas');
-        if (!canvas || typeof AD === 'undefined') return;
-        const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
-        const TEK = AD.TEK_COLORS;
-
-        ctx.fillStyle = '#0d1117';
+        // Draw V-I characteristic
+        ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, W, H);
 
-        // Title
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = 'bold 12px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('LVDS Differential Pair Routing', 20, 25);
+        const plotW = 400, plotH = 250;
+        const plotX = mL, plotY = mT;
 
-        // PCB cross-section box
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        ctx.strokeStyle = TEK.ch2;
-        ctx.lineWidth = 2;
-        AD.roundRect(ctx, 30, 40, 420, 130, 8);
-        ctx.fill(); ctx.stroke();
-
-        // Ground plane (bottom)
-        ctx.fillStyle = '#3a4a5a';
-        ctx.fillRect(50, 140, 380, 15);
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '9px ui-sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Ground Plane', 240, 152);
-
-        // Substrate
-        ctx.fillStyle = '#2a3a4a';
-        ctx.fillRect(50, 90, 380, 50);
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '9px ui-sans-serif';
-        ctx.fillText('FR4 Substrate (8mil prepreg)', 240, 118);
-
-        // D+ trace
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillRect(130, 75, 50, 15);
-
-        // D- trace
-        ctx.fillStyle = TEK.ch2;
-        ctx.fillRect(220, 75, 50, 15);
-
-        // Dimension labels
-        ctx.strokeStyle = '#e6edf3';
+        ctx.strokeStyle = TEK.grid;
         ctx.lineWidth = 1;
-        ctx.setLineDash([2, 2]);
+        ctx.strokeRect(plotX, plotY, plotW, plotH);
 
-        // W label for D+
-        ctx.beginPath();
-        ctx.moveTo(130, 65); ctx.lineTo(130, 55);
-        ctx.moveTo(180, 65); ctx.lineTo(180, 55);
-        ctx.moveTo(130, 60); ctx.lineTo(180, 60);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('W', 155, 55);
-
-        // S label (gap)
-        ctx.setLineDash([2, 2]);
-        ctx.beginPath();
-        ctx.moveTo(180, 82); ctx.lineTo(195, 82);
-        ctx.moveTo(220, 82); ctx.lineTo(205, 82);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('S', 200, 78);
-
-        // W label for D-
-        ctx.setLineDash([2, 2]);
-        ctx.beginPath();
-        ctx.moveTo(220, 65); ctx.lineTo(220, 55);
-        ctx.moveTo(270, 65); ctx.lineTo(270, 55);
-        ctx.moveTo(220, 60); ctx.lineTo(270, 60);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillText('W', 245, 55);
-
-        // D+ and D- labels
-        ctx.fillStyle = TEK.ch1;
-        ctx.font = 'bold 10px ui-sans-serif';
-        ctx.fillText('D+', 155, 72);
-        ctx.fillStyle = TEK.ch2;
-        ctx.fillText('D-', 245, 72);
-
-        // Arrow to pair description
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('← Coupled differential pair', 290, 82);
-
-        // Impedance info
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = '11px ui-sans-serif';
-        ctx.fillText('Zdiff = 100Ω (2 × Zodd)', 70, 175);
-
-        // Typical values box
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = 'bold 10px ui-sans-serif';
-        ctx.fillText('Typical values (4-layer FR4, 8mil prepreg):', 250, 175);
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('• W = 5 mil (trace width)', 270, 192);
-        ctx.fillText('• S = 5 mil (pair spacing)', 270, 207);
-        ctx.fillText('• Zdiff ≈ 100Ω', 270, 222);
-
-        // Critical Rules box
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        ctx.strokeStyle = TEK.ch5;
-        ctx.lineWidth = 2;
-        AD.roundRect(ctx, 480, 40, 400, 160, 8);
-        ctx.fill(); ctx.stroke();
-
-        ctx.fillStyle = TEK.ch5;
-        ctx.font = 'bold 11px ui-sans-serif';
-        ctx.fillText('Critical Rules:', 500, 65);
-
-        const rules = [
-            '1. Match trace lengths to < 5% of UI',
-            '2. Keep pair spacing constant',
-            '3. Route pairs together (no splitting around obstacles)',
-            '4. Avoid vias in high-speed LVDS pairs',
-            '5. Place 100Ω resistor as close to receiver as possible',
-            '6. Use continuous ground plane under traces'
-        ];
-
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '10px ui-sans-serif';
-        rules.forEach((rule, i) => {
-            ctx.fillText(rule, 500, 85 + i * 18);
-        });
-
-        // PCB preview illustration
-        ctx.fillStyle = 'rgba(30,41,59,0.6)';
-        ctx.strokeStyle = TEK.ch3;
-        ctx.lineWidth = 1.5;
-        AD.roundRect(ctx, 50, 240, 380, 60, 4);
-        ctx.fill(); ctx.stroke();
-
-        // Differential pair traces (top view)
-        ctx.strokeStyle = TEK.ch1;
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(70, 265);
-        ctx.lineTo(200, 265);
-        ctx.quadraticCurveTo(220, 265, 240, 275);
-        ctx.lineTo(400, 275);
-        ctx.stroke();
-
-        ctx.strokeStyle = TEK.ch2;
-        ctx.beginPath();
-        ctx.moveTo(70, 275);
-        ctx.lineTo(200, 275);
-        ctx.quadraticCurveTo(220, 275, 240, 285);
-        ctx.lineTo(400, 285);
-        ctx.stroke();
-
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '9px ui-sans-serif';
+        // Axis labels
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('Top view: Keep pairs together through bends', 240, 310);
-    })();
+        ctx.fillText('Output Voltage (V)', plotX + plotW/2, plotY + plotH + 30);
 
-    // LVDS circuit schematic
-    (function() {
-        const container = document.getElementById('lvds-circuit-schematic');
-        if (!container) return;
+        ctx.save();
+        ctx.translate(plotX - 40, plotY + plotH/2);
+        ctx.rotate(-Math.PI/2);
+        ctx.fillText('Output Current (A)', 0, 0);
+        ctx.restore();
 
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('width', '700');
-        svg.setAttribute('height', '200');
-        svg.setAttribute('viewBox', '0 0 700 200');
-        svg.innerHTML = `
-            <style>
-                .wire { stroke: #e6edf3; stroke-width: 1.5; fill: none; }
-                .comp { stroke: #6ee7ff; stroke-width: 1.5; fill: none; }
-                .box { stroke: #6ee7ff; stroke-width: 1.5; fill: rgba(30,41,59,0.8); }
-                .current { stroke: #34d399; stroke-width: 2; fill: none; }
-                .lbl { fill: #e6edf3; font: 11px ui-sans-serif; }
-                .lblsm { fill: #9fb0c0; font: 9px ui-sans-serif; }
-            </style>
+        // Draw current limit characteristic
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
 
-            <!-- Driver section -->
-            <text x="30" y="25" class="lbl">LVDS Driver</text>
+        const Vmax = Vout * 1.2;
+        const Imax = Ilim * 1.3;
 
-            <!-- Current source -->
-            <circle cx="100" cy="170" r="15" class="comp"/>
-            <text x="90" y="175" class="lblsm">3.5mA</text>
-            <line x1="100" y1="155" x2="100" y2="130" class="current"/>
+        for (let i = 0; i <= plotW; i++) {
+            const V = (plotW - i) / plotW * Vmax;
+            let I;
 
-            <!-- Steering switches -->
-            <rect x="60" y="90" width="30" height="40" class="box"/>
-            <rect x="110" y="90" width="30" height="40" class="box"/>
-            <text x="68" y="115" class="lblsm">SW</text>
-            <text x="118" y="115" class="lblsm">SW</text>
+            if (mode === 'constant') {
+                I = Math.min(V / 0.01, Ilim); // Effectively constant above ~0V
+            } else if (mode === 'foldback') {
+                const Isc = Ilim * foldbackRatio;
+                I = Isc + (Ilim - Isc) * V / Vout;
+                I = Math.min(I, Ilim);
+            } else { // hiccup
+                I = V > 0.5 ? Ilim : 0;
+            }
 
-            <!-- Current steering -->
-            <line x1="100" y1="130" x2="75" y2="130" class="current"/>
-            <line x1="75" y1="130" x2="75" y2="90" class="current"/>
-            <line x1="100" y1="130" x2="125" y2="130" class="current"/>
-            <line x1="125" y1="130" x2="125" y2="90" class="current"/>
+            const x = plotX + plotW - (V / Vmax) * plotW;
+            const y = plotY + plotH - (I / Imax) * plotH;
 
-            <!-- D+ and D- outputs -->
-            <line x1="75" y1="90" x2="75" y2="60" class="wire"/>
-            <line x1="125" y1="90" x2="125" y2="60" class="wire"/>
-            <text x="60" y="55" class="lblsm">D+</text>
-            <text x="128" y="55" class="lblsm">D-</text>
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
 
-            <!-- VCC connection -->
-            <line x1="75" y1="40" x2="75" y2="60" class="wire"/>
-            <line x1="125" y1="40" x2="125" y2="60" class="wire"/>
-            <line x1="75" y1="40" x2="125" y2="40" class="wire"/>
-            <line x1="100" y1="40" x2="100" y2="30" class="wire"/>
-            <text x="90" y="25" class="lblsm">VCC</text>
+        // Draw normal CV region
+        ctx.strokeStyle = TEK.ch4;
+        ctx.beginPath();
+        const xVout = plotX + plotW - (Vout / Vmax) * plotW;
+        ctx.moveTo(xVout, plotY + plotH);
+        ctx.lineTo(xVout, plotY + plotH - (Ilim / Imax) * plotH);
+        ctx.stroke();
 
-            <!-- Transmission line -->
-            <line x1="140" y1="65" x2="400" y2="65" class="wire" stroke-dasharray="5,3"/>
-            <line x1="140" y1="85" x2="400" y2="85" class="wire" stroke-dasharray="5,3"/>
-            <text x="250" y="60" class="lblsm">100Ω Differential</text>
-            <text x="260" y="100" class="lblsm">Transmission Line</text>
+        // Draw load line
+        ctx.strokeStyle = TEK.ch2;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
 
-            <!-- Receiver section -->
-            <text x="450" y="25" class="lbl">LVDS Receiver</text>
+        for (let i = 0; i <= plotW; i++) {
+            const V = (plotW - i) / plotW * Vmax;
+            const I = V / Rload;
 
-            <!-- Termination resistor -->
-            <line x1="400" y1="65" x2="450" y2="65" class="wire"/>
-            <line x1="400" y1="85" x2="450" y2="85" class="wire"/>
-            <rect x="450" y="55" width="12" height="40" class="comp"/>
-            <text x="465" y="80" class="lblsm">100Ω</text>
+            const x = plotX + plotW - (V / Vmax) * plotW;
+            const y = plotY + plotH - (I / Imax) * plotH;
 
-            <!-- Receiver inputs -->
-            <line x1="462" y1="65" x2="500" y2="65" class="wire"/>
-            <line x1="462" y1="85" x2="500" y2="85" class="wire"/>
+            if (y < plotY) break;
 
-            <!-- Comparator -->
-            <polygon points="500,50 560,75 500,100" class="box" fill="rgba(30,41,59,0.8)"/>
-            <text x="510" y="60" class="lblsm">+</text>
-            <text x="510" y="95" class="lblsm">−</text>
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-            <!-- Output -->
-            <line x1="560" y1="75" x2="620" y2="75" class="wire"/>
-            <text x="575" y="70" class="lblsm">CMOS Out</text>
+        // Mark operating point
+        const opX = plotX + plotW - (V_op / Vmax) * plotW;
+        const opY = plotY + plotH - (I_op / Imax) * plotH;
 
-            <!-- Voltage annotations -->
-            <text x="30" y="185" class="lblsm">Current steering creates ±175mV across 100Ω termination</text>
-        `;
-        container.appendChild(svg);
-    })();
+        ctx.fillStyle = '#f44';
+        ctx.beginPath();
+        ctx.arc(opX, opY, 8, 0, Math.PI * 2);
+        ctx.fill();
 
-    // SPICE Netlist
-    new SpiceNetlistWidget('spice-container', {
-        title: 'LVDS Driver and Receiver Model',
-        netlist: `* LVDS Driver and Receiver
-* Current-mode driver with 100 ohm termination
+        // Labels
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(Ilim.toFixed(1) + 'A', plotX - 5, plotY + plotH - (Ilim / Imax) * plotH + 4);
+        ctx.fillText('0A', plotX - 5, plotY + plotH);
 
-* LVDS Driver (current steering)
-.SUBCKT LVDS_TX IN DP DN VCC GND
-* Current source (3.5mA)
-I1 VCC mid 3.5m
-* Steering switches
-S1 mid DP ctrl GND SWITCH
-S2 mid DN ctrlb GND SWITCH
-.MODEL SWITCH SW(RON=10 ROFF=1MEG VT=1.5)
-* Control and complement
-ECTRL ctrl GND VALUE={V(IN)}
-ECTRLB ctrlb GND VALUE={3.3-V(IN)}
-* Pull to VCC
-R1 DP VCC 50
-R2 DN VCC 50
-.ENDS
+        ctx.textAlign = 'center';
+        ctx.fillText(Vout + 'V', xVout, plotY + plotH + 15);
+        ctx.fillText('0V', plotX + plotW, plotY + plotH + 15);
 
-* LVDS Receiver (comparator)
-.SUBCKT LVDS_RX DP DN OUT VCC GND
-ECOMP OUT GND VALUE={IF((V(DP)-V(DN))>0, 3.3, 0)}
-RIN DP DN 100
-.ENDS
+        // Legend
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('Current limit', plotX + 10, plotY + 20);
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('CV region', plotX + 10, plotY + 35);
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('Load line (R=' + Rload.toFixed(1) + 'Ω)', plotX + 10, plotY + 50);
+        ctx.fillStyle = '#f44';
+        ctx.fillText('Operating point', plotX + 10, plotY + 65);
 
-* Test circuit
-VCC vcc 0 DC 3.3
-VIN data 0 PULSE(0 3.3 0 100p 100p 500p 1n)
+        // Right side: Power dissipation diagram
+        const rightX = 520;
+        ctx.fillStyle = '#222';
+        ctx.fillRect(rightX, plotY, 420, plotH);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(rightX, plotY, 420, plotH);
 
-* Driver
-XTX data dp_tx dn_tx vcc 0 LVDS_TX
+        ctx.fillStyle = '#4af';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Power Analysis:', rightX + 10, plotY + 25);
 
-* Transmission line (30cm, 100 ohm diff)
-T1 dp_tx 0 dp_rx 0 Z0=50 TD=1.8n
-T2 dn_tx 0 dn_rx 0 Z0=50 TD=1.8n
+        // Power bar graph
+        const barW = 80, barH = 150;
+        const barY = plotY + 60;
 
-* Receiver with termination
-XRX dp_rx dn_rx out vcc 0 LVDS_RX
+        // Input power
+        const P_in = Vin * I_op;
+        const P_out = V_op * I_op;
 
-.TRAN 10p 10n
+        ctx.fillStyle = '#444';
+        ctx.fillRect(rightX + 30, barY, barW, barH);
 
-.PROBE V(data) V(dp_tx) V(dn_tx) V(dp_rx) V(dn_rx) V(out)
-.END
+        const pinH = (P_in / (Vin * Ilim)) * barH;
+        ctx.fillStyle = '#fa4';
+        ctx.fillRect(rightX + 30, barY + barH - pinH, barW, pinH);
 
-* Observe 350mV differential swing and signal reconstruction`
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Pin', rightX + 70, barY + barH + 15);
+        ctx.fillText(P_in.toFixed(1) + 'W', rightX + 70, barY + barH + 30);
+
+        // Output power
+        ctx.fillStyle = '#444';
+        ctx.fillRect(rightX + 140, barY, barW, barH);
+
+        const poutH = (P_out / (Vin * Ilim)) * barH;
+        ctx.fillStyle = '#4f4';
+        ctx.fillRect(rightX + 140, barY + barH - poutH, barW, poutH);
+
+        ctx.fillText('Pout', rightX + 180, barY + barH + 15);
+        ctx.fillText(P_out.toFixed(1) + 'W', rightX + 180, barY + barH + 30);
+
+        // Dissipated power
+        ctx.fillStyle = '#444';
+        ctx.fillRect(rightX + 250, barY, barW, barH);
+
+        const pdissH = (P_diss / (Vin * Ilim)) * barH;
+        ctx.fillStyle = '#f44';
+        ctx.fillRect(rightX + 250, barY + barH - pdissH, barW, pdissH);
+
+        ctx.fillText('Pdiss', rightX + 290, barY + barH + 15);
+        ctx.fillText(P_diss.toFixed(1) + 'W', rightX + 290, barY + barH + 30);
+
+        // Mode description
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+
+        const modeDesc = {
+            constant: 'Constant current: Max power at short circuit',
+            foldback: 'Foldback: Reduces current as V drops, lower Pdiss',
+            hiccup: 'Hiccup: Periodic retry, very low average Pdiss'
+        };
+
+        ctx.fillText(modeDesc[mode], rightX + 10, plotY + plotH - 20);
+    }
+
+    ['cl-ilim', 'cl-vout', 'cl-mode', 'cl-rload', 'cl-foldback'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', update);
+        el.addEventListener('change', update);
     });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('cl-schematic');
+        const svg = new SchematicSVG(700, 200);
+
+        svg.text(50, 25, 'Current Sense with Cycle-by-Cycle Limit:', {fontSize: 12, fill: '#4af'});
+
+        // Power stage
+        svg.wire([[50, 70], [100, 70]]);
+        svg.text(40, 65, 'Vin', {fontSize: 9});
+
+        // High-side switch
+        svg.wire([[100, 70], [100, 90]]);
+        svg.text(115, 80, 'Q', {fontSize: 10});
+        svg.wire([[100, 110], [100, 130]]);
+
+        // Sense resistor
+        svg.wire([[100, 130], [100, 145]]);
+        svg.resistor(100, 160, {horizontal: false});
+        svg.text(115, 160, 'Rs', {fontSize: 9, fill: '#fa4'});
+        svg.wire([[100, 180], [100, 200]]);
+
+        // To inductor
+        svg.wire([[100, 200], [180, 200]]);
+        svg.inductor(200, 200, {horizontal: true});
+        svg.wire([[220, 200], [280, 200]]);
+        svg.text(280, 195, 'Vout', {fontSize: 9});
+
+        // Low side
+        svg.wire([[100, 200], [100, 220]]);
+        svg.ground(100, 220);
+
+        // Current sense amplifier
+        svg.wire([[100, 145], [150, 145]]);
+        svg.wire([[100, 175], [150, 175]]);
+
+        svg.rect(150, 130, 80, 60, {fill: 'none', stroke: '#888'});
+        svg.text(190, 165, 'Current', {fontSize: 9});
+        svg.text(190, 180, 'Sense', {fontSize: 9});
+
+        // To comparator
+        svg.wire([[230, 160], [280, 160]]);
+
+        svg.rect(280, 140, 70, 50, {fill: 'none', stroke: '#888'});
+        svg.text(315, 165, 'Comp', {fontSize: 9});
+
+        // Reference
+        svg.wire([[280, 180], [260, 180]]);
+        svg.text(250, 185, 'Vref', {fontSize: 9});
+
+        // To gate driver
+        svg.wire([[350, 165], [400, 165]]);
+        svg.text(410, 170, 'To PWM latch', {fontSize: 9});
+
+        // Notes
+        svg.text(420, 50, 'Operation:', {fontSize: 11, fill: '#4af'});
+        svg.text(420, 70, '1. Sense voltage = I × Rs', {fontSize: 9, fill: '#888'});
+        svg.text(420, 85, '2. Compare to reference', {fontSize: 9, fill: '#888'});
+        svg.text(420, 100, '3. Trip turns off switch', {fontSize: 9, fill: '#888'});
+        svg.text(420, 115, '4. Next cycle resets', {fontSize: 9, fill: '#888'});
+
+        svg.text(420, 145, 'Rs sizing:', {fontSize: 11, fill: '#fa4'});
+        svg.text(420, 165, 'Rs = Vsense / Ilimit', {fontSize: 9, fill: '#888'});
+        svg.text(420, 180, 'P = Ilimit² × Rs', {fontSize: 9, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('cl-spice', {
+            title: 'Current Limit Simulation',
+            netlist: `* Current Limiting Circuit
+
+* Input supply
+Vin in 0 DC 15
+
+* Series pass element (linear regulator model)
+* With current limit feedback
+Xreg in out ilim ldo_clim
+
+.subckt ldo_clim in out ilim
+* Simplified LDO with current limit
+
+* Error amp
+Vref ref 0 DC 5
+Eamp ctrl 0 ref fb 1000
+
+* Pass transistor
+Gpass in out ctrl 0 1
+
+* Voltage feedback
+Rfb1 out fb 10k
+Rfb2 fb 0 10k
+
+* Current sense
+Rsense in sense 0.1
+Hsense isense 0 Vsense 1
+Vsense sense out DC 0
+
+* Current limit comparator
+Vlim lim 0 DC 0.3  ; 3A limit (0.1 × 3A = 0.3V)
+Bclamp ilim 0 V=V(isense)>0.3 ? 1 : 0
+
+* Reduce gate drive when limited
+Elim ctrl_lim 0 ctrl ilim -10
+.ends
+
+* Output capacitor and load
+Cout out 0 100u
+Rload out 0 2  ; 2.5A at 5V - over limit!
+
+.tran 10u 10m
+
+.probe V(out) I(Rload)
+.end
+
+* Expected:
+* Output limited below 5V
+* Current clamped at ~3A
+* Power dissipation in pass element`
+        });
+    }
 
     // Checklist
-    new ChecklistWidget('checklist-container', {
-        lessonKey: 'm13l9',
-        items: [
-            'Use 100Ω differential impedance traces',
-            'Place 100Ω termination at receiver end',
-            'Match trace lengths within 5% of UI',
-            'Maintain constant pair spacing',
-            'Route pairs together (no splitting)',
-            'Avoid vias in high-speed pairs',
-            'Use continuous ground plane',
-            'Check common-mode voltage compatibility'
-        ]
-    });
+    function initChecklist() {
+        new ChecklistWidget('cl-checklist', {
+            title: 'Current Limit Design Checklist',
+            items: [
+                'Determine maximum safe current for load/wiring',
+                'Select sensing method (resistor, RDS, DCR)',
+                'Size sense resistor for accuracy vs loss',
+                'Select limit mode (constant, foldback, hiccup)',
+                'Calculate power dissipation during limit',
+                'Verify thermal design for sustained fault',
+                'Add blanking time for noise immunity',
+                'Consider temperature effects on sensing',
+                'Test at rated limit current',
+                'Verify recovery after fault removed'
+            ]
+        });
+    }
 
     // Exercises
-    const exercises = [
-        {
-            id: 'M13L9-1',
-            type: 'numeric',
-            question: 'An LVDS link runs at 1.25 Gbps. What is the unit interval (UI) in picoseconds?',
-            hint: 'UI = 1 / data rate',
-            expected: 800,
-            tolerance: 0.01,
-            unit: 'ps',
-            solution: 'UI = 1 / 1.25×10⁹ = 800×10⁻¹² = 800ps',
-            explanation: 'The unit interval is the time for one bit, determining timing margins.'
-        },
-        {
-            id: 'M13L9-2',
-            type: 'numeric',
-            question: 'What is the differential voltage swing across the 100Ω termination with a 3.5mA driver current?',
-            hint: 'V = I × R',
-            expected: 350,
-            tolerance: 0.05,
-            unit: 'mV',
-            solution: 'V = 3.5mA × 100Ω = 350mV',
-            explanation: 'The current-mode driver creates a voltage across the termination resistor.'
-        },
-        {
-            id: 'M13L9-3',
-            type: 'choice',
-            question: 'Where should the termination resistor be placed in an LVDS link?',
-            choices: [
-                { text: 'At the transmitter', correct: false, explanation: 'Termination at the transmitter would cause reflections from the receiver end.' },
-                { text: 'At the receiver', correct: true, explanation: 'Correct! The 100Ω termination goes at the receiver to absorb the signal and prevent reflections.' },
-                { text: 'At both ends', correct: false, explanation: 'Double termination would halve the signal amplitude and waste power.' },
-                { text: 'In the middle of the trace', correct: false, explanation: 'Mid-trace termination would create impedance discontinuities and reflections.' }
+    function initExercises() {
+        new ExerciseWidget('cl-exercises', {
+            exercises: [
+                {
+                    question: 'Design sense resistor for 5A limit, 100mV sense threshold. What value and power?',
+                    answer: '20mΩ, 0.5W',
+                    solution: 'Rs = V/I = 0.1V/5A = 20mΩ. P = I²R = 5² × 0.02 = 0.5W. Use 1W for margin.'
+                },
+                {
+                    question: 'Constant current limit at 3A, Vin=15V. What power during short circuit?',
+                    answer: '45W',
+                    solution: 'During short, Vout≈0. All power dissipated in regulator: P = Vin × I = 15 × 3 = 45W. Foldback would reduce this significantly.'
+                },
+                {
+                    question: 'Foldback limit: 3A at 5V, folds to 1A at 0V. Motor stalls at 0.8A, 2V. Will it start?',
+                    answer: 'Marginal - may not start',
+                    solution: 'At 2V: Ilim = 1 + (3-1) × 2/5 = 1.8A. Motor needs 0.8A, available 1.8A - should work. But at 0V startup, only 1A available. Inrush may exceed this, preventing start.'
+                }
             ]
-        }
-    ];
+        });
+    }
 
-    const container = document.getElementById('exercise-container');
-    exercises.forEach((ex, i) => {
-        const div = document.createElement('div');
-        div.id = `exercise-${i}`;
-        div.style.marginBottom = '15px';
-        container.appendChild(div);
-        new ExerciseWidget(`exercise-${i}`, ex);
-    });
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
 })();
 </script>

@@ -12,9 +12,8 @@ It reads two ways, and they are genuinely different documents:
   amplifier *is*, then the ideal op-amp, then why feedback makes it true, then the transistor
   arriving as the answer to "how was that built" rather than as a prerequisite. Every step says
   what it earns you.
-- **The sidebar** — the same lessons grouped by topic. This is the right shape when you already
-  know the subject and need to look one thing up, and the wrong shape to learn from: it opens
-  with 35 lessons of transistor internals.
+- **The sidebar** — the same lessons, browsable by topic. It now runs in the same order as the
+  path, so you can follow it top to bottom or jump straight to what you need.
 
 ![The welcome screen, showing 26 modules and 359 lessons](docs/images/welcome.png)
 
@@ -81,25 +80,29 @@ JavaScript. Python is needed only to serve the files, not by the course itself.
 
 Open `#path`, or the **Start here** link above the sidebar search.
 
-The 26 modules are a catalogue: lessons grouped by topic. That is the right shape for looking
-something up and the wrong shape for learning, and for a long time it was the only view. Three
-things were wrong with it as a teaching order:
+The modules are now sequenced in teaching order, and the path is the explicit route through
+them. That was not always true, and the reasons are worth recording, because they are what the
+order is designed to avoid:
 
-- **It is inverted.** The course opens with 35 lessons of BJT internals, before the learner has
-  met an op-amp. You can use an op-amp correctly long before you can explain one.
-- **Feedback is module 25 of 26.** The golden rules in module 2 are only true because of it, so
-  the learner applies feedback for 23 modules before being told why it works.
-- **Modules do not build internally either.** Differential pair (M1-3) and current mirrors
-  (M1-4) come before DC biasing (M1-5). The high-frequency AC model is M1-21, twelve lessons
-  after the frequency response it exists to explain.
+- **It used to be inverted.** The course opened with 35 lessons of BJT internals, before the
+  learner had met an op-amp. You can use an op-amp correctly long before you can explain one,
+  so op-amps are now module 1 and the transistor arrives at module 4 as the answer to *how was
+  that built*.
+- **Feedback used to be module 25 of 26.** The golden rules in module 1 are only true because
+  of it, so the learner applied feedback for 23 modules before being told why it worked. It is
+  now module 3, immediately after the circuits that depend on it.
+- **Modules did not build internally either.** The differential pair and current mirrors came
+  before DC biasing; the high-frequency AC model sat twelve lessons after the frequency
+  response it exists to explain; and the FET module taught the device as a power switch for
+  twenty lessons before mentioning gain. All three are reordered.
 
-The path is one ordered route through the same lessons, in nine stages:
+The path runs through those modules in nine stages:
 
 | | Stage | What it earns you |
 |---|---|---|
 | 1 | What an amplifier is | Gain, Zin, Zout, and why there are exactly four kinds |
 | 2 | Using the ideal op-amp | Real circuits, solvable with two rules and no transistors |
-| 3 | Why any of that worked | Feedback — pulled forward from module 25 |
+| 3 | Why any of that worked | Feedback, before the circuits that depend on it |
 | 4 | It stops being ideal | Bandwidth, slew, Vos, noise, and the datasheet that predicts them |
 | 5 | Inside: the switch | The transistor with no small-signal model needed |
 | 6 | The BJT as an amplifier | Model, then bias, then topologies — the catalogue's reverse |
@@ -111,8 +114,9 @@ The path is one ordered route through the same lessons, in nine stages:
 lesson for them at all — including, surprisingly, **the common-source amplifier**: module 5 is
 20 lessons of MOSFET material that teaches the device almost entirely as a power switch.
 
-Nothing is renumbered. A step points at a lesson, so deep links and saved progress are
-untouched, and the catalogue still works exactly as before.
+The catalogue was renumbered to match, so the sidebar and the path now agree rather than
+telling two different stories. Saved progress is keyed by module and lesson number and was
+reset by that change; nothing else was affected, since no lesson links to another by number.
 
 **Depth, per topic.** Every lesson written for the path carries the same four things: a
 derivation from first principles, worked numbers escalating from clean to realistic, real part

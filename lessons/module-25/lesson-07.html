@@ -1,823 +1,1243 @@
-<article class="lesson-content">
-    <p class="author-credit">Based on power electronics control theory and Venable/Middlebrook analysis methods</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battery-Powered IoT Sensor - Complex Real-World Projects</title>
+</head>
+<body>
+    <div class="lesson-content" data-module="25" data-lesson="7">
+        <div class="card">
+            <h2>Battery-Powered IoT Sensor</h2>
+            <p>This project combines ultra-low-power design, energy harvesting, wireless communication, and
+            precision sensing to create a battery-powered IoT sensor node that can operate for years on a
+            single coin cell. Key challenges include managing sleep/wake cycles, minimizing quiescent
+            currents, and optimizing radio transmission efficiency.</p>
 
-    <h2>Introduction</h2>
-    <p>Switching power supplies (buck, boost, flyback, etc.) are feedback systems that must maintain stable output voltage despite load and line variations. However, the small-signal dynamics of switching converters are complex, with poles and zeros that depend on operating point, component values, and control mode. This lesson covers the essentials of power supply loop stability.</p>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Battery:</span><span class="kv-value">CR2032 (225mAh)</span></div>
+                <div class="kv-item"><span class="kv-label">Sleep Current:</span><span class="kv-value"><1 μA</span></div>
+                <div class="kv-item"><span class="kv-label">Target Life:</span><span class="kv-value">>5 years</span></div>
+                <div class="kv-item"><span class="kv-label">Transmission:</span><span class="kv-value">BLE/LoRa</span></div>
+            </div>
 
-    <div class="concept-box">
-        <h3>Why Power Supplies Need Special Treatment</h3>
-        <p>Unlike linear amplifiers, switching converters have:</p>
-        <ul>
-            <li><strong>Right-half-plane zeros:</strong> Boost and flyback converters have RHP zeros that limit bandwidth</li>
-            <li><strong>LC resonance:</strong> The output filter creates a double pole with potential 180° phase shift</li>
-            <li><strong>ESR zeros:</strong> Output capacitor ESR creates zeros that can help or hurt stability</li>
-            <li><strong>Operating point dependence:</strong> Pole/zero locations vary with duty cycle and load</li>
-        </ul>
-    </div>
+            <div class="notice">
+                <strong>Design Philosophy:</strong> Every microamp counts. The key to long battery life is
+                aggressive power gating, efficient duty cycling, and careful selection of components with
+                ultra-low quiescent currents. The radio typically dominates power consumption.
+            </div>
+        </div>
 
-    <h2>Voltage-Mode Control Loop</h2>
-    <p>In voltage-mode control, the error amplifier directly controls the duty cycle through a PWM comparator:</p>
+        <!-- System Architecture -->
+        <div class="card">
+            <h3>System Architecture</h3>
+            <div class="canvas-wrap">
+                <canvas id="iot-arch-canvas" width="980" height="300"></canvas>
+            </div>
+        </div>
 
-    <div id="sch-voltage-mode" class="schematic-placeholder" style="height: 150px;"></div>
+        <!-- Interactive 1: Battery Life Calculator -->
+        <div class="card">
+            <h3>Interactive: Battery Life Calculator</h3>
+            <p>Calculate expected battery life based on duty cycle and consumption:</p>
 
-    <h3>Buck Converter Transfer Function (Voltage Mode)</h3>
-    <div class="formula-box">
-        <h4>Control-to-Output Transfer Function</h4>
-        <p>For a buck converter with LC output filter:</p>
-        <div class="formula">G<sub>vd</sub>(s) = V<sub>in</sub> × H<sub>LC</sub>(s)</div>
-        <p>Where the LC filter transfer function is:</p>
-        <div class="formula">H<sub>LC</sub>(s) = (1 + s/ω<sub>z,ESR</sub>) / [1 + s/(Q×ω<sub>0</sub>) + s²/ω<sub>0</sub>²]</div>
+            <div class="controls">
+                <label>Battery Capacity (mAh):
+                    <input type="range" id="battery-cap" min="50" max="3000" value="225" step="25">
+                    <span id="battery-cap-val">225 mAh</span>
+                </label>
+                <label>Sleep Current (μA):
+                    <input type="range" id="sleep-current" min="0.1" max="10" value="0.8" step="0.1">
+                    <span id="sleep-current-val">0.8 μA</span>
+                </label>
+                <label>Active Current (mA):
+                    <input type="range" id="active-current" min="1" max="50" value="15" step="1">
+                    <span id="active-current-val">15 mA</span>
+                </label>
+                <label>Wake Interval (min):
+                    <input type="range" id="wake-interval" min="1" max="60" value="15" step="1">
+                    <span id="wake-interval-val">15 min</span>
+                </label>
+                <label>Active Duration (ms):
+                    <input type="range" id="active-duration" min="10" max="1000" value="100" step="10">
+                    <span id="active-duration-val">100 ms</span>
+                </label>
+            </div>
 
-        <h4>Key Frequencies</h4>
-        <ul>
-            <li><strong>LC resonance:</strong> f<sub>0</sub> = 1/(2π√(LC))</li>
-            <li><strong>ESR zero:</strong> f<sub>z,ESR</sub> = 1/(2πR<sub>ESR</sub>C)</li>
-            <li><strong>Q factor:</strong> Q = R<sub>load</sub>√(C/L) (can be very high!)</li>
-        </ul>
-    </div>
+            <div class="canvas-wrap">
+                <canvas id="battery-life-canvas" width="980" height="350"></canvas>
+            </div>
 
-    <div class="warning-box">
-        <h4>The LC Double-Pole Problem</h4>
-        <p>At the LC resonance frequency:</p>
-        <ul>
-            <li>The gain peaks by a factor of Q (Q can be 10-100!)</li>
-            <li>Phase drops by 180° very quickly</li>
-            <li>Without proper compensation, this creates severe instability</li>
-        </ul>
-    </div>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Average Current:</span><span class="kv-value" id="avg-current">1.5 μA</span></div>
+                <div class="kv-item"><span class="kv-label">Battery Life:</span><span class="kv-value" id="battery-life">17 years</span></div>
+                <div class="kv-item"><span class="kv-label">Sleep Contribution:</span><span class="kv-value" id="sleep-contrib">53%</span></div>
+                <div class="kv-item"><span class="kv-label">Active Contribution:</span><span class="kv-value" id="active-contrib">47%</span></div>
+            </div>
+        </div>
 
-    <h3>Interactive: Buck Converter Bode Plot</h3>
-    <div class="control-group">
-        <label>V<sub>in</sub> (V): <input type="number" id="vin-buck" value="12" min="5" max="48" step="1"></label>
-        <label>V<sub>out</sub> (V): <input type="number" id="vout-buck" value="3.3" min="1" max="12" step="0.1"></label>
-        <label>L (μH): <input type="number" id="l-buck" value="10" min="1" max="100" step="1"></label>
-        <label>C (μF): <input type="number" id="c-buck" value="100" min="10" max="1000" step="10"></label>
-        <label>R<sub>ESR</sub> (mΩ): <input type="number" id="esr-buck" value="20" min="1" max="200" step="5"></label>
-        <label>R<sub>load</sub> (Ω): <input type="number" id="rload-buck" value="1" min="0.1" max="10" step="0.1"></label>
-        <button onclick="updateBuckBode()">Update</button>
-    </div>
-    <canvas id="buck-bode-canvas" width="700" height="400"></canvas>
-    <div id="buck-result" class="result-box"></div>
+        <!-- Interactive 2: Power Budget Breakdown -->
+        <div class="card">
+            <h3>Interactive: Power Budget Analysis</h3>
+            <p>Analyze power consumption of each subsystem:</p>
 
-    <h2>Type II and Type III Compensators</h2>
-    <p>To stabilize voltage-mode converters, we use Type II or Type III compensators that add poles and zeros to shape the loop gain:</p>
+            <div class="controls">
+                <label>MCU Sleep (μA):
+                    <input type="range" id="mcu-sleep" min="0.1" max="5" value="0.5" step="0.1">
+                    <span id="mcu-sleep-val">0.5 μA</span>
+                </label>
+                <label>RTC (μA):
+                    <input type="range" id="rtc-current" min="0.1" max="2" value="0.3" step="0.1">
+                    <span id="rtc-current-val">0.3 μA</span>
+                </label>
+                <label>LDO Quiescent (μA):
+                    <input type="range" id="ldo-iq" min="0.1" max="10" value="1" step="0.1">
+                    <span id="ldo-iq-val">1 μA</span>
+                </label>
+                <label>Sensor Leakage (nA):
+                    <input type="range" id="sensor-leak" min="10" max="500" value="50" step="10">
+                    <span id="sensor-leak-val">50 nA</span>
+                </label>
+            </div>
 
-    <h3>Type II Compensator</h3>
-    <div id="sch-type2" class="schematic-placeholder" style="height: 180px;"></div>
+            <div class="canvas-wrap">
+                <canvas id="power-budget-canvas" width="980" height="350"></canvas>
+            </div>
 
-    <div class="formula-box">
-        <h4>Type II Transfer Function</h4>
-        <div class="formula">H(s) = (ω<sub>z</sub>/ω<sub>p</sub>) × (1 + s/ω<sub>z</sub>) / [(s/ω<sub>i</sub>)(1 + s/ω<sub>p</sub>)]</div>
-        <p>Features:</p>
-        <ul>
-            <li>One zero to boost phase</li>
-            <li>One high-frequency pole to filter switching noise</li>
-            <li>Origin pole (integrator) for zero DC error</li>
-            <li><strong>Maximum phase boost:</strong> 90° (not enough for LC double pole!)</li>
-        </ul>
-    </div>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Total Sleep:</span><span class="kv-value" id="total-sleep">1.85 μA</span></div>
+                <div class="kv-item"><span class="kv-label">Biggest Consumer:</span><span class="kv-value" id="biggest-consumer">LDO</span></div>
+                <div class="kv-item"><span class="kv-label">Room for Improvement:</span><span class="kv-value" id="improvement">54%</span></div>
+                <div class="kv-item"><span class="kv-label">Target Met:</span><span class="kv-value" id="target-met">No</span></div>
+            </div>
+        </div>
 
-    <h3>Type III Compensator</h3>
-    <div id="sch-type3" class="schematic-placeholder" style="height: 180px;"></div>
+        <!-- Interactive 3: Wireless Efficiency -->
+        <div class="card">
+            <h3>Interactive: Wireless Transmission Analysis</h3>
+            <p>Optimize radio power consumption vs range:</p>
 
-    <div class="formula-box">
-        <h4>Type III Transfer Function</h4>
-        <div class="formula">H(s) = K × (1 + s/ω<sub>z1</sub>)(1 + s/ω<sub>z2</sub>) / [(s/ω<sub>i</sub>)(1 + s/ω<sub>p1</sub>)(1 + s/ω<sub>p2</sub>)]</div>
-        <p>Features:</p>
-        <ul>
-            <li>Two zeros to provide up to 180° phase boost</li>
-            <li>Two high-frequency poles</li>
-            <li>Origin pole for zero DC error</li>
-            <li><strong>Can compensate the LC double pole!</strong></li>
-        </ul>
-    </div>
+            <div class="controls">
+                <label>TX Power (dBm):
+                    <input type="range" id="tx-power" min="-20" max="20" value="4" step="1">
+                    <span id="tx-power-val">4 dBm</span>
+                </label>
+                <label>Data Rate:
+                    <select id="data-rate">
+                        <option value="125">125 kbps (LE Coded)</option>
+                        <option value="1000" selected>1 Mbps (BLE)</option>
+                        <option value="2000">2 Mbps (BLE)</option>
+                    </select>
+                </label>
+                <label>Packet Size (bytes):
+                    <input type="range" id="packet-size" min="10" max="200" value="50" step="10">
+                    <span id="packet-size-val">50 bytes</span>
+                </label>
+                <label>Protocol:
+                    <select id="protocol">
+                        <option value="ble">BLE 5.0</option>
+                        <option value="lora">LoRa</option>
+                        <option value="zigbee">Zigbee</option>
+                    </select>
+                </label>
+            </div>
 
-    <h3>Design Procedure (Voltage Mode)</h3>
-    <div class="design-procedure">
-        <h4>Type III Compensator Design Steps</h4>
+            <div class="canvas-wrap">
+                <canvas id="wireless-canvas" width="980" height="350"></canvas>
+            </div>
 
-        <p><strong>Step 1: Determine Crossover Frequency</strong></p>
-        <p>Rule of thumb: f<sub>c</sub> = f<sub>sw</sub>/10 to f<sub>sw</sub>/5</p>
-        <p>Also limited by RHP zero if present (boost/flyback)</p>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">TX Current:</span><span class="kv-value" id="tx-current">8.5 mA</span></div>
+                <div class="kv-item"><span class="kv-label">TX Duration:</span><span class="kv-value" id="tx-duration">0.4 ms</span></div>
+                <div class="kv-item"><span class="kv-label">Energy/Packet:</span><span class="kv-value" id="energy-packet">20 μJ</span></div>
+                <div class="kv-item"><span class="kv-label">Est. Range:</span><span class="kv-value" id="est-range">50 m</span></div>
+            </div>
+        </div>
 
-        <p><strong>Step 2: Place Zeros at LC Resonance</strong></p>
-        <p>f<sub>z1</sub> = f<sub>z2</sub> = f<sub>0</sub> = 1/(2π√LC)</p>
-        <p>This cancels the -180° phase shift from the LC double pole</p>
+        <!-- Interactive 4: Energy Harvesting -->
+        <div class="card">
+            <h3>Interactive: Solar Energy Harvesting</h3>
+            <p>Design a solar harvesting system to extend battery life:</p>
 
-        <p><strong>Step 3: Place Poles at High Frequency</strong></p>
-        <p>f<sub>p1</sub> = f<sub>z,ESR</sub> (cancel ESR zero if it causes gain peaking)</p>
-        <p>f<sub>p2</sub> = f<sub>sw</sub>/2 (filter switching noise)</p>
+            <div class="controls">
+                <label>Solar Cell Size (cm²):
+                    <input type="range" id="solar-size" min="1" max="20" value="5" step="1">
+                    <span id="solar-size-val">5 cm²</span>
+                </label>
+                <label>Light Level (lux):
+                    <input type="range" id="light-level" min="100" max="10000" value="500" step="100">
+                    <span id="light-level-val">500 lux</span>
+                </label>
+                <label>Hours of Light/Day:
+                    <input type="range" id="light-hours" min="2" max="12" value="6" step="1">
+                    <span id="light-hours-val">6 hrs</span>
+                </label>
+                <label>Harvester Efficiency (%):
+                    <input type="range" id="harvester-eff" min="50" max="95" value="80" step="5">
+                    <span id="harvester-eff-val">80%</span>
+                </label>
+            </div>
 
-        <p><strong>Step 4: Set Gain for Desired Crossover</strong></p>
-        <p>Adjust K so loop gain equals 0 dB at f<sub>c</sub></p>
-    </div>
+            <div class="canvas-wrap">
+                <canvas id="harvest-canvas" width="980" height="350"></canvas>
+            </div>
 
-    <h2>Current-Mode Control</h2>
-    <p>Current-mode control uses inner current loop feedback, which dramatically improves the power stage dynamics:</p>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Solar Power:</span><span class="kv-value" id="solar-power">1.25 mW</span></div>
+                <div class="kv-item"><span class="kv-label">Harvested Energy:</span><span class="kv-value" id="harvest-energy">6 mWh/day</span></div>
+                <div class="kv-item"><span class="kv-label">System Consumption:</span><span class="kv-value" id="sys-consumption">0.04 mWh/day</span></div>
+                <div class="kv-item"><span class="kv-label">Energy Positive:</span><span class="kv-value" id="energy-positive">Yes!</span></div>
+            </div>
+        </div>
 
-    <div class="concept-box">
-        <h3>Current Mode Advantages</h3>
-        <ul>
-            <li><strong>Eliminates LC double pole:</strong> The inductor becomes a controlled current source</li>
-            <li><strong>Simpler compensation:</strong> Type II compensator often sufficient</li>
-            <li><strong>Inherent current limiting:</strong> Current is directly controlled</li>
-            <li><strong>Better line rejection:</strong> Input voltage changes are rejected by inner loop</li>
-        </ul>
-    </div>
+        <!-- Schematic -->
+        <div class="card">
+            <h3>Power Management Schematic</h3>
+            <div id="iot-schematic"></div>
+        </div>
 
-    <div class="formula-box">
-        <h4>Current-Mode Control-to-Output</h4>
-        <p>With current-mode control, the power stage looks like:</p>
-        <div class="formula">G<sub>vc</sub>(s) ≈ R<sub>load</sub> × (1 + s/ω<sub>z,ESR</sub>) / (1 + sR<sub>load</sub>C)</div>
-        <p>This is a single-pole system! The inductor pole is removed by the current loop.</p>
-    </div>
-
-    <h3>Interactive: Compensation Calculator</h3>
-    <div class="control-group">
-        <label>Switching Frequency (kHz): <input type="number" id="fsw" value="500" min="50" max="2000" step="50"></label>
-        <label>LC Resonance f<sub>0</sub> (kHz): <input type="number" id="f0" value="5" min="0.5" max="50" step="0.5"></label>
-        <label>ESR Zero f<sub>ESR</sub> (kHz): <input type="number" id="fesr" value="80" min="10" max="500" step="10"></label>
-        <label>Control Mode:
-            <select id="control-mode">
-                <option value="voltage">Voltage Mode</option>
-                <option value="current">Current Mode</option>
-            </select>
-        </label>
-        <button onclick="calcCompensation()">Calculate Compensator</button>
-    </div>
-    <div id="comp-result" class="result-box"></div>
-    <canvas id="comp-bode-canvas" width="700" height="400"></canvas>
-
-    <h2>Right-Half-Plane Zero (Boost and Flyback)</h2>
-    <p>Boost, buck-boost, and flyback converters have a fundamental bandwidth limitation: the right-half-plane zero.</p>
-
-    <div class="formula-box">
-        <h4>RHP Zero Location</h4>
-        <p>For boost converter:</p>
-        <div class="formula">f<sub>RHP</sub> = R<sub>load</sub>(1-D)² / (2πL)</div>
-        <p>Where D = 1 - V<sub>in</sub>/V<sub>out</sub></p>
-
-        <p>The RHP zero:</p>
-        <ul>
-            <li>Adds phase lag like a pole</li>
-            <li>But increases gain like a zero</li>
-            <li><strong>Cannot be compensated!</strong> Crossover must be well below f<sub>RHP</sub></li>
-        </ul>
-    </div>
-
-    <div class="warning-box">
-        <h4>Design Rule for RHP Zero</h4>
-        <p>Loop crossover frequency must satisfy:</p>
-        <div class="formula">f<sub>c</sub> < f<sub>RHP</sub> / 5</div>
-        <p>This fundamentally limits boost converter bandwidth, especially at high duty cycle (high boost ratio).</p>
-    </div>
-
-    <h2>Measuring Loop Gain</h2>
-    <p>Loop gain can be measured using voltage injection:</p>
-
-    <div class="concept-box">
-        <h3>Bode Plot Measurement</h3>
-        <ol>
-            <li>Inject small AC signal into feedback loop</li>
-            <li>Measure voltage before and after injection point</li>
-            <li>Loop gain = V<sub>return</sub> / V<sub>inject</sub></li>
-            <li>Sweep frequency and plot magnitude/phase</li>
-        </ol>
-        <p>Use a network analyzer or frequency response analyzer for accurate measurements.</p>
-    </div>
-
-    <h2>Worked Example: Buck Converter Compensation</h2>
-    <div class="worked-example">
-        <h4>Specifications</h4>
-        <ul>
-            <li>V<sub>in</sub> = 12V, V<sub>out</sub> = 5V</li>
-            <li>f<sub>sw</sub> = 500 kHz</li>
-            <li>L = 4.7 μH, C = 100 μF (ceramic, ESR = 5 mΩ)</li>
-            <li>Target crossover: 50 kHz, Phase margin: 60°</li>
-        </ul>
-
-        <h4>Step 1: Calculate Power Stage Characteristics</h4>
-        <p>LC resonance: f<sub>0</sub> = 1/(2π√(4.7μ × 100μ)) = 7.3 kHz</p>
-        <p>ESR zero: f<sub>ESR</sub> = 1/(2π × 5mΩ × 100μF) = 318 kHz</p>
-        <p>Note: Ceramic capacitors have very low ESR, so ESR zero is very high</p>
-
-        <h4>Step 2: Choose Compensator Type</h4>
-        <p>Voltage mode control → Need Type III to handle LC double pole</p>
-        <p>Current mode → Type II would suffice (single output pole)</p>
-        <p>We'll design Type III for voltage mode:</p>
-
-        <h4>Step 3: Place Compensator Zeros</h4>
-        <p>Place both zeros at f<sub>0</sub> to cancel LC double pole:</p>
-        <p>f<sub>z1</sub> = f<sub>z2</sub> = 7.3 kHz</p>
-
-        <h4>Step 4: Place Compensator Poles</h4>
-        <p>First pole to cancel ESR zero (if needed) or at crossover: f<sub>p1</sub> = 50 kHz</p>
-        <p>Second pole at half switching frequency: f<sub>p2</sub> = 250 kHz</p>
-
-        <h4>Step 5: Calculate Component Values</h4>
-        <p>Using standard Type III compensator topology:</p>
-        <ul>
-            <li>Choose C1 = 1 nF (starting point)</li>
-            <li>R2 = 1/(2π × f<sub>z1</sub> × C1) = 1/(2π × 7.3k × 1n) = 21.8 kΩ → use 22 kΩ</li>
-            <li>C2 = 1/(2π × R2 × f<sub>p1</sub>) = 1/(2π × 22k × 50k) = 145 pF → use 150 pF</li>
-            <li>R3 calculated for desired gain at crossover</li>
-            <li>C3 = 1/(2π × R3 × f<sub>z2</sub>)</li>
-        </ul>
-
-        <div class="formula-box" style="background: #1a3a1a;">
-            <h4>Design Summary</h4>
-            <table>
-                <tr><td>f<sub>z1</sub>, f<sub>z2</sub></td><td>7.3 kHz (at LC resonance)</td></tr>
-                <tr><td>f<sub>p1</sub></td><td>50 kHz (at crossover)</td></tr>
-                <tr><td>f<sub>p2</sub></td><td>250 kHz (f<sub>sw</sub>/2)</td></tr>
-                <tr><td>Crossover</td><td>50 kHz (f<sub>sw</sub>/10)</td></tr>
-                <tr><td>Phase Margin</td><td>~60° (verify in simulation)</td></tr>
+        <!-- Component Selection -->
+        <div class="card">
+            <h3>Ultra-Low-Power Component Selection</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Key Spec</th>
+                        <th>Typical Value</th>
+                        <th>Example Part</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>MCU</td>
+                        <td>Sleep Current</td>
+                        <td>0.3-1 μA</td>
+                        <td>STM32L0, nRF52832</td>
+                    </tr>
+                    <tr>
+                        <td>LDO</td>
+                        <td>Quiescent Iq</td>
+                        <td><1 μA</td>
+                        <td>TPS7A02, AP2112</td>
+                    </tr>
+                    <tr>
+                        <td>Voltage Supervisor</td>
+                        <td>Supply Current</td>
+                        <td><100 nA</td>
+                        <td>TPS3839, MAX6457</td>
+                    </tr>
+                    <tr>
+                        <td>Temp/Humidity</td>
+                        <td>Sleep Current</td>
+                        <td><50 nA</td>
+                        <td>SHTC3, Si7021</td>
+                    </tr>
+                    <tr>
+                        <td>Load Switch</td>
+                        <td>Off Leakage</td>
+                        <td><10 nA</td>
+                        <td>TPS22916, SiP32431</td>
+                    </tr>
+                    <tr>
+                        <td>Energy Harvester</td>
+                        <td>Cold Start</td>
+                        <td>330mV, 0.5μW</td>
+                        <td>BQ25570, AEM10941</td>
+                    </tr>
+                </tbody>
             </table>
         </div>
-    </div>
 
-    <h2>Common Stability Issues</h2>
-    <table class="info-table">
-        <thead>
-            <tr>
-                <th>Symptom</th>
-                <th>Likely Cause</th>
-                <th>Solution</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Output oscillation at f<sub>0</sub></td>
-                <td>LC resonance not damped</td>
-                <td>Add zeros at f<sub>0</sub>, verify compensator</td>
-            </tr>
-            <tr>
-                <td>Oscillation at f<sub>sw</sub>/2</td>
-                <td>Subharmonic oscillation (current mode)</td>
-                <td>Add slope compensation</td>
-            </tr>
-            <tr>
-                <td>Slow transient response</td>
-                <td>Crossover too low</td>
-                <td>Increase bandwidth (check RHP zero limit)</td>
-            </tr>
-            <tr>
-                <td>Ringing on load step</td>
-                <td>Insufficient phase margin</td>
-                <td>Reduce crossover or improve compensation</td>
-            </tr>
-            <tr>
-                <td>Instability at light load</td>
-                <td>Output pole moves to higher frequency</td>
-                <td>Add minimum load or modify compensation</td>
-            </tr>
-        </tbody>
-    </table>
-
-    <h2>Exercises</h2>
-    <div id="exercises-container">
-        <div class="exercise-widget" data-exercise="1">
-            <p class="exercise-problem"><strong>Exercise 1:</strong> A buck converter has L = 22 μH and C = 220 μF. What is the LC resonance frequency?</p>
-            <input type="text" id="ex1-input" placeholder="Enter frequency in kHz">
-            <button onclick="checkEx1()">Check Answer</button>
-            <div id="ex1-result"></div>
+        <!-- Design Checklist -->
+        <div class="card">
+            <h3>Design Checklist</h3>
+            <div id="iot-checklist"></div>
         </div>
 
-        <div class="exercise-widget" data-exercise="2">
-            <p class="exercise-problem"><strong>Exercise 2:</strong> A boost converter operates at V<sub>in</sub> = 5V, V<sub>out</sub> = 12V with L = 10 μH and R<sub>load</sub> = 10 Ω. What is the RHP zero frequency?</p>
-            <input type="text" id="ex2-input" placeholder="Enter frequency in kHz">
-            <button onclick="checkEx2()">Check Answer</button>
-            <div id="ex2-result"></div>
-        </div>
-
-        <div class="exercise-widget" data-exercise="3">
-            <p class="exercise-problem"><strong>Exercise 3:</strong> For the boost converter in Exercise 2, what is the maximum recommended crossover frequency?</p>
-            <input type="text" id="ex3-input" placeholder="Enter frequency in kHz">
-            <button onclick="checkEx3()">Check Answer</button>
-            <div id="ex3-result"></div>
+        <!-- Exercises -->
+        <div class="card">
+            <h3>Practice Exercises</h3>
+            <div id="iot-exercises"></div>
         </div>
     </div>
 
     <script>
-    (function() {
-        const buckCanvas = document.getElementById('buck-bode-canvas');
-        if (!buckCanvas || typeof AD === 'undefined') return;
-        const buckCtx = buckCanvas.getContext('2d');
-        const TEK = AD.TEK_COLORS;
+        // Canvas 1: Battery Life Calculator
+        const batteryCanvas = document.getElementById('battery-life-canvas');
+        const batteryCtx = batteryCanvas.getContext('2d');
 
-        window.updateBuckBode = function() {
-            const Vin = AD.num('vin-buck');
-            const Vout = AD.num('vout-buck');
-            const L = AD.num('l-buck') * 1e-6;
-            const C = AD.num('c-buck') * 1e-6;
-            const ESR = AD.num('esr-buck') * 1e-3;
-            const Rload = AD.num('rload-buck');
+        function drawBatteryLife() {
+            const capacity = AD.num('battery-cap');
+            const sleepI = AD.num('sleep-current');
+            const activeI = AD.num('active-current');
+            const wakeInt = AD.num('wake-interval');
+            const activeDur = AD.num('active-duration');
 
-            // Calculate key frequencies
-            const f0 = 1 / (2 * Math.PI * Math.sqrt(L * C));
-            const fESR = 1 / (2 * Math.PI * ESR * C);
-            const Q = Rload * Math.sqrt(C / L);
+            document.getElementById('battery-cap-val').textContent = capacity + ' mAh';
+            document.getElementById('sleep-current-val').textContent = sleepI + ' μA';
+            document.getElementById('active-current-val').textContent = activeI + ' mA';
+            document.getElementById('wake-interval-val').textContent = wakeInt + ' min';
+            document.getElementById('active-duration-val').textContent = activeDur + ' ms';
 
-            const w = buckCanvas.width, h = buckCanvas.height;
-            const margin = { left: 60, right: 30, top: 30, bottom: 50 };
+            batteryCtx.fillStyle = '#181818';
+            batteryCtx.fillRect(0, 0, batteryCanvas.width, batteryCanvas.height);
+
+            const w = batteryCanvas.width;
+            const h = batteryCanvas.height;
+
+            // Calculate average current
+            const wakeIntMs = wakeInt * 60 * 1000;
+            const dutyCycle = activeDur / wakeIntMs;
+            const sleepContrib = sleepI * (1 - dutyCycle); // μA
+            const activeContrib = activeI * 1000 * dutyCycle; // μA
+            const avgCurrent = sleepContrib + activeContrib; // μA
+
+            document.getElementById('avg-current').textContent = avgCurrent.toFixed(2) + ' μA';
+
+            // Battery life in years
+            const lifeHours = (capacity * 1000) / avgCurrent; // mAh * 1000 / μA = hours
+            const lifeYears = lifeHours / (24 * 365);
+            document.getElementById('battery-life').textContent =
+                lifeYears > 10 ? lifeYears.toFixed(0) + ' years' :
+                lifeYears > 1 ? lifeYears.toFixed(1) + ' years' :
+                (lifeYears * 12).toFixed(0) + ' months';
+
+            // Contributions
+            const totalContrib = sleepContrib + activeContrib;
+            document.getElementById('sleep-contrib').textContent =
+                ((sleepContrib / totalContrib) * 100).toFixed(0) + '%';
+            document.getElementById('active-contrib').textContent =
+                ((activeContrib / totalContrib) * 100).toFixed(0) + '%';
+
+            // Draw waveform showing duty cycle
+            const margin = { left: 80, right: 40, top: 50, bottom: 60 };
             const plotW = w - margin.left - margin.right;
-            const plotH = (h - margin.top - margin.bottom - 20) / 2;
+            const plotH = h - margin.top - margin.bottom;
 
-            buckCtx.fillStyle = '#0d1117';
-            buckCtx.fillRect(0, 0, w, h);
+            // Draw current waveform over one cycle
+            batteryCtx.strokeStyle = '#00FF00';
+            batteryCtx.lineWidth = 2;
+            batteryCtx.beginPath();
 
-            const fMin = 100, fMax = 1e6;
-            const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
+            const cycleW = Math.min(plotW * 0.6, 400);
+            const startX = margin.left + (plotW - cycleW) / 2;
+            const activeW = (activeDur / wakeIntMs) * cycleW;
 
-            function freqToX(f) {
-                return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
+            // Sleep portion
+            const sleepY = margin.top + plotH - (sleepI / (activeI * 1000)) * plotH * 0.9;
+            batteryCtx.moveTo(startX, sleepY);
+            batteryCtx.lineTo(startX + cycleW - activeW - 5, sleepY);
+
+            // Transition to active
+            batteryCtx.lineTo(startX + cycleW - activeW, margin.top + plotH * 0.1);
+
+            // Active portion
+            batteryCtx.lineTo(startX + cycleW - 5, margin.top + plotH * 0.1);
+
+            // Back to sleep
+            batteryCtx.lineTo(startX + cycleW, sleepY);
+
+            batteryCtx.stroke();
+
+            // Labels
+            batteryCtx.fillStyle = '#CCC';
+            batteryCtx.font = '12px monospace';
+            batteryCtx.textAlign = 'center';
+
+            batteryCtx.fillText('Sleep: ' + sleepI + ' μA', startX + (cycleW - activeW) / 2, sleepY + 20);
+
+            if (activeW > 20) {
+                batteryCtx.fillText('Active', startX + cycleW - activeW / 2, margin.top + plotH * 0.05);
+                batteryCtx.fillText(activeI + ' mA', startX + cycleW - activeW / 2, margin.top + plotH * 0.05 + 15);
             }
 
-            const magTop = margin.top;
-            const magBot = margin.top + plotH;
-            const dBMin = -60, dBMax = 40;
+            // Time axis
+            batteryCtx.fillStyle = '#888';
+            batteryCtx.fillText('One Wake Cycle (' + wakeInt + ' min)', margin.left + plotW / 2, h - 20);
 
-            function dBToY(dB) {
-                return magBot - (dB - dBMin) / (dBMax - dBMin) * plotH;
+            // Draw pie chart for contributions
+            const pieX = 150;
+            const pieY = 180;
+            const pieR = 80;
+
+            // Sleep portion
+            const sleepAngle = (sleepContrib / totalContrib) * 2 * Math.PI;
+            batteryCtx.fillStyle = '#00FFFF';
+            batteryCtx.beginPath();
+            batteryCtx.moveTo(pieX, pieY);
+            batteryCtx.arc(pieX, pieY, pieR, -Math.PI / 2, -Math.PI / 2 + sleepAngle);
+            batteryCtx.closePath();
+            batteryCtx.fill();
+
+            // Active portion
+            batteryCtx.fillStyle = '#FF6600';
+            batteryCtx.beginPath();
+            batteryCtx.moveTo(pieX, pieY);
+            batteryCtx.arc(pieX, pieY, pieR, -Math.PI / 2 + sleepAngle, -Math.PI / 2 + 2 * Math.PI);
+            batteryCtx.closePath();
+            batteryCtx.fill();
+
+            // Legend
+            batteryCtx.fillStyle = '#00FFFF';
+            batteryCtx.fillRect(50, 290, 20, 15);
+            batteryCtx.fillStyle = '#CCC';
+            batteryCtx.textAlign = 'left';
+            batteryCtx.fillText('Sleep', 75, 302);
+
+            batteryCtx.fillStyle = '#FF6600';
+            batteryCtx.fillRect(140, 290, 20, 15);
+            batteryCtx.fillStyle = '#CCC';
+            batteryCtx.fillText('Active', 165, 302);
+
+            // Battery life display
+            batteryCtx.fillStyle = lifeYears >= 5 ? '#00FF00' : lifeYears >= 2 ? '#FFFF00' : '#FF0000';
+            batteryCtx.font = 'bold 24px monospace';
+            batteryCtx.textAlign = 'center';
+            batteryCtx.fillText('Battery Life: ' + (lifeYears > 1 ? lifeYears.toFixed(1) + ' years' : (lifeYears * 12).toFixed(0) + ' months'),
+                               margin.left + plotW / 2 + 150, 50);
+
+            // Target line
+            const targetLife = 5; // years
+            batteryCtx.fillStyle = '#00FF00';
+            batteryCtx.font = '12px monospace';
+            batteryCtx.fillText('Target: 5+ years', margin.left + plotW / 2 + 150, 75);
+        }
+
+        // Canvas 2: Power Budget
+        const powerCanvas = document.getElementById('power-budget-canvas');
+        const powerCtx = powerCanvas.getContext('2d');
+
+        function drawPowerBudget() {
+            const mcuSleep = AD.num('mcu-sleep');
+            const rtc = AD.num('rtc-current');
+            const ldoIq = AD.num('ldo-iq');
+            const sensorLeak = AD.num('sensor-leak') / 1000;
+
+            document.getElementById('mcu-sleep-val').textContent = mcuSleep + ' μA';
+            document.getElementById('rtc-current-val').textContent = rtc + ' μA';
+            document.getElementById('ldo-iq-val').textContent = ldoIq + ' μA';
+            document.getElementById('sensor-leak-val').textContent = (sensorLeak * 1000).toFixed(0) + ' nA';
+
+            powerCtx.fillStyle = '#181818';
+            powerCtx.fillRect(0, 0, powerCanvas.width, powerCanvas.height);
+
+            const w = powerCanvas.width;
+            const h = powerCanvas.height;
+
+            const components = [
+                { name: 'MCU Sleep', value: mcuSleep, color: '#00FFFF' },
+                { name: 'RTC', value: rtc, color: '#FFFF00' },
+                { name: 'LDO Quiescent', value: ldoIq, color: '#FF6600' },
+                { name: 'Sensor Leakage', value: sensorLeak, color: '#FF66FF' },
+                { name: 'PCB Leakage (est)', value: 0.05, color: '#888' }
+            ];
+
+            const total = components.reduce((sum, c) => sum + c.value, 0);
+            document.getElementById('total-sleep').textContent = total.toFixed(2) + ' μA';
+
+            // Find biggest consumer
+            const biggest = components.reduce((max, c) => c.value > max.value ? c : max, components[0]);
+            document.getElementById('biggest-consumer').textContent = biggest.name;
+
+            // Target is 1 μA
+            const target = 1;
+            const improvement = ((total - target) / total * 100);
+            document.getElementById('improvement').textContent = improvement > 0 ? improvement.toFixed(0) + '%' : 'N/A';
+            document.getElementById('target-met').textContent = total <= target ? 'Yes' : 'No';
+            document.getElementById('target-met').style.color = total <= target ? '#00FF00' : '#FF0000';
+
+            // Draw horizontal bar chart
+            const margin = { left: 150, right: 150, top: 50, bottom: 40 };
+            const plotW = w - margin.left - margin.right;
+            const plotH = h - margin.top - margin.bottom;
+
+            const maxVal = Math.max(total * 1.2, target * 2);
+            const barH = plotH / components.length - 10;
+
+            components.forEach((comp, i) => {
+                const y = margin.top + i * (plotH / components.length) + 5;
+                const barW = (comp.value / maxVal) * plotW;
+
+                powerCtx.fillStyle = comp.color;
+                powerCtx.fillRect(margin.left, y, barW, barH);
+
+                // Label
+                powerCtx.fillStyle = '#CCC';
+                powerCtx.font = '12px monospace';
+                powerCtx.textAlign = 'right';
+                powerCtx.fillText(comp.name, margin.left - 10, y + barH / 2 + 4);
+
+                // Value
+                powerCtx.textAlign = 'left';
+                powerCtx.fillStyle = comp.color;
+                powerCtx.fillText(comp.value.toFixed(2) + ' μA', margin.left + barW + 10, y + barH / 2 + 4);
+            });
+
+            // Total bar
+            const totalY = margin.top + plotH + 10;
+            const totalBarW = (total / maxVal) * plotW;
+
+            powerCtx.fillStyle = '#333';
+            powerCtx.fillRect(margin.left, totalY, totalBarW, 25);
+            powerCtx.strokeStyle = '#FFF';
+            powerCtx.strokeRect(margin.left, totalY, totalBarW, 25);
+
+            powerCtx.fillStyle = '#FFF';
+            powerCtx.textAlign = 'right';
+            powerCtx.fillText('TOTAL', margin.left - 10, totalY + 17);
+            powerCtx.textAlign = 'left';
+            powerCtx.fillText(total.toFixed(2) + ' μA', margin.left + totalBarW + 10, totalY + 17);
+
+            // Target line
+            const targetX = margin.left + (target / maxVal) * plotW;
+            powerCtx.strokeStyle = '#00FF00';
+            powerCtx.setLineDash([5, 5]);
+            powerCtx.beginPath();
+            powerCtx.moveTo(targetX, margin.top - 10);
+            powerCtx.lineTo(targetX, totalY + 35);
+            powerCtx.stroke();
+            powerCtx.setLineDash([]);
+
+            powerCtx.fillStyle = '#00FF00';
+            powerCtx.font = 'bold 12px monospace';
+            powerCtx.textAlign = 'center';
+            powerCtx.fillText('Target: 1 μA', targetX, margin.top - 20);
+
+            // Pie chart
+            const pieX = w - 100;
+            const pieY = margin.top + plotH / 2;
+            const pieR = 80;
+
+            let startAngle = -Math.PI / 2;
+            components.forEach(comp => {
+                const angle = (comp.value / total) * 2 * Math.PI;
+                powerCtx.fillStyle = comp.color;
+                powerCtx.beginPath();
+                powerCtx.moveTo(pieX, pieY);
+                powerCtx.arc(pieX, pieY, pieR, startAngle, startAngle + angle);
+                powerCtx.closePath();
+                powerCtx.fill();
+                startAngle += angle;
+            });
+
+            powerCtx.fillStyle = '#FFF';
+            powerCtx.font = 'bold 14px monospace';
+            powerCtx.textAlign = 'center';
+            powerCtx.fillText('Power', pieX, pieY - 5);
+            powerCtx.fillText('Budget', pieX, pieY + 12);
+        }
+
+        // Canvas 3: Wireless Efficiency
+        const wirelessCanvas = document.getElementById('wireless-canvas');
+        const wirelessCtx = wirelessCanvas.getContext('2d');
+
+        function drawWireless() {
+            const txPower = AD.num('tx-power');
+            const dataRate = AD.num('data-rate');
+            const packetSize = AD.num('packet-size');
+            const protocol = document.getElementById('protocol').value;
+
+            document.getElementById('tx-power-val').textContent = txPower + ' dBm';
+            document.getElementById('packet-size-val').textContent = packetSize + ' bytes';
+
+            wirelessCtx.fillStyle = '#181818';
+            wirelessCtx.fillRect(0, 0, wirelessCanvas.width, wirelessCanvas.height);
+
+            const w = wirelessCanvas.width;
+            const h = wirelessCanvas.height;
+
+            // Calculate TX current based on power level and protocol
+            let baseCurrent = 5; // mA at 0 dBm
+            switch(protocol) {
+                case 'ble':
+                    baseCurrent = 5 + txPower * 0.5;
+                    break;
+                case 'lora':
+                    baseCurrent = 20 + txPower * 1;
+                    break;
+                case 'zigbee':
+                    baseCurrent = 15 + txPower * 0.8;
+                    break;
             }
+            const txCurrent = Math.max(3, baseCurrent);
+            document.getElementById('tx-current').textContent = txCurrent.toFixed(1) + ' mA';
+
+            // TX duration
+            const bitsToSend = (packetSize + 10) * 8; // Add overhead
+            const txDuration = bitsToSend / (dataRate * 1000); // seconds
+            document.getElementById('tx-duration').textContent = (txDuration * 1000).toFixed(2) + ' ms';
+
+            // Energy per packet
+            const voltage = 3; // Typical coin cell voltage
+            const energyJ = voltage * (txCurrent / 1000) * txDuration;
+            document.getElementById('energy-packet').textContent = (energyJ * 1e6).toFixed(1) + ' μJ';
+
+            // Estimated range (simplified path loss model)
+            const txPowerMw = Math.pow(10, txPower / 10);
+            const rxSensitivity = protocol === 'lora' ? -137 : -96; // dBm
+            const pathLoss = txPower - rxSensitivity;
+            const range = Math.pow(10, (pathLoss - 40) / (10 * 2.5)); // n=2.5 for indoor
+            document.getElementById('est-range').textContent = range.toFixed(0) + ' m';
+
+            // Draw TX power vs current graph
+            const margin = { left: 80, right: 200, top: 50, bottom: 60 };
+            const plotW = w - margin.left - margin.right;
+            const plotH = h - margin.top - margin.bottom;
 
             // Grid
-            buckCtx.strokeStyle = '#333';
-            buckCtx.lineWidth = 1;
-            for (let dB = -60; dB <= 40; dB += 20) {
-                const y = dBToY(dB);
-                buckCtx.beginPath();
-                buckCtx.moveTo(margin.left, y);
-                buckCtx.lineTo(w - margin.right, y);
-                buckCtx.stroke();
-                buckCtx.fillStyle = '#888';
-                buckCtx.font = '10px monospace';
-                buckCtx.textAlign = 'right';
-                buckCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
+            wirelessCtx.strokeStyle = '#333';
+            wirelessCtx.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                const x = margin.left + (i / 5) * plotW;
+                wirelessCtx.beginPath();
+                wirelessCtx.moveTo(x, margin.top);
+                wirelessCtx.lineTo(x, margin.top + plotH);
+                wirelessCtx.stroke();
             }
 
-            // 0 dB line
-            buckCtx.strokeStyle = '#666';
-            buckCtx.lineWidth = 2;
-            buckCtx.beginPath();
-            buckCtx.moveTo(margin.left, dBToY(0));
-            buckCtx.lineTo(w - margin.right, dBToY(0));
-            buckCtx.stroke();
+            // Draw current vs TX power curves for each protocol
+            const protocols = [
+                { name: 'BLE', color: '#00FFFF', base: 5, slope: 0.5 },
+                { name: 'Zigbee', color: '#FFFF00', base: 15, slope: 0.8 },
+                { name: 'LoRa', color: '#FF6600', base: 20, slope: 1.0 }
+            ];
 
-            // Control-to-output transfer function magnitude
-            function gvdMag(f) {
-                const w0 = 2 * Math.PI * f0;
-                const wz = 2 * Math.PI * fESR;
-                const w = 2 * Math.PI * f;
+            protocols.forEach(p => {
+                wirelessCtx.strokeStyle = p.color;
+                wirelessCtx.lineWidth = p.name.toLowerCase() === protocol ? 3 : 1;
+                wirelessCtx.beginPath();
 
-                // Numerator: (1 + s/wz)
-                const numMag = Math.sqrt(1 + (w/wz)**2);
+                for (let pwr = -20; pwr <= 20; pwr++) {
+                    const curr = Math.max(3, p.base + pwr * p.slope);
+                    const x = margin.left + ((pwr + 20) / 40) * plotW;
+                    const y = margin.top + plotH - (curr / 40) * plotH;
 
-                // Denominator: 1 + s/(Q*w0) + s^2/w0^2
-                const den_real = 1 - (w/w0)**2;
-                const den_imag = w/(Q*w0);
-                const denMag = Math.sqrt(den_real**2 + den_imag**2);
-
-                const mag = Vin * numMag / denMag;
-                return 20 * Math.log10(mag);
-            }
-
-            function gvdPhase(f) {
-                const w0 = 2 * Math.PI * f0;
-                const wz = 2 * Math.PI * fESR;
-                const w = 2 * Math.PI * f;
-
-                // Numerator phase: arctan(w/wz)
-                const numPhase = Math.atan(w/wz) * 180/Math.PI;
-
-                // Denominator phase from second-order system
-                const den_real = 1 - (w/w0)**2;
-                const den_imag = w/(Q*w0);
-                let denPhase = Math.atan2(den_imag, den_real) * 180/Math.PI;
-
-                return numPhase - denPhase;
-            }
-
-            // Draw magnitude
-            buckCtx.strokeStyle = TEK.green;
-            buckCtx.lineWidth = 2;
-            buckCtx.beginPath();
-            let first = true;
-            for (let i = 0; i <= 400; i++) {
-                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                const dB = gvdMag(f);
-                const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                if (first) { buckCtx.moveTo(x, y); first = false; }
-                else buckCtx.lineTo(x, y);
-            }
-            buckCtx.stroke();
-
-            // Mark LC resonance
-            buckCtx.strokeStyle = TEK.red;
-            buckCtx.setLineDash([5, 5]);
-            buckCtx.beginPath();
-            buckCtx.moveTo(freqToX(f0), magTop);
-            buckCtx.lineTo(freqToX(f0), magBot);
-            buckCtx.stroke();
-            buckCtx.fillStyle = TEK.red;
-            buckCtx.textAlign = 'center';
-            buckCtx.fillText('f₀', freqToX(f0), magTop - 5);
-
-            // Mark ESR zero
-            if (fESR < fMax) {
-                buckCtx.strokeStyle = TEK.cyan;
-                buckCtx.beginPath();
-                buckCtx.moveTo(freqToX(fESR), magTop);
-                buckCtx.lineTo(freqToX(fESR), magBot);
-                buckCtx.stroke();
-                buckCtx.fillStyle = TEK.cyan;
-                buckCtx.fillText('fESR', freqToX(fESR), magTop - 5);
-            }
-            buckCtx.setLineDash([]);
-
-            // Phase plot
-            const phTop = magBot + 30;
-            const phBot = h - margin.bottom;
-            const phPlotH = phBot - phTop;
-            const phMin = -270, phMax = 90;
-
-            function phToY(ph) {
-                return phBot - (ph - phMin) / (phMax - phMin) * phPlotH;
-            }
-
-            // Phase grid
-            buckCtx.strokeStyle = '#333';
-            buckCtx.lineWidth = 1;
-            for (let ph = -270; ph <= 90; ph += 45) {
-                const y = phToY(ph);
-                buckCtx.beginPath();
-                buckCtx.moveTo(margin.left, y);
-                buckCtx.lineTo(w - margin.right, y);
-                buckCtx.stroke();
-                buckCtx.fillStyle = '#888';
-                buckCtx.textAlign = 'right';
-                buckCtx.fillText(ph + '°', margin.left - 5, y + 4);
-            }
-
-            // -180° line
-            buckCtx.strokeStyle = TEK.red;
-            buckCtx.lineWidth = 2;
-            buckCtx.setLineDash([5, 5]);
-            buckCtx.beginPath();
-            buckCtx.moveTo(margin.left, phToY(-180));
-            buckCtx.lineTo(w - margin.right, phToY(-180));
-            buckCtx.stroke();
-            buckCtx.setLineDash([]);
-
-            // Draw phase
-            buckCtx.strokeStyle = TEK.green;
-            buckCtx.lineWidth = 2;
-            buckCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 400; i++) {
-                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                const ph = gvdPhase(f);
-                const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                if (first) { buckCtx.moveTo(x, y); first = false; }
-                else buckCtx.lineTo(x, y);
-            }
-            buckCtx.stroke();
-
-            // Frequency labels
-            for (let exp = 2; exp <= 6; exp++) {
-                const f = Math.pow(10, exp);
-                const x = freqToX(f);
-                buckCtx.fillStyle = '#888';
-                buckCtx.textAlign = 'center';
-                const label = exp === 2 ? '100' : exp === 3 ? '1k' : exp === 4 ? '10k' : exp === 5 ? '100k' : '1M';
-                buckCtx.fillText(label, x, phBot + 15);
-            }
-            buckCtx.fillText('Frequency (Hz)', margin.left + plotW/2, h - 5);
-
-            // Results
-            const result = document.getElementById('buck-result');
-            result.innerHTML = `
-                <strong>LC Resonance (f₀):</strong> ${AD.fmtUnit(f0, 'Hz')}<br>
-                <strong>Q Factor:</strong> ${Q.toFixed(1)} ${Q > 5 ? '<span style="color:' + TEK.yellow + '">(High Q - needs damping!)</span>' : ''}<br>
-                <strong>ESR Zero:</strong> ${AD.fmtUnit(fESR, 'Hz')}<br>
-                <strong>Duty Cycle:</strong> ${(Vout/Vin * 100).toFixed(1)}%<br>
-                <strong>DC Gain:</strong> ${(20 * Math.log10(Vin)).toFixed(1)} dB
-            `;
-        };
-
-        // Compensation calculator
-        const compCanvas = document.getElementById('comp-bode-canvas');
-        if (compCanvas) {
-            const compCtx = compCanvas.getContext('2d');
-
-            window.calcCompensation = function() {
-                const fsw = AD.num('fsw') * 1000;
-                const f0 = AD.num('f0') * 1000;
-                const fESR = AD.num('fesr') * 1000;
-                const mode = document.getElementById('control-mode').value;
-
-                let result = '<strong>Control Mode:</strong> ' + (mode === 'voltage' ? 'Voltage Mode' : 'Current Mode') + '<br>';
-
-                // Recommended crossover
-                const fc = fsw / 10;
-                result += '<strong>Recommended Crossover:</strong> ' + AD.fmtUnit(fc, 'Hz') + ' (f<sub>sw</sub>/10)<br>';
-
-                if (mode === 'voltage') {
-                    // Type III compensator
-                    result += '<br><strong>Type III Compensator Design:</strong><br>';
-                    result += '• Zero 1: ' + AD.fmtUnit(f0, 'Hz') + ' (at LC resonance)<br>';
-                    result += '• Zero 2: ' + AD.fmtUnit(f0, 'Hz') + ' (at LC resonance)<br>';
-                    result += '• Pole 1: ' + AD.fmtUnit(fc, 'Hz') + ' (at crossover)<br>';
-                    result += '• Pole 2: ' + AD.fmtUnit(fsw/2, 'Hz') + ' (at f<sub>sw</sub>/2)<br>';
-                } else {
-                    // Type II compensator
-                    result += '<br><strong>Type II Compensator Design:</strong><br>';
-                    // Output pole is at 1/(2πRloadC), approximate
-                    const fpout = f0 * 2; // Rough estimate
-                    result += '• Zero: ' + AD.fmtUnit(fpout, 'Hz') + ' (near output pole)<br>';
-                    result += '• Pole: ' + AD.fmtUnit(Math.min(fESR, fsw/2), 'Hz') + ' (at ESR zero or f<sub>sw</sub>/2)<br>';
+                    if (pwr === -20) wirelessCtx.moveTo(x, y);
+                    else wirelessCtx.lineTo(x, y);
                 }
+                wirelessCtx.stroke();
+            });
 
-                document.getElementById('comp-result').innerHTML = result;
+            // Current operating point
+            const opX = margin.left + ((txPower + 20) / 40) * plotW;
+            const opY = margin.top + plotH - (txCurrent / 40) * plotH;
 
-                // Draw simplified Bode plot showing compensated loop gain
-                const w = compCanvas.width, h = compCanvas.height;
-                const margin = { left: 60, right: 30, top: 30, bottom: 50 };
-                const plotW = w - margin.left - margin.right;
-                const plotH = (h - margin.top - margin.bottom - 20) / 2;
+            wirelessCtx.fillStyle = '#00FF00';
+            wirelessCtx.beginPath();
+            wirelessCtx.arc(opX, opY, 8, 0, Math.PI * 2);
+            wirelessCtx.fill();
 
-                compCtx.fillStyle = '#0d1117';
-                compCtx.fillRect(0, 0, w, h);
+            // Labels
+            wirelessCtx.fillStyle = '#CCC';
+            wirelessCtx.font = '14px monospace';
+            wirelessCtx.textAlign = 'center';
+            wirelessCtx.fillText('TX Power (dBm)', margin.left + plotW / 2, h - 15);
 
-                const fMin = 10, fMax = 10e6;
-                const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
+            wirelessCtx.save();
+            wirelessCtx.translate(25, margin.top + plotH / 2);
+            wirelessCtx.rotate(-Math.PI / 2);
+            wirelessCtx.fillText('Current (mA)', 0, 0);
+            wirelessCtx.restore();
 
-                function freqToX(f) {
-                    return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
-                }
+            // TX power scale
+            wirelessCtx.font = '11px monospace';
+            wirelessCtx.fillStyle = '#888';
+            for (let pwr = -20; pwr <= 20; pwr += 10) {
+                const x = margin.left + ((pwr + 20) / 40) * plotW;
+                wirelessCtx.fillText(pwr.toString(), x, margin.top + plotH + 20);
+            }
 
-                const magTop = margin.top;
-                const magBot = margin.top + plotH;
-                const dBMin = -60, dBMax = 80;
+            // Current scale
+            wirelessCtx.textAlign = 'right';
+            for (let curr = 0; curr <= 40; curr += 10) {
+                const y = margin.top + plotH - (curr / 40) * plotH;
+                wirelessCtx.fillText(curr.toString(), margin.left - 10, y + 4);
+            }
 
-                function dBToY(dB) {
-                    return magBot - (dB - dBMin) / (dBMax - dBMin) * plotH;
-                }
+            // Legend
+            const legX = w - 180;
+            wirelessCtx.textAlign = 'left';
+            protocols.forEach((p, i) => {
+                wirelessCtx.fillStyle = p.color;
+                wirelessCtx.fillRect(legX, margin.top + 20 + i * 25, 20, 3);
+                wirelessCtx.fillStyle = '#CCC';
+                wirelessCtx.fillText(p.name, legX + 30, margin.top + 25 + i * 25);
+            });
 
-                // Grid
-                compCtx.strokeStyle = '#333';
-                compCtx.lineWidth = 1;
-                for (let dB = -40; dB <= 80; dB += 20) {
-                    const y = dBToY(dB);
-                    compCtx.beginPath();
-                    compCtx.moveTo(margin.left, y);
-                    compCtx.lineTo(w - margin.right, y);
-                    compCtx.stroke();
-                    compCtx.fillStyle = '#888';
-                    compCtx.font = '10px monospace';
-                    compCtx.textAlign = 'right';
-                    compCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
-                }
+            // Energy efficiency text
+            wirelessCtx.fillStyle = '#FFF';
+            wirelessCtx.font = 'bold 14px monospace';
+            wirelessCtx.fillText('Energy/Packet:', legX, margin.top + 120);
+            wirelessCtx.fillStyle = '#00FF00';
+            wirelessCtx.fillText((energyJ * 1e6).toFixed(1) + ' μJ', legX, margin.top + 140);
 
-                // 0 dB line
-                compCtx.strokeStyle = '#666';
-                compCtx.lineWidth = 2;
-                compCtx.beginPath();
-                compCtx.moveTo(margin.left, dBToY(0));
-                compCtx.lineTo(w - margin.right, dBToY(0));
-                compCtx.stroke();
-
-                // Idealized loop gain (simplified)
-                function loopGainMag(f) {
-                    // Start with integrator, gain set to cross at fc
-                    let gain = fc / f * 10; // Integrator + DC gain
-
-                    if (mode === 'voltage') {
-                        // LC double pole effect
-                        if (f > f0 / 2) {
-                            gain *= (f0 / f) ** 2;
-                        }
-                        // Type III zeros compensate (simplified)
-                        if (f > f0 / 10) {
-                            gain *= (f / f0) ** 2; // Two zeros at f0
-                        }
-                    } else {
-                        // Current mode - single pole
-                        if (f > f0) {
-                            gain *= f0 / f;
-                        }
-                    }
-
-                    // High frequency rolloff
-                    if (f > fsw / 4) {
-                        gain *= (fsw / 4 / f);
-                    }
-
-                    return 20 * Math.log10(Math.max(gain, 0.001));
-                }
-
-                // Draw compensated loop gain
-                compCtx.strokeStyle = TEK.green;
-                compCtx.lineWidth = 2;
-                compCtx.beginPath();
-                let first = true;
-                for (let i = 0; i <= 400; i++) {
-                    const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                    const dB = loopGainMag(f);
-                    const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                    if (first) { compCtx.moveTo(x, y); first = false; }
-                    else compCtx.lineTo(x, y);
-                }
-                compCtx.stroke();
-
-                // Mark crossover
-                compCtx.strokeStyle = TEK.yellow;
-                compCtx.setLineDash([5, 5]);
-                compCtx.beginPath();
-                compCtx.moveTo(freqToX(fc), magTop);
-                compCtx.lineTo(freqToX(fc), magBot);
-                compCtx.stroke();
-                compCtx.fillStyle = TEK.yellow;
-                compCtx.textAlign = 'center';
-                compCtx.fillText('fc', freqToX(fc), magTop - 5);
-                compCtx.setLineDash([]);
-
-                // Frequency labels
-                for (let exp = 1; exp <= 7; exp++) {
-                    const f = Math.pow(10, exp);
-                    const x = freqToX(f);
-                    compCtx.fillStyle = '#888';
-                    compCtx.textAlign = 'center';
-                    const label = exp === 1 ? '10' : exp === 2 ? '100' : exp === 3 ? '1k' : exp === 4 ? '10k' : exp === 5 ? '100k' : exp === 6 ? '1M' : '10M';
-                    compCtx.fillText(label, x, h - margin.bottom + 15);
-                }
-
-                compCtx.fillStyle = '#fff';
-                compCtx.fillText('Compensated Loop Gain (Idealized)', margin.left + plotW/2, 15);
-            };
+            wirelessCtx.fillStyle = '#FFF';
+            wirelessCtx.fillText('Est. Range:', legX, margin.top + 170);
+            wirelessCtx.fillStyle = '#00FF00';
+            wirelessCtx.fillText(range.toFixed(0) + ' m', legX, margin.top + 190);
         }
 
-        // Schematics
-        const vmSch = document.getElementById('sch-voltage-mode');
-        if (vmSch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(vmSch, 450, 140);
+        // Canvas 4: Energy Harvesting
+        const harvestCanvas = document.getElementById('harvest-canvas');
+        const harvestCtx = harvestCanvas.getContext('2d');
 
-            // Simplified block diagram
-            sch.rect(30, 40, 60, 50, { label: 'Error\nAmp', fill: '#1a1a2e' });
-            sch.wire([[90, 65], [130, 65]]);
+        function drawHarvesting() {
+            const solarSize = AD.num('solar-size');
+            const lightLevel = AD.num('light-level');
+            const lightHours = AD.num('light-hours');
+            const harvesterEff = AD.num('harvester-eff');
 
-            sch.rect(130, 40, 60, 50, { label: 'PWM', fill: '#1a1a2e' });
-            sch.wire([[190, 65], [230, 65]]);
+            document.getElementById('solar-size-val').textContent = solarSize + ' cm²';
+            document.getElementById('light-level-val').textContent = lightLevel + ' lux';
+            document.getElementById('light-hours-val').textContent = lightHours + ' hrs';
+            document.getElementById('harvester-eff-val').textContent = harvesterEff + '%';
 
-            sch.rect(230, 40, 80, 50, { label: 'Power\nStage', fill: '#1a1a2e' });
-            sch.wire([[310, 65], [380, 65]]);
-            sch.nodeLabel(380, 65, 'Vout', { position: 'right' });
+            harvestCtx.fillStyle = '#181818';
+            harvestCtx.fillRect(0, 0, harvestCanvas.width, harvestCanvas.height);
 
-            // Feedback path
-            sch.wire([[350, 65], [350, 110]]);
-            sch.dot(350, 65);
-            sch.wire([[350, 110], [50, 110]]);
-            sch.wire([[50, 110], [50, 90]]);
+            const w = harvestCanvas.width;
+            const h = harvestCanvas.height;
 
-            // Vref
-            sch.wire([[10, 50], [30, 50]]);
-            sch.nodeLabel(10, 50, 'Vref', { position: 'left' });
+            // Solar cell power calculation
+            // Typical indoor solar cell: ~10 μW/cm² at 200 lux
+            const powerPerCm2 = (lightLevel / 200) * 10; // μW/cm² at given lux
+            const solarPower = solarSize * powerPerCm2 / 1000; // mW
+            document.getElementById('solar-power').textContent = solarPower.toFixed(2) + ' mW';
 
-            sch.render();
-        }
+            // Harvested energy per day
+            const harvestedPerDay = solarPower * lightHours * (harvesterEff / 100); // mWh
+            document.getElementById('harvest-energy').textContent = harvestedPerDay.toFixed(2) + ' mWh/day';
 
-        const type2Sch = document.getElementById('sch-type2');
-        if (type2Sch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(type2Sch, 400, 160);
+            // System consumption (assume 1.5 μA average at 3V)
+            const avgCurrent = 1.5; // μA
+            const voltage = 3; // V
+            const consumptionPerDay = (avgCurrent / 1000) * voltage * 24; // mWh
+            document.getElementById('sys-consumption').textContent = consumptionPerDay.toFixed(3) + ' mWh/day';
 
-            // Op-amp
-            sch.opamp(150, 80, { label: '' });
-            const op = SchematicSVG.opampTerminals(150, 80);
+            // Energy positive?
+            const energyPositive = harvestedPerDay > consumptionPerDay;
+            document.getElementById('energy-positive').textContent = energyPositive ? 'Yes!' : 'No';
+            document.getElementById('energy-positive').style.color = energyPositive ? '#00FF00' : '#FF0000';
 
-            // Vref to non-inv
-            sch.wire([[40, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-            sch.nodeLabel(40, op.nonInvInput.y, 'Vref', { position: 'left' });
+            // Draw energy flow diagram
+            const margin = { left: 50, right: 50, top: 60, bottom: 50 };
 
-            // R1 from FB to inv input
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 30, op.invInput.y]]);
-            sch.dot(op.invInput.x, op.invInput.y);
-            sch.resistor(op.invInput.x - 55, op.invInput.y, 'horizontal', { label: 'R1' });
-            sch.wire([[op.invInput.x - 80, op.invInput.y], [op.invInput.x - 100, op.invInput.y]]);
-            sch.nodeLabel(op.invInput.x - 100, op.invInput.y, 'VFB', { position: 'left' });
+            // Solar panel
+            harvestCtx.fillStyle = '#4444AA';
+            harvestCtx.fillRect(80, 100, 100, 60);
+            harvestCtx.strokeStyle = '#6666FF';
+            harvestCtx.lineWidth = 2;
+            harvestCtx.strokeRect(80, 100, 100, 60);
 
-            // Feedback: R2 || C1, then C2 to output
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 30]]);
+            // Grid lines on panel
+            harvestCtx.strokeStyle = '#333';
+            harvestCtx.lineWidth = 1;
+            for (let i = 1; i < 4; i++) {
+                harvestCtx.beginPath();
+                harvestCtx.moveTo(80 + i * 25, 100);
+                harvestCtx.lineTo(80 + i * 25, 160);
+                harvestCtx.stroke();
+            }
+            for (let i = 1; i < 3; i++) {
+                harvestCtx.beginPath();
+                harvestCtx.moveTo(80, 100 + i * 20);
+                harvestCtx.lineTo(180, 100 + i * 20);
+                harvestCtx.stroke();
+            }
 
-            // R2 and C1 in parallel
-            sch.wire([[op.invInput.x, 30], [op.invInput.x + 15, 30]]);
-            sch.resistor(op.invInput.x + 40, 30, 'horizontal', { label: 'R2' });
-            sch.wire([[op.invInput.x + 65, 30], [op.output.x, 30]]);
+            harvestCtx.fillStyle = '#CCC';
+            harvestCtx.font = '12px monospace';
+            harvestCtx.textAlign = 'center';
+            harvestCtx.fillText('Solar Cell', 130, 180);
+            harvestCtx.fillText(solarSize + ' cm²', 130, 195);
 
-            sch.wire([[op.invInput.x, 30], [op.invInput.x, 10]]);
-            sch.dot(op.invInput.x, 30);
-            sch.wire([[op.invInput.x, 10], [op.invInput.x + 15, 10]]);
-            sch.capacitor(op.invInput.x + 40, 10, 'horizontal', { label: 'C1' });
-            sch.wire([[op.invInput.x + 65, 10], [op.output.x, 10]]);
-            sch.wire([[op.output.x, 10], [op.output.x, 30]]);
-            sch.dot(op.output.x, 30);
+            // Harvester IC
+            harvestCtx.fillStyle = '#333';
+            harvestCtx.fillRect(230, 100, 100, 60);
+            harvestCtx.strokeStyle = '#00FF00';
+            harvestCtx.strokeRect(230, 100, 100, 60);
 
-            // C2 in series
-            sch.wire([[op.output.x, 30], [op.output.x + 20, 30]]);
-            sch.capacitor(op.output.x + 45, 30, 'horizontal', { label: 'C2' });
-            sch.wire([[op.output.x + 70, 30], [op.output.x + 70, op.output.y]]);
-            sch.wire([[op.output.x, op.output.y], [op.output.x + 70, op.output.y]]);
-            sch.dot(op.output.x, op.output.y);
-            sch.wire([[op.output.x + 70, op.output.y], [op.output.x + 100, op.output.y]]);
-            sch.nodeLabel(op.output.x + 100, op.output.y, 'COMP', { position: 'right' });
+            harvestCtx.fillStyle = '#00FF00';
+            harvestCtx.fillText('Harvester', 280, 125);
+            harvestCtx.fillText('MPPT', 280, 145);
+            harvestCtx.fillStyle = '#CCC';
+            harvestCtx.fillText('η=' + harvesterEff + '%', 280, 195);
 
-            sch.render();
-        }
+            // Arrow from solar to harvester
+            harvestCtx.strokeStyle = '#FFFF00';
+            harvestCtx.lineWidth = 3;
+            harvestCtx.beginPath();
+            harvestCtx.moveTo(180, 130);
+            harvestCtx.lineTo(225, 130);
+            harvestCtx.stroke();
+            harvestCtx.fillStyle = '#FFFF00';
+            harvestCtx.beginPath();
+            harvestCtx.moveTo(225, 130);
+            harvestCtx.lineTo(215, 125);
+            harvestCtx.lineTo(215, 135);
+            harvestCtx.closePath();
+            harvestCtx.fill();
 
-        const type3Sch = document.getElementById('sch-type3');
-        if (type3Sch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(type3Sch, 400, 160);
+            harvestCtx.font = '10px monospace';
+            harvestCtx.fillText(solarPower.toFixed(2) + ' mW', 200, 115);
 
-            // Similar to type2 but with additional R3-C3 network
-            sch.opamp(150, 80, { label: '' });
-            const op = SchematicSVG.opampTerminals(150, 80);
+            // Storage capacitor/battery
+            harvestCtx.fillStyle = '#333';
+            harvestCtx.fillRect(380, 100, 80, 60);
+            harvestCtx.strokeStyle = '#FF6600';
+            harvestCtx.strokeRect(380, 100, 80, 60);
 
-            // Simplified representation
-            sch.wire([[40, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-            sch.nodeLabel(40, op.nonInvInput.y, 'Vref', { position: 'left' });
+            harvestCtx.fillStyle = '#FF6600';
+            harvestCtx.font = '12px monospace';
+            harvestCtx.fillText('Storage', 420, 125);
+            harvestCtx.fillText('Cap/Bat', 420, 145);
 
-            // Input with R1 and C3||R3 divider
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 20, op.invInput.y]]);
-            sch.dot(op.invInput.x, op.invInput.y);
-            sch.resistor(op.invInput.x - 45, op.invInput.y, 'horizontal', { label: 'R1' });
-            sch.wire([[op.invInput.x - 70, op.invInput.y], [op.invInput.x - 90, op.invInput.y]]);
-            sch.nodeLabel(op.invInput.x - 90, op.invInput.y, 'VFB', { position: 'left' });
+            // Arrow from harvester to storage
+            harvestCtx.strokeStyle = '#00FF00';
+            harvestCtx.beginPath();
+            harvestCtx.moveTo(330, 130);
+            harvestCtx.lineTo(375, 130);
+            harvestCtx.stroke();
+            harvestCtx.fillStyle = '#00FF00';
+            harvestCtx.beginPath();
+            harvestCtx.moveTo(375, 130);
+            harvestCtx.lineTo(365, 125);
+            harvestCtx.lineTo(365, 135);
+            harvestCtx.closePath();
+            harvestCtx.fill();
 
-            // R3||C3 to ground
-            sch.wire([[op.invInput.x - 70, op.invInput.y], [op.invInput.x - 70, op.invInput.y + 25]]);
-            sch.dot(op.invInput.x - 70, op.invInput.y);
-            sch.resistor(op.invInput.x - 70, op.invInput.y + 50, 'vertical', { label: 'R3' });
-            sch.ground(op.invInput.x - 70, op.invInput.y + 75);
+            harvestCtx.font = '10px monospace';
+            harvestCtx.fillText(harvestedPerDay.toFixed(2) + ' mWh/day', 350, 90);
 
-            // Feedback network (R2||C1 with C2)
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 30]]);
-            sch.wire([[op.invInput.x, 30], [op.output.x, 30]]);
-            sch.resistor((op.invInput.x + op.output.x)/2, 30, 'horizontal', { label: 'R2||C1' });
+            // Load (system)
+            harvestCtx.fillStyle = '#333';
+            harvestCtx.fillRect(510, 100, 80, 60);
+            harvestCtx.strokeStyle = '#00FFFF';
+            harvestCtx.strokeRect(510, 100, 80, 60);
 
-            sch.wire([[op.output.x, 30], [op.output.x, op.output.y]]);
-            sch.dot(op.output.x, 30);
+            harvestCtx.fillStyle = '#00FFFF';
+            harvestCtx.font = '12px monospace';
+            harvestCtx.fillText('IoT', 550, 125);
+            harvestCtx.fillText('System', 550, 145);
 
-            sch.wire([[op.output.x, op.output.y], [op.output.x + 50, op.output.y]]);
-            sch.dot(op.output.x, op.output.y);
-            sch.capacitor(op.output.x + 25, op.output.y - 25, 'vertical', { label: 'C2' });
-            sch.wire([[op.output.x + 25, op.output.y - 25], [op.output.x + 25, 30]]);
-            sch.wire([[op.output.x + 25, 30], [op.output.x, 30]]);
+            // Arrow from storage to load
+            harvestCtx.strokeStyle = '#FF0000';
+            harvestCtx.beginPath();
+            harvestCtx.moveTo(460, 130);
+            harvestCtx.lineTo(505, 130);
+            harvestCtx.stroke();
+            harvestCtx.fillStyle = '#FF0000';
+            harvestCtx.beginPath();
+            harvestCtx.moveTo(505, 130);
+            harvestCtx.lineTo(495, 125);
+            harvestCtx.lineTo(495, 135);
+            harvestCtx.closePath();
+            harvestCtx.fill();
 
-            sch.nodeLabel(op.output.x + 50, op.output.y, 'COMP', { position: 'right' });
+            harvestCtx.font = '10px monospace';
+            harvestCtx.fillText(consumptionPerDay.toFixed(3) + ' mWh/day', 480, 90);
 
-            sch.render();
-        }
+            // Energy balance bar chart
+            const barY = 250;
+            const maxEnergy = Math.max(harvestedPerDay, consumptionPerDay) * 1.5;
 
-        // Exercise checking
-        window.checkEx1 = function() {
-            const input = AD.num('ex1-input');
-            const result = document.getElementById('ex1-result');
-            // f0 = 1/(2π√(22μ × 220μ)) = 2.28 kHz
-            if (Math.abs(input - 2.28) < 0.3 || Math.abs(input - 2.3) < 0.2) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! f₀ = 1/(2π√(22μH × 220μF)) ≈ 2.3 kHz</span>';
+            // Harvested
+            const harvestBarW = (harvestedPerDay / maxEnergy) * 300;
+            harvestCtx.fillStyle = '#00FF00';
+            harvestCtx.fillRect(200, barY, harvestBarW, 30);
+
+            // Consumed
+            const consumeBarW = (consumptionPerDay / maxEnergy) * 300;
+            harvestCtx.fillStyle = '#FF0000';
+            harvestCtx.fillRect(200, barY + 40, consumeBarW, 30);
+
+            harvestCtx.fillStyle = '#CCC';
+            harvestCtx.font = '12px monospace';
+            harvestCtx.textAlign = 'right';
+            harvestCtx.fillText('Harvested:', 190, barY + 20);
+            harvestCtx.fillText('Consumed:', 190, barY + 60);
+
+            harvestCtx.textAlign = 'left';
+            harvestCtx.fillStyle = '#00FF00';
+            harvestCtx.fillText(harvestedPerDay.toFixed(3) + ' mWh/day', 210 + harvestBarW, barY + 20);
+            harvestCtx.fillStyle = '#FF0000';
+            harvestCtx.fillText(consumptionPerDay.toFixed(3) + ' mWh/day', 210 + consumeBarW, barY + 60);
+
+            // Net result
+            const net = harvestedPerDay - consumptionPerDay;
+            harvestCtx.fillStyle = net > 0 ? '#00FF00' : '#FF0000';
+            harvestCtx.font = 'bold 16px monospace';
+            harvestCtx.textAlign = 'center';
+            harvestCtx.fillText('Net: ' + (net > 0 ? '+' : '') + net.toFixed(3) + ' mWh/day',
+                               350, 330);
+
+            if (net > 0) {
+                harvestCtx.fillStyle = '#00FF00';
+                harvestCtx.fillText('Energy Autonomous!', 350, 350);
             } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. Use f₀ = 1/(2π√(LC)).</span>';
+                harvestCtx.fillStyle = '#FF0000';
+                harvestCtx.fillText('Battery backup needed', 350, 350);
             }
-        };
 
-        window.checkEx2 = function() {
-            const input = AD.num('ex2-input');
-            const result = document.getElementById('ex2-result');
-            // D = 1 - Vin/Vout = 1 - 5/12 = 0.583
-            // fRHP = Rload(1-D)² / (2πL) = 10 × (0.417)² / (2π × 10μ)
-            // = 10 × 0.174 / (62.8μ) = 27.7 kHz
-            if (Math.abs(input - 27.7) < 5 || Math.abs(input - 28) < 5) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! D = 0.58, f<sub>RHP</sub> = 10×(0.42)²/(2π×10μ) ≈ 28 kHz</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. Calculate D = 1 - V<sub>in</sub>/V<sub>out</sub>, then f<sub>RHP</sub> = R<sub>load</sub>(1-D)²/(2πL).</span>';
-            }
-        };
+            // Sun icon
+            harvestCtx.fillStyle = '#FFFF00';
+            harvestCtx.beginPath();
+            harvestCtx.arc(130, 50, 20, 0, Math.PI * 2);
+            harvestCtx.fill();
 
-        window.checkEx3 = function() {
-            const input = AD.num('ex3-input');
-            const result = document.getElementById('ex3-result');
-            // fc < fRHP/5 = 27.7/5 = 5.5 kHz
-            if (input >= 4.5 && input <= 6) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! f<sub>c</sub> < f<sub>RHP</sub>/5 ≈ 5.5 kHz maximum</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. Maximum crossover is f<sub>RHP</sub>/5.</span>';
+            // Sun rays
+            for (let i = 0; i < 8; i++) {
+                const angle = i * Math.PI / 4;
+                harvestCtx.strokeStyle = '#FFFF00';
+                harvestCtx.lineWidth = 2;
+                harvestCtx.beginPath();
+                harvestCtx.moveTo(130 + 25 * Math.cos(angle), 50 + 25 * Math.sin(angle));
+                harvestCtx.lineTo(130 + 35 * Math.cos(angle), 50 + 35 * Math.sin(angle));
+                harvestCtx.stroke();
             }
-        };
+
+            harvestCtx.fillStyle = '#888';
+            harvestCtx.font = '10px monospace';
+            harvestCtx.fillText(lightLevel + ' lux', 130, 70);
+        }
+
+        // Canvas 0: System Architecture
+        const iotArchCanvas = document.getElementById('iot-arch-canvas');
+        const iotArchCtx = iotArchCanvas.getContext('2d');
+
+        function drawIotArchitecture() {
+            iotArchCtx.fillStyle = '#181818';
+            iotArchCtx.fillRect(0, 0, iotArchCanvas.width, iotArchCanvas.height);
+
+            const w = iotArchCanvas.width;
+            const h = iotArchCanvas.height;
+
+            // Title
+            iotArchCtx.fillStyle = '#FFF';
+            iotArchCtx.font = 'bold 16px monospace';
+            iotArchCtx.textAlign = 'center';
+            iotArchCtx.fillText('BATTERY-POWERED IoT SENSOR', w / 2, 25);
+
+            // Battery block
+            iotArchCtx.fillStyle = '#222';
+            iotArchCtx.fillRect(30, 60, 100, 60);
+            iotArchCtx.strokeStyle = '#FF6600';
+            iotArchCtx.lineWidth = 2;
+            iotArchCtx.strokeRect(30, 60, 100, 60);
+            iotArchCtx.fillStyle = '#FF6600';
+            iotArchCtx.font = 'bold 12px monospace';
+            iotArchCtx.fillText('BATTERY', 80, 85);
+            iotArchCtx.font = '10px monospace';
+            iotArchCtx.fillText('CR2032 225mAh', 80, 105);
+
+            // Solar harvester (optional)
+            iotArchCtx.fillStyle = '#222';
+            iotArchCtx.fillRect(30, 150, 100, 50);
+            iotArchCtx.strokeStyle = '#FFFF00';
+            iotArchCtx.setLineDash([4, 4]);
+            iotArchCtx.strokeRect(30, 150, 100, 50);
+            iotArchCtx.setLineDash([]);
+            iotArchCtx.fillStyle = '#FFFF00';
+            iotArchCtx.font = '11px monospace';
+            iotArchCtx.fillText('SOLAR', 80, 172);
+            iotArchCtx.font = '9px monospace';
+            iotArchCtx.fillText('(Optional)', 80, 188);
+
+            // Power Management block
+            iotArchCtx.fillStyle = '#222';
+            iotArchCtx.fillRect(180, 50, 200, 80);
+            iotArchCtx.strokeStyle = '#00FF00';
+            iotArchCtx.lineWidth = 2;
+            iotArchCtx.strokeRect(180, 50, 200, 80);
+            iotArchCtx.fillStyle = '#00FF00';
+            iotArchCtx.font = 'bold 12px monospace';
+            iotArchCtx.fillText('POWER MANAGEMENT', 280, 75);
+            iotArchCtx.font = '10px monospace';
+            iotArchCtx.fillStyle = '#CCC';
+            iotArchCtx.fillText('[PMIC] [LDO 1.8V]', 280, 95);
+            iotArchCtx.fillText('[Buck 3.3V] [Load SW]', 280, 110);
+
+            // Arrows from battery/solar to power
+            iotArchCtx.strokeStyle = '#888';
+            iotArchCtx.lineWidth = 2;
+            iotArchCtx.fillStyle = '#888';
+            iotArchCtx.beginPath();
+            iotArchCtx.moveTo(130, 90);
+            iotArchCtx.lineTo(172, 90);
+            iotArchCtx.stroke();
+            iotArchCtx.beginPath();
+            iotArchCtx.moveTo(172, 90);
+            iotArchCtx.lineTo(165, 85);
+            iotArchCtx.lineTo(165, 95);
+            iotArchCtx.closePath();
+            iotArchCtx.fill();
+
+            iotArchCtx.setLineDash([4, 4]);
+            iotArchCtx.beginPath();
+            iotArchCtx.moveTo(130, 175);
+            iotArchCtx.lineTo(160, 175);
+            iotArchCtx.lineTo(160, 110);
+            iotArchCtx.lineTo(172, 110);
+            iotArchCtx.stroke();
+            iotArchCtx.setLineDash([]);
+
+            // MCU block
+            iotArchCtx.fillStyle = '#222';
+            iotArchCtx.fillRect(430, 50, 180, 100);
+            iotArchCtx.strokeStyle = '#00FFFF';
+            iotArchCtx.lineWidth = 2;
+            iotArchCtx.strokeRect(430, 50, 180, 100);
+            iotArchCtx.fillStyle = '#00FFFF';
+            iotArchCtx.font = 'bold 12px monospace';
+            iotArchCtx.fillText('MCU (Cortex-M0+)', 520, 75);
+            iotArchCtx.font = '9px monospace';
+            iotArchCtx.fillStyle = '#CCC';
+            iotArchCtx.fillText('Ultra-low power: 0.5μA', 520, 95);
+            iotArchCtx.fillText('RTC wakeup / GPIO int', 520, 110);
+            iotArchCtx.fillText('ADC, I2C, SPI', 520, 125);
+
+            // Arrow from power to MCU
+            iotArchCtx.strokeStyle = '#888';
+            iotArchCtx.beginPath();
+            iotArchCtx.moveTo(380, 90);
+            iotArchCtx.lineTo(422, 90);
+            iotArchCtx.stroke();
+            iotArchCtx.fillStyle = '#888';
+            iotArchCtx.beginPath();
+            iotArchCtx.moveTo(422, 90);
+            iotArchCtx.lineTo(415, 85);
+            iotArchCtx.lineTo(415, 95);
+            iotArchCtx.closePath();
+            iotArchCtx.fill();
+
+            // Sensors block
+            iotArchCtx.fillStyle = '#222';
+            iotArchCtx.fillRect(430, 180, 160, 100);
+            iotArchCtx.strokeStyle = '#FF66FF';
+            iotArchCtx.lineWidth = 2;
+            iotArchCtx.strokeRect(430, 180, 160, 100);
+            iotArchCtx.fillStyle = '#FF66FF';
+            iotArchCtx.font = 'bold 12px monospace';
+            iotArchCtx.fillText('SENSORS', 510, 200);
+            iotArchCtx.font = '9px monospace';
+            iotArchCtx.fillStyle = '#CCC';
+            iotArchCtx.fillText('Temp/Humidity (I2C)', 510, 220);
+            iotArchCtx.fillText('Accelerometer (SPI)', 510, 235);
+            iotArchCtx.fillText('Light sensor (Analog)', 510, 250);
+            iotArchCtx.fillStyle = '#888';
+            iotArchCtx.fillText('Power gated', 510, 268);
+
+            // Wireless block
+            iotArchCtx.fillStyle = '#222';
+            iotArchCtx.fillRect(650, 50, 140, 100);
+            iotArchCtx.strokeStyle = '#FFFF00';
+            iotArchCtx.lineWidth = 2;
+            iotArchCtx.strokeRect(650, 50, 140, 100);
+            iotArchCtx.fillStyle = '#FFFF00';
+            iotArchCtx.font = 'bold 12px monospace';
+            iotArchCtx.fillText('WIRELESS', 720, 75);
+            iotArchCtx.font = '9px monospace';
+            iotArchCtx.fillStyle = '#CCC';
+            iotArchCtx.fillText('BLE 5.0', 720, 95);
+            iotArchCtx.fillText('LoRa (optional)', 720, 110);
+            iotArchCtx.fillText('TX: +4dBm, 15mA', 720, 125);
+
+            // Antenna symbol
+            iotArchCtx.strokeStyle = '#FFFF00';
+            iotArchCtx.lineWidth = 2;
+            iotArchCtx.beginPath();
+            iotArchCtx.moveTo(810, 80);
+            iotArchCtx.lineTo(830, 80);
+            iotArchCtx.lineTo(830, 60);
+            iotArchCtx.moveTo(830, 80);
+            iotArchCtx.lineTo(830, 100);
+            iotArchCtx.stroke();
+
+            // Connections from MCU
+            iotArchCtx.strokeStyle = '#888';
+            iotArchCtx.lineWidth = 1;
+            iotArchCtx.beginPath();
+            iotArchCtx.moveTo(520, 150);
+            iotArchCtx.lineTo(520, 172);
+            iotArchCtx.stroke();
+            iotArchCtx.fillStyle = '#888';
+            iotArchCtx.beginPath();
+            iotArchCtx.moveTo(520, 172);
+            iotArchCtx.lineTo(515, 165);
+            iotArchCtx.lineTo(525, 165);
+            iotArchCtx.closePath();
+            iotArchCtx.fill();
+
+            iotArchCtx.beginPath();
+            iotArchCtx.moveTo(610, 100);
+            iotArchCtx.lineTo(642, 100);
+            iotArchCtx.stroke();
+            iotArchCtx.beginPath();
+            iotArchCtx.moveTo(642, 100);
+            iotArchCtx.lineTo(635, 95);
+            iotArchCtx.lineTo(635, 105);
+            iotArchCtx.closePath();
+            iotArchCtx.fill();
+
+            // Labels for connections
+            iotArchCtx.fillStyle = '#666';
+            iotArchCtx.font = '8px monospace';
+            iotArchCtx.fillText('I2C/SPI', 520, 165);
+            iotArchCtx.fillText('SPI', 625, 95);
+        }
+
+        // Event listeners
+        ['battery-cap', 'sleep-current', 'active-current', 'wake-interval', 'active-duration'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawBatteryLife);
+        });
+
+        ['mcu-sleep', 'rtc-current', 'ldo-iq', 'sensor-leak'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawPowerBudget);
+        });
+
+        ['tx-power', 'data-rate', 'packet-size', 'protocol'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawWireless);
+        });
+
+        ['solar-size', 'light-level', 'light-hours', 'harvester-eff'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawHarvesting);
+        });
+
+        // Schematic
+        function createIotSchematic() {
+            const container = document.getElementById('iot-schematic');
+            const svg = new SchematicSVG(700, 280);
+
+            // Battery
+            svg.addText(30, 100, '+', '14px', 'end', '#FF0000');
+            svg.line(40, 100, 70, 100, '#FF0000');
+            svg.rect(70, 85, 40, 30, '#181818', '#FF0000');
+            svg.addText(90, 105, 'BAT', '10px', 'middle');
+            svg.line(110, 100, 140, 100);
+            svg.addText(30, 130, '-', '14px', 'end');
+            svg.line(40, 130, 140, 130);
+
+            // LDO
+            svg.rect(150, 80, 70, 60, '#181818', '#00FF00');
+            svg.addText(185, 105, 'LDO', '12px', 'middle', '#00FF00');
+            svg.addText(185, 120, '1.8V', '10px', 'middle');
+
+            svg.line(140, 100, 150, 100);
+            svg.line(220, 100, 260, 100);
+
+            // Load switch
+            svg.rect(270, 80, 60, 60, '#181818', '#FFFF00');
+            svg.addText(300, 105, 'Load', '10px', 'middle', '#FFFF00');
+            svg.addText(300, 120, 'Switch', '10px', 'middle');
+
+            svg.line(330, 100, 360, 100);
+
+            // Sensor
+            svg.rect(370, 80, 70, 60, '#181818', '#00FFFF');
+            svg.addText(405, 105, 'Sensor', '11px', 'middle', '#00FFFF');
+            svg.addText(405, 120, 'T/H', '10px', 'middle');
+
+            // MCU
+            svg.rect(480, 60, 100, 120, '#181818', '#FF6600');
+            svg.addText(530, 95, 'MCU', '14px', 'middle', '#FF6600');
+            svg.addText(530, 115, 'Cortex', '10px', 'middle');
+            svg.addText(530, 130, 'M0+', '10px', 'middle');
+
+            // Connections
+            svg.line(440, 100, 480, 100);
+            svg.addText(460, 95, 'I2C', '9px', 'middle', '#888');
+
+            // Enable signal
+            svg.line(530, 60, 530, 40);
+            svg.line(530, 40, 300, 40);
+            svg.line(300, 40, 300, 80);
+            svg.addText(415, 35, 'EN', '9px', 'middle', '#888');
+
+            // Radio
+            svg.rect(610, 80, 70, 60, '#181818', '#FF66FF');
+            svg.addText(645, 100, 'BLE', '12px', 'middle', '#FF66FF');
+            svg.addText(645, 118, 'Radio', '10px', 'middle');
+
+            svg.line(580, 110, 610, 110);
+            svg.addText(595, 100, 'SPI', '9px', 'middle', '#888');
+
+            // Antenna
+            svg.line(680, 100, 700, 100);
+            svg.line(700, 85, 700, 115);
+
+            // Ground
+            svg.line(185, 140, 185, 180);
+            svg.line(300, 140, 300, 180);
+            svg.line(405, 140, 405, 180);
+            svg.line(530, 180, 530, 200);
+            svg.line(645, 140, 645, 180);
+
+            svg.line(140, 180, 645, 180);
+            svg.addGround(400, 200);
+
+            // Power annotations
+            svg.addText(90, 75, '3V', '10px', 'middle', '#888');
+            svg.addText(185, 165, 'Iq<1μA', '9px', 'middle', '#888');
+            svg.addText(300, 165, '<10nA off', '9px', 'middle', '#888');
+
+            container.appendChild(svg.svg);
+        }
 
         // Initialize
-        updateBuckBode();
-        if (typeof calcCompensation === 'function') {
-            calcCompensation();
-        }
-    })();
+        document.addEventListener('DOMContentLoaded', () => {
+            drawIotArchitecture();
+            drawBatteryLife();
+            drawPowerBudget();
+            drawWireless();
+            drawHarvesting();
+            createIotSchematic();
+
+            // Design checklist
+            new ChecklistWidget('iot-checklist', {
+                title: 'Battery-Powered IoT Design',
+                items: [
+                    { text: 'Select MCU with <1μA sleep current', critical: true },
+                    { text: 'Use LDO with <1μA quiescent current', critical: true },
+                    { text: 'Power-gate sensors when not in use', critical: true },
+                    { text: 'Minimize wake duration (process data in sleep if possible)', critical: false },
+                    { text: 'Optimize radio packet size for efficiency', critical: true },
+                    { text: 'Use low-power RTC for scheduled wakeups', critical: false },
+                    { text: 'Implement adaptive duty cycling based on events', critical: false },
+                    { text: 'Add brownout detection with graceful shutdown', critical: true },
+                    { text: 'Consider energy harvesting for extended life', critical: false },
+                    { text: 'Minimize PCB leakage (flux residue, moisture)', critical: false },
+                    { text: 'Select battery with low self-discharge', critical: true },
+                    { text: 'Include fuel gauge or voltage monitoring', critical: false }
+                ]
+            });
+
+            // Exercises
+            new ExerciseWidget('iot-exercises', {
+                exercises: [
+                    {
+                        question: 'A sensor wakes every 15 minutes, takes a reading in 50ms at 5mA, and transmits for 10ms at 15mA. Sleep current is 1μA. Calculate average current and battery life with a 225mAh CR2032.',
+                        hint: 'Average I = (sleep_I × sleep_time + active_I × active_time) / total_time',
+                        answer: 'Wake interval = 15 min = 900,000 ms. Active time = 60 ms. Sleep time = 899,940 ms. Active current (weighted) = (50ms×5mA + 10ms×15mA)/60ms = 5.83mA. Avg I = (1μA × 899940 + 5830μA × 60) / 900000 = (899.94 + 349.8) / 900 = 1.39 μA. Battery life = 225mAh / 0.00139mA = 162,000 hours = 18.5 years. (In practice, battery self-discharge limits to ~10 years)'
+                    },
+                    {
+                        question: 'A BLE advertisement packet is 31 bytes. At 1 Mbps with 15mA TX current, what is the energy per packet?',
+                        hint: 'Energy = V × I × t, time = bits / rate',
+                        answer: 'Packet = 31 bytes + ~15 bytes overhead = 46 bytes = 368 bits. TX time = 368 bits / 1,000,000 bps = 368 μs. Assume 3V supply. Energy = 3V × 15mA × 368μs = 16.6 μJ per packet. If advertising 3 times per event (typical BLE), total = 50 μJ per advertisement event.'
+                    },
+                    {
+                        question: 'Design a power budget for 5-year life from a 225mAh coin cell. Maximum average current?',
+                        hint: '5 years = 43,800 hours',
+                        answer: 'Required life = 5 years × 8760 hours/year = 43,800 hours. Max average current = 225 mAh / 43,800 hours = 5.14 μA. This must include: MCU sleep (<0.5μA), LDO quiescent (<1μA), RTC (<0.5μA), sensor leakage (<0.1μA), and active duty cycle contribution. Budget: ~2μA for sleep, ~3μA for activity averaged over time.'
+                    },
+                    {
+                        question: 'A 5 cm² indoor solar cell generates 0.5mW at 500 lux. If the system consumes 5 μW average, is it energy autonomous? What size capacitor is needed for 12 hours of darkness?',
+                        hint: 'Compare power levels. Energy storage E = P × t, C = 2E/V²',
+                        answer: 'Harvested: 500μW (in light). Consumed: 5μW. Ratio: 100:1 - definitely energy positive in light! Energy for 12 hours darkness: 5μW × 12h = 60μWh = 0.216J. For supercap at 3V initial, 2V minimum: E = 0.5×C×(3²-2²) = 2.5C. Need C = 0.216J / 2.5 = 86mF. Use 100mF supercap. With 80% harvester efficiency and 6 hours sunlight: 500μW × 0.8 × 6h = 2.4mWh stored >> 60μWh needed.'
+                    }
+                ]
+            });
+        });
     </script>
-</article>
+</body>
+</html>

@@ -1,1020 +1,720 @@
-<!-- Module 23, Lesson 8: Sensor Interface Design -->
+<!-- Module 23, Lesson 8: EMI/RFI Debugging -->
 <div class="lesson-content" data-module="23" data-lesson="8">
 
     <div class="card">
-        <h2>Sensor Interface Design</h2>
-        <p>Sensors convert physical quantities into electrical signals that require careful analog signal conditioning before digitization. This lesson covers common sensor types and their interface circuits for industrial, automotive, and consumer applications.</p>
+        <h2>Debugging EMI/RFI Problems</h2>
+        <p>Electromagnetic interference causes mysterious failures, noise, and compliance failures. Learn to identify, locate, and fix EMI problems using systematic debug techniques.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Conducted</div>
+                <div class="v">Through wires/traces</div>
+            </div>
+            <div class="box">
+                <div class="k">Radiated</div>
+                <div class="v">Through air (E/H field)</div>
+            </div>
+            <div class="box">
+                <div class="k">Susceptibility</div>
+                <div class="v">Victim receives noise</div>
+            </div>
+            <div class="box">
+                <div class="k">Emissions</div>
+                <div class="v">Source creates noise</div>
+            </div>
+        </div>
 
         <div class="notice">
-            <strong>Industry Reference:</strong> Based on <a href="https://www.analog.com/en/resources/technical-articles/rtd-measurement-signal-conditioning.html" target="_blank">Analog Devices RTD Measurement</a>, <a href="https://www.ti.com/lit/an/sbaa265a/sbaa265a.pdf" target="_blank">TI Precision Labs - Sensors</a>, and <a href="https://www.analog.com/en/resources/technical-articles/choosing-the-optimal-decoupling-capacitor.html" target="_blank">Sensor Signal Chain Design</a>.
+            <strong>Debug Insight:</strong> EMI = Source + Coupling Path + Victim. To fix, you can address any of these three. Usually easiest to break the coupling path or harden the victim.
         </div>
     </div>
 
     <div class="card">
-        <h3>Common Industrial Sensors</h3>
+        <h3>Interactive: EMI Coupling Analysis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="emi-freq">Noise Frequency</label>
+                <input type="text" id="emi-freq" value="100M">
+            </div>
+            <div class="c3">
+                <label for="emi-dist">Distance (cm)</label>
+                <input type="range" id="emi-dist" min="1" max="100" step="1" value="10">
+                <span id="emi-dist-val" class="mono">10cm</span>
+            </div>
+            <div class="c3">
+                <label for="emi-type">Coupling Type</label>
+                <select id="emi-type">
+                    <option value="capacitive">Capacitive (E-field)</option>
+                    <option value="inductive">Inductive (H-field)</option>
+                    <option value="radiated">Radiated (far-field)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="emi-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Wavelength</div>
+                <div class="v mono" id="emi-lambda">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Near/Far Field</div>
+                <div class="v mono" id="emi-field">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Coupling Impedance</div>
+                <div class="v mono" id="emi-coupling">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Attenuation</div>
+                <div class="v mono" id="emi-atten">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Common EMI Symptoms and Sources</h3>
 
         <table class="table">
             <tr>
-                <th>Sensor Type</th>
-                <th>Measures</th>
-                <th>Output Type</th>
-                <th>Typical Range</th>
-                <th>Interface</th>
+                <th>Symptom</th>
+                <th>Likely Source</th>
+                <th>Frequency</th>
+                <th>Debug Approach</th>
             </tr>
             <tr>
-                <td>RTD (PT100/PT1000)</td>
-                <td>Temperature</td>
-                <td>Resistance</td>
-                <td>-200 to +850°C</td>
-                <td>Excitation + ADC</td>
+                <td>Noise synced to switching</td>
+                <td>SMPS, PWM motor</td>
+                <td>kHz-MHz + harmonics</td>
+                <td>Scope sync to switcher, filter</td>
             </tr>
             <tr>
-                <td>Thermocouple</td>
-                <td>Temperature</td>
-                <td>Voltage (µV/°C)</td>
-                <td>-270 to +2300°C</td>
-                <td>Low-noise amplifier</td>
+                <td>Noise when MCU active</td>
+                <td>Digital clock harmonics</td>
+                <td>Clock freq × N</td>
+                <td>Spread spectrum, shielding</td>
             </tr>
             <tr>
-                <td>Strain Gauge</td>
-                <td>Force/Pressure</td>
-                <td>Resistance (ΔR/R)</td>
-                <td>0.1% to 2% ΔR</td>
-                <td>Bridge + IA</td>
+                <td>RF pickup on audio</td>
+                <td>AM/FM/cell broadcast</td>
+                <td>500kHz - 2GHz</td>
+                <td>RF bypass caps, ferrites</td>
             </tr>
             <tr>
-                <td>Pressure Transducer</td>
-                <td>Pressure</td>
-                <td>4-20mA or 0-5V</td>
-                <td>0-1000 bar</td>
-                <td>Current loop or ADC</td>
+                <td>ESD causing resets</td>
+                <td>Human body discharge</td>
+                <td>Broadband ns pulse</td>
+                <td>TVS diodes, filtering</td>
             </tr>
             <tr>
-                <td>Hall Effect</td>
-                <td>Magnetic Field</td>
-                <td>Voltage</td>
-                <td>mT to T</td>
-                <td>Diff amp or comparator</td>
+                <td>Fails near motors/relays</td>
+                <td>Inductive switching</td>
+                <td>Broadband spikes</td>
+                <td>Snubbers, isolation</td>
             </tr>
             <tr>
-                <td>Photodiode</td>
-                <td>Light Intensity</td>
-                <td>Current</td>
-                <td>pA to mA</td>
-                <td>Transimpedance amp</td>
+                <td>Fails EMC test</td>
+                <td>Design emissions</td>
+                <td>Per standard</td>
+                <td>Near-field probe, fix layout</td>
             </tr>
         </table>
     </div>
 
     <div class="card">
-        <h3>Section 1: RTD Temperature Measurement</h3>
-
-        <p>RTDs (Resistance Temperature Detectors) are highly accurate temperature sensors. PT100 has 100Ω at 0°C; PT1000 has 1000Ω at 0°C.</p>
-
-        <canvas id="rtd-4wire-canvas" width="900" height="400" style="width:100%;max-width:900px;background:#0d1117;border-radius:8px;"></canvas>
-
-        <div class="subsection">
-            <h4>Interactive: RTD Calculator</h4>
-
-            <div class="controls">
-                <div class="c3">
-                    <label for="rtd-temp">Temperature (°C)</label>
-                    <input type="range" id="rtd-temp" min="-50" max="500" step="1" value="25">
-                    <span id="rtd-temp-val" class="mono">25°C</span>
-                </div>
-                <div class="c3">
-                    <label for="rtd-r0">R<sub>0</sub> (Ω at 0°C)</label>
-                    <input type="range" id="rtd-r0" min="100" max="1000" step="100" value="100">
-                    <span id="rtd-r0-val" class="mono">100Ω (PT100)</span>
-                </div>
-                <div class="c3">
-                    <label for="rtd-iex">Excitation Current (mA)</label>
-                    <input type="range" id="rtd-iex" min="0.1" max="2" step="0.1" value="1">
-                    <span id="rtd-iex-val" class="mono">1.0mA</span>
-                </div>
-            </div>
-
-            <div class="kv">
-                <div class="box">
-                    <div class="k">RTD Resistance</div>
-                    <div class="v mono" id="rtd-resistance">--</div>
-                </div>
-                <div class="box">
-                    <div class="k">Sense Voltage</div>
-                    <div class="v mono" id="rtd-voltage">--</div>
-                </div>
-                <div class="box">
-                    <div class="k">Self-Heating Power</div>
-                    <div class="v mono" id="rtd-power">--</div>
-                </div>
-                <div class="box">
-                    <div class="k">Temperature Error from Self-Heat</div>
-                    <div class="v mono" id="rtd-error">--</div>
-                </div>
-            </div>
-        </div>
+        <h3>EMI Debug Tools</h3>
+        <canvas id="emi-tools-canvas" width="900" height="320"></canvas>
     </div>
 
     <div class="card">
-        <h3>Section 2: Thermocouple Interface</h3>
-
-        <p>Thermocouples generate a voltage proportional to temperature difference between hot and cold junctions. Cold junction compensation (CJC) is required.</p>
-
-        <canvas id="thermocouple-canvas" width="900" height="380" style="width:100%;max-width:900px;background:#0d1117;border-radius:8px;"></canvas>
-
-        <table class="table">
-            <tr>
-                <th>Type</th>
-                <th>Materials</th>
-                <th>Range</th>
-                <th>Sensitivity</th>
-            </tr>
-            <tr>
-                <td>K</td>
-                <td>Chromel/Alumel</td>
-                <td>-200 to +1350°C</td>
-                <td>~41 µV/°C</td>
-            </tr>
-            <tr>
-                <td>J</td>
-                <td>Iron/Constantan</td>
-                <td>-40 to +750°C</td>
-                <td>~52 µV/°C</td>
-            </tr>
-            <tr>
-                <td>T</td>
-                <td>Copper/Constantan</td>
-                <td>-200 to +350°C</td>
-                <td>~43 µV/°C</td>
-            </tr>
-            <tr>
-                <td>E</td>
-                <td>Chromel/Constantan</td>
-                <td>-200 to +900°C</td>
-                <td>~68 µV/°C</td>
-            </tr>
-        </table>
-    </div>
-
-    <div class="card">
-        <h3>Section 3: Strain Gauge / Load Cell</h3>
-
-        <p>Strain gauges measure deformation by resistance change. Typical gauge factor is 2, meaning ΔR/R = 2 × strain.</p>
-
-        <div class="system-diagram" style="background:#1a1f2e;padding:15px;border-radius:8px;overflow-x:auto;">
-            <svg viewBox="0 0 600 360" style="width:100%;max-width:600px;height:auto;">
-                <defs>
-                    <marker id="arrow-bridge" viewBox="0 0 5 4" refX="5" refY="2" markerWidth="5" markerHeight="4" orient="auto">
-                        <path d="M 0 0 L 5 2 L 0 4 z" fill="#fbbf24"/>
-                    </marker>
-                </defs>
-
-                <!-- Title -->
-                <text x="180" y="20" fill="#6ee7ff" font-size="13" font-weight="bold" text-anchor="middle">WHEATSTONE BRIDGE LOAD CELL</text>
-
-                <!-- V_excite label at top -->
-                <text x="180" y="45" fill="#34d399" font-size="10" text-anchor="middle">V_excite (5-10V)</text>
-                <line x1="180" y1="50" x2="180" y2="65" stroke="#34d399" stroke-width="1.5"/>
-
-                <!-- Top junction -->
-                <circle cx="180" cy="65" r="3" fill="#e6edf3"/>
-
-                <!-- Wires to R1 and R2 -->
-                <line x1="180" y1="65" x2="100" y2="65" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="100" y1="65" x2="100" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="180" y1="65" x2="260" y2="65" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="260" y1="65" x2="260" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
-
-                <!-- R1 (top left) -->
-                <rect x="85" y="80" width="30" height="50" rx="3" fill="none" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="100" y="110" fill="#6ee7ff" font-size="9" text-anchor="middle">R1</text>
-                <text x="65" y="105" fill="#9fb0c0" font-size="8">120Ω</text>
-                <text x="65" y="117" fill="#34d399" font-size="8">+ε</text>
-
-                <!-- R2 (top right) -->
-                <rect x="245" y="80" width="30" height="50" rx="3" fill="none" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="260" y="110" fill="#6ee7ff" font-size="9" text-anchor="middle">R2</text>
-                <text x="290" y="105" fill="#9fb0c0" font-size="8">120Ω</text>
-                <text x="290" y="117" fill="#ff6b6b" font-size="8">−ε</text>
-
-                <!-- Middle junction line (V+ and V-) -->
-                <line x1="100" y1="130" x2="100" y2="145" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="260" y1="130" x2="260" y2="145" stroke="#e6edf3" stroke-width="1.5"/>
-                <circle cx="100" cy="145" r="3" fill="#fbbf24"/>
-                <circle cx="260" cy="145" r="3" fill="#fbbf24"/>
-                <text x="70" y="148" fill="#fbbf24" font-size="9">V+</text>
-                <text x="280" y="148" fill="#fbbf24" font-size="9">V−</text>
-
-                <!-- R4 (bottom left) -->
-                <line x1="100" y1="145" x2="100" y2="160" stroke="#e6edf3" stroke-width="1.5"/>
-                <rect x="85" y="160" width="30" height="50" rx="3" fill="none" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="100" y="190" fill="#6ee7ff" font-size="9" text-anchor="middle">R4</text>
-                <text x="65" y="185" fill="#9fb0c0" font-size="8">120Ω</text>
-                <text x="65" y="197" fill="#ff6b6b" font-size="8">−ε</text>
-
-                <!-- R3 (bottom right) -->
-                <line x1="260" y1="145" x2="260" y2="160" stroke="#e6edf3" stroke-width="1.5"/>
-                <rect x="245" y="160" width="30" height="50" rx="3" fill="none" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="260" y="190" fill="#6ee7ff" font-size="9" text-anchor="middle">R3</text>
-                <text x="290" y="185" fill="#9fb0c0" font-size="8">120Ω</text>
-                <text x="290" y="197" fill="#34d399" font-size="8">+ε</text>
-
-                <!-- Bottom connections to GND -->
-                <line x1="100" y1="210" x2="100" y2="230" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="260" y1="210" x2="260" y2="230" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="100" y1="230" x2="260" y2="230" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="180" y1="230" x2="180" y2="245" stroke="#e6edf3" stroke-width="1.5"/>
-
-                <!-- GND symbol -->
-                <line x1="165" y1="245" x2="195" y2="245" stroke="#9fb0c0" stroke-width="2"/>
-                <line x1="170" y1="250" x2="190" y2="250" stroke="#9fb0c0" stroke-width="1.5"/>
-                <line x1="175" y1="255" x2="185" y2="255" stroke="#9fb0c0" stroke-width="1"/>
-                <text x="180" y="270" fill="#9fb0c0" font-size="9" text-anchor="middle">GND</text>
-
-                <!-- Instrumentation Amp section -->
-                <rect x="350" y="95" width="220" height="110" rx="6" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="460" y="115" fill="#6ee7ff" font-size="11" text-anchor="middle" font-weight="bold">Instrumentation Amplifier</text>
-                <text x="460" y="130" fill="#9fb0c0" font-size="9" text-anchor="middle">(INA128, AD8421)</text>
-                <text x="460" y="150" fill="#9fb0c0" font-size="9" text-anchor="middle">Gain = 100-500 for mV→V</text>
-                <text x="460" y="165" fill="#9fb0c0" font-size="9" text-anchor="middle">CMRR &gt; 100dB critical</text>
-                <text x="460" y="180" fill="#9fb0c0" font-size="9" text-anchor="middle">Low offset drift (&lt;1µV/°C)</text>
-
-                <!-- V+ to IN+ -->
-                <line x1="100" y1="145" x2="100" y2="125" stroke="#fbbf24" stroke-width="1.5"/>
-                <line x1="100" y1="125" x2="350" y2="125" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-bridge)"/>
-                <text x="330" y="118" fill="#fbbf24" font-size="8">IN+</text>
-
-                <!-- V- to IN- -->
-                <line x1="260" y1="145" x2="260" y2="170" stroke="#fbbf24" stroke-width="1.5"/>
-                <line x1="260" y1="170" x2="350" y2="170" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-bridge)"/>
-                <text x="330" y="163" fill="#fbbf24" font-size="8">IN−</text>
-
-                <!-- Output to ADC -->
-                <line x1="570" y1="150" x2="590" y2="150" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-bridge)"/>
-                <text x="595" y="153" fill="#fbbf24" font-size="9">ADC</text>
-
-                <!-- Equations box -->
-                <rect x="50" y="285" width="500" height="65" rx="4" fill="#2d2d4a" stroke="#9fb0c0" stroke-width="1"/>
-                <text x="65" y="302" fill="#e6edf3" font-size="10" font-weight="bold">Full bridge output:</text>
-                <text x="175" y="302" fill="#9fb0c0" font-size="10">V_out = V_exc × (ΔR/R) = V_exc × GF × ε</text>
-                <text x="65" y="320" fill="#9fb0c0" font-size="9">Typical strain: 1000 microstrain (µε) = 0.1%</text>
-                <text x="65" y="338" fill="#9fb0c0" font-size="9">With 10V excitation and GF=2: V_out = 10V × 2 × 0.001 = 20mV</text>
-            </svg>
-        </div>
-
-        <div class="subsection">
-            <h4>Interactive: Load Cell Calculator</h4>
-
-            <div class="controls">
-                <div class="c3">
-                    <label for="lc-vex">Excitation (V)</label>
-                    <input type="range" id="lc-vex" min="2" max="15" step="0.5" value="10">
-                    <span id="lc-vex-val" class="mono">10V</span>
-                </div>
-                <div class="c3">
-                    <label for="lc-sens">Sensitivity (mV/V)</label>
-                    <input type="range" id="lc-sens" min="0.5" max="3" step="0.1" value="2">
-                    <span id="lc-sens-val" class="mono">2 mV/V</span>
-                </div>
-                <div class="c3">
-                    <label for="lc-cap">Full Scale Capacity (kg)</label>
-                    <input type="range" id="lc-cap" min="1" max="1000" step="1" value="100">
-                    <span id="lc-cap-val" class="mono">100 kg</span>
-                </div>
-                <div class="c3">
-                    <label for="lc-load">Applied Load (kg)</label>
-                    <input type="range" id="lc-load" min="0" max="1000" step="1" value="50">
-                    <span id="lc-load-val" class="mono">50 kg</span>
-                </div>
-            </div>
-
-            <div class="kv">
-                <div class="box">
-                    <div class="k">Full Scale Output</div>
-                    <div class="v mono" id="lc-fso">--</div>
-                </div>
-                <div class="box">
-                    <div class="k">Signal at Load</div>
-                    <div class="v mono" id="lc-signal">--</div>
-                </div>
-                <div class="box">
-                    <div class="k">Required Gain for 5V</div>
-                    <div class="v mono" id="lc-gain">--</div>
-                </div>
-                <div class="box">
-                    <div class="k">Resolution (24-bit ADC)</div>
-                    <div class="v mono" id="lc-resolution">--</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Section 4: Pressure Sensor Interface</h3>
-
-        <p>MEMS pressure sensors typically output mV-level signals that require amplification. Many modern sensors include on-chip signal conditioning.</p>
-
-        <canvas id="pressure-sensor-canvas" width="900" height="300" style="width:100%;max-width:900px;background:#0d1117;border-radius:8px;"></canvas>
+        <h3>EMI Filter Schematic</h3>
+        <div id="emi-schematic"></div>
     </div>
 
     <div class="card">
         <h3>SPICE Netlist</h3>
-        <div id="spice-container"></div>
+        <div id="emi-spice"></div>
     </div>
 
     <div class="card">
-        <h3>Verification Checklist</h3>
-        <div id="checklist-container"></div>
+        <h3>Debug Checklist</h3>
+        <div id="emi-checklist"></div>
     </div>
 
     <div class="card">
         <h3>Practice Exercises</h3>
-        <div id="exercise-container"></div>
+        <div id="emi-exercises"></div>
     </div>
 
 </div>
 
 <script>
 (function() {
-    // 4-Wire RTD Measurement Canvas
-    (function() {
-        const canvas = document.getElementById('rtd-4wire-canvas');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
 
-        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+    const canvas = document.getElementById('emi-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
 
-        function roundRect(c, x, y, w, h, r) {
-            c.beginPath();
-            c.moveTo(x + r, y);
-            c.lineTo(x + w - r, y);
-            c.quadraticCurveTo(x + w, y, x + w, y + r);
-            c.lineTo(x + w, y + h - r);
-            c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-            c.lineTo(x + r, y + h);
-            c.quadraticCurveTo(x, y + h, x, y + h - r);
-            c.lineTo(x, y + r);
-            c.quadraticCurveTo(x, y, x + r, y);
-            c.closePath();
+    const c = 3e8; // Speed of light
+
+    function update() {
+        const freq = AD.parseValue(document.getElementById('emi-freq').value) || 100e6;
+        const dist = AD.num('emi-dist') || 10;
+        const couplingType = document.getElementById('emi-type').value;
+
+        document.getElementById('emi-dist-val').textContent = dist + 'cm';
+
+        const lambda = c / freq;
+        const distM = dist / 100;
+        const nearFieldBoundary = lambda / (2 * Math.PI);
+
+        const isNearField = distM < nearFieldBoundary;
+
+        let couplingZ, attenuation;
+        if (couplingType === 'capacitive') {
+            // Capacitive coupling: 1/(2πfC), C ~ ε0*A/d
+            const C_approx = 8.85e-12 * 0.001 / distM; // ~1cm² area
+            couplingZ = 1 / (2 * Math.PI * freq * C_approx);
+            attenuation = 20 * Math.log10(dist / 1); // Increases with distance
+        } else if (couplingType === 'inductive') {
+            // Inductive coupling: 2πfM, M decreases with distance
+            const M_approx = 1e-9 / (distM * distM); // Mutual inductance
+            couplingZ = 2 * Math.PI * freq * M_approx;
+            attenuation = 40 * Math.log10(dist / 1); // 1/r² for H-field
+        } else {
+            // Radiated: far-field, 1/r
+            couplingZ = 377; // Free space impedance
+            attenuation = 20 * Math.log10(distM) + 20 * Math.log10(freq) - 147.56;
         }
 
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        document.getElementById('emi-lambda').textContent = lambda >= 1 ?
+            lambda.toFixed(1) + 'm' : (lambda * 100).toFixed(1) + 'cm';
+        document.getElementById('emi-field').textContent = isNearField ? 'Near field' : 'Far field';
+        document.getElementById('emi-coupling').textContent = AD.formatValue(couplingZ, 'Ω');
+        document.getElementById('emi-atten').textContent = attenuation.toFixed(0) + 'dB';
 
-        // Title
-        ctx.fillStyle = TEK.ch2;
-        ctx.font = 'bold 16px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('4-WIRE RTD MEASUREMENT (Highest Accuracy)', 450, 25);
+        // Draw visualization
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
 
-        // Current Source block
-        roundRect(ctx, 40, 60, 130, 100, 6);
-        ctx.strokeStyle = TEK.ch2;
+        // Draw source and victim
+        const srcX = 150, srcY = H/2;
+        const victimX = 150 + dist * 5, victimY = H/2;
+
+        // Source (noisy circuit)
+        ctx.fillStyle = '#f44';
+        ctx.fillRect(srcX - 40, srcY - 30, 80, 60);
+        ctx.strokeStyle = '#fff';
         ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillStyle = '#1a1f2e';
-        ctx.fill();
-
+        ctx.strokeRect(srcX - 40, srcY - 30, 80, 60);
         ctx.fillStyle = '#fff';
-        ctx.font = '12px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('Current Source', 105, 85);
-        ctx.fillStyle = '#9fb0c0';
         ctx.font = '11px monospace';
-        ctx.fillText('I_excite', 105, 105);
-        ctx.fillText('(typically 1mA)', 105, 120);
-        ctx.fillStyle = TEK.ch4;
-        ctx.fillText('I+ →', 75, 140);
-        ctx.fillText('I- →', 125, 140);
+        ctx.textAlign = 'center';
+        ctx.fillText('SOURCE', srcX, srcY - 10);
+        ctx.fillText('(Aggressor)', srcX, srcY + 10);
 
-        // RTD Sensor block
-        roundRect(ctx, 550, 60, 180, 180, 6);
-        ctx.strokeStyle = TEK.ch4;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillStyle = '#1a1f2e';
-        ctx.fill();
-
+        // Victim (sensitive circuit)
+        ctx.fillStyle = '#4af';
+        ctx.fillRect(victimX - 40, victimY - 30, 80, 60);
+        ctx.strokeStyle = '#fff';
+        ctx.strokeRect(victimX - 40, victimY - 30, 80, 60);
         ctx.fillStyle = '#fff';
-        ctx.font = '12px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('RTD Sensor', 640, 85);
-        ctx.fillStyle = '#9fb0c0';
-        ctx.fillText('(PT100 at probe)', 640, 105);
+        ctx.fillText('VICTIM', victimX, victimY - 10);
+        ctx.fillText('(Sensitive)', victimX, victimY + 10);
 
-        // RTD element inside
-        roundRect(ctx, 600, 130, 80, 50, 4);
-        ctx.strokeStyle = TEK.ch1;
-        ctx.stroke();
-        ctx.fillStyle = '#2a2a4a';
-        ctx.fill();
-        ctx.fillStyle = TEK.ch1;
-        ctx.font = '11px monospace';
-        ctx.fillText('RTD 100Ω', 640, 150);
-        ctx.fillText('@0°C', 640, 165);
-
-        // Force + / Force -
-        ctx.fillStyle = TEK.ch4;
-        ctx.textAlign = 'left';
-        ctx.fillText('Force+', 560, 130);
-        ctx.fillText('Force-', 700, 130);
-
-        // Sense + / Sense -
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillText('Sense+', 560, 210);
-        ctx.fillText('Sense-', 700, 210);
-
-        // Lead resistances - Force lines
-        ctx.strokeStyle = TEK.ch4;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([]);
-
-        // I+ to Force+
-        ctx.beginPath();
-        ctx.moveTo(170, 100);
-        ctx.lineTo(280, 100);
-        ctx.stroke();
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('R_lead1', 225, 95);
-
-        ctx.beginPath();
-        ctx.moveTo(320, 100);
-        ctx.lineTo(550, 100);
-        ctx.lineTo(550, 125);
-        ctx.stroke();
-
-        // I- to Force-
-        ctx.beginPath();
-        ctx.moveTo(170, 120);
-        ctx.lineTo(280, 120);
-        ctx.stroke();
-        ctx.fillText('R_lead4', 225, 135);
-
-        ctx.beginPath();
-        ctx.moveTo(320, 120);
-        ctx.lineTo(400, 120);
-        ctx.lineTo(400, 220);
-        ctx.lineTo(730, 220);
-        ctx.lineTo(730, 125);
-        ctx.stroke();
-
-        // Instrumentation Amplifier block
-        roundRect(ctx, 40, 260, 260, 120, 6);
-        ctx.strokeStyle = TEK.ch3;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillStyle = '#1a1f2e';
-        ctx.fill();
-
-        ctx.fillStyle = '#fff';
-        ctx.font = '12px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('Instrumentation Amplifier', 170, 285);
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '11px monospace';
-        ctx.fillText('Gain = 1 to 100', 170, 310);
-        ctx.fillText('VOUT = I × R_RTD × Gain', 170, 330);
-        ctx.fillStyle = TEK.ch1;
-        ctx.textAlign = 'left';
-        ctx.fillText('IN+ ←', 55, 300);
-        ctx.fillText('IN- ←', 55, 340);
-        ctx.fillStyle = TEK.ch2;
-        ctx.textAlign = 'right';
-        ctx.fillText('→ ADC', 285, 355);
-
-        // Sense lines (no current - different color)
-        ctx.strokeStyle = TEK.ch1;
-        ctx.setLineDash([5, 3]);
-
-        // Sense+ line
-        ctx.beginPath();
-        ctx.moveTo(100, 295);
-        ctx.lineTo(450, 295);
-        ctx.lineTo(450, 205);
-        ctx.lineTo(550, 205);
-        ctx.stroke();
-        ctx.fillStyle = '#9fb0c0';
-        ctx.textAlign = 'center';
-        ctx.fillText('R_lead2', 500, 200);
-
-        // Sense- line
-        ctx.beginPath();
-        ctx.moveTo(100, 335);
-        ctx.lineTo(480, 335);
-        ctx.lineTo(480, 225);
-        ctx.lineTo(700, 225);
-        ctx.stroke();
-        ctx.fillText('R_lead3', 590, 235);
-
-        ctx.setLineDash([]);
-
-        // Key insight box
-        roundRect(ctx, 550, 270, 320, 100, 4);
-        ctx.fillStyle = '#1a3a2a';
-        ctx.fill();
-        ctx.strokeStyle = TEK.ch4;
+        // Draw coupling field
+        ctx.strokeStyle = couplingType === 'capacitive' ? '#ff0' :
+                          couplingType === 'inductive' ? '#f0f' : '#0ff';
         ctx.lineWidth = 1;
-        ctx.stroke();
+        ctx.setLineDash([5, 5]);
 
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = 'bold 11px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('Lead resistance CANCELS because', 565, 295);
-        ctx.fillText('sense leads carry NO current!', 565, 312);
-
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px monospace';
-        ctx.fillText('PT100: R(T) = R₀×(1+αT+βT²+...)', 565, 335);
-        ctx.fillText('α = 0.00385055/°C (IEC 60751)', 565, 350);
-        ctx.fillText('At 100°C: R=138.5Ω → V=138.5mV @1mA', 565, 365);
-    })();
-
-    // Thermocouple Signal Chain Canvas
-    (function() {
-        const canvas = document.getElementById('thermocouple-canvas');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-
-        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
-
-        function roundRect(c, x, y, w, h, r) {
-            c.beginPath();
-            c.moveTo(x + r, y);
-            c.lineTo(x + w - r, y);
-            c.quadraticCurveTo(x + w, y, x + w, y + r);
-            c.lineTo(x + w, y + h - r);
-            c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-            c.lineTo(x + r, y + h);
-            c.quadraticCurveTo(x, y + h, x, y + h - r);
-            c.lineTo(x, y + r);
-            c.quadraticCurveTo(x, y, x + r, y);
-            c.closePath();
-        }
-
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Title
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = 'bold 16px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('THERMOCOUPLE SIGNAL CHAIN', 450, 25);
-
-        // Hot Junction
-        roundRect(ctx, 60, 60, 120, 100, 6);
-        ctx.strokeStyle = '#ff6b6b';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillStyle = '#2a1a1a';
-        ctx.fill();
-
-        ctx.fillStyle = '#ff6b6b';
-        ctx.font = '11px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('Hot Junction', 120, 85);
-        ctx.fillText('(measurement)', 120, 100);
-        ctx.fillStyle = '#fff';
-        ctx.fillText('Type K', 120, 125);
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px monospace';
-        ctx.fillText('Chromel +', 120, 140);
-        ctx.fillText('Alumel -', 120, 153);
-
-        // Cold Junction / Isothermal Block
-        roundRect(ctx, 280, 60, 140, 100, 6);
-        ctx.strokeStyle = TEK.ch2;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillStyle = '#1a2a3a';
-        ctx.fill();
-
-        ctx.fillStyle = TEK.ch2;
-        ctx.font = '11px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('Cold Junction', 350, 85);
-        ctx.fillText('(Isothermal Block)', 350, 100);
-        ctx.fillStyle = '#9fb0c0';
-        ctx.fillText('Known temp', 350, 120);
-        ctx.fillText('reference', 350, 135);
-
-        // CJC Sensor
-        roundRect(ctx, 300, 175, 100, 40, 4);
-        ctx.strokeStyle = TEK.ch1;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.fillStyle = '#2a2a3a';
-        ctx.fill();
-        ctx.fillStyle = TEK.ch1;
-        ctx.font = '10px monospace';
-        ctx.fillText('CJC Sensor', 350, 200);
-
-        // Connections hot to cold
-        ctx.strokeStyle = '#9fb0c0';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(180, 100);
-        ctx.lineTo(280, 100);
-        ctx.stroke();
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '9px monospace';
-        ctx.fillText('+ lead', 230, 95);
-
-        ctx.beginPath();
-        ctx.moveTo(180, 130);
-        ctx.lineTo(280, 130);
-        ctx.stroke();
-        ctx.fillText('- lead', 230, 145);
-
-        // Arrow to CJC
-        ctx.beginPath();
-        ctx.moveTo(350, 160);
-        ctx.lineTo(350, 175);
-        ctx.stroke();
-
-        // Voltage equation
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = '11px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('V_TC = V_hot - V_cold', 80, 200);
-        ctx.fillStyle = '#9fb0c0';
-        ctx.fillText('(Type K: ~41µV/°C)', 80, 218);
-
-        // ADC with PGA block
-        roundRect(ctx, 60, 250, 800, 110, 6);
-        ctx.strokeStyle = TEK.ch2;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillStyle = '#1a1f2e';
-        ctx.fill();
-
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 12px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('ADC with PGA', 460, 275);
-
-        // Signal chain inside
-        const stages = [
-            { x: 100, label: 'EMI Filter', sub: '(RC 1-10Hz)' },
-            { x: 280, label: 'Low-Noise PGA', sub: '(Gain 32-128)' },
-            { x: 480, label: 'ΔΣ ADC', sub: '24-bit' },
-            { x: 660, label: 'Digital Output', sub: '' }
-        ];
-
-        stages.forEach((s, i) => {
-            roundRect(ctx, s.x, 290, 120, 40, 4);
-            ctx.fillStyle = '#2a2a4a';
-            ctx.fill();
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(s.label, s.x + 60, 308);
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '9px monospace';
-            ctx.fillText(s.sub, s.x + 60, 323);
-
-            // Arrows between stages
-            if (i < stages.length - 1) {
-                ctx.strokeStyle = TEK.ch1;
+        if (couplingType === 'capacitive') {
+            // E-field lines
+            for (let i = -2; i <= 2; i++) {
                 ctx.beginPath();
-                ctx.moveTo(s.x + 120, 310);
-                ctx.lineTo(stages[i + 1].x, 310);
-                ctx.stroke();
-                // Arrowhead
-                ctx.beginPath();
-                ctx.moveTo(stages[i + 1].x - 8, 305);
-                ctx.lineTo(stages[i + 1].x, 310);
-                ctx.lineTo(stages[i + 1].x - 8, 315);
+                ctx.moveTo(srcX + 40, srcY + i * 15);
+                ctx.bezierCurveTo(
+                    srcX + 80, srcY + i * 20,
+                    victimX - 80, victimY + i * 20,
+                    victimX - 40, victimY + i * 15
+                );
                 ctx.stroke();
             }
-        });
-
-        // Specs
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('Input: ±50mV full scale', 100, 345);
-        ctx.fillText('Resolution: <1µV (0.025°C for Type K)', 350, 345);
-
-        // CJC input arrow
-        ctx.strokeStyle = TEK.ch1;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.moveTo(350, 215);
-        ctx.lineTo(350, 250);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = TEK.ch1;
-        ctx.font = '9px monospace';
-        ctx.fillText('CJC Input', 355, 245);
-
-        // Common ADCs
-        ctx.fillStyle = TEK.ch2;
-        ctx.font = '11px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('Common ADCs: AD7124, MAX31856, ADS1220 (include CJC + linearization)', 460, 375);
-    })();
-
-    // Pressure Sensor Canvas
-    (function() {
-        const canvas = document.getElementById('pressure-sensor-canvas');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-
-        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
-
-        function roundRect(c, x, y, w, h, r) {
-            c.beginPath();
-            c.moveTo(x + r, y);
-            c.lineTo(x + w - r, y);
-            c.quadraticCurveTo(x + w, y, x + w, y + r);
-            c.lineTo(x + w, y + h - r);
-            c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-            c.lineTo(x + r, y + h);
-            c.quadraticCurveTo(x, y + h, x, y + h - r);
-            c.lineTo(x, y + r);
-            c.quadraticCurveTo(x, y, x + r, y);
-            c.closePath();
-        }
-
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Title
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = 'bold 16px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('INTEGRATED PRESSURE SENSOR (I2C Output)', 450, 25);
-
-        // Main IC block
-        roundRect(ctx, 50, 50, 800, 160, 8);
-        ctx.strokeStyle = TEK.ch2;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.fillStyle = '#1a1f2e';
-        ctx.fill();
-
-        // IC name
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 13px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('BMP280 / LPS22HH / MS5611', 450, 75);
-
-        // Internal blocks
-        const blocks = [
-            { x: 80, w: 130, label: 'Piezoresistive', sub: 'Bridge', sub2: '(on diaphragm)' },
-            { x: 250, w: 110, label: 'Signal Cond.', sub: '(PGA)', sub2: '' },
-            { x: 400, w: 100, label: 'ADC', sub: '24-bit', sub2: '' },
-            { x: 540, w: 120, label: 'I2C Digital', sub: 'Output', sub2: '' }
-        ];
-
-        blocks.forEach((b, i) => {
-            roundRect(ctx, b.x, 95, b.w, 55, 4);
-            ctx.fillStyle = '#2a2a4a';
-            ctx.fill();
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch4;
+            ctx.fillStyle = '#ff0';
             ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(b.label, b.x + b.w/2, 113);
-            ctx.fillStyle = '#9fb0c0';
-            ctx.fillText(b.sub, b.x + b.w/2, 128);
-            if (b.sub2) ctx.fillText(b.sub2, b.x + b.w/2, 143);
-
-            // Arrows between
-            if (i < blocks.length - 1) {
-                ctx.strokeStyle = TEK.ch1;
-                ctx.lineWidth = 2;
+            ctx.fillText('E-field (capacitive)', (srcX + victimX) / 2, srcY - 60);
+        } else if (couplingType === 'inductive') {
+            // H-field loops
+            for (let r = 30; r <= 80; r += 20) {
                 ctx.beginPath();
-                ctx.moveTo(b.x + b.w, 122);
-                ctx.lineTo(blocks[i + 1].x, 122);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(blocks[i + 1].x - 8, 117);
-                ctx.lineTo(blocks[i + 1].x, 122);
-                ctx.lineTo(blocks[i + 1].x - 8, 127);
+                ctx.arc(srcX, srcY, r, -0.5, 0.5);
                 ctx.stroke();
             }
-        });
+            ctx.fillStyle = '#f0f';
+            ctx.font = '10px monospace';
+            ctx.fillText('H-field (inductive)', srcX, srcY - 60);
+        } else {
+            // Radiated waves
+            for (let r = 50; r < dist * 5; r += lambda * 100 / 3) {
+                ctx.beginPath();
+                ctx.arc(srcX, srcY, r, -0.8, 0.8);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#0ff';
+            ctx.font = '10px monospace';
+            ctx.fillText('Radiated (far-field)', (srcX + victimX) / 2, srcY - 60);
+        }
+        ctx.setLineDash([]);
 
-        // SCL/SDA outputs
-        ctx.strokeStyle = TEK.ch4;
-        ctx.lineWidth = 2;
+        // Distance indicator
+        ctx.strokeStyle = '#888';
         ctx.beginPath();
-        ctx.moveTo(660, 110);
-        ctx.lineTo(720, 110);
+        ctx.moveTo(srcX + 40, srcY + 50);
+        ctx.lineTo(victimX - 40, srcY + 50);
         ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(660, 135);
-        ctx.lineTo(720, 135);
-        ctx.stroke();
+        ctx.fillStyle = '#888';
+        ctx.fillText(dist + ' cm', (srcX + victimX) / 2, srcY + 70);
 
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = '11px monospace';
+        // Near/far field indicator
+        const nfX = srcX + nearFieldBoundary * 500;
+        if (nfX < W - 100 && nfX > srcX + 50) {
+            ctx.strokeStyle = '#4f4';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(nfX, mT);
+            ctx.lineTo(nfX, H - mB);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#4f4';
+            ctx.font = '10px monospace';
+            ctx.fillText('λ/2π boundary', nfX, mT + 15);
+        }
+
+        // Frequency info
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
         ctx.textAlign = 'left';
-        ctx.fillText('→ SCL', 725, 113);
-        ctx.fillText('→ SDA', 725, 138);
+        ctx.fillText('f = ' + AD.formatValue(freq, 'Hz'), 50, 30);
+        ctx.fillText('λ = ' + (lambda >= 1 ? lambda.toFixed(2) + 'm' : (lambda*100).toFixed(1) + 'cm'), 50, 50);
 
-        // Pressure input arrow
-        ctx.strokeStyle = '#ff6b6b';
-        ctx.beginPath();
-        ctx.moveTo(145, 170);
-        ctx.lineTo(145, 150);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(140, 158);
-        ctx.lineTo(145, 150);
-        ctx.lineTo(150, 158);
-        ctx.stroke();
-        ctx.fillStyle = '#ff6b6b';
-        ctx.textAlign = 'center';
-        ctx.fillText('Pressure', 145, 185);
-        ctx.fillText('Input', 145, 198);
-
-        // Temperature note
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('Also measures temperature for compensation', 350, 175);
-
-        // VDD
-        ctx.fillStyle = TEK.ch4;
-        ctx.fillText('VDD (1.7-3.6V) → Internal LDO', 350, 195);
-
-        // Specs at bottom
-        roundRect(ctx, 100, 225, 700, 60, 4);
-        ctx.fillStyle = '#1a2a2a';
-        ctx.fill();
-        ctx.strokeStyle = TEK.ch4;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        ctx.fillStyle = '#9fb0c0';
+        // Fix suggestions
+        ctx.fillStyle = '#4af';
         ctx.font = '11px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('Resolution: 0.01 hPa (<10cm altitude)  |  Range: 300-1100 hPa  |  Interface: I2C or SPI', 450, 250);
-        ctx.fillStyle = TEK.ch4;
-        ctx.fillText('Output is already digital - just read registers!', 450, 270);
-    })();
-
-    // RTD Calculator
-    function updateRTD() {
-        const temp = AD.num('rtd-temp');
-        const r0 = AD.num('rtd-r0');
-        const iex = AD.num('rtd-iex') / 1000; // A
-
-        document.getElementById('rtd-temp-val').textContent = temp + '°C';
-        document.getElementById('rtd-r0-val').textContent = r0 + 'Ω (PT' + r0 + ')';
-        document.getElementById('rtd-iex-val').textContent = (iex * 1000).toFixed(1) + 'mA';
-
-        // Callendar-Van Dusen equation (simplified)
-        const alpha = 0.00385055;
-        const resistance = r0 * (1 + alpha * temp);
-        const voltage = iex * resistance * 1000; // mV
-        const power = iex * iex * resistance * 1000; // mW
-
-        // Self-heating error (assuming ~0.5°C/mW typical)
-        const thermalCoeff = 0.5; // °C/mW
-        const tempError = power * thermalCoeff;
-
-        document.getElementById('rtd-resistance').textContent = resistance.toFixed(2) + 'Ω';
-        document.getElementById('rtd-voltage').textContent = voltage.toFixed(2) + 'mV';
-        document.getElementById('rtd-power').textContent = power.toFixed(3) + 'mW';
-        document.getElementById('rtd-error').textContent = tempError.toFixed(3) + '°C';
+        const fixes = {
+            capacitive: 'Fix: Shield, increase distance, reduce dV/dt',
+            inductive: 'Fix: Twist pairs, reduce loop area, reduce dI/dt',
+            radiated: 'Fix: Shielding, filtering, reduce antenna length'
+        };
+        ctx.fillText(fixes[couplingType], W/2, H - 15);
     }
 
-    ['rtd-temp', 'rtd-r0', 'rtd-iex'].forEach(id => {
-        document.getElementById(id).addEventListener('input', updateRTD);
+    ['emi-freq', 'emi-dist', 'emi-type'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', update);
+        el.addEventListener('change', update);
     });
-    updateRTD();
 
-    // Load Cell Calculator
-    function updateLC() {
-        const vex = AD.num('lc-vex');
-        const sens = AD.num('lc-sens');
-        const cap = AD.num('lc-cap');
-        const load = AD.num('lc-load');
+    // Schematic - EMI filter
+    function drawSchematic() {
+        const container = document.getElementById('emi-schematic');
+        const svg = new SchematicSVG(650, 240);
 
-        document.getElementById('lc-vex-val').textContent = vex + 'V';
-        document.getElementById('lc-sens-val').textContent = sens + ' mV/V';
-        document.getElementById('lc-cap-val').textContent = cap + ' kg';
-        document.getElementById('lc-load-val').textContent = Math.min(load, cap) + ' kg';
+        svg.text(50, 25, 'Typical EMI Input Filter:', {fontSize: 12, fill: '#4af'});
 
-        const fso = vex * sens; // Full scale output in mV
-        const signal = fso * (Math.min(load, cap) / cap); // Signal at current load
-        const gain = 5000 / fso; // Gain to get 5V at full scale
-        const resolution = cap / Math.pow(2, 24); // Resolution with 24-bit ADC
+        // Input
+        svg.text(30, 70, 'Line', {fontSize: 10});
+        svg.text(30, 150, 'Neutral', {fontSize: 10});
 
-        document.getElementById('lc-fso').textContent = fso.toFixed(1) + 'mV';
-        document.getElementById('lc-signal').textContent = signal.toFixed(2) + 'mV';
-        document.getElementById('lc-gain').textContent = gain.toFixed(0) + '×';
-        document.getElementById('lc-resolution').textContent = (resolution * 1000).toFixed(3) + 'g';
+        // X capacitor (across line)
+        svg.wire([[60, 70], [100, 70]]);
+        svg.wire([[60, 150], [100, 150]]);
+        svg.wire([[80, 70], [80, 100]]);
+        svg.capacitor(80, 110, {horizontal: false});
+        svg.wire([[80, 130], [80, 150]]);
+        svg.text(95, 115, 'Cx', {fontSize: 9});
+
+        // Common mode choke
+        svg.wire([[100, 70], [140, 70]]);
+        svg.wire([[100, 150], [140, 150]]);
+
+        // Choke symbol (two coupled inductors)
+        svg.inductor(160, 70, {horizontal: true});
+        svg.inductor(160, 150, {horizontal: true});
+        svg.text(160, 55, 'L (CM)', {fontSize: 9});
+
+        // Coupling dots
+        svg.text(148, 78, '•', {fontSize: 14});
+        svg.text(148, 142, '•', {fontSize: 14});
+
+        svg.wire([[180, 70], [220, 70]]);
+        svg.wire([[180, 150], [220, 150]]);
+
+        // Differential inductor
+        svg.inductor(240, 70, {horizontal: true});
+        svg.text(240, 55, 'Ld', {fontSize: 9});
+        svg.wire([[260, 70], [300, 70]]);
+        svg.wire([[220, 150], [300, 150]]);
+
+        // Y capacitors (to ground)
+        svg.wire([[300, 70], [300, 90]]);
+        svg.capacitor(300, 100, {horizontal: false});
+        svg.wire([[300, 120], [300, 150]]);
+
+        svg.wire([[300, 110], [330, 110]]);
+        svg.ground(330, 110);
+        svg.text(315, 95, 'Cy', {fontSize: 9});
+
+        // Another X cap
+        svg.wire([[300, 70], [340, 70]]);
+        svg.wire([[300, 150], [340, 150]]);
+        svg.wire([[320, 70], [320, 100]]);
+        svg.capacitor(320, 110, {horizontal: false});
+        svg.wire([[320, 130], [320, 150]]);
+        svg.text(335, 115, 'Cx', {fontSize: 9});
+
+        // Output
+        svg.wire([[340, 70], [380, 70]]);
+        svg.wire([[340, 150], [380, 150]]);
+        svg.text(390, 70, 'To', {fontSize: 10});
+        svg.text(390, 85, 'Load', {fontSize: 10});
+
+        // Annotations
+        svg.text(50, 200, 'Cx: X-cap (line-line) - DM filter, safety rated', {fontSize: 10, fill: '#888'});
+        svg.text(50, 215, 'Cy: Y-cap (line-ground) - CM filter, safety limited', {fontSize: 10, fill: '#888'});
+        svg.text(350, 200, 'CM choke: High impedance to common-mode', {fontSize: 10, fill: '#888'});
+
+        container.innerHTML = svg.render();
     }
 
-    ['lc-vex', 'lc-sens', 'lc-cap', 'lc-load'].forEach(id => {
-        document.getElementById(id).addEventListener('input', updateLC);
-    });
-    updateLC();
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('emi-spice', {
+            title: 'EMI Filter Simulation',
+            netlist: `* EMI Filter Analysis
+* Common-mode and differential-mode filtering
 
-    // SPICE netlist
-    if (typeof SpiceNetlistWidget !== 'undefined') {
-        new SpiceNetlistWidget('spice-container', {
-            title: 'Instrumentation Amplifier for Load Cell',
-            netlist: `* Load Cell Instrumentation Amplifier
-* INA128 model (simplified)
+* Noise source (SMPS switching noise)
+Vnoise in 0 PULSE(0 5 0 10n 10n 500n 1u)
 
-.param VEXC=10 SENS=2m LOAD=0.5
+* X capacitor (differential mode)
+Cx1 in n1 100n
 
-* Excitation
-VEX vexc 0 DC {VEXC}
+* Common-mode choke (two coupled inductors)
+L1 n1 n2 1m
+L2 0 n3 1m
+K1 L1 L2 0.99  ; Tightly coupled
 
-* Load cell bridge (simplified)
-* Full bridge with 120 ohm gauges
-R1 vexc vp 120
-R2 vexc vn 120
-R3 vp 0 120
-R4 vn 0 120
-* Imbalance source (represents strain)
-Vimbal vp vp_sense DC {VEXC*SENS*LOAD}
+* Y capacitors (to ground)
+Cy1 n2 gnd 4.7n
+Cy2 n3 gnd 4.7n
+Rgnd gnd 0 1m  ; Ground impedance
 
-* Instrumentation Amplifier (ideal)
-* Gain set by Rgain (50k/Rg + 1)
-.param GAIN=200
-E1 out 0 vp_sense vn {GAIN}
+* Output X cap
+Cx2 n2 n3 100n
 
-* Output buffer
-Rout out vout_buf 100
-Cout vout_buf 0 100p
+* Load
+Rload n2 n3 100
 
-.dc LOAD 0 1 0.01
-.probe V(vp_sense,vn) V(out)
-.end`
+.tran 10n 10u
+.ac dec 100 10k 100MEG
+
+* Plot filter response
+.probe V(in) V(n2,n3)
+.end
+
+* Key points:
+* CM choke blocks common-mode current
+* X caps filter differential noise
+* Y caps shunt CM noise to ground
+* Check: Cy < 4.7nF for safety (leakage current)`
         });
     }
 
     // Checklist
-    if (typeof ChecklistWidget !== 'undefined') {
-        new ChecklistWidget('checklist-container', {
-            lessonKey: 'm23l8',
+    function initChecklist() {
+        new ChecklistWidget('emi-checklist', {
+            title: 'EMI Debug Checklist',
             items: [
-                'Understand 2/3/4-wire RTD measurement configurations',
-                'Know thermocouple voltage levels and CJC requirement',
-                'Calculate Wheatstone bridge output voltage',
-                'Select appropriate instrumentation amplifier gain',
-                'Understand self-heating error in RTDs',
-                'Know common sensor interface ICs'
+                'Identify frequency of interference',
+                'Correlate with clock/switching frequencies',
+                'Use near-field probe to locate source',
+                'Check cable routing and shielding',
+                'Verify ground integrity and connections',
+                'Test with ferrite on cables',
+                'Check bypass capacitor placement',
+                'Verify filter component values at frequency',
+                'Test with temporary shielding',
+                'Measure common-mode vs differential-mode'
             ]
         });
     }
 
     // Exercises
-    const container = document.getElementById('exercise-container');
-    if (typeof ExerciseWidget !== 'undefined') {
-        const exercises = [
-            {
-                id: 'M23-8-L1',
-                type: 'numeric',
-                question: 'A PT100 has R0=100Ω and α=0.00385/°C. What is its resistance at 200°C?',
-                hint: 'R = R0(1 + αT)',
-                expected: 177,
-                tolerance: 1,
-                unit: 'Ω'
-            },
-            {
-                id: 'M23-8-L2',
-                type: 'numeric',
-                question: 'A load cell has 2mV/V sensitivity with 10V excitation. What is the output at 75% load?',
-                hint: 'FSO = Vex × sens, then scale by load percentage',
-                expected: 15,
-                tolerance: 0.5,
-                unit: 'mV'
-            },
-            {
-                id: 'M23-8-L3',
-                type: 'choice',
-                question: 'Why does a 4-wire RTD measurement eliminate lead resistance error?',
-                choices: [
-                    { text: 'The four wires average out the resistance', correct: false },
-                    { text: 'Sense leads carry no current, so no voltage drop', correct: true },
-                    { text: 'The ADC compensates automatically', correct: false },
-                    { text: 'Lead resistance is measured and subtracted', correct: false }
-                ]
-            }
-        ];
-        exercises.forEach((ex, i) => {
-            const div = document.createElement('div');
-            div.id = `ex-m23l8-${i}`;
-            container.appendChild(div);
-            new ExerciseWidget(`ex-m23l8-${i}`, ex);
+    function initExercises() {
+        new ExerciseWidget('emi-exercises', {
+            exercises: [
+                {
+                    question: 'A 100MHz clock has strong emissions at 300MHz. What causes this?',
+                    answer: '3rd harmonic of clock',
+                    solution: 'Digital clocks have odd harmonics: 3f, 5f, 7f, etc. The square wave contains 1/n amplitude at n×f. The 3rd harmonic (300MHz) is 1/3 amplitude of fundamental.'
+                },
+                {
+                    question: 'At 10MHz, what is the wavelength? Is 5cm distance near or far field?',
+                    answer: 'λ=30m, near field',
+                    solution: 'λ = c/f = 3×10⁸/10⁷ = 30m. Near field boundary = λ/2π ≈ 4.8m. 5cm << 4.8m, so definitely near field. H-field coupling dominates.'
+                },
+                {
+                    question: 'Adding ferrite bead reduces 50MHz noise but increases 5MHz noise. Why?',
+                    answer: 'Ferrite resonance',
+                    solution: 'Ferrite beads have a resonant frequency. Above resonance, they are inductive and attenuate. Below resonance, they may have low impedance or even negative reactance, providing less filtering or resonating with other components.'
+                }
+            ]
         });
     }
+
+    // ==================== EMI DEBUG TOOLS CANVAS ====================
+    function drawEMITools() {
+        const canvas = document.getElementById('emi-tools-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Helper for rounded rect
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        const colW = 170;
+        const colH = 145;
+        const gap = 10;
+        const startY = 10;
+
+        // Tool categories
+        const tools = [
+            {
+                title: 'NEAR-FIELD PROBES',
+                color: TEK.ch1,
+                items: [
+                    'H-field loop: B-field',
+                    'E-field probe: V nodes',
+                    'Use with SA or scope'
+                ],
+                icon: 'loop'
+            },
+            {
+                title: 'SPECTRUM ANALYZER',
+                color: TEK.ch2,
+                items: [
+                    'Identify frequencies',
+                    'Narrow = harmonics',
+                    'Broad = switching',
+                    'Compare to clocks'
+                ],
+                icon: 'spectrum'
+            },
+            {
+                title: 'CURRENT PROBE',
+                color: TEK.ch3,
+                items: [
+                    'Measure CM current',
+                    'CM = EMI antenna',
+                    'Fix: CM choke'
+                ],
+                icon: 'clamp'
+            },
+            {
+                title: 'OSCILLOSCOPE',
+                color: TEK.ch4,
+                items: [
+                    'Time domain noise',
+                    'Correlate activity',
+                    'High BW probing'
+                ],
+                icon: 'scope'
+            },
+            {
+                title: 'DIY TOOLS',
+                color: '#FF6600',
+                items: [
+                    'AM radio for LF',
+                    'Wire loop + scope',
+                    'Foil shield test'
+                ],
+                icon: 'diy'
+            }
+        ];
+
+        tools.forEach((tool, i) => {
+            const x = 10 + i * (colW + gap);
+
+            // Box
+            ctx.strokeStyle = tool.color;
+            ctx.lineWidth = 2;
+            roundRect(x, startY, colW, colH, 6);
+            ctx.stroke();
+
+            // Title
+            ctx.fillStyle = tool.color;
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(tool.title, x + colW/2, startY + 18);
+
+            // Draw icon
+            const iconX = x + colW/2;
+            const iconY = startY + 50;
+            ctx.strokeStyle = tool.color;
+            ctx.lineWidth = 1;
+
+            if (tool.icon === 'loop') {
+                // H-field loop
+                ctx.beginPath();
+                ctx.arc(iconX, iconY, 15, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(iconX, iconY + 15);
+                ctx.lineTo(iconX, iconY + 25);
+                ctx.stroke();
+            } else if (tool.icon === 'spectrum') {
+                // Spectrum peaks
+                ctx.beginPath();
+                ctx.moveTo(iconX - 20, iconY + 15);
+                ctx.lineTo(iconX - 15, iconY + 15);
+                ctx.lineTo(iconX - 12, iconY - 10);
+                ctx.lineTo(iconX - 9, iconY + 15);
+                ctx.lineTo(iconX - 3, iconY + 15);
+                ctx.lineTo(iconX, iconY);
+                ctx.lineTo(iconX + 3, iconY + 15);
+                ctx.lineTo(iconX + 9, iconY + 15);
+                ctx.lineTo(iconX + 12, iconY + 5);
+                ctx.lineTo(iconX + 15, iconY + 15);
+                ctx.lineTo(iconX + 20, iconY + 15);
+                ctx.stroke();
+            } else if (tool.icon === 'clamp') {
+                // Current clamp
+                ctx.beginPath();
+                ctx.arc(iconX, iconY, 12, Math.PI, 0);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(iconX, iconY, 12, 0, Math.PI);
+                ctx.stroke();
+                ctx.fillStyle = '#333';
+                ctx.fillRect(iconX - 5, iconY + 10, 10, 15);
+                ctx.strokeRect(iconX - 5, iconY + 10, 10, 15);
+            } else if (tool.icon === 'scope') {
+                // Oscilloscope screen
+                ctx.strokeRect(iconX - 18, iconY - 12, 36, 28);
+                ctx.beginPath();
+                ctx.moveTo(iconX - 15, iconY);
+                for (let j = 0; j < 30; j++) {
+                    ctx.lineTo(iconX - 15 + j, iconY + Math.sin(j * 0.5) * 8);
+                }
+                ctx.stroke();
+            } else if (tool.icon === 'diy') {
+                // Radio antenna
+                ctx.beginPath();
+                ctx.moveTo(iconX, iconY + 15);
+                ctx.lineTo(iconX, iconY - 15);
+                ctx.moveTo(iconX - 10, iconY - 10);
+                ctx.lineTo(iconX, iconY - 15);
+                ctx.lineTo(iconX + 10, iconY - 10);
+                ctx.stroke();
+            }
+
+            // Items
+            ctx.fillStyle = '#888';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'left';
+            tool.items.forEach((item, j) => {
+                ctx.fillText('• ' + item, x + 8, startY + 85 + j * 14);
+            });
+        });
+
+        // Bottom section: Usage tips
+        const tipsY = 170;
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(10, tipsY, W - 20, 140);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('EMI Debug Workflow:', 20, tipsY + 20);
+
+        // Workflow boxes
+        const workflow = [
+            {step: '1', label: 'IDENTIFY', desc: 'Find frequency', color: TEK.ch1},
+            {step: '2', label: 'LOCATE', desc: 'Near-field probe', color: TEK.ch2},
+            {step: '3', label: 'ANALYZE', desc: 'Source vs path', color: TEK.ch3},
+            {step: '4', label: 'FIX', desc: 'Filter/shield', color: TEK.ch4},
+            {step: '5', label: 'VERIFY', desc: 'Re-measure', color: '#FF6600'}
+        ];
+
+        workflow.forEach((w, i) => {
+            const wx = 40 + i * 170;
+            const wy = tipsY + 45;
+
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(wx, wy, 140, 45);
+            ctx.strokeStyle = w.color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(wx, wy, 140, 45);
+
+            ctx.fillStyle = w.color;
+            ctx.font = 'bold 12px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(w.step + '. ' + w.label, wx + 70, wy + 18);
+            ctx.fillStyle = '#888';
+            ctx.font = '10px monospace';
+            ctx.fillText(w.desc, wx + 70, wy + 35);
+
+            // Arrow
+            if (i < workflow.length - 1) {
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(wx + 145, wy + 22);
+                ctx.lineTo(wx + 162, wy + 22);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(wx + 157, wy + 17);
+                ctx.lineTo(wx + 167, wy + 22);
+                ctx.lineTo(wx + 157, wy + 27);
+                ctx.stroke();
+            }
+        });
+
+        // Key insight
+        ctx.fillStyle = '#fa4';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Key: EMI = Source + Path + Victim. Fix any of the three.', W/2, tipsY + 125);
+    }
+
+    update();
+    drawSchematic();
+    drawEMITools();
+    initSpice();
+    initChecklist();
+    initExercises();
 })();
 </script>

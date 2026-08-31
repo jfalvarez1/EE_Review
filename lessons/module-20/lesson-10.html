@@ -3,2006 +3,1225 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lesson 10: MEMS Sensor Interfaces - Module 20</title>
+    <title>Lesson 10: RF Filter Design - RF Analog</title>
 </head>
 <body>
     <div class="lesson-content" data-module="20" data-lesson="10">
         <div class="card">
-            <h2>MEMS Sensor Interfaces</h2>
-            <p>
-                Micro-Electro-Mechanical Systems (MEMS) sensors combine mechanical elements with
-                electronic circuits on a single chip. They measure acceleration, rotation, pressure,
-                and more with high precision in tiny packages. This lesson covers interfacing with
-                common MEMS sensors including accelerometers, gyroscopes, and pressure sensors.
-            </p>
+            <h2>RF Filter Design</h2>
+            <p>RF filters are critical components that select desired frequencies while rejecting unwanted signals, harmonics, and interference. Understanding filter design enables proper frequency channelization, image rejection, and spectral compliance in RF systems.</p>
 
             <div class="kv">
-                <div class="kv-item"><span>Common MEMS</span><span>Accelerometer, Gyro, Barometer, Mic</span></div>
-                <div class="kv-item"><span>Interface</span><span>I2C, SPI, Analog</span></div>
-                <div class="kv-item"><span>Power</span><span>µA to mA range</span></div>
-                <div class="kv-item"><span>Integration</span><span>IMU = Accel + Gyro + Mag</span></div>
+                <div class="kv-item"><span class="kv-label">Purpose:</span><span class="kv-value">Select/reject specific frequency bands</span></div>
+                <div class="kv-item"><span class="kv-label">Types:</span><span class="kv-value">Low-pass, High-pass, Band-pass, Band-stop (Notch)</span></div>
+                <div class="kv-item"><span class="kv-label">Technologies:</span><span class="kv-value">LC, Crystal, SAW, BAW, Ceramic, Cavity</span></div>
+                <div class="kv-item"><span class="kv-label">Key Specs:</span><span class="kv-value">Insertion loss, bandwidth, selectivity, return loss</span></div>
             </div>
 
             <div class="notice">
-                <strong>MEMS Advantage:</strong> Small size, low power, low cost, high integration.
-                A 6-axis IMU (3-axis accelerometer + 3-axis gyroscope) fits in a 3×3mm package
-                and costs under $2.
+                <strong>Filter Trade-offs:</strong> Sharper roll-off requires more poles (complexity), which increases insertion loss and group delay variation. Choose the minimum order that meets requirements.
             </div>
         </div>
 
         <div class="card">
-            <h3>MEMS Accelerometer Principles</h3>
+            <h3>Filter Response Types</h3>
 
-            <div class="canvas-wrap">
-                <canvas id="mems-accel-canvas" width="900" height="420"></canvas>
-            </div>
+            <table>
+                <thead>
+                    <tr><th>Response</th><th>Passband</th><th>Stopband</th><th>Transition</th><th>Group Delay</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Butterworth</td><td>Maximally flat</td><td>Monotonic</td><td>Moderate</td><td>Moderate variation</td></tr>
+                    <tr><td>Chebyshev I</td><td>Equiripple</td><td>Monotonic</td><td>Steeper</td><td>Larger variation</td></tr>
+                    <tr><td>Chebyshev II</td><td>Monotonic</td><td>Equiripple</td><td>Steeper</td><td>Moderate</td></tr>
+                    <tr><td>Elliptic (Cauer)</td><td>Equiripple</td><td>Equiripple</td><td>Steepest</td><td>Largest variation</td></tr>
+                    <tr><td>Bessel</td><td>Gradual roll-off</td><td>Monotonic</td><td>Gentlest</td><td>Flattest (linear phase)</td></tr>
+                </tbody>
+            </table>
+
+            <h4>Selection Guidelines</h4>
+            <ul>
+                <li><strong>Butterworth:</strong> General purpose, no ripple, good for wideband applications</li>
+                <li><strong>Chebyshev:</strong> When selectivity matters more than passband flatness</li>
+                <li><strong>Elliptic:</strong> Maximum selectivity with minimum order (most efficient)</li>
+                <li><strong>Bessel:</strong> When preserving signal waveform is critical (pulse applications)</li>
+            </ul>
         </div>
 
         <div class="card">
-            <h3>Interactive: Accelerometer Simulation</h3>
-            <p>Simulate a 3-axis MEMS accelerometer response to orientation and motion.</p>
+            <h3>Interactive: Filter Response Comparison</h3>
+            <p>Compare different filter response types and see how order affects the frequency response.</p>
 
             <div class="controls">
-                <label>
-                    X-Axis Tilt:
-                    <input type="range" id="accel-x" min="-90" max="90" value="0">
-                    <span id="accel-x-val">0°</span>
-                </label>
-                <label>
-                    Y-Axis Tilt:
-                    <input type="range" id="accel-y" min="-90" max="90" value="0">
-                    <span id="accel-y-val">0°</span>
-                </label>
-                <label>
-                    Dynamic Acceleration:
-                    <input type="range" id="accel-dyn" min="0" max="10" value="0" step="0.1">
-                    <span id="accel-dyn-val">0 g</span>
-                </label>
-                <label>
-                    Sensor Range:
-                    <select id="accel-range">
-                        <option value="2">±2g</option>
-                        <option value="4" selected>±4g</option>
-                        <option value="8">±8g</option>
-                        <option value="16">±16g</option>
+                <label>Filter Type:
+                    <select id="filter-type">
+                        <option value="butterworth">Butterworth</option>
+                        <option value="chebyshev">Chebyshev (0.5 dB ripple)</option>
+                        <option value="bessel">Bessel</option>
                     </select>
                 </label>
-                <label>
-                    Resolution:
-                    <select id="accel-res">
-                        <option value="10">10-bit</option>
-                        <option value="12" selected>12-bit</option>
-                        <option value="14">14-bit</option>
-                        <option value="16">16-bit</option>
-                    </select>
-                </label>
+                <label>Order: <input type="range" id="filter-order" min="1" max="7" step="1" value="3"> <span id="filter-order-val">3</span></label>
+                <label>Cutoff Freq: <input type="range" id="cutoff-freq" min="100" max="1000" step="50" value="500"> <span id="cutoff-freq-val">500 MHz</span></label>
             </div>
 
             <div class="canvas-wrap">
-                <canvas id="accel-canvas" width="980" height="420"></canvas>
+                <canvas id="response-canvas" width="980" height="400"></canvas>
             </div>
 
-            <div class="kv" id="accel-results">
-                <div class="kv-item"><span>X-Axis</span><span id="accel-ax">0.000 g</span></div>
-                <div class="kv-item"><span>Y-Axis</span><span id="accel-ay">0.000 g</span></div>
-                <div class="kv-item"><span>Z-Axis</span><span id="accel-az">1.000 g</span></div>
-                <div class="kv-item"><span>Magnitude</span><span id="accel-mag">1.000 g</span></div>
-                <div class="kv-item"><span>LSB Size</span><span id="accel-lsb">1.95 mg</span></div>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">-3 dB Bandwidth:</span><span id="bw-3db" class="kv-value">500 MHz</span></div>
+                <div class="kv-item"><span class="kv-label">Roll-off Rate:</span><span id="rolloff" class="kv-value">60 dB/decade</span></div>
+                <div class="kv-item"><span class="kv-label">Stopband @ 2×fc:</span><span id="stopband-atten" class="kv-value">-36 dB</span></div>
+                <div class="kv-item"><span class="kv-label">Group Delay @ fc:</span><span id="group-delay" class="kv-value">1.2 ns</span></div>
             </div>
         </div>
 
         <div class="card">
-            <h3>MEMS Gyroscope Principles</h3>
+            <h3>LC Filter Design</h3>
+            <p>Lumped-element LC filters are fundamental building blocks for RF filtering at frequencies up to a few GHz.</p>
 
-            <div class="canvas-wrap">
-                <canvas id="mems-gyro-canvas" width="900" height="420"></canvas>
+            <h4>Normalized Prototype Values</h4>
+            <p>Filter design starts with normalized low-pass prototypes (g-values), then scales to desired frequency and impedance.</p>
+
+            <div class="formula">
+                <p><strong>Scaling:</strong></p>
+                <p>L = g × Z₀ / (2π × fc)</p>
+                <p>C = g / (Z₀ × 2π × fc)</p>
+                <p>where g = normalized element value, Z₀ = characteristic impedance, fc = cutoff frequency</p>
+            </div>
+
+            <h4>Butterworth g-values (3rd order)</h4>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">g₁:</span><span class="kv-value">1.000</span></div>
+                <div class="kv-item"><span class="kv-label">g₂:</span><span class="kv-value">2.000</span></div>
+                <div class="kv-item"><span class="kv-label">g₃:</span><span class="kv-value">1.000</span></div>
+                <div class="kv-item"><span class="kv-label">g₄:</span><span class="kv-value">1.000 (load)</span></div>
             </div>
         </div>
 
         <div class="card">
-            <h3>IMU (Inertial Measurement Unit)</h3>
-
-            <div class="canvas-wrap">
-                <canvas id="imu-architecture-canvas" width="900" height="420"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Interactive: Gyroscope Integration</h3>
-            <p>Simulate gyroscope rate integration to compute angle. Observe drift accumulation.</p>
+            <h3>Interactive: LC Low-Pass Filter Designer</h3>
+            <p>Design a Butterworth low-pass filter with calculated component values.</p>
 
             <div class="controls">
-                <label>
-                    Angular Rate:
-                    <input type="range" id="gyro-rate" min="-180" max="180" value="0">
-                    <span id="gyro-rate-val">0 °/s</span>
-                </label>
-                <label>
-                    Bias Error:
-                    <input type="range" id="gyro-bias" min="-5" max="5" value="0" step="0.1">
-                    <span id="gyro-bias-val">0.0 °/s</span>
-                </label>
-                <label>
-                    Noise Density:
-                    <input type="range" id="gyro-noise" min="0" max="1" value="0.1" step="0.01">
-                    <span id="gyro-noise-val">0.10 °/s/√Hz</span>
-                </label>
-                <button id="gyro-start">Start Integration</button>
-                <button id="gyro-stop">Stop</button>
-                <button id="gyro-reset">Reset</button>
+                <label>Order: <input type="range" id="lc-order" min="2" max="5" step="1" value="3"> <span id="lc-order-val">3</span></label>
+                <label>Cutoff Frequency: <input type="range" id="lc-fc" min="50" max="500" step="10" value="100"> <span id="lc-fc-val">100 MHz</span></label>
+                <label>Impedance: <input type="range" id="lc-z0" min="25" max="100" step="5" value="50"> <span id="lc-z0-val">50 Ω</span></label>
             </div>
 
             <div class="canvas-wrap">
-                <canvas id="gyro-canvas" width="980" height="350"></canvas>
+                <canvas id="lc-canvas" width="980" height="350"></canvas>
             </div>
 
-            <div class="kv" id="gyro-results">
-                <div class="kv-item"><span>Integrated Angle</span><span id="gyro-angle">0.0°</span></div>
-                <div class="kv-item"><span>True Angle</span><span id="gyro-true">0.0°</span></div>
-                <div class="kv-item"><span>Drift Error</span><span id="gyro-drift">0.0°</span></div>
-                <div class="kv-item"><span>Time</span><span id="gyro-time">0.0 s</span></div>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Topology:</span><span id="lc-topology" class="kv-value">π-network</span></div>
+                <div class="kv-item"><span class="kv-label">Component Count:</span><span id="lc-count" class="kv-value">3 elements</span></div>
             </div>
         </div>
 
         <div class="card">
-            <h3>MEMS Pressure Sensor</h3>
+            <h3>Bandpass Filter Design</h3>
+            <p>Bandpass filters are created by transforming low-pass prototypes. The bandwidth and center frequency define the transformation.</p>
 
-            <div class="canvas-wrap">
-                <canvas id="pressure-sensor-canvas" width="900" height="380"></canvas>
+            <div class="formula">
+                <p><strong>Bandpass Transformation:</strong></p>
+                <p>f₀ = √(f_L × f_H) - geometric center frequency</p>
+                <p>BW = f_H - f_L - bandwidth</p>
+                <p>Q = f₀ / BW - quality factor</p>
+            </div>
+
+            <h4>Coupled Resonator Filters</h4>
+            <p>For narrow-band filters (Q > 10), coupled resonator structures provide better performance than direct LC transformation.</p>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Edge-coupled:</span><span class="kv-value">Capacitive coupling between resonators</span></div>
+                <div class="kv-item"><span class="kv-label">Hairpin:</span><span class="kv-value">Compact folded resonators</span></div>
+                <div class="kv-item"><span class="kv-label">Interdigital:</span><span class="kv-value">High stopband rejection</span></div>
+                <div class="kv-item"><span class="kv-label">Combline:</span><span class="kv-value">Good spurious response</span></div>
             </div>
         </div>
 
         <div class="card">
-            <h3>Interactive: Pressure/Altitude Calculation</h3>
-            <p>Calculate altitude from barometric pressure using the international barometric formula.</p>
+            <h3>Interactive: Bandpass Filter Design</h3>
+            <p>Design a bandpass filter by specifying center frequency and bandwidth.</p>
 
             <div class="controls">
-                <label>
-                    Pressure:
-                    <input type="range" id="press-p" min="300" max="1100" value="1013" step="1">
-                    <span id="press-p-val">1013 hPa</span>
-                </label>
-                <label>
-                    Sea Level Pressure:
-                    <input type="range" id="press-p0" min="980" max="1050" value="1013" step="1">
-                    <span id="press-p0-val">1013 hPa</span>
-                </label>
-                <label>
-                    Temperature:
-                    <input type="range" id="press-temp" min="-40" max="50" value="15">
-                    <span id="press-temp-val">15°C</span>
-                </label>
-                <label>
-                    Sensor:
-                    <select id="press-sensor">
-                        <option value="bmp280">BMP280</option>
-                        <option value="bmp388">BMP388</option>
-                        <option value="lps22">LPS22HH</option>
-                    </select>
-                </label>
+                <label>Center Frequency: <input type="range" id="bp-fc" min="100" max="2000" step="50" value="900"> <span id="bp-fc-val">900 MHz</span></label>
+                <label>Bandwidth: <input type="range" id="bp-bw" min="10" max="200" step="5" value="50"> <span id="bp-bw-val">50 MHz</span></label>
+                <label>Order: <input type="range" id="bp-order" min="2" max="6" step="1" value="3"> <span id="bp-order-val">3</span></label>
             </div>
 
             <div class="canvas-wrap">
-                <canvas id="press-canvas" width="980" height="350"></canvas>
+                <canvas id="bp-canvas" width="980" height="400"></canvas>
             </div>
 
-            <div class="kv" id="press-results">
-                <div class="kv-item"><span>Altitude</span><span id="press-alt">0 m</span></div>
-                <div class="kv-item"><span>Resolution</span><span id="press-res">0.01 hPa</span></div>
-                <div class="kv-item"><span>Altitude Resolution</span><span id="press-alt-res">~8 cm</span></div>
-                <div class="kv-item"><span>Accuracy</span><span id="press-acc">±1 hPa</span></div>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Q Factor:</span><span id="bp-q" class="kv-value">18</span></div>
+                <div class="kv-item"><span class="kv-label">Lower Edge:</span><span id="bp-fl" class="kv-value">875 MHz</span></div>
+                <div class="kv-item"><span class="kv-label">Upper Edge:</span><span id="bp-fh" class="kv-value">925 MHz</span></div>
+                <div class="kv-item"><span class="kv-label">Insertion Loss:</span><span id="bp-il" class="kv-value">2.5 dB</span></div>
             </div>
         </div>
 
         <div class="card">
-            <h3>SPI/I2C Interface Examples</h3>
+            <h3>RF Filter Technologies</h3>
+
+            <h4>1. LC Filters</h4>
+            <ul>
+                <li>Frequency range: DC to ~3 GHz</li>
+                <li>Low cost, easily tunable</li>
+                <li>Limited Q (50-200 for SMD inductors)</li>
+                <li>Good for wide-band filters</li>
+            </ul>
+
+            <h4>2. Crystal Filters</h4>
+            <ul>
+                <li>Very high Q (10,000-100,000)</li>
+                <li>Narrow bandwidths possible</li>
+                <li>Fixed frequencies (10-200 MHz typical)</li>
+                <li>Used for IF filtering</li>
+            </ul>
+
+            <h4>3. SAW (Surface Acoustic Wave)</h4>
+            <ul>
+                <li>Frequency range: 50 MHz to 3 GHz</li>
+                <li>High selectivity, compact size</li>
+                <li>Moderate insertion loss (1-5 dB)</li>
+                <li>Temperature sensitive</li>
+            </ul>
+
+            <h4>4. BAW (Bulk Acoustic Wave) / FBAR</h4>
+            <ul>
+                <li>Frequency range: 500 MHz to 10 GHz</li>
+                <li>Higher power handling than SAW</li>
+                <li>Excellent temperature stability</li>
+                <li>Used in modern smartphones</li>
+            </ul>
+
+            <h4>5. Cavity Filters</h4>
+            <ul>
+                <li>Very high Q (5,000-20,000)</li>
+                <li>Low loss, high power handling</li>
+                <li>Large size (used in base stations)</li>
+                <li>Frequency range: 100 MHz to 40 GHz</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>Interactive: Technology Selection Guide</h3>
+            <p>Select the appropriate filter technology based on your requirements.</p>
+
+            <div class="controls">
+                <label>Center Frequency: <input type="range" id="tech-fc" min="10" max="6000" step="10" value="2400"> <span id="tech-fc-val">2400 MHz</span></label>
+                <label>Bandwidth %: <input type="range" id="tech-bw" min="0.1" max="50" step="0.1" value="5"> <span id="tech-bw-val">5%</span></label>
+                <label>Insertion Loss Max: <input type="range" id="tech-il" min="0.5" max="10" step="0.5" value="3"> <span id="tech-il-val">3 dB</span></label>
+                <label>Power Handling: <input type="range" id="tech-pwr" min="0.01" max="100" step="0.1" value="1"> <span id="tech-pwr-val">1 W</span></label>
+            </div>
 
             <div class="canvas-wrap">
-                <canvas id="spi-i2c-canvas" width="900" height="500"></canvas>
+                <canvas id="tech-canvas" width="980" height="350"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Recommended:</span><span id="tech-rec" class="kv-value">BAW/FBAR</span></div>
+                <div class="kv-item"><span class="kv-label">Alternative:</span><span id="tech-alt" class="kv-value">Ceramic</span></div>
+                <div class="kv-item"><span class="kv-label">Size Estimate:</span><span id="tech-size" class="kv-value">1.5 × 1.1 mm</span></div>
             </div>
         </div>
 
         <div class="card">
-            <h3>MEMS Interface Schematic</h3>
-            <div id="mems-schematic"></div>
+            <h3>Practical Considerations</h3>
+
+            <h4>Component Quality Factor</h4>
+            <p>Real components have finite Q, which causes insertion loss and affects filter response.</p>
+
+            <div class="formula">
+                <p><strong>Insertion Loss (approx):</strong> IL ≈ 4.34 × N × (f₀/BW) / Q_component [dB]</p>
+            </div>
+
+            <h4>Parasitics and Layout</h4>
+            <ul>
+                <li>Component self-resonance limits usable frequency</li>
+                <li>PCB traces add inductance (~1 nH/mm)</li>
+                <li>Pad capacitance can detune filter</li>
+                <li>Ground via inductance affects high-frequency performance</li>
+            </ul>
+
+            <h4>Tuning Strategies</h4>
+            <ul>
+                <li>Use 5% or 2% tolerance components where possible</li>
+                <li>Include tuning pads for critical applications</li>
+                <li>Simulation with parasitic extraction is essential</li>
+                <li>Consider temperature coefficients</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h3>Schematic: 3rd Order Butterworth Low-Pass Filter</h3>
+            <div id="filter-schematic"></div>
         </div>
 
         <div class="card">
             <h3>SPICE Netlist</h3>
-            <div id="mems-spice"></div>
+            <div id="filter-spice"></div>
         </div>
 
         <div class="card">
             <h3>Design Checklist</h3>
-            <div id="mems-checklist"></div>
+            <div id="filter-checklist"></div>
         </div>
 
         <div class="card">
             <h3>Practice Exercises</h3>
-            <div id="mems-exercises"></div>
+            <div id="filter-exercises"></div>
         </div>
     </div>
 
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ch5:'#FF6600', bg:'#001000', grid:'#004000'};
-
-        // Accelerometer canvas
-        const accelCanvas = document.getElementById('accel-canvas');
-        const accelCtx = accelCanvas.getContext('2d');
-
-        function drawAccelerometer() {
-            const W = accelCanvas.width, H = accelCanvas.height;
-            accelCtx.fillStyle = TEK.bg;
-            accelCtx.fillRect(0, 0, W, H);
-
-            const xTilt = AD.num('accel-x');
-            const yTilt = AD.num('accel-y');
-            const dynAccel = AD.num('accel-dyn');
-            const range = AD.num('accel-range');
-            const resolution = parseInt(document.getElementById('accel-res').value);
-
-            document.getElementById('accel-x-val').textContent = xTilt + '°';
-            document.getElementById('accel-y-val').textContent = yTilt + '°';
-            document.getElementById('accel-dyn-val').textContent = dynAccel.toFixed(1) + ' g';
-
-            // Calculate acceleration from tilt (gravity components)
-            const xRad = xTilt * Math.PI / 180;
-            const yRad = yTilt * Math.PI / 180;
-
-            const ax = Math.sin(xRad) * Math.cos(yRad) + dynAccel * Math.cos(Date.now() / 500);
-            const ay = Math.sin(yRad);
-            const az = Math.cos(xRad) * Math.cos(yRad);
-            const mag = Math.sqrt(ax*ax + ay*ay + az*az);
-
-            // LSB size
-            const lsb = (2 * range) / Math.pow(2, resolution) * 1000; // mg
-
-            document.getElementById('accel-ax').textContent = ax.toFixed(3) + ' g';
-            document.getElementById('accel-ay').textContent = ay.toFixed(3) + ' g';
-            document.getElementById('accel-az').textContent = az.toFixed(3) + ' g';
-            document.getElementById('accel-mag').textContent = mag.toFixed(3) + ' g';
-            document.getElementById('accel-lsb').textContent = lsb.toFixed(2) + ' mg';
-
-            // Draw 3D visualization
-            const vizX = 150, vizY = 200;
-
-            // Reference axes
-            accelCtx.strokeStyle = '#444';
-            accelCtx.lineWidth = 1;
-            // X axis
-            accelCtx.beginPath();
-            accelCtx.moveTo(vizX, vizY);
-            accelCtx.lineTo(vizX + 100, vizY - 30);
-            accelCtx.stroke();
-            accelCtx.fillStyle = '#888';
-            accelCtx.fillText('X', vizX + 110, vizY - 30);
-
-            // Y axis
-            accelCtx.beginPath();
-            accelCtx.moveTo(vizX, vizY);
-            accelCtx.lineTo(vizX + 100, vizY + 30);
-            accelCtx.stroke();
-            accelCtx.fillText('Y', vizX + 110, vizY + 35);
-
-            // Z axis
-            accelCtx.beginPath();
-            accelCtx.moveTo(vizX, vizY);
-            accelCtx.lineTo(vizX, vizY - 100);
-            accelCtx.stroke();
-            accelCtx.fillText('Z', vizX - 15, vizY - 105);
-
-            // Draw acceleration vector
-            const scale = 80;
-            const vecX = vizX + ax * scale - ay * scale * 0.3;
-            const vecY = vizY - az * scale - ay * scale * 0.3;
-
-            accelCtx.strokeStyle = TEK.ch1;
-            accelCtx.lineWidth = 3;
-            accelCtx.beginPath();
-            accelCtx.moveTo(vizX, vizY);
-            accelCtx.lineTo(vecX, vecY);
-            accelCtx.stroke();
-
-            // Arrowhead
-            accelCtx.fillStyle = TEK.ch1;
-            accelCtx.beginPath();
-            accelCtx.arc(vecX, vecY, 6, 0, 2 * Math.PI);
-            accelCtx.fill();
-
-            // Gravity reference
-            accelCtx.strokeStyle = TEK.ch4 + '88';
-            accelCtx.lineWidth = 1;
-            accelCtx.setLineDash([5, 5]);
-            accelCtx.beginPath();
-            accelCtx.moveTo(vizX, vizY);
-            accelCtx.lineTo(vizX, vizY - 80);
-            accelCtx.stroke();
-            accelCtx.setLineDash([]);
-            accelCtx.fillStyle = TEK.ch4;
-            accelCtx.font = '10px monospace';
-            accelCtx.fillText('g', vizX + 5, vizY - 85);
-
-            // Bar graphs for each axis
-            const barX = 350, barY = 50, barW = 40, barH = 300;
-            const axes = [
-                {label: 'X', value: ax, color: TEK.ch1},
-                {label: 'Y', value: ay, color: TEK.ch2},
-                {label: 'Z', value: az, color: TEK.ch3}
-            ];
-
-            axes.forEach((axis, i) => {
-                const x = barX + i * 80;
-
-                // Background
-                accelCtx.fillStyle = '#222';
-                accelCtx.fillRect(x, barY, barW, barH);
-                accelCtx.strokeStyle = '#444';
-                accelCtx.strokeRect(x, barY, barW, barH);
-
-                // Center line (zero)
-                accelCtx.strokeStyle = '#666';
-                accelCtx.beginPath();
-                accelCtx.moveTo(x, barY + barH / 2);
-                accelCtx.lineTo(x + barW, barY + barH / 2);
-                accelCtx.stroke();
-
-                // Value bar
-                const barValue = (axis.value / range) * (barH / 2);
-                const clampedBar = Math.max(-barH/2, Math.min(barH/2, barValue));
-
-                accelCtx.fillStyle = axis.color;
-                if (clampedBar > 0) {
-                    accelCtx.fillRect(x + 2, barY + barH/2 - clampedBar, barW - 4, clampedBar);
-                } else {
-                    accelCtx.fillRect(x + 2, barY + barH/2, barW - 4, -clampedBar);
-                }
-
-                // Label
-                accelCtx.fillStyle = '#fff';
-                accelCtx.font = '12px monospace';
-                accelCtx.textAlign = 'center';
-                accelCtx.fillText(axis.label, x + barW/2, barY + barH + 20);
-                accelCtx.fillText(axis.value.toFixed(2) + 'g', x + barW/2, barY + barH + 35);
-            });
-
-            // Range scale
-            accelCtx.fillStyle = '#888';
-            accelCtx.font = '10px monospace';
-            accelCtx.textAlign = 'right';
-            accelCtx.fillText('+' + range + 'g', barX - 10, barY + 10);
-            accelCtx.fillText('0', barX - 10, barY + barH/2 + 5);
-            accelCtx.fillText('-' + range + 'g', barX - 10, barY + barH - 5);
-
-            // Sensor info
-            const infoX = 600, infoY = 80;
-            accelCtx.fillStyle = '#222';
-            accelCtx.fillRect(infoX, infoY, 250, 200);
-            accelCtx.strokeStyle = '#555';
-            accelCtx.strokeRect(infoX, infoY, 250, 200);
-
-            accelCtx.fillStyle = '#fff';
-            accelCtx.font = '14px monospace';
-            accelCtx.textAlign = 'left';
-            accelCtx.fillText('Accelerometer Config', infoX + 10, infoY + 25);
-
-            accelCtx.font = '11px monospace';
-            accelCtx.fillStyle = '#ccc';
-            let y = infoY + 50;
-            accelCtx.fillText('Range: ±' + range + 'g', infoX + 15, y); y += 20;
-            accelCtx.fillText('Resolution: ' + resolution + '-bit', infoX + 15, y); y += 20;
-            accelCtx.fillText('LSB: ' + lsb.toFixed(2) + ' mg', infoX + 15, y); y += 20;
-            accelCtx.fillText('Levels: ' + Math.pow(2, resolution), infoX + 15, y); y += 30;
-
-            accelCtx.fillStyle = TEK.ch1;
-            accelCtx.fillText('X: ' + ax.toFixed(4) + ' g', infoX + 15, y); y += 18;
-            accelCtx.fillStyle = TEK.ch2;
-            accelCtx.fillText('Y: ' + ay.toFixed(4) + ' g', infoX + 15, y); y += 18;
-            accelCtx.fillStyle = TEK.ch3;
-            accelCtx.fillText('Z: ' + az.toFixed(4) + ' g', infoX + 15, y);
-        }
-
-        // Gyroscope canvas
-        const gyroCanvas = document.getElementById('gyro-canvas');
-        const gyroCtx = gyroCanvas.getContext('2d');
-        let gyroRunning = false;
-        let gyroInterval = null;
-        let gyroAngle = 0;
-        let gyroTrueAngle = 0;
-        let gyroTime = 0;
-        let gyroHistory = [];
-
-        function updateGyro() {
-            const rate = AD.num('gyro-rate');
-            const bias = AD.num('gyro-bias');
-            const noiseDensity = AD.num('gyro-noise');
-
-            document.getElementById('gyro-rate-val').textContent = rate + ' °/s';
-            document.getElementById('gyro-bias-val').textContent = bias.toFixed(1) + ' °/s';
-            document.getElementById('gyro-noise-val').textContent = noiseDensity.toFixed(2) + ' °/s/√Hz';
-
-            const dt = 0.01; // 100Hz sample rate
-            const noise = (Math.random() - 0.5) * 2 * noiseDensity * Math.sqrt(1/dt);
-
-            const measuredRate = rate + bias + noise;
-            gyroAngle += measuredRate * dt;
-            gyroTrueAngle += rate * dt;
-            gyroTime += dt;
-
-            gyroHistory.push({time: gyroTime, integrated: gyroAngle, true: gyroTrueAngle});
-            if (gyroHistory.length > 500) gyroHistory.shift();
-
-            const drift = gyroAngle - gyroTrueAngle;
-
-            document.getElementById('gyro-angle').textContent = gyroAngle.toFixed(1) + '°';
-            document.getElementById('gyro-true').textContent = gyroTrueAngle.toFixed(1) + '°';
-            document.getElementById('gyro-drift').textContent = drift.toFixed(2) + '°';
-            document.getElementById('gyro-time').textContent = gyroTime.toFixed(1) + ' s';
-
-            drawGyro();
-        }
-
-        function drawGyro() {
-            const W = gyroCanvas.width, H = gyroCanvas.height;
-            gyroCtx.fillStyle = TEK.bg;
-            gyroCtx.fillRect(0, 0, W, H);
-
-            // Draw angle history
-            const graphX = 100, graphY = 30, graphW = 600, graphH = 280;
-
-            gyroCtx.strokeStyle = '#444';
-            gyroCtx.lineWidth = 1;
-            gyroCtx.strokeRect(graphX, graphY, graphW, graphH);
-
-            // Grid
-            for (let i = 0; i <= 10; i++) {
-                const x = graphX + graphW * i / 10;
-                const y = graphY + graphH * i / 10;
-                gyroCtx.beginPath();
-                gyroCtx.moveTo(x, graphY);
-                gyroCtx.lineTo(x, graphY + graphH);
-                gyroCtx.strokeStyle = '#333';
-                gyroCtx.stroke();
-                gyroCtx.beginPath();
-                gyroCtx.moveTo(graphX, y);
-                gyroCtx.lineTo(graphX + graphW, y);
-                gyroCtx.stroke();
-            }
-
-            if (gyroHistory.length > 1) {
-                const timeRange = Math.max(5, gyroTime);
-                const angleMax = Math.max(90, Math.abs(gyroAngle) * 1.2, Math.abs(gyroTrueAngle) * 1.2);
-
-                // Draw true angle
-                gyroCtx.beginPath();
-                gyroHistory.forEach((pt, i) => {
-                    const x = graphX + graphW * pt.time / timeRange;
-                    const y = graphY + graphH / 2 - (graphH / 2) * pt.true / angleMax;
-                    if (i === 0) gyroCtx.moveTo(x, y);
-                    else gyroCtx.lineTo(x, y);
-                });
-                gyroCtx.strokeStyle = TEK.ch4;
-                gyroCtx.lineWidth = 2;
-                gyroCtx.stroke();
-
-                // Draw integrated angle
-                gyroCtx.beginPath();
-                gyroHistory.forEach((pt, i) => {
-                    const x = graphX + graphW * pt.time / timeRange;
-                    const y = graphY + graphH / 2 - (graphH / 2) * pt.integrated / angleMax;
-                    if (i === 0) gyroCtx.moveTo(x, y);
-                    else gyroCtx.lineTo(x, y);
-                });
-                gyroCtx.strokeStyle = TEK.ch1;
-                gyroCtx.lineWidth = 2;
-                gyroCtx.stroke();
-            }
-
-            // Zero line
-            gyroCtx.strokeStyle = '#666';
-            gyroCtx.setLineDash([5, 5]);
-            gyroCtx.beginPath();
-            gyroCtx.moveTo(graphX, graphY + graphH / 2);
-            gyroCtx.lineTo(graphX + graphW, graphY + graphH / 2);
-            gyroCtx.stroke();
-            gyroCtx.setLineDash([]);
-
-            // Legend
-            gyroCtx.fillStyle = TEK.ch4;
-            gyroCtx.fillRect(graphX + graphW + 20, graphY + 20, 16, 12);
-            gyroCtx.fillStyle = '#ccc';
-            gyroCtx.font = '11px monospace';
-            gyroCtx.textAlign = 'left';
-            gyroCtx.fillText('True Angle', graphX + graphW + 40, graphY + 30);
-
-            gyroCtx.fillStyle = TEK.ch1;
-            gyroCtx.fillRect(graphX + graphW + 20, graphY + 45, 16, 12);
-            gyroCtx.fillStyle = '#ccc';
-            gyroCtx.fillText('Integrated', graphX + graphW + 40, graphY + 55);
-
-            // Labels
-            gyroCtx.fillStyle = '#ccc';
-            gyroCtx.textAlign = 'center';
-            gyroCtx.fillText('Time (s)', graphX + graphW / 2, graphY + graphH + 25);
-            gyroCtx.save();
-            gyroCtx.translate(graphX - 35, graphY + graphH / 2);
-            gyroCtx.rotate(-Math.PI / 2);
-            gyroCtx.fillText('Angle (°)', 0, 0);
-            gyroCtx.restore();
-
-            // Drift warning
-            const drift = Math.abs(gyroAngle - gyroTrueAngle);
-            if (drift > 10) {
-                gyroCtx.fillStyle = '#ff6666';
-                gyroCtx.font = '14px monospace';
-                gyroCtx.fillText('WARNING: Significant drift accumulation!', graphX + graphW / 2, graphY + graphH + 50);
-            }
-        }
-
-        document.getElementById('gyro-start').addEventListener('click', function() {
-            if (!gyroRunning) {
-                gyroRunning = true;
-                gyroInterval = setInterval(updateGyro, 10);
-            }
-        });
-
-        document.getElementById('gyro-stop').addEventListener('click', function() {
-            gyroRunning = false;
-            if (gyroInterval) clearInterval(gyroInterval);
-        });
-
-        document.getElementById('gyro-reset').addEventListener('click', function() {
-            gyroRunning = false;
-            if (gyroInterval) clearInterval(gyroInterval);
-            gyroAngle = 0;
-            gyroTrueAngle = 0;
-            gyroTime = 0;
-            gyroHistory = [];
-            drawGyro();
-        });
-
-        // Pressure canvas
-        const pressCanvas = document.getElementById('press-canvas');
-        const pressCtx = pressCanvas.getContext('2d');
-
-        function drawPressure() {
-            const W = pressCanvas.width, H = pressCanvas.height;
-            pressCtx.fillStyle = TEK.bg;
-            pressCtx.fillRect(0, 0, W, H);
-
-            const P = AD.num('press-p') || 1013;
-            const P0 = AD.num('press-p0') || 1013;
-            const T = AD.num('press-temp') || 15;
-            const sensor = document.getElementById('press-sensor').value || 'bmp280';
-
-            document.getElementById('press-p-val').textContent = P + ' hPa';
-            document.getElementById('press-p0-val').textContent = P0 + ' hPa';
-            document.getElementById('press-temp-val').textContent = T + '°C';
-
-            // Barometric formula: h = (T + 273.15) / 0.0065 × (1 - (P/P0)^0.1903)
-            const TK = T + 273.15;
-            const altitude = (TK / 0.0065) * (1 - Math.pow(P / P0, 0.1903));
-
-            // Sensor specs
-            const specs = {
-                bmp280: {res: 0.01, acc: 1.0, altRes: 0.08},
-                bmp388: {res: 0.0016, acc: 0.5, altRes: 0.013},
-                lps22: {res: 0.00024, acc: 0.1, altRes: 0.002}
+        document.addEventListener('DOMContentLoaded', () => {
+            const TEK = {
+                bg: '#0a0a0a', grid: '#1a3a1a', ch1: '#FFFF00', ch2: '#00FFFF',
+                ch3: '#FF66FF', ch4: '#00FF00', ch5: '#FF6600', text: '#ffffff'
             };
 
-            const spec = specs[sensor] || specs.bmp280;
+            // Butterworth g-values
+            const butterworthG = {
+                1: [1.000, 1.000],
+                2: [1.414, 1.414, 1.000],
+                3: [1.000, 2.000, 1.000, 1.000],
+                4: [0.765, 1.848, 1.848, 0.765, 1.000],
+                5: [0.618, 1.618, 2.000, 1.618, 0.618, 1.000],
+                6: [0.518, 1.414, 1.932, 1.932, 1.414, 0.518, 1.000],
+                7: [0.445, 1.247, 1.802, 2.000, 1.802, 1.247, 0.445, 1.000]
+            };
 
-            document.getElementById('press-alt').textContent = altitude.toFixed(1) + ' m';
-            document.getElementById('press-res').textContent = spec.res + ' hPa';
-            document.getElementById('press-alt-res').textContent = '~' + (spec.altRes * 100).toFixed(0) + ' cm';
-            document.getElementById('press-acc').textContent = '±' + spec.acc + ' hPa';
+            // ===== FILTER RESPONSE COMPARISON =====
+            const responseCanvas = document.getElementById('response-canvas');
+            const responseCtx = responseCanvas.getContext('2d');
 
-            // Draw altitude profile
-            const graphX = 100, graphY = 30, graphW = 500, graphH = 280;
+            function drawResponse() {
+                const filterType = document.getElementById('filter-type').value;
+                const order = parseInt(document.getElementById('filter-order').value);
+                const fc = AD.num('cutoff-freq');
 
-            pressCtx.strokeStyle = '#444';
-            pressCtx.lineWidth = 1;
-            pressCtx.strokeRect(graphX, graphY, graphW, graphH);
+                document.getElementById('filter-order-val').textContent = order;
+                document.getElementById('cutoff-freq-val').textContent = fc + ' MHz';
 
-            // Draw pressure vs altitude curve
-            pressCtx.beginPath();
-            for (let a = 0; a <= 10000; a += 100) {
-                const p = P0 * Math.pow(1 - 0.0065 * a / 288.15, 5.255);
-                const x = graphX + graphW * p / 1100;
-                const y = graphY + graphH - graphH * a / 10000;
-                if (a === 0) pressCtx.moveTo(x, y);
-                else pressCtx.lineTo(x, y);
-            }
-            pressCtx.strokeStyle = TEK.ch1;
-            pressCtx.lineWidth = 2;
-            pressCtx.stroke();
+                const ctx = responseCtx;
+                const W = responseCanvas.width, H = responseCanvas.height;
+                ctx.fillStyle = TEK.bg;
+                ctx.fillRect(0, 0, W, H);
 
-            // Operating point
-            const opX = graphX + graphW * P / 1100;
-            const opY = graphY + graphH - graphH * Math.max(0, altitude) / 10000;
-            pressCtx.beginPath();
-            pressCtx.arc(opX, Math.min(graphY + graphH, opY), 8, 0, 2 * Math.PI);
-            pressCtx.fillStyle = TEK.ch3;
-            pressCtx.fill();
+                // Magnitude response
+                const magX = 50, magY = 40, magW = 450, magH = 300;
 
-            // Labels
-            pressCtx.fillStyle = '#ccc';
-            pressCtx.font = '11px monospace';
-            pressCtx.textAlign = 'center';
-            pressCtx.fillText('Pressure (hPa)', graphX + graphW / 2, graphY + graphH + 25);
-            pressCtx.save();
-            pressCtx.translate(graphX - 40, graphY + graphH / 2);
-            pressCtx.rotate(-Math.PI / 2);
-            pressCtx.fillText('Altitude (m)', 0, 0);
-            pressCtx.restore();
+                ctx.fillStyle = TEK.text;
+                ctx.font = '14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('Magnitude Response', magX + magW/2, magY - 10);
 
-            // Axis values
-            for (let p = 400; p <= 1100; p += 100) {
-                const x = graphX + graphW * p / 1100;
-                pressCtx.fillText(p, x, graphY + graphH + 15);
-            }
+                // Grid
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1;
+                for (let db = 0; db >= -60; db -= 10) {
+                    const y = magY + (0 - db) / 60 * (magH - 30);
+                    ctx.beginPath();
+                    ctx.moveTo(magX + 40, y);
+                    ctx.lineTo(magX + magW, y);
+                    ctx.stroke();
+                }
 
-            // Sensor comparison
-            const compX = 680, compY = 50;
-            pressCtx.fillStyle = '#222';
-            pressCtx.fillRect(compX, compY, 250, 200);
-            pressCtx.strokeStyle = '#555';
-            pressCtx.strokeRect(compX, compY, 250, 200);
-
-            pressCtx.fillStyle = '#fff';
-            pressCtx.font = '14px monospace';
-            pressCtx.textAlign = 'left';
-            pressCtx.fillText('Sensor: ' + sensor.toUpperCase(), compX + 10, compY + 25);
-
-            pressCtx.font = '11px monospace';
-            pressCtx.fillStyle = '#ccc';
-            let y = compY + 50;
-            pressCtx.fillText('Pressure: ' + P + ' hPa', compX + 15, y); y += 20;
-            pressCtx.fillText('Reference: ' + P0 + ' hPa', compX + 15, y); y += 20;
-            pressCtx.fillText('Temp: ' + T + '°C', compX + 15, y); y += 30;
-
-            pressCtx.fillStyle = TEK.ch4;
-            pressCtx.fillText('Altitude: ' + altitude.toFixed(1) + ' m', compX + 15, y); y += 20;
-            pressCtx.fillStyle = '#888';
-            pressCtx.fillText('(' + (altitude * 3.281).toFixed(0) + ' ft)', compX + 15, y); y += 30;
-
-            pressCtx.fillStyle = '#ccc';
-            pressCtx.fillText('Resolution: ' + spec.res + ' hPa', compX + 15, y); y += 20;
-            pressCtx.fillText('Accuracy: ±' + spec.acc + ' hPa', compX + 15, y);
-        }
-
-        // Event listeners
-        ['accel-x', 'accel-y', 'accel-dyn', 'accel-range', 'accel-res'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawAccelerometer);
-            document.getElementById(id).addEventListener('change', drawAccelerometer);
-        });
-
-        ['gyro-rate', 'gyro-bias', 'gyro-noise'].forEach(id => {
-            document.getElementById(id).addEventListener('input', function() {
-                const el = document.getElementById(id);
-                if (id === 'gyro-rate') document.getElementById('gyro-rate-val').textContent = el.value + ' °/s';
-                if (id === 'gyro-bias') document.getElementById('gyro-bias-val').textContent = parseFloat(el.value).toFixed(1) + ' °/s';
-                if (id === 'gyro-noise') document.getElementById('gyro-noise-val').textContent = parseFloat(el.value).toFixed(2) + ' °/s/√Hz';
-            });
-        });
-
-        ['press-p', 'press-p0', 'press-temp', 'press-sensor'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawPressure);
-            document.getElementById(id).addEventListener('change', drawPressure);
-        });
-
-        // Animation for accelerometer
-        setInterval(drawAccelerometer, 50);
-
-        // Initialize
-        drawAccelerometer();
-        drawGyro();
-        drawPressure();
-
-        // Schematic
-        document.addEventListener('SchematicSVGReady', function() {
-            const container = document.getElementById('mems-schematic');
-            if (!container || typeof SchematicSVG === 'undefined') return;
-
-            const svg = new SchematicSVG(900, 320);
-
-            svg.text(450, 25, 'MEMS IMU Interface (I2C)', '14px', '#fff', 'middle');
-
-            // MCU
-            svg.rect(100, 80, 120, 180);
-            svg.text(160, 120, 'MCU', '14px', '#fff', 'middle');
-            svg.text(160, 140, '(STM32)', '10px', '#888', 'middle');
-
-            // I2C pins
-            svg.text(230, 140, 'SDA', '9px');
-            svg.text(230, 170, 'SCL', '9px');
-            svg.text(230, 200, 'INT', '9px');
-
-            // Pull-ups
-            svg.line(220, 135, 280, 135);
-            svg.line(280, 135, 280, 100);
-            svg.resistor(280, 70, 'v', '', '4.7k');
-            svg.line(280, 55, 280, 40);
-            svg.line(280, 40, 380, 40);
-            svg.text(330, 35, 'Vcc (3.3V)', '9px');
-
-            svg.line(220, 165, 350, 165);
-            svg.line(350, 165, 350, 100);
-            svg.resistor(350, 70, 'v', '', '4.7k');
-            svg.line(350, 55, 350, 40);
-
-            svg.line(220, 195, 420, 195);
-
-            // IMU
-            svg.rect(420, 100, 140, 160);
-            svg.text(490, 130, 'IMU', '14px', '#fff', 'middle');
-            svg.text(490, 150, 'MPU-6050', '10px', '#888', 'middle');
-            svg.text(490, 175, '3-axis Accel', '9px', '#666', 'middle');
-            svg.text(490, 190, '3-axis Gyro', '9px', '#666', 'middle');
-
-            // IMU connections
-            svg.line(280, 135, 420, 135);
-            svg.line(350, 165, 420, 165);
-            svg.line(420, 195, 420, 195);
-
-            // Bypass caps
-            svg.line(560, 130, 620, 130);
-            svg.capacitor(620, 155, 'v', 'C1', '100nF');
-            svg.line(620, 180, 620, 200);
-            svg.ground(620, 200);
-
-            svg.line(560, 160, 680, 160);
-            svg.capacitor(680, 185, 'v', 'C2', '10nF');
-            svg.line(680, 210, 680, 230);
-            svg.ground(680, 230);
-
-            // Power
-            svg.line(380, 40, 490, 40);
-            svg.line(490, 40, 490, 100);
-            svg.text(500, 85, 'VDD', '9px');
-
-            // Ground
-            svg.line(490, 260, 490, 280);
-            svg.ground(490, 280);
-            svg.text(505, 275, 'GND', '9px');
-
-            // INT connection
-            svg.text(430, 230, 'INT1', '9px');
-
-            container.appendChild(svg.svg);
-        });
-
-        if (typeof SchematicSVG !== 'undefined') {
-            document.dispatchEvent(new Event('SchematicSVGReady'));
-        }
-
-        // SPICE widget
-        if (typeof SpiceNetlistWidget !== 'undefined') {
-            new SpiceNetlistWidget('mems-spice', {
-                title: 'MEMS Accelerometer Model',
-                description: 'Simplified capacitive accelerometer model',
-                netlist: `* MEMS Accelerometer Behavioral Model
-* Capacitive sensing with differential output
-
-.param G = 1           ; Acceleration in g
-.param SENS = 1m       ; Sensitivity (1mV/g output)
-.param C0 = 1p         ; Base capacitance
-.param VDD = 3.3       ; Supply voltage
-
-* Differential capacitance sensing
-* C1 = C0 × (1 + k×a), C2 = C0 × (1 - k×a)
-* Output ∝ (C1-C2)/(C1+C2) = k×a
-
-* Sensor element (behavioral)
-E_sense v_sense 0 VALUE={VDD/2 + SENS*G}
-
-* Output amplifier
-R_out v_sense out 1k
-C_filter out 0 100n
-
-* For 1g acceleration:
-* Output = 1.65V + 1mV = 1.651V
-
-.dc G -16 16 0.1
-
-.end`
-            });
-        }
-
-        // Checklist widget
-        if (typeof ChecklistWidget !== 'undefined') {
-            new ChecklistWidget('mems-checklist', {
-                title: 'MEMS Sensor Interface Checklist',
-                items: [
-                    {id: 'range', text: 'Select sensor range for application (±2g to ±16g)', category: 'Sensor Selection'},
-                    {id: 'res', text: 'Determine required resolution and sample rate', category: 'Sensor Selection'},
-                    {id: 'power', text: 'Evaluate power consumption for battery applications', category: 'Sensor Selection'},
-                    {id: 'interface', text: 'Choose interface (I2C for low pin count, SPI for speed)', category: 'Interface Design'},
-                    {id: 'pullups', text: 'Size I2C pull-ups for bus capacitance and speed', category: 'Interface Design'},
-                    {id: 'interrupt', text: 'Configure interrupt for data-ready or threshold events', category: 'Interface Design'},
-                    {id: 'bypass', text: 'Place bypass capacitors close to sensor VDD', category: 'PCB Layout'},
-                    {id: 'mounting', text: 'Consider sensor orientation and mounting stress', category: 'PCB Layout'},
-                    {id: 'vibration', text: 'Account for PCB resonance affecting sensor', category: 'PCB Layout'},
-                    {id: 'cal', text: 'Implement offset and scale calibration', category: 'Calibration'},
-                    {id: 'temp-cal', text: 'Characterize temperature dependence', category: 'Calibration'},
-                    {id: 'filter', text: 'Design digital filters for noise reduction', category: 'Algorithm'},
-                    {id: 'fusion', text: 'Consider sensor fusion (Kalman, complementary filter)', category: 'Algorithm'}
-                ]
-            });
-        }
-
-        // Exercises widget
-        if (typeof ExerciseWidget !== 'undefined') {
-            new ExerciseWidget('mems-exercises', {
-                exercises: [
-                    {
-                        id: 'ex1',
-                        title: 'Accelerometer Resolution',
-                        problem: 'An accelerometer (MPU-6050) is configured for ±4g range with 16-bit resolution. Calculate: (a) LSB size in mg, (b) Maximum representable acceleration, (c) If noise density is 400µg/√Hz and bandwidth is 100Hz, what is the noise floor in LSBs?',
-                        hints: [
-                            'LSB = full_range / 2^bits',
-                            'Full range = 2 × max_g',
-                            'Noise = density × √BW'
-                        ],
-                        answer: '(a) LSB = 8g / 65536 = 0.122mg = 122µg. (b) Max = ±4g (±32768 counts). (c) Noise = 400µg/√Hz × √100Hz = 4000µg = 4mg RMS. In LSBs: 4mg / 0.122mg = 32.8 LSBs RMS (~200 LSBs peak-to-peak). This sets the effective resolution limit.'
-                    },
-                    {
-                        id: 'ex2',
-                        title: 'Gyroscope Drift Analysis',
-                        problem: 'A gyroscope has bias stability of 5°/hr and noise density of 0.01°/s/√Hz. For a 10-second integration period at 100Hz sample rate, calculate: (a) Expected drift from bias, (b) Expected drift from noise (random walk), (c) Total expected error.',
-                        hints: [
-                            'Bias drift = bias_rate × time',
-                            'Random walk angle = noise_density × √time',
-                            'Add in quadrature (RSS) for total'
-                        ],
-                        answer: '(a) Bias drift = 5°/hr × (10s/3600s) = 0.014°. (b) Random walk = 0.01°/s/√Hz × √10s = 0.0316° (angle random walk is noise × √time). (c) Total = √(0.014² + 0.0316²) = 0.035°. For short integrations, noise dominates; for long integrations, bias dominates.'
-                    },
-                    {
-                        id: 'ex3',
-                        title: 'Altitude from Pressure',
-                        problem: 'A BMP280 barometer reads 950hPa with sea-level pressure of 1013.25hPa and temperature of 20°C. Calculate: (a) Altitude using the barometric formula, (b) If sensor accuracy is ±1hPa, what is the altitude uncertainty?, (c) How much does a 10°C temperature change affect the calculated altitude?',
-                        hints: [
-                            'h = (T/0.0065) × (1 - (P/P0)^0.1903)',
-                            'Temperature in Kelvin',
-                            'Differentiate for sensitivity'
-                        ],
-                        answer: '(a) T = 293.15K. h = (293.15/0.0065) × (1 - (950/1013.25)^0.1903) = 45100 × 0.0124 = 540m. (b) At 950hPa, sensitivity ≈ 8.5m/hPa (varies with altitude). ±1hPa → ±8.5m uncertainty. (c) At 10°C (283K): h = 520m. At 30°C (303K): h = 560m. ΔT of 10°C → Δh of ~20m (3.4% change). Temperature compensation is important!'
-                    }
-                ]
-            });
-        }
-
-        // MEMS Accelerometer Principles Canvas
-        (function() {
-            const canvas = document.getElementById('mems-accel-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            function roundRect(ctx, x, y, w, h, r) {
+                // Axes
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 1;
                 ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-            }
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Title
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 16px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Capacitive MEMS Accelerometer', W/2, 25);
-
-            // Main structure outline
-            const structX = 50, structY = 50, structW = 280, structH = 260;
-            ctx.fillStyle = '#1a2332';
-            ctx.strokeStyle = '#374151';
-            ctx.lineWidth = 2;
-            roundRect(ctx, structX, structY, structW, structH, 10);
-            ctx.fill();
-            ctx.stroke();
-
-            // Fixed electrodes label
-            ctx.fillStyle = '#888';
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Fixed Electrodes', structX + structW/2, structY + 25);
-
-            // Left fixed electrode (C1)
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillRect(structX + 40, structY + 50, 10, 80);
-            ctx.fillRect(structX + 40, structY + 150, 10, 80);
-            ctx.font = '10px monospace';
-            ctx.fillText('C1', structX + 45, structY + 95);
-
-            // Right fixed electrode (C2)
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillRect(structX + structW - 50, structY + 50, 10, 80);
-            ctx.fillRect(structX + structW - 50, structY + 150, 10, 80);
-            ctx.fillText('C2', structX + structW - 45, structY + 95);
-
-            // Proof mass (center, movable)
-            const pmX = structX + structW/2 - 40, pmY = structY + 100, pmW = 80, pmH = 80;
-            ctx.fillStyle = '#2a4f5f';
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            roundRect(ctx, pmX, pmY, pmW, pmH, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            ctx.fillText('Proof', pmX + pmW/2, pmY + 35);
-            ctx.fillText('Mass', pmX + pmW/2, pmY + 50);
-
-            // Spring suspension lines
-            ctx.strokeStyle = TEK.ch3;
-            ctx.lineWidth = 2;
-            ctx.setLineDash([4, 2]);
-            ctx.beginPath();
-            ctx.moveTo(pmX + pmW/2, pmY + pmH);
-            ctx.lineTo(pmX + pmW/2, structY + structH - 20);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.fillStyle = TEK.ch3;
-            ctx.font = '10px monospace';
-            ctx.fillText('Spring', pmX + pmW/2, structY + structH - 5);
-            ctx.fillText('Suspension', pmX + pmW/2, structY + structH + 10);
-
-            // Arrow showing suspended mass moves
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(structX + structW + 10, pmY + pmH/2);
-            ctx.lineTo(structX + structW + 30, pmY + pmH/2);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Suspended proof', structX + structW + 35, pmY + pmH/2 - 5);
-            ctx.fillText('mass moves with', structX + structW + 35, pmY + pmH/2 + 10);
-            ctx.fillText('acceleration', structX + structW + 35, pmY + pmH/2 + 25);
-
-            // Operation explanation box
-            const opX = 380, opY = 50;
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, opX, opY, 260, 130, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = 'bold 12px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Operation:', opX + 15, opY + 22);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '11px monospace';
-            let y = opY + 45;
-            ctx.fillText('At rest: C1 = C2', opX + 20, y); y += 20;
-            ctx.fillText('With acceleration:', opX + 20, y); y += 18;
-            ctx.fillText('  Proof mass moves', opX + 20, y); y += 16;
-            ctx.fillText('  → C1 ↑, C2 ↓ (or vice versa)', opX + 20, y); y += 16;
-            ctx.fillText('  → ΔC ∝ acceleration', opX + 20, y);
-
-            // Output equation box
-            ctx.fillStyle = '#1a2332';
-            ctx.strokeStyle = TEK.ch4;
-            roundRect(ctx, opX, opY + 145, 260, 50, 6);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = 'bold 12px monospace';
-            ctx.fillText('Output:', opX + 15, opY + 168);
-            ctx.fillStyle = '#fff';
-            ctx.fillText('V_out = G × (C1-C2)/(C1+C2)', opX + 85, opY + 168);
-
-            // Key parameters box
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, opX, opY + 210, 260, 140, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 12px monospace';
-            ctx.fillText('Key Parameters:', opX + 15, opY + 232);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '11px monospace';
-            y = opY + 255;
-            ctx.fillText('• Sensitivity: mV/g or mg/LSB', opX + 15, y); y += 18;
-            ctx.fillText('• Range: ±2g to ±200g', opX + 15, y); y += 18;
-            ctx.fillText('• Bandwidth: DC to several kHz', opX + 15, y); y += 18;
-            ctx.fillText('• Noise: ~100-400 µg/√Hz', opX + 15, y); y += 18;
-            ctx.fillText('• Cross-axis sensitivity: <3%', opX + 15, y);
-
-            // Capacitance visualization
-            const capVizX = 680, capVizY = 70;
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, capVizX, capVizY, 200, 280, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Capacitor Plates', capVizX + 100, capVizY + 22);
-
-            // Draw capacitor diagram
-            const capY1 = capVizY + 60;
-            // C1 plates
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillRect(capVizX + 30, capY1, 60, 10);
-            ctx.fillRect(capVizX + 30, capY1 + 30, 60, 10);
-            ctx.fillStyle = '#888';
-            ctx.font = '10px monospace';
-            ctx.fillText('C1', capVizX + 60, capY1 + 55);
-
-            // C2 plates
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillRect(capVizX + 110, capY1, 60, 10);
-            ctx.fillRect(capVizX + 110, capY1 + 30, 60, 10);
-            ctx.fillText('C2', capVizX + 140, capY1 + 55);
-
-            // Proof mass between
-            ctx.fillStyle = TEK.ch4;
-            ctx.fillRect(capVizX + 75, capY1 + 15, 50, 10);
-
-            // Arrow showing movement
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(capVizX + 100, capY1 + 75);
-            ctx.lineTo(capVizX + 100, capY1 + 95);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(capVizX + 95, capY1 + 90);
-            ctx.lineTo(capVizX + 100, capY1 + 100);
-            ctx.lineTo(capVizX + 105, capY1 + 90);
-            ctx.fill();
-            ctx.fillStyle = '#888';
-            ctx.font = '9px monospace';
-            ctx.fillText('Acceleration', capVizX + 100, capY1 + 115);
-
-            // Differential output explanation
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            y = capY1 + 140;
-            ctx.fillText('Differential sensing:', capVizX + 20, y); y += 18;
-            ctx.fillText('• Rejects common-mode', capVizX + 20, y); y += 15;
-            ctx.fillText('• Doubles sensitivity', capVizX + 20, y); y += 15;
-            ctx.fillText('• Temperature stable', capVizX + 20, y);
-        })();
-
-        // MEMS Gyroscope Principles Canvas
-        (function() {
-            const canvas = document.getElementById('mems-gyro-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            function roundRect(ctx, x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-            }
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Title
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 16px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Vibrating Structure Gyroscope (Coriolis Effect)', W/2, 25);
-
-            // Main structure box
-            const structX = 50, structY = 50, structW = 320, structH = 300;
-            ctx.fillStyle = '#1a2332';
-            ctx.strokeStyle = '#374151';
-            ctx.lineWidth = 2;
-            roundRect(ctx, structX, structY, structW, structH, 10);
-            ctx.fill();
-            ctx.stroke();
-
-            // Drive mode label
-            ctx.fillStyle = '#888';
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Drive Mode Oscillation', structX + structW/2, structY + 25);
-
-            // Drive mode arrows
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(structX + 60, structY + 50);
-            ctx.lineTo(structX + 160, structY + 50);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(structX + structW - 60, structY + 50);
-            ctx.lineTo(structX + structW - 160, structY + 50);
-            ctx.stroke();
-            // Arrow heads
-            ctx.fillStyle = TEK.ch1;
-            ctx.beginPath();
-            ctx.moveTo(structX + 55, structY + 50);
-            ctx.lineTo(structX + 70, structY + 45);
-            ctx.lineTo(structX + 70, structY + 55);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(structX + structW - 55, structY + 50);
-            ctx.lineTo(structX + structW - 70, structY + 45);
-            ctx.lineTo(structX + structW - 70, structY + 55);
-            ctx.fill();
-
-            // Proof mass
-            const pmX = structX + structW/2 - 60, pmY = structY + 70, pmW = 120, pmH = 50;
-            ctx.fillStyle = '#2a4f5f';
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            roundRect(ctx, pmX, pmY, pmW, pmH, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('PROOF MASS', pmX + pmW/2, pmY + 30);
-
-            // Rotation symbol
-            ctx.strokeStyle = TEK.ch3;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(structX + structW - 50, pmY + 25, 20, 0.5, 2 * Math.PI - 0.5);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch3;
-            ctx.beginPath();
-            ctx.moveTo(structX + structW - 35, pmY + 45);
-            ctx.lineTo(structX + structW - 30, pmY + 35);
-            ctx.lineTo(structX + structW - 40, pmY + 40);
-            ctx.fill();
-            ctx.font = '11px monospace';
-            ctx.fillText('Ω', structX + structW - 50, pmY + 55);
-            ctx.fillText('(rotation)', structX + structW - 50, pmY + 68);
-
-            // Coriolis force arrow
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(pmX + pmW/2, pmY + pmH + 10);
-            ctx.lineTo(pmX + pmW/2, pmY + pmH + 50);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch4;
-            ctx.beginPath();
-            ctx.moveTo(pmX + pmW/2 - 8, pmY + pmH + 45);
-            ctx.lineTo(pmX + pmW/2, pmY + pmH + 58);
-            ctx.lineTo(pmX + pmW/2 + 8, pmY + pmH + 45);
-            ctx.fill();
-            ctx.font = '10px monospace';
-            ctx.fillText('Coriolis Force', pmX + pmW/2, pmY + pmH + 75);
-            ctx.fillStyle = '#888';
-            ctx.fillText('(perpendicular to', pmX + pmW/2, pmY + pmH + 90);
-            ctx.fillText('drive velocity)', pmX + pmW/2, pmY + pmH + 103);
-
-            // Sense mode block
-            const smY = pmY + pmH + 120;
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch2;
-            ctx.lineWidth = 2;
-            roundRect(ctx, pmX, smY, pmW, 40, 6);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            ctx.fillText('SENSE MODE', pmX + pmW/2, smY + 25);
-
-            // Sense displacement arrow
-            ctx.strokeStyle = TEK.ch2;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(pmX + pmW/2, smY + 50);
-            ctx.lineTo(pmX + pmW/2, smY + 70);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(pmX + pmW/2, smY + 50);
-            ctx.lineTo(pmX + pmW/2, smY + 30);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = '10px monospace';
-            ctx.fillText('Sense Displacement', pmX + pmW/2, smY + 85);
-
-            // Coriolis formula box
-            const formX = 400, formY = 50;
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = TEK.ch4;
-            roundRect(ctx, formX, formY, 280, 110, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = 'bold 13px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Coriolis Force:', formX + 15, formY + 25);
-            ctx.fillStyle = '#fff';
-            ctx.font = '14px monospace';
-            ctx.fillText('F_c = 2 × m × v × Ω', formX + 15, formY + 50);
-
-            ctx.fillStyle = '#888';
-            ctx.font = '11px monospace';
-            let y = formY + 75;
-            ctx.fillText('Where:', formX + 15, y); y += 16;
-            ctx.fillText('• m = proof mass, v = drive velocity', formX + 25, y); y += 16;
-            ctx.fillText('• Ω = angular rate (rotation)', formX + 25, y);
-
-            // Output box
-            ctx.fillStyle = '#1a2332';
-            ctx.strokeStyle = TEK.ch1;
-            roundRect(ctx, formX, formY + 125, 280, 40, 6);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '12px monospace';
-            ctx.fillText('Output: Voltage ∝ Ω (angular velocity)', formX + 15, formY + 150);
-
-            // Key parameters box
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, formX, formY + 180, 280, 130, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 12px monospace';
-            ctx.fillText('Key Parameters:', formX + 15, formY + 202);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '11px monospace';
-            y = formY + 225;
-            ctx.fillText('• Sensitivity: mV/(°/s) or (°/s)/LSB', formX + 15, y); y += 18;
-            ctx.fillText('• Range: ±125 to ±2000 °/s', formX + 15, y); y += 18;
-            ctx.fillText('• Noise: ~0.01-0.1 °/s/√Hz', formX + 15, y); y += 18;
-            ctx.fillText('• Bias stability: <10 °/hr (consumer)', formX + 15, y);
-
-            // Visualization of vibrating mass
-            const vizX = 710, vizY = 100;
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, vizX, vizY, 170, 200, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 11px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Tuning Fork', vizX + 85, vizY + 22);
-            ctx.fillText('Gyro Structure', vizX + 85, vizY + 36);
-
-            // Draw tuning fork shape
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(vizX + 60, vizY + 160);
-            ctx.lineTo(vizX + 60, vizY + 80);
-            ctx.lineTo(vizX + 60, vizY + 60);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(vizX + 110, vizY + 160);
-            ctx.lineTo(vizX + 110, vizY + 80);
-            ctx.lineTo(vizX + 110, vizY + 60);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(vizX + 60, vizY + 160);
-            ctx.lineTo(vizX + 110, vizY + 160);
-            ctx.stroke();
-
-            // Vibration arrows
-            ctx.strokeStyle = TEK.ch3;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(vizX + 45, vizY + 70);
-            ctx.lineTo(vizX + 55, vizY + 70);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(vizX + 115, vizY + 70);
-            ctx.lineTo(vizX + 125, vizY + 70);
-            ctx.stroke();
-            ctx.fillStyle = '#888';
-            ctx.font = '9px monospace';
-            ctx.fillText('Vibrates', vizX + 85, vizY + 185);
-        })();
-
-        // IMU Architecture Canvas
-        (function() {
-            const canvas = document.getElementById('imu-architecture-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            function roundRect(ctx, x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-            }
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Title
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 16px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('6-Axis/9-Axis IMU Architecture', W/2, 25);
-
-            // Main package outline
-            const pkgX = 100, pkgY = 45, pkgW = 500, pkgH = 320;
-            ctx.fillStyle = '#1a2332';
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            roundRect(ctx, pkgX, pkgY, pkgW, pkgH, 12);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#888';
-            ctx.font = '13px monospace';
-            ctx.fillText('IMU Package', pkgX + pkgW/2, pkgY + 22);
-
-            // 3-Axis Accelerometer block
-            const accelX = pkgX + 30, accelY = pkgY + 45;
-            ctx.fillStyle = '#2a4f5f';
-            ctx.strokeStyle = TEK.ch1;
-            roundRect(ctx, accelX, accelY, 130, 85, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            ctx.fillText('3-Axis', accelX + 65, accelY + 25);
-            ctx.fillText('Accelerometer', accelX + 65, accelY + 42);
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '10px monospace';
-            ctx.fillText('ax, ay, az', accelX + 65, accelY + 65);
-
-            // 3-Axis Gyroscope block
-            const gyroX = pkgX + 185, gyroY = pkgY + 45;
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch2;
-            roundRect(ctx, gyroX, gyroY, 130, 85, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            ctx.fillText('3-Axis', gyroX + 65, gyroY + 25);
-            ctx.fillText('Gyroscope', gyroX + 65, gyroY + 42);
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = '10px monospace';
-            ctx.fillText('ωx, ωy, ωz', gyroX + 65, gyroY + 65);
-
-            // 3-Axis Magnetometer block
-            const magX = pkgX + 340, magY = pkgY + 45;
-            ctx.fillStyle = '#3f2a5f';
-            ctx.strokeStyle = TEK.ch3;
-            roundRect(ctx, magX, magY, 130, 85, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            ctx.fillText('3-Axis', magX + 65, magY + 25);
-            ctx.fillText('Magnetometer', magX + 65, magY + 42);
-            ctx.fillStyle = TEK.ch3;
-            ctx.font = '10px monospace';
-            ctx.fillText('mx, my, mz', magX + 65, magY + 65);
-
-            // Connection lines to digital processing
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(accelX + 65, accelY + 85);
-            ctx.lineTo(accelX + 65, accelY + 105);
-            ctx.lineTo(pkgX + pkgW/2, accelY + 105);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(gyroX + 65, gyroY + 85);
-            ctx.lineTo(gyroX + 65, gyroY + 105);
-            ctx.lineTo(pkgX + pkgW/2, gyroY + 105);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(magX + 65, magY + 85);
-            ctx.lineTo(magX + 65, magY + 105);
-            ctx.lineTo(pkgX + pkgW/2, magY + 105);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(pkgX + pkgW/2, accelY + 105);
-            ctx.lineTo(pkgX + pkgW/2, accelY + 130);
-            ctx.stroke();
-
-            // Digital Processing block
-            const dpX = pkgX + 130, dpY = accelY + 130;
-            ctx.fillStyle = '#2a2f4f';
-            ctx.strokeStyle = TEK.ch4;
-            roundRect(ctx, dpX, dpY, 240, 100, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px monospace';
-            ctx.fillText('Digital Processing', dpX + 120, dpY + 22);
-            ctx.fillStyle = '#aaa';
-            ctx.font = '10px monospace';
-            let y = dpY + 42;
-            ctx.fillText('- ADC', dpX + 30, y);
-            ctx.fillText('- Calibration', dpX + 130, y); y += 18;
-            ctx.fillText('- FIFO Buffer', dpX + 30, y);
-            ctx.fillText('- Temperature comp', dpX + 130, y);
-
-            // Interface block
-            const ifX = dpX + 70, ifY = dpY + 115;
-            ctx.fillStyle = '#3a3f5f';
-            ctx.strokeStyle = TEK.ch1;
-            roundRect(ctx, ifX, ifY, 100, 35, 6);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            ctx.fillText('I2C / SPI', ifX + 50, ifY + 22);
-
-            // Connection to MCU
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(ifX + 50, ifY + 35);
-            ctx.lineTo(ifX + 50, pkgY + pkgH + 30);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '12px monospace';
-            ctx.fillText('To Host MCU', ifX + 50, pkgY + pkgH + 50);
-
-            // Common IMUs list
-            const listX = 650, listY = 70;
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, listX, listY, 220, 180, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 12px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Common IMUs:', listX + 15, listY + 25);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px monospace';
-            y = listY + 50;
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillText('MPU-6050:', listX + 15, y);
-            ctx.fillStyle = '#888';
-            ctx.fillText('6-axis, I2C', listX + 95, y); y += 28;
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillText('ICM-20948:', listX + 15, y);
-            ctx.fillStyle = '#888';
-            ctx.fillText('9-axis, I2C/SPI', listX + 100, y); y += 28;
-
-            ctx.fillStyle = TEK.ch3;
-            ctx.fillText('BMI270:', listX + 15, y);
-            ctx.fillStyle = '#888';
-            ctx.fillText('6-axis, ultra-low power', listX + 80, y); y += 28;
-
-            ctx.fillStyle = TEK.ch4;
-            ctx.fillText('LSM6DSO:', listX + 15, y);
-            ctx.fillStyle = '#888';
-            ctx.fillText('6-axis, ML core', listX + 90, y);
-
-            // 6-axis vs 9-axis info
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, listX, listY + 200, 220, 100, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 11px monospace';
-            ctx.fillText('Axis Count:', listX + 15, listY + 225);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px monospace';
-            y = listY + 248;
-            ctx.fillText('6-axis: Accel + Gyro', listX + 15, y); y += 18;
-            ctx.fillText('9-axis: + Magnetometer', listX + 15, y); y += 18;
-            ctx.fillText('(for heading/compass)', listX + 15, y);
-        })();
-
-        // Pressure Sensor Canvas
-        (function() {
-            const canvas = document.getElementById('pressure-sensor-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            function roundRect(ctx, x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-            }
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Title
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 16px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Piezoresistive Pressure Sensor', W/2, 25);
-
-            // Silicon die outline
-            const dieX = 50, dieY = 50, dieW = 300, dieH = 250;
-            ctx.fillStyle = '#1a2332';
-            ctx.strokeStyle = '#374151';
-            ctx.lineWidth = 2;
-            roundRect(ctx, dieX, dieY, dieW, dieH, 10);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#888';
-            ctx.font = '11px monospace';
-            ctx.fillText('Silicon die', dieX + dieW/2, dieY + 20);
-
-            // Diaphragm
-            const diaX = dieX + 40, diaY = dieY + 40, diaW = 220, diaH = 100;
-            ctx.fillStyle = '#2a4f5f';
-            ctx.strokeStyle = TEK.ch2;
-            ctx.lineWidth = 2;
-            roundRect(ctx, diaX, diaY, diaW, diaH, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#fff';
-            ctx.font = '10px monospace';
-            ctx.fillText('Thin diaphragm', diaX + diaW/2, diaY + 25);
-            ctx.fillText('(etched silicon)', diaX + diaW/2, diaY + 40);
-
-            // Wheatstone bridge resistors
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillRect(diaX + 40, diaY + 55, 40, 10);
-            ctx.fillRect(diaX + 100, diaY + 55, 40, 10);
-            ctx.fillRect(diaX + 40, diaY + 75, 40, 10);
-            ctx.fillRect(diaX + 100, diaY + 75, 40, 10);
-
-            ctx.fillStyle = '#fff';
-            ctx.font = '8px monospace';
-            ctx.fillText('R1', diaX + 60, diaY + 53);
-            ctx.fillText('R2', diaX + 120, diaY + 53);
-            ctx.fillText('R3', diaX + 60, diaY + 95);
-            ctx.fillText('R4', diaX + 120, diaY + 95);
-
-            // Bridge connections
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(diaX + 80, diaY + 60);
-            ctx.lineTo(diaX + 90, diaY + 60);
-            ctx.lineTo(diaX + 90, diaY + 80);
-            ctx.lineTo(diaX + 80, diaY + 80);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(diaX + 100, diaY + 60);
-            ctx.lineTo(diaX + 90, diaY + 60);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(diaX + 100, diaY + 80);
-            ctx.lineTo(diaX + 90, diaY + 80);
-            ctx.stroke();
-
-            // Pressure deflection arrow
-            ctx.strokeStyle = TEK.ch3;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(dieX + dieW + 20, diaY + diaH/2 - 20);
-            ctx.lineTo(dieX + dieW + 20, diaY + diaH/2 + 20);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch3;
-            ctx.beginPath();
-            ctx.moveTo(dieX + dieW + 15, diaY + diaH/2 + 15);
-            ctx.lineTo(dieX + dieW + 20, diaY + diaH/2 + 25);
-            ctx.lineTo(dieX + dieW + 25, diaY + diaH/2 + 15);
-            ctx.fill();
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Pressure deflects', dieX + dieW + 30, diaY + diaH/2 - 5);
-            ctx.fillText('diaphragm', dieX + dieW + 30, diaY + diaH/2 + 10);
-
-            // Annotation for piezoresistors
-            ctx.fillStyle = '#888';
-            ctx.textAlign = 'left';
-            ctx.fillText('Piezoresistors', diaX + diaW - 60, diaY + 65);
-            ctx.fillText('in Wheatstone', diaX + diaW - 60, diaY + 78);
-            ctx.fillText('bridge', diaX + diaW - 60, diaY + 91);
-
-            // Cavity below
-            const cavY = diaY + diaH + 20;
-            ctx.fillStyle = '#0d1117';
-            ctx.strokeStyle = '#555';
-            roundRect(ctx, diaX + 20, cavY, 180, 50, 6);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#888';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Cavity', diaX + 110, cavY + 22);
-            ctx.fillText('(vacuum or reference P)', diaX + 110, cavY + 38);
-
-            // Arrow to cavity
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(dieX + dieW + 20, cavY + 25);
-            ctx.lineTo(dieX + dieW + 5, cavY + 25);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Sealed reference', dieX + dieW + 25, cavY + 20);
-            ctx.fillText('(absolute) or', dieX + dieW + 25, cavY + 33);
-            ctx.fillText('vented (gauge)', dieX + dieW + 25, cavY + 46);
-
-            // Types box
-            const typesX = 420, typesY = 50;
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, typesX, typesY, 220, 110, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 12px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Types:', typesX + 15, typesY + 25);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '11px monospace';
-            let y = typesY + 48;
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillText('• Absolute:', typesX + 15, y);
-            ctx.fillStyle = '#888';
-            ctx.fillText('Sealed vacuum', typesX + 100, y); y += 20;
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillText('• Gauge:', typesX + 15, y);
-            ctx.fillStyle = '#888';
-            ctx.fillText('Vented to atmosphere', typesX + 85, y); y += 20;
-
-            ctx.fillStyle = TEK.ch3;
-            ctx.fillText('• Differential:', typesX + 15, y);
-            ctx.fillStyle = '#888';
-            ctx.fillText('Two pressure ports', typesX + 115, y);
-
-            // Output equation box
-            ctx.fillStyle = '#1a2332';
-            ctx.strokeStyle = TEK.ch4;
-            roundRect(ctx, typesX, typesY + 125, 260, 70, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = 'bold 12px monospace';
-            ctx.fillText('Output:', typesX + 15, typesY + 150);
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px monospace';
-            ctx.fillText('V_out = V_ex × S × (P - P_ref)', typesX + 15, typesY + 172);
-            ctx.fillStyle = '#888';
-            ctx.font = '10px monospace';
-            ctx.fillText('where S = sensitivity (mV/V/kPa)', typesX + 15, typesY + 190);
-
-            // Applications
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, typesX, typesY + 210, 260, 100, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = 'bold 11px monospace';
-            ctx.fillText('Applications:', typesX + 15, typesY + 232);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px monospace';
-            y = typesY + 252;
-            ctx.fillText('• Barometric altimeter', typesX + 15, y); y += 16;
-            ctx.fillText('• Blood pressure monitor', typesX + 15, y); y += 16;
-            ctx.fillText('• HVAC systems', typesX + 15, y); y += 16;
-            ctx.fillText('• Automotive (MAP sensor)', typesX + 15, y);
-        })();
-
-        // SPI/I2C Interface Canvas
-        (function() {
-            const canvas = document.getElementById('spi-i2c-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            function roundRect(ctx, x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-            }
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // I2C Section
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('I2C Interface (e.g., MPU-6050)', 30, 25);
-
-            // MCU block
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            roundRect(ctx, 40, 45, 80, 100, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('MCU', 80, 95);
-
-            // IMU block
-            ctx.fillStyle = '#2a4f5f';
-            ctx.strokeStyle = TEK.ch2;
-            roundRect(ctx, 260, 45, 80, 100, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.fillText('IMU', 300, 95);
-
-            // I2C connections
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            // SDA
-            ctx.beginPath();
-            ctx.moveTo(120, 70);
-            ctx.lineTo(260, 70);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('SDA', 125, 65);
-            ctx.textAlign = 'right';
-            ctx.fillText('SDA', 255, 65);
-
-            // SCL
-            ctx.strokeStyle = TEK.ch2;
-            ctx.beginPath();
-            ctx.moveTo(120, 95);
-            ctx.lineTo(260, 95);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch2;
-            ctx.textAlign = 'left';
-            ctx.fillText('SCL', 125, 90);
-            ctx.textAlign = 'right';
-            ctx.fillText('SCL', 255, 90);
-
-            // INT
-            ctx.strokeStyle = TEK.ch3;
-            ctx.beginPath();
-            ctx.moveTo(120, 120);
-            ctx.lineTo(260, 120);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch3;
-            ctx.textAlign = 'left';
-            ctx.fillText('INT', 125, 115);
-            ctx.textAlign = 'right';
-            ctx.fillText('INT', 255, 115);
-
-            // Pull-up resistors
-            ctx.fillStyle = '#555';
-            ctx.fillRect(170, 35, 20, 8);
-            ctx.fillRect(200, 35, 20, 8);
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 1;
-            // Connections to Vcc
-            ctx.beginPath();
-            ctx.moveTo(180, 35);
-            ctx.lineTo(180, 70);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(210, 35);
-            ctx.lineTo(210, 95);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(180, 30);
-            ctx.lineTo(180, 20);
-            ctx.lineTo(230, 20);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(210, 30);
-            ctx.lineTo(210, 20);
-            ctx.stroke();
-            ctx.fillStyle = '#888';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('4k7', 180, 50);
-            ctx.fillText('4k7', 210, 50);
-            ctx.fillText('Vcc', 205, 15);
-
-            // I2C Code box
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, 40, 155, 300, 90, 6);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#888';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'left';
-            let y = 172;
-            ctx.fillText('// Read accelerometer X-axis (2 bytes)', 50, y); y += 14;
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillText('Wire.beginTransmission(0x68);', 50, y); y += 14;
-            ctx.fillStyle = '#888';
-            ctx.fillText('Wire.write(0x3B);  // ACCEL_XOUT_H', 50, y); y += 14;
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillText('Wire.endTransmission(false);', 50, y); y += 14;
-            ctx.fillText('Wire.requestFrom(0x68, 2);', 50, y); y += 14;
-            ctx.fillStyle = TEK.ch4;
-            ctx.fillText('int16_t ax = (Wire.read()<<8)|Wire.read();', 50, y);
-
-            // SPI Section
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px monospace';
-            ctx.fillText('SPI Interface (e.g., BMI270)', 480, 25);
-
-            // MCU block
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            roundRect(ctx, 490, 45, 80, 130, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('MCU', 530, 110);
-
-            // IMU block
-            ctx.fillStyle = '#2a4f5f';
-            ctx.strokeStyle = TEK.ch2;
-            roundRect(ctx, 710, 45, 80, 130, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.fillText('IMU', 750, 110);
-
-            // SPI connections
-            const spiPins = [
-                {name: 'MOSI', nameR: 'SDI', color: TEK.ch1, y: 65},
-                {name: 'MISO', nameR: 'SDO', color: TEK.ch2, y: 90},
-                {name: 'SCK', nameR: 'SCK', color: TEK.ch3, y: 115},
-                {name: 'CS', nameR: 'CSB', color: TEK.ch4, y: 140},
-                {name: 'INT1', nameR: 'INT1', color: '#FF6600', y: 165}
-            ];
-
-            spiPins.forEach(pin => {
-                ctx.strokeStyle = pin.color;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(570, pin.y);
-                ctx.lineTo(710, pin.y);
+                ctx.moveTo(magX + 40, magY);
+                ctx.lineTo(magX + 40, magY + magH - 30);
+                ctx.lineTo(magX + magW, magY + magH - 30);
                 ctx.stroke();
 
-                ctx.fillStyle = pin.color;
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'left';
-                ctx.fillText(pin.name, 575, pin.y - 5);
-                ctx.textAlign = 'right';
-                ctx.fillText(pin.nameR, 705, pin.y - 5);
+                // Calculate and draw response
+                const freqMax = fc * 4;
+                const freqScale = (magW - 50) / Math.log10(freqMax / 10);
 
-                // Arrow for MISO (input to MCU)
-                if (pin.name === 'MISO' || pin.name === 'INT1') {
-                    ctx.beginPath();
-                    ctx.moveTo(580, pin.y - 4);
-                    ctx.lineTo(570, pin.y);
-                    ctx.lineTo(580, pin.y + 4);
-                    ctx.fill();
+                // Filter response function
+                const getResponse = (f, type, n) => {
+                    const omega = f / fc;
+                    let H2;  // |H(jω)|²
+
+                    if (type === 'butterworth') {
+                        H2 = 1 / (1 + Math.pow(omega, 2 * n));
+                    } else if (type === 'chebyshev') {
+                        const epsilon = 0.349;  // 0.5 dB ripple
+                        let Tn;
+                        if (omega <= 1) {
+                            Tn = Math.cos(n * Math.acos(omega));
+                        } else {
+                            Tn = Math.cosh(n * Math.acosh(omega));
+                        }
+                        H2 = 1 / (1 + epsilon * epsilon * Tn * Tn);
+                    } else {  // bessel
+                        // Simplified Bessel approximation
+                        H2 = 1 / (1 + Math.pow(omega, 2 * n) * 0.5);
+                    }
+
+                    return 10 * Math.log10(H2);
+                };
+
+                // Draw response curve
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                for (let i = 0; i <= magW - 50; i++) {
+                    const f = 10 * Math.pow(10, i / freqScale);
+                    const db = getResponse(f, filterType, order);
+
+                    const x = magX + 40 + i;
+                    const y = magY + Math.min((0 - db) / 60 * (magH - 30), magH - 30);
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
                 }
+                ctx.stroke();
+
+                // -3 dB line
+                ctx.strokeStyle = TEK.ch5;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                const db3Y = magY + 3 / 60 * (magH - 30);
+                ctx.moveTo(magX + 40, db3Y);
+                ctx.lineTo(magX + magW, db3Y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Cutoff frequency line
+                ctx.strokeStyle = TEK.ch4;
+                ctx.setLineDash([3, 3]);
+                const fcX = magX + 40 + Math.log10(fc / 10) * freqScale;
+                ctx.beginPath();
+                ctx.moveTo(fcX, magY);
+                ctx.lineTo(fcX, magY + magH - 30);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Labels
+                ctx.fillStyle = '#888';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'right';
+                for (let db = 0; db >= -60; db -= 20) {
+                    const y = magY + (0 - db) / 60 * (magH - 30);
+                    ctx.fillText(db + ' dB', magX + 35, y + 3);
+                }
+
+                ctx.textAlign = 'center';
+                [10, 100, 1000].forEach(f => {
+                    if (f < freqMax) {
+                        const x = magX + 40 + Math.log10(f / 10) * freqScale;
+                        ctx.fillText(f + 'M', x, magY + magH - 15);
+                    }
+                });
+
+                // Phase/Group delay plot
+                const phX = 530, phY = 40, phW = 420, phH = 140;
+
+                ctx.fillStyle = TEK.text;
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('Phase Response', phX + phW/2, phY - 5);
+
+                ctx.strokeStyle = '#555';
+                ctx.beginPath();
+                ctx.moveTo(phX + 40, phY + 10);
+                ctx.lineTo(phX + 40, phY + phH - 10);
+                ctx.lineTo(phX + phW, phY + phH - 10);
+                ctx.stroke();
+
+                // Draw phase
+                ctx.strokeStyle = TEK.ch2;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i <= phW - 50; i++) {
+                    const f = 10 * Math.pow(10, i / freqScale);
+                    const omega = f / fc;
+
+                    let phase;
+                    if (filterType === 'butterworth' || filterType === 'chebyshev') {
+                        phase = -order * Math.atan(omega) * 180 / Math.PI;
+                    } else {
+                        phase = -order * Math.atan(omega * 0.7) * 180 / Math.PI;
+                    }
+
+                    const x = phX + 40 + i;
+                    const y = phY + 10 + (phH - 20) / 2 - phase / 180 * (phH - 20) / 2;
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, Math.max(Math.min(y, phY + phH - 10), phY + 10));
+                }
+                ctx.stroke();
+
+                // Group delay plot
+                const gdX = 530, gdY = 200, gdW = 420, gdH = 140;
+
+                ctx.fillStyle = TEK.text;
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('Group Delay', gdX + gdW/2, gdY - 5);
+
+                ctx.strokeStyle = '#555';
+                ctx.beginPath();
+                ctx.moveTo(gdX + 40, gdY + 10);
+                ctx.lineTo(gdX + 40, gdY + gdH - 10);
+                ctx.lineTo(gdX + gdW, gdY + gdH - 10);
+                ctx.stroke();
+
+                // Draw group delay
+                ctx.strokeStyle = TEK.ch3;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                const maxDelay = order * 2 / (2 * Math.PI * fc * 1e6) * 1e9;  // ns
+
+                for (let i = 0; i <= gdW - 50; i++) {
+                    const f = 10 * Math.pow(10, i / freqScale);
+                    const omega = f / fc;
+
+                    let delay;
+                    if (filterType === 'butterworth') {
+                        delay = order / (2 * Math.PI * fc * 1e6) / (1 + omega * omega) * 1e9;
+                    } else if (filterType === 'bessel') {
+                        delay = order / (2 * Math.PI * fc * 1e6) * 0.8 * 1e9;  // Flat
+                    } else {
+                        delay = order / (2 * Math.PI * fc * 1e6) / (1 + omega * omega * 0.5) * 1e9;
+                    }
+
+                    const x = gdX + 40 + i;
+                    const y = gdY + gdH - 20 - delay / maxDelay * (gdH - 30);
+
+                    if (i === 0) ctx.moveTo(x, Math.max(y, gdY + 10));
+                    else ctx.lineTo(x, Math.max(y, gdY + 10));
+                }
+                ctx.stroke();
+
+                // Calculate metrics
+                document.getElementById('bw-3db').textContent = fc + ' MHz';
+                document.getElementById('rolloff').textContent = (order * 20) + ' dB/decade';
+                const stopbandAtten = getResponse(2 * fc, filterType, order);
+                document.getElementById('stopband-atten').textContent = stopbandAtten.toFixed(1) + ' dB';
+                const groupDelay = (order / (2 * Math.PI * fc * 1e6) * 1e9).toFixed(2);
+                document.getElementById('group-delay').textContent = groupDelay + ' ns';
+            }
+
+            ['filter-type', 'filter-order', 'cutoff-freq'].forEach(id => {
+                document.getElementById(id).addEventListener('input', drawResponse);
             });
+            drawResponse();
 
-            // SPI Code box
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, 490, 195, 310, 100, 6);
-            ctx.fill();
-            ctx.stroke();
+            // ===== LC FILTER DESIGNER =====
+            const lcCanvas = document.getElementById('lc-canvas');
+            const lcCtx = lcCanvas.getContext('2d');
 
-            ctx.fillStyle = '#888';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'left';
-            y = 212;
-            ctx.fillText('// Read accelerometer X-axis', 500, y); y += 14;
-            ctx.fillStyle = TEK.ch4;
-            ctx.fillText('digitalWrite(CS, LOW);', 500, y); y += 14;
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillText('SPI.transfer(0x80 | 0x12);', 500, y);
-            ctx.fillStyle = '#888';
-            ctx.fillText('// Read | ACCEL_X_LSB', 665, y); y += 14;
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillText('uint8_t lsb = SPI.transfer(0);', 500, y); y += 14;
-            ctx.fillText('uint8_t msb = SPI.transfer(0);', 500, y); y += 14;
-            ctx.fillStyle = TEK.ch4;
-            ctx.fillText('digitalWrite(CS, HIGH);', 500, y); y += 14;
-            ctx.fillStyle = TEK.ch4;
-            ctx.fillText('int16_t ax = (msb << 8) | lsb;', 500, y);
+            function drawLCFilter() {
+                const order = parseInt(document.getElementById('lc-order').value);
+                const fc = AD.num('lc-fc');
+                const Z0 = AD.num('lc-z0');
 
-            // Comparison box
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, 40, 260, 300, 120, 8);
-            ctx.fill();
-            ctx.stroke();
+                document.getElementById('lc-order-val').textContent = order;
+                document.getElementById('lc-fc-val').textContent = fc + ' MHz';
+                document.getElementById('lc-z0-val').textContent = Z0 + ' Ω';
 
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = 'bold 11px monospace';
-            ctx.fillText('I2C vs SPI Comparison:', 55, 282);
+                const g = butterworthG[order];
+                const omega_c = 2 * Math.PI * fc * 1e6;
 
-            ctx.font = '10px monospace';
-            y = 302;
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillText('I2C:', 55, y);
-            ctx.fillStyle = '#888';
-            ctx.fillText('2 wires, multi-device, slower (~400kHz)', 85, y); y += 16;
+                // Calculate component values
+                const components = [];
+                for (let i = 0; i < order; i++) {
+                    if (i % 2 === 0) {
+                        // Shunt capacitor
+                        const C = g[i] / (Z0 * omega_c);
+                        components.push({ type: 'C', value: C, position: 'shunt' });
+                    } else {
+                        // Series inductor
+                        const L = g[i] * Z0 / omega_c;
+                        components.push({ type: 'L', value: L, position: 'series' });
+                    }
+                }
 
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillText('SPI:', 55, y);
-            ctx.fillStyle = '#888';
-            ctx.fillText('4+ wires, faster (~10MHz), full duplex', 85, y); y += 20;
+                document.getElementById('lc-topology').textContent = order % 2 === 1 ? 'π-network' : 'T-network';
+                document.getElementById('lc-count').textContent = order + ' elements';
 
-            ctx.fillStyle = '#aaa';
-            ctx.fillText('Choose I2C for fewer pins', 55, y); y += 14;
-            ctx.fillText('Choose SPI for higher data rates', 55, y);
-        })();
-    });
+                const ctx = lcCtx;
+                const W = lcCanvas.width, H = lcCanvas.height;
+                ctx.fillStyle = TEK.bg;
+                ctx.fillRect(0, 0, W, H);
+
+                // Draw schematic
+                ctx.fillStyle = TEK.text;
+                ctx.font = '14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('Butterworth Low-Pass Filter (Order ' + order + ')', W/2, 25);
+
+                const schY = 100, schStartX = 150, schSpacing = 150;
+
+                // Input
+                ctx.strokeStyle = '#888';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(50, schY);
+                ctx.lineTo(schStartX, schY);
+                ctx.stroke();
+                ctx.fillStyle = TEK.text;
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText('IN', 45, schY + 5);
+                ctx.fillText(Z0 + 'Ω', 45, schY + 20);
+
+                // Ground line
+                ctx.strokeStyle = '#444';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(schStartX, schY + 100);
+                ctx.lineTo(schStartX + (order - 1) * schSpacing, schY + 100);
+                ctx.stroke();
+
+                let currentX = schStartX;
+
+                components.forEach((comp, i) => {
+                    if (comp.position === 'shunt') {
+                        // Shunt capacitor
+                        ctx.strokeStyle = TEK.ch2;
+                        ctx.lineWidth = 2;
+
+                        // Vertical wire
+                        ctx.beginPath();
+                        ctx.moveTo(currentX, schY);
+                        ctx.lineTo(currentX, schY + 30);
+                        ctx.stroke();
+
+                        // Capacitor plates
+                        ctx.beginPath();
+                        ctx.moveTo(currentX - 15, schY + 30);
+                        ctx.lineTo(currentX + 15, schY + 30);
+                        ctx.moveTo(currentX - 15, schY + 40);
+                        ctx.lineTo(currentX + 15, schY + 40);
+                        ctx.stroke();
+
+                        // To ground
+                        ctx.strokeStyle = '#888';
+                        ctx.beginPath();
+                        ctx.moveTo(currentX, schY + 40);
+                        ctx.lineTo(currentX, schY + 100);
+                        ctx.stroke();
+
+                        // Ground symbol
+                        ctx.beginPath();
+                        ctx.moveTo(currentX - 10, schY + 100);
+                        ctx.lineTo(currentX + 10, schY + 100);
+                        ctx.moveTo(currentX - 6, schY + 105);
+                        ctx.lineTo(currentX + 6, schY + 105);
+                        ctx.moveTo(currentX - 2, schY + 110);
+                        ctx.lineTo(currentX + 2, schY + 110);
+                        ctx.stroke();
+
+                        // Value label
+                        ctx.fillStyle = TEK.ch2;
+                        ctx.font = '10px monospace';
+                        ctx.textAlign = 'left';
+                        const cVal = comp.value * 1e12;
+                        ctx.fillText(cVal.toFixed(1) + ' pF', currentX + 20, schY + 40);
+
+                        if (i < order - 1) currentX += schSpacing / 2;
+                    } else {
+                        // Series inductor
+                        ctx.strokeStyle = TEK.ch1;
+                        ctx.lineWidth = 2;
+
+                        // Draw inductor coils
+                        const startX = currentX;
+                        const endX = currentX + schSpacing;
+                        const coils = 4;
+                        const coilW = (endX - startX - 20) / coils;
+
+                        ctx.beginPath();
+                        ctx.moveTo(startX, schY);
+                        ctx.lineTo(startX + 10, schY);
+                        for (let c = 0; c < coils; c++) {
+                            const cx = startX + 10 + c * coilW + coilW/2;
+                            ctx.arc(cx, schY, coilW/2, Math.PI, 0, false);
+                        }
+                        ctx.lineTo(endX, schY);
+                        ctx.stroke();
+
+                        // Value label
+                        ctx.fillStyle = TEK.ch1;
+                        ctx.font = '10px monospace';
+                        ctx.textAlign = 'center';
+                        const lVal = comp.value * 1e9;
+                        ctx.fillText(lVal.toFixed(1) + ' nH', (startX + endX) / 2, schY - 25);
+
+                        currentX = endX;
+                    }
+                });
+
+                // Output
+                ctx.strokeStyle = '#888';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(currentX, schY);
+                ctx.lineTo(currentX + 100, schY);
+                ctx.stroke();
+                ctx.fillStyle = TEK.text;
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('OUT', currentX + 105, schY + 5);
+                ctx.fillText(Z0 + 'Ω', currentX + 105, schY + 20);
+
+                // Component table
+                const tableX = 50, tableY = 220;
+                ctx.fillStyle = TEK.text;
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('Component Values:', tableX, tableY);
+
+                components.forEach((comp, i) => {
+                    const y = tableY + 20 + i * 18;
+                    ctx.fillStyle = comp.type === 'L' ? TEK.ch1 : TEK.ch2;
+
+                    if (comp.type === 'L') {
+                        const lVal = comp.value * 1e9;
+                        ctx.fillText('L' + Math.floor(i/2 + 1) + ' = ' + lVal.toFixed(2) + ' nH', tableX, y);
+                    } else {
+                        const cVal = comp.value * 1e12;
+                        ctx.fillText('C' + Math.floor(i/2 + 1) + ' = ' + cVal.toFixed(2) + ' pF', tableX, y);
+                    }
+                });
+
+                // Draw response preview
+                const prevX = 500, prevY = 220, prevW = 430, prevH = 100;
+
+                ctx.fillStyle = TEK.text;
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('Response Preview', prevX + prevW/2, prevY);
+
+                ctx.strokeStyle = '#444';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(prevX, prevY + 10, prevW, prevH);
+
+                // Draw frequency response
+                ctx.strokeStyle = TEK.ch4;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                for (let i = 0; i <= prevW; i++) {
+                    const f = fc * 0.01 * Math.pow(10, i / prevW * 2);
+                    const omega = f / fc;
+                    const H2 = 1 / (1 + Math.pow(omega, 2 * order));
+                    const db = 10 * Math.log10(H2);
+
+                    const x = prevX + i;
+                    const y = prevY + 15 + (-db / 60) * (prevH - 15);
+
+                    if (i === 0) ctx.moveTo(x, Math.min(y, prevY + prevH + 5));
+                    else ctx.lineTo(x, Math.min(y, prevY + prevH + 5));
+                }
+                ctx.stroke();
+
+                // Cutoff marker
+                const fcX2 = prevX + prevW * Math.log10(1) / 2;
+                ctx.strokeStyle = TEK.ch5;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(prevX + prevW/2, prevY + 10);
+                ctx.lineTo(prevX + prevW/2, prevY + prevH + 10);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = TEK.ch5;
+                ctx.fillText('fc=' + fc + 'MHz', prevX + prevW/2, prevY + prevH + 25);
+            }
+
+            ['lc-order', 'lc-fc', 'lc-z0'].forEach(id => {
+                document.getElementById(id).addEventListener('input', drawLCFilter);
+            });
+            drawLCFilter();
+
+            // ===== BANDPASS FILTER =====
+            const bpCanvas = document.getElementById('bp-canvas');
+            const bpCtx = bpCanvas.getContext('2d');
+
+            function drawBandpass() {
+                const fc = AD.num('bp-fc');
+                const bw = AD.num('bp-bw');
+                const order = parseInt(document.getElementById('bp-order').value);
+
+                document.getElementById('bp-fc-val').textContent = fc + ' MHz';
+                document.getElementById('bp-bw-val').textContent = bw + ' MHz';
+                document.getElementById('bp-order-val').textContent = order;
+
+                const fl = fc - bw / 2;
+                const fh = fc + bw / 2;
+                const Q = fc / bw;
+
+                // Estimated insertion loss (higher Q = more loss)
+                const il = 0.5 * order * (Q / 50);
+
+                document.getElementById('bp-q').textContent = Q.toFixed(1);
+                document.getElementById('bp-fl').textContent = fl.toFixed(0) + ' MHz';
+                document.getElementById('bp-fh').textContent = fh.toFixed(0) + ' MHz';
+                document.getElementById('bp-il').textContent = il.toFixed(1) + ' dB';
+
+                const ctx = bpCtx;
+                const W = bpCanvas.width, H = bpCanvas.height;
+                ctx.fillStyle = TEK.bg;
+                ctx.fillRect(0, 0, W, H);
+
+                // Magnitude response
+                const magX = 50, magY = 50, magW = 600, magH = 300;
+
+                ctx.fillStyle = TEK.text;
+                ctx.font = '14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('Bandpass Filter Response (Order ' + order + ')', magX + magW/2, magY - 20);
+
+                // Grid
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1;
+                for (let db = 0; db >= -60; db -= 10) {
+                    const y = magY + (0 - db) / 60 * (magH - 30);
+                    ctx.beginPath();
+                    ctx.moveTo(magX + 50, y);
+                    ctx.lineTo(magX + magW, y);
+                    ctx.stroke();
+                }
+
+                // Axes
+                ctx.strokeStyle = '#555';
+                ctx.beginPath();
+                ctx.moveTo(magX + 50, magY);
+                ctx.lineTo(magX + 50, magY + magH - 30);
+                ctx.lineTo(magX + magW, magY + magH - 30);
+                ctx.stroke();
+
+                // Calculate bandpass response
+                const fMin = fc * 0.3;
+                const fMax = fc * 2;
+
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                for (let i = 0; i <= magW - 60; i++) {
+                    const f = fMin + (fMax - fMin) * i / (magW - 60);
+                    const omega = 2 * Math.PI * f * 1e6;
+                    const omega0 = 2 * Math.PI * fc * 1e6;
+                    const BW = 2 * Math.PI * bw * 1e6;
+
+                    // Bandpass response
+                    const s_norm = (omega - omega0 * omega0 / omega) / BW;
+                    const H2 = 1 / (1 + Math.pow(Math.abs(s_norm), 2 * order));
+                    let db = 10 * Math.log10(H2) - il;
+
+                    const x = magX + 50 + i;
+                    const y = magY + Math.min((0 - db) / 60 * (magH - 30), magH - 30);
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Passband highlight
+                const flX = magX + 50 + (fl - fMin) / (fMax - fMin) * (magW - 60);
+                const fhX = magX + 50 + (fh - fMin) / (fMax - fMin) * (magW - 60);
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+                ctx.fillRect(flX, magY, fhX - flX, magH - 30);
+
+                // -3 dB line
+                ctx.strokeStyle = TEK.ch5;
+                ctx.setLineDash([5, 5]);
+                const db3Y = magY + (3 + il) / 60 * (magH - 30);
+                ctx.beginPath();
+                ctx.moveTo(magX + 50, db3Y);
+                ctx.lineTo(magX + magW, db3Y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Center frequency marker
+                const fcX = magX + 50 + (fc - fMin) / (fMax - fMin) * (magW - 60);
+                ctx.strokeStyle = TEK.ch4;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(fcX, magY);
+                ctx.lineTo(fcX, magY + magH - 30);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Labels
+                ctx.fillStyle = '#888';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'right';
+                for (let db = 0; db >= -60; db -= 20) {
+                    const y = magY + (0 - db) / 60 * (magH - 30);
+                    ctx.fillText(db + ' dB', magX + 45, y + 3);
+                }
+
+                ctx.textAlign = 'center';
+                const freqLabels = [fMin, (fMin + fc) / 2, fc, (fc + fMax) / 2, fMax];
+                freqLabels.forEach(f => {
+                    const x = magX + 50 + (f - fMin) / (fMax - fMin) * (magW - 60);
+                    ctx.fillText(f.toFixed(0) + 'M', x, magY + magH - 10);
+                });
+
+                // Specifications panel
+                const specX = 700, specY = 50, specW = 250, specH = 300;
+
+                ctx.fillStyle = '#1a1a2a';
+                ctx.fillRect(specX, specY, specW, specH);
+                ctx.strokeStyle = '#444';
+                ctx.strokeRect(specX, specY, specW, specH);
+
+                ctx.fillStyle = TEK.text;
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('Filter Specifications', specX + 10, specY + 25);
+
+                const specs = [
+                    ['Center Freq:', fc + ' MHz'],
+                    ['Bandwidth:', bw + ' MHz'],
+                    ['Lower Edge:', fl.toFixed(1) + ' MHz'],
+                    ['Upper Edge:', fh.toFixed(1) + ' MHz'],
+                    ['Q Factor:', Q.toFixed(1)],
+                    ['Order:', order],
+                    ['Insertion Loss:', il.toFixed(1) + ' dB'],
+                    ['Roll-off:', (order * 20) + ' dB/dec'],
+                    ['Shape Factor:', (1 + 2/Q).toFixed(2)]
+                ];
+
+                specs.forEach((spec, i) => {
+                    ctx.fillStyle = '#888';
+                    ctx.fillText(spec[0], specX + 15, specY + 55 + i * 25);
+                    ctx.fillStyle = TEK.ch4;
+                    ctx.fillText(spec[1], specX + 130, specY + 55 + i * 25);
+                });
+            }
+
+            ['bp-fc', 'bp-bw', 'bp-order'].forEach(id => {
+                document.getElementById(id).addEventListener('input', drawBandpass);
+            });
+            drawBandpass();
+
+            // ===== TECHNOLOGY SELECTION =====
+            const techCanvas = document.getElementById('tech-canvas');
+            const techCtx = techCanvas.getContext('2d');
+
+            function drawTechSelection() {
+                const fc = AD.num('tech-fc');
+                const bwPct = AD.num('tech-bw');
+                const ilMax = AD.num('tech-il');
+                const pwr = AD.num('tech-pwr');
+
+                document.getElementById('tech-fc-val').textContent = fc + ' MHz';
+                document.getElementById('tech-bw-val').textContent = bwPct + '%';
+                document.getElementById('tech-il-val').textContent = ilMax + ' dB';
+                document.getElementById('tech-pwr-val').textContent = pwr + ' W';
+
+                // Technology suitability scores
+                const technologies = [
+                    {
+                        name: 'LC Discrete',
+                        freqRange: [0, 3000],
+                        bwRange: [5, 100],
+                        ilTypical: 0.5,
+                        pwrMax: 100,
+                        size: 'Large',
+                        color: TEK.ch1
+                    },
+                    {
+                        name: 'SAW',
+                        freqRange: [50, 3000],
+                        bwRange: [0.5, 10],
+                        ilTypical: 2,
+                        pwrMax: 1,
+                        size: '2×2 mm',
+                        color: TEK.ch2
+                    },
+                    {
+                        name: 'BAW/FBAR',
+                        freqRange: [500, 10000],
+                        bwRange: [2, 8],
+                        ilTypical: 1.5,
+                        pwrMax: 5,
+                        size: '1.5×1 mm',
+                        color: TEK.ch3
+                    },
+                    {
+                        name: 'Ceramic',
+                        freqRange: [400, 6000],
+                        bwRange: [1, 15],
+                        ilTypical: 2.5,
+                        pwrMax: 2,
+                        size: '3×2 mm',
+                        color: TEK.ch4
+                    },
+                    {
+                        name: 'Crystal',
+                        freqRange: [1, 200],
+                        bwRange: [0.01, 0.5],
+                        ilTypical: 3,
+                        pwrMax: 0.1,
+                        size: '5×3 mm',
+                        color: TEK.ch5
+                    },
+                    {
+                        name: 'Cavity',
+                        freqRange: [100, 40000],
+                        bwRange: [0.5, 5],
+                        ilTypical: 0.3,
+                        pwrMax: 500,
+                        size: 'Very Large',
+                        color: '#FF88FF'
+                    }
+                ];
+
+                // Calculate scores
+                technologies.forEach(tech => {
+                    let score = 0;
+
+                    // Frequency match
+                    if (fc >= tech.freqRange[0] && fc <= tech.freqRange[1]) score += 25;
+                    else if (fc > tech.freqRange[1] * 0.8 || fc < tech.freqRange[0] * 1.2) score += 10;
+
+                    // Bandwidth match
+                    if (bwPct >= tech.bwRange[0] && bwPct <= tech.bwRange[1]) score += 25;
+                    else if (bwPct > tech.bwRange[1] * 0.5) score += 10;
+
+                    // Insertion loss match
+                    if (tech.ilTypical <= ilMax) score += 25;
+                    else if (tech.ilTypical <= ilMax * 1.5) score += 10;
+
+                    // Power handling
+                    if (tech.pwrMax >= pwr) score += 25;
+                    else if (tech.pwrMax >= pwr * 0.5) score += 10;
+
+                    tech.score = score;
+                });
+
+                // Sort by score
+                const sorted = [...technologies].sort((a, b) => b.score - a.score);
+
+                document.getElementById('tech-rec').textContent = sorted[0].name;
+                document.getElementById('tech-alt').textContent = sorted[1].name;
+                document.getElementById('tech-size').textContent = sorted[0].size;
+
+                const ctx = techCtx;
+                const W = techCanvas.width, H = techCanvas.height;
+                ctx.fillStyle = TEK.bg;
+                ctx.fillRect(0, 0, W, H);
+
+                // Draw comparison chart
+                ctx.fillStyle = TEK.text;
+                ctx.font = '14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('Technology Suitability Comparison', W/2, 25);
+
+                const chartX = 50, chartY = 50, chartW = 880, chartH = 250;
+                const barH = 30, barGap = 10;
+
+                sorted.forEach((tech, i) => {
+                    const y = chartY + i * (barH + barGap);
+                    const barW = tech.score / 100 * (chartW - 150);
+
+                    // Bar background
+                    ctx.fillStyle = '#1a1a2a';
+                    ctx.fillRect(chartX + 100, y, chartW - 150, barH);
+
+                    // Score bar
+                    ctx.fillStyle = tech.color;
+                    ctx.fillRect(chartX + 100, y, barW, barH);
+
+                    // Tech name
+                    ctx.fillStyle = TEK.text;
+                    ctx.font = '11px monospace';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(tech.name, chartX + 95, y + barH/2 + 4);
+
+                    // Score
+                    ctx.textAlign = 'left';
+                    ctx.fillText(tech.score + '%', chartX + 105 + barW, y + barH/2 + 4);
+
+                    // Status indicators
+                    const inFreq = fc >= tech.freqRange[0] && fc <= tech.freqRange[1];
+                    const inBW = bwPct >= tech.bwRange[0] && bwPct <= tech.bwRange[1];
+                    const inIL = tech.ilTypical <= ilMax;
+                    const inPwr = tech.pwrMax >= pwr;
+
+                    const indicators = [
+                        { ok: inFreq, label: 'Freq' },
+                        { ok: inBW, label: 'BW' },
+                        { ok: inIL, label: 'IL' },
+                        { ok: inPwr, label: 'Pwr' }
+                    ];
+
+                    indicators.forEach((ind, j) => {
+                        const indX = chartX + chartW - 120 + j * 35;
+                        ctx.fillStyle = ind.ok ? '#00AA00' : '#AA0000';
+                        ctx.beginPath();
+                        ctx.arc(indX, y + barH/2, 6, 0, 2 * Math.PI);
+                        ctx.fill();
+                    });
+                });
+
+                // Legend for indicators
+                ctx.fillStyle = '#888';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ['Freq', 'BW', 'IL', 'Pwr'].forEach((lbl, j) => {
+                    ctx.fillText(lbl, chartX + chartW - 120 + j * 35, chartY - 10);
+                });
+            }
+
+            ['tech-fc', 'tech-bw', 'tech-il', 'tech-pwr'].forEach(id => {
+                document.getElementById(id).addEventListener('input', drawTechSelection);
+            });
+            drawTechSelection();
+
+            // ===== SCHEMATIC =====
+            if (typeof SchematicSVG !== 'undefined') {
+                const svg = new SchematicSVG('filter-schematic', 700, 300);
+
+                // Title
+                svg.text(350, 25, '3rd Order Butterworth Low-Pass Filter (fc=100MHz, Z0=50Ω)');
+
+                // Input
+                svg.line(50, 150, 100, 150);
+                svg.text(40, 145, 'IN');
+                svg.resistor(100, 150, 150, 150, 'Rs 50Ω', 'top');
+
+                // First shunt cap
+                svg.line(150, 150, 200, 150);
+                svg.line(200, 150, 200, 180);
+                svg.capacitor(200, 180, 200, 230, 'C1');
+                svg.text(240, 210, '31.8 pF');
+                svg.ground(200, 250);
+
+                // Series inductor
+                svg.inductor(200, 150, 350, 150, 'L1');
+                svg.text(275, 130, '159 nH');
+
+                // Second shunt cap
+                svg.line(350, 150, 400, 150);
+                svg.line(400, 150, 400, 180);
+                svg.capacitor(400, 180, 400, 230, 'C2');
+                svg.text(440, 210, '31.8 pF');
+                svg.ground(400, 250);
+
+                // Output
+                svg.line(400, 150, 550, 150);
+                svg.resistor(550, 150, 600, 150, 'RL 50Ω', 'top');
+                svg.line(600, 150, 650, 150);
+                svg.text(660, 145, 'OUT');
+
+                // Ground connection
+                svg.line(600, 150, 600, 180);
+                svg.ground(600, 200);
+
+                // Notes
+                svg.text(350, 280, 'Component values for 100 MHz cutoff, 50Ω system');
+            }
+
+            // ===== SPICE NETLIST =====
+            if (typeof SpiceNetlistWidget !== 'undefined') {
+                new SpiceNetlistWidget('filter-spice', {
+                    title: '3rd Order Butterworth Low-Pass Filter',
+                    description: '100 MHz cutoff, 50Ω impedance',
+                    netlist: `* 3rd Order Butterworth Low-Pass Filter
+* Cutoff: 100 MHz, Impedance: 50 Ohm
+
+* Source
+Vin in 0 AC 1 SIN(0 1 100MEG)
+Rs in node1 50
+
+* Filter network (Pi configuration)
+* C1 = g1 / (Z0 * 2*pi*fc) = 1.0 / (50 * 2*pi*100e6) = 31.83 pF
+* L1 = g2 * Z0 / (2*pi*fc) = 2.0 * 50 / (2*pi*100e6) = 159.15 nH
+* C2 = g3 / (Z0 * 2*pi*fc) = 1.0 / (50 * 2*pi*100e6) = 31.83 pF
+
+C1 node1 0 31.83p
+L1 node1 node2 159.15n
+C2 node2 0 31.83p
+
+* Load
+RL node2 0 50
+
+* AC Analysis
+.AC DEC 100 1MEG 1G
+
+* Measurements
+.PRINT AC VDB(node2) VP(node2)
+.MEAS AC fc WHEN VDB(node2)=-3 CROSS=1
+.MEAS AC atten_200M FIND VDB(node2) AT=200MEG
+
+* Include realistic component models with Q
+* Capacitor Q = 200 at 100 MHz
+.MODEL CAP1 CAP (C=31.83p Q=200 FC=100MEG)
+* Inductor Q = 80 at 100 MHz
+.MODEL IND1 IND (L=159.15n Q=80 FC=100MEG)
+
+.END`
+                });
+            }
+
+            // ===== CHECKLIST =====
+            if (typeof ChecklistWidget !== 'undefined') {
+                new ChecklistWidget('filter-checklist', {
+                    title: 'RF Filter Design Verification',
+                    items: [
+                        { text: 'Verify passband insertion loss meets specification' },
+                        { text: 'Check stopband attenuation at critical frequencies' },
+                        { text: 'Verify passband ripple (for Chebyshev)' },
+                        { text: 'Check input and output return loss (S11, S22)' },
+                        { text: 'Verify group delay variation across passband' },
+                        { text: 'Check component self-resonant frequencies' },
+                        { text: 'Verify inductor and capacitor Q at operating frequency' },
+                        { text: 'Account for PCB parasitic inductance and capacitance' },
+                        { text: 'Check temperature coefficient of components' },
+                        { text: 'Verify power handling capability' },
+                        { text: 'Simulate with tolerance analysis (Monte Carlo)' },
+                        { text: 'Include tuning margin in layout if needed' }
+                    ]
+                });
+            }
+
+            // ===== EXERCISES =====
+            if (typeof ExerciseWidget !== 'undefined') {
+                new ExerciseWidget('filter-exercises', {
+                    exercises: [
+                        {
+                            title: 'Exercise 1: LC Filter Component Calculation',
+                            problem: 'Design a 3rd order Butterworth low-pass filter with 250 MHz cutoff and 75Ω impedance. Calculate L and C values using g-values: g1=1.0, g2=2.0, g3=1.0.',
+                            hint: 'L = g × Z0 / (2π×fc), C = g / (Z0 × 2π×fc). Remember to scale by impedance and frequency.',
+                            answer: 'ω_c = 2π × 250×10⁶ = 1.571×10⁹ rad/s\n\nC1 = g1 / (Z0 × ω_c) = 1.0 / (75 × 1.571×10⁹) = 8.49 pF\nL1 = g2 × Z0 / ω_c = 2.0 × 75 / 1.571×10⁹ = 95.5 nH\nC2 = g3 / (Z0 × ω_c) = 1.0 / (75 × 1.571×10⁹) = 8.49 pF'
+                        },
+                        {
+                            title: 'Exercise 2: Bandpass Transformation',
+                            problem: 'Transform a low-pass filter with 1 MHz cutoff to a bandpass filter centered at 455 kHz with 10 kHz bandwidth. What is the Q factor?',
+                            hint: 'Q = fc/BW. For bandpass, the geometric center is √(fL×fH).',
+                            answer: 'Given: fc = 455 kHz, BW = 10 kHz\n\nQ = fc / BW = 455 / 10 = 45.5\n\nLower edge: fL = fc - BW/2 = 455 - 5 = 450 kHz\nUpper edge: fH = fc + BW/2 = 455 + 5 = 460 kHz\n\nGeometric center check: √(450 × 460) = 454.97 kHz ≈ 455 kHz ✓'
+                        },
+                        {
+                            title: 'Exercise 3: Insertion Loss Estimation',
+                            problem: 'A 5th order bandpass filter has center frequency 915 MHz, bandwidth 26 MHz, and uses inductors with Q=80. Estimate the insertion loss.',
+                            hint: 'IL ≈ 4.34 × N × (f0/BW) / Q_component, where N is order.',
+                            answer: 'Filter Q = fc / BW = 915 / 26 = 35.2\n\nIL ≈ 4.34 × 5 × 35.2 / 80\n= 4.34 × 5 × 0.44\n= 9.5 dB\n\nThis is quite high! Options to reduce loss:\n- Use higher Q inductors\n- Reduce filter order\n- Use SAW/BAW technology instead'
+                        },
+                        {
+                            title: 'Exercise 4: Technology Selection',
+                            problem: 'You need a filter for WiFi 2.4 GHz with 100 MHz bandwidth, <2 dB insertion loss, and 100 mW power handling. Which technology is most suitable?',
+                            hint: 'Consider: frequency range, bandwidth percentage, IL capability, and power handling of each technology.',
+                            answer: 'Requirements analysis:\n- Frequency: 2.4 GHz\n- Bandwidth: 100 MHz = 4.2% of center\n- IL: <2 dB\n- Power: 100 mW\n\nEvaluation:\n- LC: Possible but bulky, may achieve <2 dB\n- SAW: Good frequency range, but power limited and higher IL\n- BAW/FBAR: Excellent fit! 500 MHz-10 GHz, 2-8% BW, ~1.5 dB IL, handles >1W\n- Ceramic: Possible alternative, slightly higher IL\n\nRecommendation: BAW/FBAR filter\nThese are used extensively in smartphones for exactly this application.'
+                        }
+                    ]
+                });
+            }
+        });
     </script>
 </body>
 </html>

@@ -1,150 +1,229 @@
-<!-- Module 14, Lesson 3: Precision Analog Techniques -->
+<!-- Module 14, Lesson 3: Signal Integrity Debugging -->
 <div class="lesson-content" data-module="14" data-lesson="3">
 
     <div class="card">
-        <h2>Precision Analog Techniques</h2>
-        <p>Precision analog circuits must minimize DC errors like offset voltage and drift. Techniques like chopper stabilization and auto-zero eliminate these errors at the cost of complexity and bandwidth.</p>
+        <h2>Signal Integrity Debugging</h2>
+        <p>When signals don't look clean, systematic debugging identifies the root cause: reflections, crosstalk, ground bounce, or termination issues.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Chopping</div>
-                <div class="v">Modulate signal past 1/f corner</div>
+                <div class="k">Reflections</div>
+                <div class="v">Impedance mismatch</div>
             </div>
             <div class="box">
-                <div class="k">Auto-Zero</div>
-                <div class="v">Sample and subtract offset</div>
+                <div class="k">Crosstalk</div>
+                <div class="v">Coupled noise</div>
             </div>
             <div class="box">
-                <div class="k">CDS</div>
-                <div class="v">Correlated Double Sampling</div>
+                <div class="k">Ground Bounce</div>
+                <div class="v">Return path inductance</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> Chopper amplifiers modulate the input signal to a higher frequency where 1/f noise is negligible, amplify it, then demodulate back. This effectively shifts the DC errors to the chopper frequency where they can be filtered out.
+            <strong>Key Insight:</strong> If the edge rate is faster than 2× the propagation delay down the trace, treat it as a transmission line. For FR4, this means traces longer than ~2cm for 1ns edges.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Chopper Amplifier Concept</h3>
+        <h3>Interactive: Transmission Line Effects</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="chop-vos">Offset Voltage (µV)</label>
-                <input type="range" id="chop-vos" min="0" max="500" step="10" value="100">
-                <span id="chop-vos-val" class="mono">100µV</span>
+                <label for="si-z0">Trace Z<sub>0</sub> (Ω)</label>
+                <input type="text" id="si-z0" value="50">
             </div>
             <div class="c3">
-                <label for="chop-freq">Chop Frequency (kHz)</label>
-                <input type="range" id="chop-freq" min="1" max="100" step="1" value="10">
-                <span id="chop-freq-val" class="mono">10kHz</span>
+                <label for="si-zl">Load Z<sub>L</sub> (Ω)</label>
+                <input type="range" id="si-zl" min="10" max="500" step="10" value="100">
+                <span id="si-zl-val" class="mono">100Ω</span>
             </div>
             <div class="c3">
-                <label for="chop-bw">Signal Bandwidth (Hz)</label>
-                <input type="text" id="chop-bw" value="100">
+                <label for="si-len">Trace Length (cm)</label>
+                <input type="range" id="si-len" min="1" max="30" step="1" value="10">
+                <span id="si-len-val" class="mono">10cm</span>
             </div>
             <div class="c3">
-                <label for="chop-fc">1/f Corner (Hz)</label>
-                <input type="text" id="chop-fc" value="10">
+                <label for="si-tr">Rise Time (ns)</label>
+                <input type="range" id="si-tr" min="0.5" max="10" step="0.5" value="1">
+                <span id="si-tr-val" class="mono">1ns</span>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="chop-canvas" width="980" height="350"></canvas>
+            <canvas id="si-canvas" width="980" height="300"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Effective Offset</div>
-                <div class="v mono" id="chop-eff-vos">—</div>
+                <div class="k">Reflection Coeff</div>
+                <div class="v mono" id="si-gamma">—</div>
             </div>
             <div class="box">
-                <div class="k">Offset Reduction</div>
-                <div class="v mono" id="chop-reduction">—</div>
+                <div class="k">Propagation Delay</div>
+                <div class="v mono" id="si-tpd">—</div>
             </div>
             <div class="box">
-                <div class="k">Ripple Frequency</div>
-                <div class="v mono" id="chop-ripple">—</div>
+                <div class="k">Critical Length</div>
+                <div class="v mono" id="si-lcrit">—</div>
             </div>
             <div class="box">
-                <div class="k">Max Signal BW</div>
-                <div class="v mono" id="chop-maxbw">—</div>
+                <div class="k">Status</div>
+                <div class="v mono" id="si-status">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Chopper Amplifier Operation</h3>
-        <canvas id="chopper-operation-canvas" width="900" height="280"></canvas>
+        <h3>Eye Diagram Analysis</h3>
 
-        <div class="warn">
-            <strong>Trade-offs:</strong>
-            <ul style="margin: 10px 0 0 20px;">
-                <li>Signal bandwidth limited to f<sub>chop</sub>/10 typically</li>
-                <li>Residual ripple at chopper frequency</li>
-                <li>Glitches at chopper transitions</li>
-                <li>Increased current consumption</li>
-            </ul>
+        <!-- SVG Eye Diagram -->
+        <div class="diagram-container" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; padding: 20px; margin: 15px 0;">
+            <svg viewBox="0 0 600 350" style="width: 100%; max-width: 600px; display: block; margin: 0 auto;">
+                <defs>
+                    <marker id="eyeArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#6ee7ff"/>
+                    </marker>
+                    <!-- Gradient for eye traces -->
+                    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#34d399;stop-opacity:0.3" />
+                        <stop offset="50%" style="stop-color:#34d399;stop-opacity:0.8" />
+                        <stop offset="100%" style="stop-color:#34d399;stop-opacity:0.3" />
+                    </linearGradient>
+                </defs>
+
+                <!-- Grid background -->
+                <pattern id="eyeGrid" width="30" height="30" patternUnits="userSpaceOnUse">
+                    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
+                </pattern>
+                <rect x="50" y="30" width="400" height="200" fill="url(#eyeGrid)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+
+                <!-- Decision threshold line -->
+                <line x1="50" y1="130" x2="450" y2="130" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="5,3"/>
+                <text x="460" y="135" fill="#fbbf24" font-size="10">Threshold</text>
+
+                <!-- Eye shape - multiple overlapping traces to simulate eye pattern -->
+                <!-- Upper eye opening traces -->
+                <path d="M 50 130 Q 150 60, 250 60 Q 350 60, 450 130" fill="none" stroke="url(#eyeGrad)" stroke-width="2"/>
+                <path d="M 50 130 Q 150 70, 250 65 Q 350 70, 450 130" fill="none" stroke="rgba(52,211,153,0.4)" stroke-width="1.5"/>
+                <path d="M 50 130 Q 150 55, 250 55 Q 350 55, 450 130" fill="none" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
+
+                <!-- Lower eye opening traces -->
+                <path d="M 50 130 Q 150 200, 250 200 Q 350 200, 450 130" fill="none" stroke="url(#eyeGrad)" stroke-width="2"/>
+                <path d="M 50 130 Q 150 190, 250 195 Q 350 190, 450 130" fill="none" stroke="rgba(52,211,153,0.4)" stroke-width="1.5"/>
+                <path d="M 50 130 Q 150 205, 250 205 Q 350 205, 450 130" fill="none" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
+
+                <!-- Jitter/noise at crossings (slight spread) -->
+                <ellipse cx="50" cy="130" rx="8" ry="15" fill="rgba(52,211,153,0.3)"/>
+                <ellipse cx="450" cy="130" rx="8" ry="15" fill="rgba(52,211,153,0.3)"/>
+
+                <!-- Noise at logic levels -->
+                <rect x="230" y="50" width="40" height="15" fill="rgba(52,211,153,0.2)" rx="2"/>
+                <rect x="230" y="195" width="40" height="15" fill="rgba(52,211,153,0.2)" rx="2"/>
+
+                <!-- Annotations -->
+                <!-- Eye Height -->
+                <line x1="250" y1="60" x2="250" y2="200" stroke="#6ee7ff" stroke-width="1.5" marker-start="url(#eyeArrow)" marker-end="url(#eyeArrow)"/>
+                <text x="265" y="130" fill="#6ee7ff" font-size="11" font-weight="bold">Eye</text>
+                <text x="265" y="145" fill="#6ee7ff" font-size="11" font-weight="bold">Height</text>
+
+                <!-- Eye Width -->
+                <line x1="90" y1="220" x2="410" y2="220" stroke="#fb7185" stroke-width="1.5" marker-start="url(#eyeArrow)" marker-end="url(#eyeArrow)"/>
+                <text x="230" y="240" fill="#fb7185" font-size="11" text-anchor="middle" font-weight="bold">Eye Width</text>
+
+                <!-- Bit period -->
+                <line x1="50" y1="250" x2="450" y2="250" stroke="#888" stroke-width="1"/>
+                <line x1="50" y1="245" x2="50" y2="255" stroke="#888" stroke-width="1"/>
+                <line x1="450" y1="245" x2="450" y2="255" stroke="#888" stroke-width="1"/>
+                <text x="250" y="265" fill="#888" font-size="10" text-anchor="middle">Bit Period (UI)</text>
+
+                <!-- Legend box -->
+                <g transform="translate(480, 30)">
+                    <rect width="110" height="120" rx="4" fill="rgba(30,30,50,0.8)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                    <text x="10" y="20" fill="#ccc" font-size="10" font-weight="bold">What to Look For:</text>
+
+                    <circle cx="15" cy="38" r="4" fill="#fb7185"/>
+                    <text x="25" y="42" fill="#aaa" font-size="9">Closed = Jitter</text>
+
+                    <circle cx="15" cy="58" r="4" fill="#fbbf24"/>
+                    <text x="25" y="62" fill="#aaa" font-size="9">Asymm = Duty</text>
+
+                    <circle cx="15" cy="78" r="4" fill="#a78bfa"/>
+                    <text x="25" y="82" fill="#aaa" font-size="9">Multiple = ISI</text>
+
+                    <circle cx="15" cy="98" r="4" fill="#6ee7ff"/>
+                    <text x="25" y="102" fill="#aaa" font-size="9">Spread = Jitter</text>
+                </g>
+
+                <!-- Crossing jitter label -->
+                <text x="50" y="160" fill="#a78bfa" font-size="9" text-anchor="middle">Jitter at</text>
+                <text x="50" y="172" fill="#a78bfa" font-size="9" text-anchor="middle">crossing</text>
+            </svg>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 15px;">
+            <div style="background: rgba(251, 113, 133, 0.1); border-left: 3px solid #fb7185; padding: 10px; border-radius: 4px;">
+                <strong style="color: #fb7185; font-size: 12px;">Closed Eye</strong>
+                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">Too much jitter or noise - reduce data rate or improve channel</p>
+            </div>
+            <div style="background: rgba(251, 191, 36, 0.1); border-left: 3px solid #fbbf24; padding: 10px; border-radius: 4px;">
+                <strong style="color: #fbbf24; font-size: 12px;">Asymmetric</strong>
+                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">Duty cycle distortion - check driver output stage</p>
+            </div>
+            <div style="background: rgba(167, 139, 250, 0.1); border-left: 3px solid #a78bfa; padding: 10px; border-radius: 4px;">
+                <strong style="color: #a78bfa; font-size: 12px;">Multiple Crossings</strong>
+                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">ISI (intersymbol interference) - need equalization</p>
+            </div>
+            <div style="background: rgba(110, 231, 255, 0.1); border-left: 3px solid #6ee7ff; padding: 10px; border-radius: 4px;">
+                <strong style="color: #6ee7ff; font-size: 12px;">Spread at Levels</strong>
+                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">Crosstalk or reflections - check termination</p>
+            </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Precision Op-Amp Comparison</h3>
+        <h3>Common SI Problems</h3>
 
         <table class="table">
             <tr>
-                <th>Technique</th>
-                <th>Typical V<sub>os</sub></th>
-                <th>Drift</th>
-                <th>Bandwidth</th>
+                <th>Symptom</th>
+                <th>Likely Cause</th>
+                <th>Solution</th>
             </tr>
             <tr>
-                <td>Standard bipolar</td>
-                <td>1-5 mV</td>
-                <td>1-10 µV/°C</td>
-                <td>1-100 MHz</td>
+                <td>Ringing after edges</td>
+                <td>Unterminated line, mismatch</td>
+                <td>Add series/parallel termination</td>
             </tr>
             <tr>
-                <td>Precision bipolar</td>
-                <td>25-100 µV</td>
-                <td>0.1-1 µV/°C</td>
-                <td>1-10 MHz</td>
+                <td>Overshoot > 30%</td>
+                <td>Source impedance too low</td>
+                <td>Add series resistor at source</td>
             </tr>
             <tr>
-                <td>Auto-zero</td>
-                <td>1-10 µV</td>
-                <td>0.01-0.05 µV/°C</td>
-                <td>100 kHz - 1 MHz</td>
+                <td>Slow rise time</td>
+                <td>RC loading, long stubs</td>
+                <td>Reduce capacitive load, remove stubs</td>
             </tr>
             <tr>
-                <td>Chopper</td>
-                <td>0.1-1 µV</td>
-                <td>0.001-0.01 µV/°C</td>
-                <td>10 kHz - 100 kHz</td>
+                <td>Glitches on quiet line</td>
+                <td>Crosstalk from adjacent</td>
+                <td>Add spacing, ground guard</td>
+            </tr>
+            <tr>
+                <td>Signal shifts with activity</td>
+                <td>Ground bounce, SSO</td>
+                <td>More power/ground pins, decoupling</td>
             </tr>
         </table>
-    </div>
 
-    <div class="card">
-        <h3>Auto-Zero Technique</h3>
-
-        <div class="kv">
-            <div class="box">
-                <div class="k">Sample Phase</div>
-                <div class="v">Measure and store offset</div>
-            </div>
-            <div class="box">
-                <div class="k">Amplify Phase</div>
-                <div class="v">Subtract stored offset</div>
-            </div>
-            <div class="box">
-                <div class="k">kT/C Noise</div>
-                <div class="v mono">√(kT/C) per sample</div>
-            </div>
-            <div class="box">
-                <div class="k">Example ICs</div>
-                <div class="v">OPA335, LTC2057</div>
-            </div>
+        <div class="warn">
+            <strong>Termination Trade-offs:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>Series termination: Low power, works for point-to-point only</li>
+                <li>Parallel termination: Multi-drop okay, but constant current draw</li>
+                <li>AC termination (RC): Compromise, lower DC power</li>
+            </ul>
         </div>
     </div>
 
@@ -167,325 +246,217 @@
 
 <script>
 (function() {
-    const canvas = document.getElementById('chop-canvas');
+    const canvas = document.getElementById('si-canvas');
     const ctx = canvas.getContext('2d');
 
     function update() {
-        const vos = AD.num('chop-vos');
-        const fchop = AD.num('chop-freq') * 1000;
-        const bw = AD.parseValue(document.getElementById('chop-bw').value) || 100;
-        const fc = AD.parseValue(document.getElementById('chop-fc').value) || 10;
+        const z0 = AD.parseValue(document.getElementById('si-z0').value) || 50;
+        const zl = AD.num('si-zl');
+        const len = AD.num('si-len');
+        const tr = AD.num('si-tr');
 
-        document.getElementById('chop-vos-val').textContent = vos + 'µV';
-        document.getElementById('chop-freq-val').textContent = (fchop / 1000) + 'kHz';
+        document.getElementById('si-zl-val').textContent = zl + 'Ω';
+        document.getElementById('si-len-val').textContent = len + 'cm';
+        document.getElementById('si-tr-val').textContent = tr + 'ns';
 
-        // Effective offset reduction (simplified model)
-        // In practice, offset is modulated to fchop and filtered
-        const effVos = vos * (bw / fchop); // Residual after filtering
-        const reduction = vos > 0 ? (20 * Math.log10(vos / Math.max(effVos, 0.01))).toFixed(0) : 0;
-        const maxBw = fchop / 10; // Typical limit
+        // Reflection coefficient
+        const gamma = (zl - z0) / (zl + z0);
+        document.getElementById('si-gamma').textContent =
+            (gamma >= 0 ? '+' : '') + gamma.toFixed(2) + ' (' + (gamma * 100).toFixed(0) + '%)';
 
-        document.getElementById('chop-eff-vos').textContent = effVos.toFixed(2) + 'µV';
-        document.getElementById('chop-reduction').textContent = reduction + ' dB';
-        document.getElementById('chop-ripple').textContent = AD.fmtUnit(fchop, 'Hz');
-        document.getElementById('chop-maxbw').textContent = AD.fmtUnit(maxBw, 'Hz');
+        // Propagation delay (FR4 ≈ 6.7ns/m or 0.67ns/10cm)
+        const tpd = len * 0.067; // ns
+        document.getElementById('si-tpd').textContent = tpd.toFixed(2) + 'ns';
 
-        // Check if bandwidth is within limits
-        const maxBwEl = document.getElementById('chop-maxbw');
-        if (bw <= maxBw) {
-            maxBwEl.style.color = 'var(--ok)';
+        // Critical length (where trace becomes transmission line)
+        const lcrit = tr / 0.067 / 2; // cm, rule: tpd < tr/2
+        document.getElementById('si-lcrit').textContent = lcrit.toFixed(1) + 'cm';
+
+        const statusEl = document.getElementById('si-status');
+        if (len < lcrit) {
+            statusEl.textContent = 'Lumped (no TL effects)';
+            statusEl.style.color = 'var(--ok)';
+        } else if (Math.abs(gamma) < 0.2) {
+            statusEl.textContent = 'Well matched';
+            statusEl.style.color = 'var(--ok)';
         } else {
-            maxBwEl.style.color = 'var(--bad)';
+            statusEl.textContent = 'Reflections likely';
+            statusEl.style.color = 'var(--warn)';
         }
 
-        plotChopper(vos, fchop, fc);
+        plotTransmissionLine(z0, zl, len, tr, gamma, tpd);
     }
 
-    function plotChopper(vos, fchop, fc) {
+    function plotTransmissionLine(z0, zl, len, tr, gamma, tpd) {
         const w = canvas.width;
         const h = canvas.height;
 
-        // Noise spectral density plot (log-log)
-        const fMin = 0.1;
-        const fMax = fchop * 10;
+        const totalTime = tpd * 8 + tr * 2; // Show multiple reflections
 
         const axes = AD.drawAxes(ctx, w, h, {
-            xMin: Math.log10(fMin),
-            xMax: Math.log10(fMax),
-            yMin: -20,
-            yMax: 60,
-            xLabel: 'Frequency',
-            yLabel: 'Noise Density',
-            xUnit: 'Hz',
-            yUnit: 'nV/√Hz',
+            xMin: 0,
+            xMax: totalTime,
+            yMin: -0.3,
+            yMax: 1.5,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 'ns',
+            yUnit: 'V',
             xDivs: 10,
             yDivs: 8
         });
 
-        const N = 300;
-        const fData = [];
-        const noiseStd = [];
-        const noiseChop = [];
-
-        const whiteNoise = 10; // nV/√Hz flat noise floor
+        const N = 500;
+        const tData = [];
+        const vSourceData = [];
+        const vLoadData = [];
 
         for (let i = 0; i < N; i++) {
-            const logF = (i / N) * (Math.log10(fMax) - Math.log10(fMin)) + Math.log10(fMin);
-            const f = Math.pow(10, logF);
-            fData.push(logF);
+            const t = (i / N) * totalTime;
+            tData.push(t);
 
-            // Standard amplifier: 1/f noise + white noise
-            const oneOverF = whiteNoise * Math.sqrt(fc / f);
-            const totalStd = Math.sqrt(oneOverF * oneOverF + whiteNoise * whiteNoise);
-            noiseStd.push(20 * Math.log10(totalStd));
+            // Simplified transmission line model with reflections
+            let vSource = 0;
+            let vLoad = 0;
 
-            // Chopper: flat noise, no 1/f
-            // But has spikes at chopper frequency and harmonics
-            let choppedNoise = whiteNoise;
-            if (Math.abs(f - fchop) < fchop / 20 ||
-                Math.abs(f - 2*fchop) < fchop / 20 ||
-                Math.abs(f - 3*fchop) < fchop / 20) {
-                choppedNoise = whiteNoise * 5; // Chopper spurs
+            // Initial step (simplified as smooth rise)
+            const riseFunc = (time) => {
+                if (time < 0) return 0;
+                if (time > tr) return 1;
+                return time / tr;
+            };
+
+            // Source voltage includes reflections
+            vSource = riseFunc(t) * 0.5; // Initial launch (source impedance divider)
+
+            // First forward wave arrives at load
+            if (t > tpd) {
+                vLoad = riseFunc(t - tpd) * 0.5 * (1 + gamma);
             }
-            noiseChop.push(20 * Math.log10(choppedNoise));
+
+            // First reflection returns to source
+            if (t > 2 * tpd) {
+                vSource += riseFunc(t - 2 * tpd) * 0.5 * gamma;
+            }
+
+            // Second reflection at load
+            if (t > 3 * tpd) {
+                vLoad += riseFunc(t - 3 * tpd) * 0.5 * gamma * gamma * (1 + gamma);
+            }
+
+            // Continue reflections
+            if (t > 4 * tpd) {
+                vSource += riseFunc(t - 4 * tpd) * 0.5 * Math.pow(gamma, 2);
+            }
+
+            if (t > 5 * tpd) {
+                vLoad += riseFunc(t - 5 * tpd) * 0.5 * Math.pow(gamma, 3) * (1 + gamma);
+            }
+
+            vSourceData.push(vSource);
+            vLoadData.push(vLoad);
         }
 
-        // Plot standard amplifier noise
-        AD.plotData(ctx, axes, fData, noiseStd, {
-            color: 'rgba(251, 113, 133, 0.8)',
-            lineWidth: 2,
-            label: 'Standard amp'
+        // Plot source voltage
+        AD.plotData(ctx, axes, tData, vSourceData, {
+            color: 'rgba(251, 191, 36, 0.95)',
+            lineWidth: 2
         });
 
-        // Plot chopper amplifier noise
-        AD.plotData(ctx, axes, fData, noiseChop, {
-            color: 'rgba(52, 211, 153, 0.95)',
-            lineWidth: 2,
-            label: 'Chopper amp'
+        // Plot load voltage
+        AD.plotData(ctx, axes, tData, vLoadData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2
         });
 
-        // Mark 1/f corner
+        // Mark final voltage level
+        const vFinal = 1.0;
         ctx.save();
-        ctx.strokeStyle = 'rgba(251, 191, 36, 0.7)';
         ctx.setLineDash([5, 5]);
-        const fcPt = axes.toCanvas(Math.log10(fc), 0);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+
+        const finalPt = axes.toCanvas(0, vFinal);
         ctx.beginPath();
-        ctx.moveTo(fcPt.x, axes.top);
-        ctx.lineTo(fcPt.x, axes.top + axes.height);
+        ctx.moveTo(axes.left, finalPt.y);
+        ctx.lineTo(axes.left + axes.width, finalPt.y);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('1/f corner', fcPt.x + 5, axes.top + 20);
-        ctx.restore();
-
-        // Mark chopper frequency
-        ctx.save();
-        ctx.strokeStyle = 'rgba(110, 231, 255, 0.7)';
-        ctx.setLineDash([5, 5]);
-        const fchopPt = axes.toCanvas(Math.log10(fchop), 0);
-        ctx.beginPath();
-        ctx.moveTo(fchopPt.x, axes.top);
-        ctx.lineTo(fchopPt.x, axes.top + axes.height);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('f_chop', fchopPt.x + 5, axes.top + 35);
-        ctx.restore();
-
-        // X-axis log labels
-        ctx.save();
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '9px ui-sans-serif';
-        for (let exp = Math.ceil(Math.log10(fMin)); exp <= Math.floor(Math.log10(fMax)); exp++) {
-            const f = Math.pow(10, exp);
-            const pt = axes.toCanvas(exp, axes.yMin);
-            ctx.fillText(AD.fmtUnit(f, 'Hz'), pt.x - 15, pt.y + 25);
-        }
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('Final: ' + vFinal.toFixed(1) + 'V', axes.left + axes.width - 60, finalPt.y - 5);
         ctx.restore();
 
-        // Legend
         AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
-            { color: 'rgba(251, 113, 133, 0.8)', label: 'Standard (1/f + white)' },
-            { color: 'rgba(52, 211, 153, 0.95)', label: 'Chopper (flat + spurs)' }
+            { color: 'rgba(251, 191, 36, 0.95)', label: 'Source end' },
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'Load end' }
         ]);
     }
 
-    ['chop-vos', 'chop-freq', 'chop-bw', 'chop-fc'].forEach(id => {
+    ['si-z0', 'si-zl', 'si-len', 'si-tr'].forEach(id => {
         document.getElementById(id).addEventListener('input', update);
     });
 
     update();
 
-    // ==================== CHOPPER OPERATION CANVAS ====================
-    (function() {
-        const canvas = document.getElementById('chopper-operation-canvas');
-        if (!canvas || typeof AD === 'undefined') return;
-        const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
-        const TEK = AD.TEK_COLORS;
-
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, W, H);
-
-        // Title
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = 'bold 12px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('Chopper Amplifier Block Diagram', 20, 25);
-
-        // Block diagram elements
-        const blocks = [
-            { x: 100, y: 65, w: 70, h: 40, label: 'Mod', color: TEK.ch1 },
-            { x: 220, y: 65, w: 100, h: 40, label: 'Amp + Vos', color: TEK.ch2 },
-            { x: 370, y: 65, w: 70, h: 40, label: 'Demod', color: TEK.ch1 },
-            { x: 490, y: 65, w: 70, h: 40, label: 'LPF', color: TEK.ch3 }
-        ];
-
-        blocks.forEach(blk => {
-            ctx.fillStyle = 'rgba(30,41,59,0.9)';
-            ctx.strokeStyle = blk.color;
-            ctx.lineWidth = 2;
-            AD.roundRect(ctx, blk.x, blk.y, blk.w, blk.h, 6);
-            ctx.fill(); ctx.stroke();
-
-            ctx.fillStyle = blk.color;
-            ctx.font = '11px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(blk.label, blk.x + blk.w/2, blk.y + blk.h/2 + 4);
-        });
-
-        // Arrows between blocks
-        ctx.strokeStyle = '#e6edf3';
-        ctx.lineWidth = 1.5;
-        AD.drawArrow(ctx, 50, 85, 95, 85, { headSize: 6 });
-        AD.drawArrow(ctx, 175, 85, 215, 85, { headSize: 6 });
-        AD.drawArrow(ctx, 325, 85, 365, 85, { headSize: 6 });
-        AD.drawArrow(ctx, 445, 85, 485, 85, { headSize: 6 });
-        AD.drawArrow(ctx, 565, 85, 620, 85, { headSize: 6 });
-
-        // Labels
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '10px ui-sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Vin', 40, 80);
-        ctx.fillText('Vout', 640, 80);
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillText('f_chop', 135, 55);
-        ctx.fillText('f_chop', 405, 55);
-
-        // Synchronous clock line
-        ctx.strokeStyle = TEK.ch4;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(135, 110);
-        ctx.lineTo(135, 130);
-        ctx.lineTo(405, 130);
-        ctx.lineTo(405, 110);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = '9px ui-sans-serif';
-        ctx.fillText('Synchronous clocks', 270, 145);
-
-        // Signal state boxes
-        const states = [
-            { x: 50, y: 165, title: 'Before chopping:', items: ['Signal at DC', 'Offset (Vos) at DC'] },
-            { x: 280, y: 165, title: 'After modulation:', items: ['Signal at f_chop', 'Offset still at DC'] },
-            { x: 510, y: 165, title: 'After demodulation:', items: ['Signal back at DC', 'Offset at f_chop → filtered!'] }
-        ];
-
-        states.forEach(state => {
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 10px ui-sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText(state.title, state.x, state.y);
-
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '10px ui-sans-serif';
-            state.items.forEach((item, i) => {
-                ctx.fillText('• ' + item, state.x, state.y + 15 + i * 14);
-            });
-        });
-
-        // Result box
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        ctx.strokeStyle = TEK.ch4;
-        ctx.lineWidth = 2;
-        AD.roundRect(ctx, 640, 140, 240, 55, 6);
-        ctx.fill(); ctx.stroke();
-
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = 'bold 10px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('Result:', 655, 160);
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('Offset → ripple at f_chop', 655, 175);
-        ctx.fillText('Signal → near-zero offset', 655, 190);
-    })();
-
     new SpiceNetlistWidget('spice-container', {
-        title: 'Chopper Amplifier Concept',
-        netlist: `* Simplified Chopper Amplifier Model
-* Demonstrates modulation/demodulation principle
+        title: 'Transmission Line with Termination',
+        netlist: `* Transmission Line Signal Integrity
+* Compare terminated vs unterminated
 
-* Input signal (10mV DC)
-VIN input 0 DC 10m
+* Source (CMOS driver)
+VPULSE src 0 PULSE(0 3.3 1n 0.5n 0.5n 10n 25n)
+RSRC src drv 10
 
-* Chopper clock (10kHz square wave)
-VCLK clk 0 PULSE(-1 1 0 1n 1n 50u 100u)
+* Transmission line (50Ω, 10cm = 0.67ns)
+T1 drv gnd load gnd Z0=50 TD=0.67n
 
-* Input modulator (multiplier)
-B_MOD mod 0 V=V(input)*V(clk)
+* Load options (uncomment one):
 
-* Amplifier with offset
-* Gain = 100, Vos = 100µV
-E_AMP amp 0 mod 0 100
-VOFFSET amp_out amp DC 100u
+* Unterminated (high-Z)
+RLOAD load 0 1MEG
 
-* Output demodulator
-B_DEMOD demod 0 V=V(amp_out)*V(clk)
+* Series termination (at source)
+* RTERM src drv 40
 
-* Low-pass filter (removes chopper ripple)
-R_LPF demod output 10k
-C_LPF output 0 100n
+* Parallel termination
+* RTERM load 0 50
 
-.TRAN 1u 1m
+* AC termination
+* RTERM load term 50
+* CTERM term 0 100p
 
-.PROBE V(input) V(mod) V(amp_out) V(demod) V(output)
+.TRAN 0.1n 50n
+
+.PROBE V(drv) V(load)
 .END
 
-* The offset appears as ripple at 10kHz in output
-* After LPF, only the amplified input remains
-* Effective offset is greatly reduced`
+* Try different termination options
+* Watch for overshoot and ringing`
     });
 
     new ChecklistWidget('checklist-container', {
-        lessonKey: 'm14l3',
+        lessonKey: 'm19l3',
         items: [
-            'Understand chopper modulates signal past 1/f corner',
-            'Know chopper moves offset to ripple frequency',
-            'Recognize bandwidth limit ≈ f_chop/10',
-            'Understand auto-zero samples and stores offset',
-            'Know kT/C noise limits sampling capacitor size'
+            'Calculate critical length for edge rate',
+            'Check impedance matching at both ends',
+            'Look for stubs and discontinuities',
+            'Verify return path is continuous',
+            'Consider crosstalk from adjacent traces'
         ]
     });
 
     new ExerciseWidget('exercise-container', {
-        id: 'N3-3',
+        id: 'D3-1',
         type: 'numeric',
-        question: 'A chopper amplifier runs at 50 kHz. What is the maximum recommended signal bandwidth?',
-        hint: 'Typical rule: BW ≤ f_chop / 10',
-        expected: 5,
-        tolerance: 0.1,
-        unit: 'kHz',
-        solution: 'Max BW = 50 kHz / 10 = 5 kHz',
-        explanation: 'Keeping signal bandwidth well below the chopper frequency ensures adequate attenuation of chopper ripple and prevents aliasing.'
+        question: 'A 50Ω trace is terminated with 75Ω. What is the reflection coefficient?',
+        hint: 'Γ = (ZL - Z0) / (ZL + Z0)',
+        expected: 0.2,
+        tolerance: 0.05,
+        unit: '',
+        solution: 'Γ = (75 - 50) / (75 + 50) = 25 / 125 = 0.2',
+        explanation: '20% of the signal is reflected. This creates a 20% overshoot at the load and rings until settled. For clean signals, keep Γ < 0.1.'
     });
 })();
 </script>

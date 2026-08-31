@@ -1,874 +1,988 @@
-<article class="lesson-content">
-    <p class="author-credit">Based on Razavi's "Design of Analog CMOS Integrated Circuits" and Agarwal's MIT 6.002</p>
+<lesson-content>
+<section class="card">
+    <h2>Temperature Sensing Interfaces</h2>
+    <p>
+        Temperature is one of the most commonly measured physical quantities. Understanding the
+        <strong>analog interface circuits</strong> for different sensor types—RTDs, thermistors,
+        and thermocouples—is essential for embedded and industrial design.
+    </p>
 
-    <h2>Introduction</h2>
-    <p>When a feedback system has insufficient phase margin, we must add <strong>compensation</strong> to stabilize it. Compensation modifies the loop gain frequency response to ensure adequate stability margins. This lesson covers the fundamental compensation techniques used throughout analog design.</p>
-
-    <div class="concept-box">
-        <h3>The Compensation Problem</h3>
-        <p>Consider an amplifier with two poles at frequencies f<sub>p1</sub> and f<sub>p2</sub>. Each pole contributes -90° of phase shift at high frequencies. If the loop gain is still greater than unity when both poles have taken effect, the phase margin may be dangerously low or even negative (unstable).</p>
-        <p><strong>Compensation Goal:</strong> Modify the frequency response so that the magnitude crosses 0 dB while the phase is still above -180° (with adequate margin).</p>
-    </div>
-
-    <h2>Dominant Pole Compensation</h2>
-    <p>The simplest compensation technique is to introduce a <strong>dominant pole</strong> at a frequency much lower than all other poles. This ensures the loop gain drops below unity before the higher-frequency poles contribute significant phase shift.</p>
-
-    <div class="formula-box">
-        <h4>Dominant Pole Design Rule</h4>
-        <p>To achieve phase margin PM, place the dominant pole f<sub>d</sub> such that:</p>
-        <div class="formula">f<sub>unity</sub> &lt; f<sub>p2</sub> / tan(90° - PM)</div>
-        <p>For PM = 60°: f<sub>unity</sub> &lt; f<sub>p2</sub> / 1.73</p>
-        <p>For PM = 45°: f<sub>unity</sub> &lt; f<sub>p2</sub></p>
-    </div>
-
-    <h3>Implementation Methods</h3>
-    <ul>
-        <li><strong>External Capacitor:</strong> Add a capacitor at a high-impedance node to create a low-frequency pole</li>
-        <li><strong>Miller Capacitor:</strong> Use feedback capacitance to create effective large capacitance (see Lesson 5)</li>
-        <li><strong>Integration:</strong> Some amplifiers are designed with intentionally low bandwidth (integrator-like response)</li>
-    </ul>
-
-    <div class="warning-box">
-        <h4>Don't Do This: Random Capacitor Placement</h4>
-        <p>Adding capacitors at arbitrary nodes can create additional poles and make stability worse! Always analyze the impedance at potential compensation nodes before adding capacitance.</p>
-    </div>
-
-    <h3>Interactive: Dominant Pole Compensation</h3>
-    <div class="control-group">
-        <label>Original Pole 1 (kHz): <input type="number" id="orig-p1" value="100" min="1" max="1000" step="10"></label>
-        <label>Original Pole 2 (kHz): <input type="number" id="orig-p2" value="1000" min="100" max="10000" step="100"></label>
-        <label>DC Loop Gain (dB): <input type="number" id="dc-gain-comp" value="60" min="20" max="100" step="5"></label>
-        <label>Dominant Pole (Hz): <input type="number" id="dom-pole" value="100" min="1" max="10000" step="10"></label>
-        <button onclick="updateDominantPole()">Update</button>
-    </div>
-    <canvas id="dominant-pole-canvas" width="700" height="400"></canvas>
-    <div id="dominant-pole-result" class="result-box"></div>
-
-    <h2>Lead Compensation</h2>
-    <p>Lead compensation adds a <strong>zero-pole pair</strong> where the zero occurs before the pole. This provides phase boost (positive phase shift) near the crossover frequency, improving phase margin without reducing bandwidth as much as dominant pole compensation.</p>
-
-    <div class="formula-box">
-        <h4>Lead Compensator Transfer Function</h4>
-        <div class="formula">H(s) = (1 + s/ω<sub>z</sub>) / (1 + s/ω<sub>p</sub>), where ω<sub>z</sub> &lt; ω<sub>p</sub></div>
-        <p>Maximum phase boost: φ<sub>max</sub> = arctan((ω<sub>p</sub> - ω<sub>z</sub>) / (2√(ω<sub>z</sub>ω<sub>p</sub>)))</p>
-        <p>Occurs at geometric mean: ω<sub>max</sub> = √(ω<sub>z</sub>ω<sub>p</sub>)</p>
-    </div>
-
-    <h3>Circuit Implementation</h3>
-    <p>A common lead compensation network uses a resistor-capacitor combination:</p>
-    <div id="sch-lead-comp" class="schematic-placeholder" style="height: 150px;"></div>
-
-    <p>Transfer function: H(s) = (R<sub>1</sub> + R<sub>2</sub>) / R<sub>2</sub> × (1 + sR<sub>1</sub>C) / (1 + s(R<sub>1</sub>||R<sub>2</sub>)C)</p>
-
-    <ul>
-        <li>Zero at: f<sub>z</sub> = 1/(2πR<sub>1</sub>C)</li>
-        <li>Pole at: f<sub>p</sub> = 1/(2π(R<sub>1</sub>||R<sub>2</sub>)C) = (1 + R<sub>1</sub>/R<sub>2</sub>)/(2πR<sub>1</sub>C)</li>
-    </ul>
-
-    <div class="design-tip">
-        <h4>Razavi Design Insight</h4>
-        <p>Place the geometric mean of the zero and pole at the desired crossover frequency. This positions maximum phase boost exactly where it's needed.</p>
-    </div>
-
-    <h2>Lag Compensation</h2>
-    <p>Lag compensation adds a <strong>pole-zero pair</strong> where the pole occurs before the zero. This reduces loop gain at high frequencies while adding minimal phase lag at the crossover frequency (if designed properly).</p>
-
-    <div class="formula-box">
-        <h4>Lag Compensator Transfer Function</h4>
-        <div class="formula">H(s) = (1 + s/ω<sub>p</sub>) / (1 + s/ω<sub>z</sub>), where ω<sub>p</sub> &lt; ω<sub>z</sub></div>
-        <p>Key: Both pole and zero should be at least a decade below crossover to minimize phase impact at crossover.</p>
-    </div>
-
-    <h3>When to Use Lag Compensation</h3>
-    <ul>
-        <li>When you need to reduce DC gain error but can accept bandwidth reduction</li>
-        <li>When lead compensation alone doesn't provide enough phase margin</li>
-        <li>In combination with lead for "lead-lag" compensation</li>
-    </ul>
-
-    <h2>Lead-Lag (PID-like) Compensation</h2>
-    <p>For challenging systems, combining lead and lag creates a more powerful compensator. This is similar to PID control theory applied to analog circuits.</p>
-
-    <div class="formula-box">
-        <h4>Lead-Lag Compensator</h4>
-        <p>Combines the benefits of both:</p>
+    <div class="notice">
+        <strong>What You'll Learn:</strong>
         <ul>
-            <li><strong>Lag portion:</strong> Increases low-frequency gain (reduces DC error)</li>
-            <li><strong>Lead portion:</strong> Adds phase boost at crossover for stability</li>
+            <li>Sensor types: RTD, thermistor, thermocouple comparison</li>
+            <li>RTD bridge circuits and 2/3/4-wire configurations</li>
+            <li>Thermistor linearization techniques</li>
+            <li>Thermocouple cold junction compensation</li>
+            <li>Signal conditioning and ADC interface</li>
         </ul>
     </div>
+</section>
 
-    <h3>Interactive: Compensation Type Comparison</h3>
-    <div class="control-group">
-        <label>System Poles (kHz): <input type="text" id="sys-poles" value="10, 100, 500" size="20"></label>
-        <label>DC Gain (dB): <input type="number" id="sys-gain" value="80" min="20" max="120" step="10"></label>
-        <label>Compensation Type:
-            <select id="comp-type">
-                <option value="none">None (Uncompensated)</option>
-                <option value="dominant">Dominant Pole</option>
-                <option value="lead">Lead</option>
-                <option value="lag">Lag</option>
-                <option value="leadlag">Lead-Lag</option>
-            </select>
-        </label>
-        <button onclick="updateCompensation()">Update</button>
-    </div>
-    <canvas id="compensation-canvas" width="700" height="450"></canvas>
-    <div id="compensation-result" class="result-box"></div>
+<!-- Sensor Comparison -->
+<section class="card">
+    <h3>Temperature Sensor Comparison</h3>
 
-    <h2>Worked Example: Lead Compensator Design</h2>
-    <div class="worked-example">
-        <h4>Problem</h4>
-        <p>An amplifier has loop gain T(s) = 10000/(1 + s/ω<sub>1</sub>)(1 + s/ω<sub>2</sub>) where f<sub>1</sub> = 100 Hz and f<sub>2</sub> = 10 kHz. Design a lead compensator to achieve 60° phase margin.</p>
-
-        <h4>Step 1: Analyze Uncompensated System</h4>
-        <p>DC loop gain: 20log(10000) = 80 dB</p>
-        <p>With two poles, the system rolls off at -40 dB/decade after both poles.</p>
-        <p>Uncompensated crossover: Using |T(jω)| = 1:</p>
-        <p style="margin-left: 20px;">At high frequencies: |T| ≈ 10000/(ω/ω<sub>1</sub>)(ω/ω<sub>2</sub>) = 10000·ω<sub>1</sub>·ω<sub>2</sub>/ω²</p>
-        <p style="margin-left: 20px;">Setting |T| = 1: ω<sub>c</sub> = √(10000 × 628 × 62832) = 62.8 krad/s → f<sub>c</sub> ≈ 10 kHz</p>
-        <p>Phase at crossover: -arctan(10k/100) - arctan(10k/10k) = -89.4° - 45° = -134.4°</p>
-        <p>Phase margin: 180° - 134.4° = 45.6° (insufficient for 60° target)</p>
-
-        <h4>Step 2: Determine Required Phase Boost</h4>
-        <p>Need: 60° - 45.6° = 14.4° additional phase margin</p>
-        <p>Add ~20° margin for safety: Design for 35° phase boost</p>
-
-        <h4>Step 3: Design Lead Compensator</h4>
-        <p>Maximum phase boost formula: φ<sub>max</sub> = arcsin((α-1)/(α+1)) where α = ω<sub>p</sub>/ω<sub>z</sub></p>
-        <p>For 35° boost: sin(35°) = (α-1)/(α+1) → α = (1 + 0.574)/(1 - 0.574) = 3.69</p>
-        <p>Place geometric mean at crossover: √(f<sub>z</sub>·f<sub>p</sub>) = 10 kHz</p>
-        <p>With α = 3.69: f<sub>z</sub> = 10k/√3.69 = 5.2 kHz, f<sub>p</sub> = 10k × √3.69 = 19.2 kHz</p>
-
-        <h4>Step 4: Verify</h4>
-        <p>Lead network adds: +arctan(10k/5.2k) - arctan(10k/19.2k) = 62.5° - 27.5° = 35° ✓</p>
-        <p>New phase margin: 45.6° + 35° = 80.6° (exceeds 60° target with margin)</p>
-
-        <h4>Step 5: Component Values</h4>
-        <p>Choose C = 1 nF for practical values:</p>
-        <p>R<sub>1</sub> = 1/(2π × 5.2k × 1n) = 30.6 kΩ → use 30 kΩ</p>
-        <p>R<sub>2</sub> = R<sub>1</sub>/(α-1) = 30k/2.69 = 11.2 kΩ → use 11 kΩ</p>
-
-        <div class="formula-box" style="background: #1a3a1a;">
-            <h4>Final Design</h4>
-            <p>R<sub>1</sub> = 30 kΩ, R<sub>2</sub> = 11 kΩ, C = 1 nF</p>
-            <p>Zero at 5.3 kHz, Pole at 19.5 kHz</p>
-            <p>Phase margin improved from 46° to ~78°</p>
-        </div>
-    </div>
-
-    <h2>Frequency Response Shaping Rules</h2>
-    <table class="info-table">
+    <table>
         <thead>
             <tr>
-                <th>Compensation Type</th>
-                <th>Effect on Bandwidth</th>
-                <th>Effect on Phase Margin</th>
-                <th>Best Used When</th>
+                <th>Parameter</th>
+                <th>RTD (PT100)</th>
+                <th>NTC Thermistor</th>
+                <th>Thermocouple</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td>Dominant Pole</td>
-                <td>Significantly reduces</td>
-                <td>Improves (by lowering crossover)</td>
-                <td>Bandwidth not critical, simple implementation needed</td>
+                <td><strong>Range</strong></td>
+                <td>-200°C to +850°C</td>
+                <td>-40°C to +150°C</td>
+                <td>-270°C to +1800°C</td>
             </tr>
             <tr>
-                <td>Lead</td>
-                <td>Can maintain or increase</td>
-                <td>Improves (phase boost)</td>
-                <td>Need phase margin without sacrificing bandwidth</td>
+                <td><strong>Accuracy</strong></td>
+                <td>±0.1°C (Class A)</td>
+                <td>±0.5°C to ±2°C</td>
+                <td>±1°C to ±2°C</td>
             </tr>
             <tr>
-                <td>Lag</td>
-                <td>Reduces somewhat</td>
-                <td>Minimal effect if designed properly</td>
-                <td>Need higher DC gain, can accept lower bandwidth</td>
+                <td><strong>Linearity</strong></td>
+                <td>Excellent</td>
+                <td>Highly nonlinear</td>
+                <td>Nonlinear (lookup table)</td>
             </tr>
             <tr>
-                <td>Lead-Lag</td>
-                <td>Maintains reasonably</td>
-                <td>Improves significantly</td>
-                <td>Challenging systems, need both DC accuracy and stability</td>
+                <td><strong>Sensitivity</strong></td>
+                <td>0.385Ω/°C (PT100)</td>
+                <td>-3 to -5%/°C</td>
+                <td>~40µV/°C (Type K)</td>
+            </tr>
+            <tr>
+                <td><strong>Output</strong></td>
+                <td>Resistance (Ω)</td>
+                <td>Resistance (kΩ)</td>
+                <td>Voltage (µV-mV)</td>
+            </tr>
+            <tr>
+                <td><strong>Cost</strong></td>
+                <td>$$</td>
+                <td>$</td>
+                <td>$$-$$$</td>
+            </tr>
+            <tr>
+                <td><strong>Excitation</strong></td>
+                <td>Current source</td>
+                <td>Voltage/current</td>
+                <td>None (self-powered)</td>
+            </tr>
+            <tr>
+                <td><strong>Application</strong></td>
+                <td>Industrial, precision</td>
+                <td>Consumer, HVAC</td>
+                <td>High temp, furnaces</td>
             </tr>
         </tbody>
     </table>
+</section>
 
-    <h2>Common Mistakes in Compensation</h2>
-    <div class="warning-box">
-        <h4>Art of Electronics Wisdom</h4>
-        <ol>
-            <li><strong>Compensating at the wrong node:</strong> Adding capacitance at a low-impedance node has minimal effect. Always check node impedance first.</li>
-            <li><strong>Creating new poles:</strong> The compensation capacitor interacts with circuit impedances to create new poles. Verify you haven't added a pole near crossover.</li>
-            <li><strong>Ignoring parasitic poles:</strong> Real circuits have many high-frequency poles. Simulation is essential for verification.</li>
-            <li><strong>Over-compensating:</strong> Too much compensation wastes bandwidth. Aim for adequate margin (45-60°), not maximum.</li>
-        </ol>
+<!-- RTD Interface -->
+<section class="card">
+    <h3>RTD (PT100/PT1000) Interface</h3>
+    <p>
+        RTDs use the predictable change in metal resistance with temperature. Platinum RTDs (PT100)
+        have <strong>100Ω at 0°C</strong> with ~0.385Ω/°C temperature coefficient (α).
+    </p>
+
+    <h4>RTD Resistance Equation</h4>
+    <div class="diagram-container">
+        <canvas id="rtd-equation-canvas" width="600" height="280" style="width:100%;max-width:600px;background:#0d1117;border-radius:8px;"></canvas>
     </div>
 
-    <h2>Exercises</h2>
-    <div id="exercises-container">
-        <div class="exercise-widget" data-exercise="1">
-            <p class="exercise-problem"><strong>Exercise 1:</strong> A two-pole system has poles at 1 kHz and 100 kHz with DC loop gain of 10,000. Where should a dominant pole be placed to achieve 60° phase margin?</p>
-            <input type="text" id="ex1-input" placeholder="Enter frequency in Hz">
-            <button onclick="checkEx1()">Check Answer</button>
-            <div id="ex1-result"></div>
-            <div class="exercise-hint" style="display:none;">
-                <p><strong>Hint:</strong> First find the uncompensated crossover, then determine where it needs to move. For 60° phase margin with a dominant pole, the crossover should be at f<sub>p2</sub>/tan(30°) = f<sub>p2</sub>/0.577.</p>
-            </div>
-        </div>
+    <h4>Wire Configuration Comparison</h4>
 
-        <div class="exercise-widget" data-exercise="2">
-            <p class="exercise-problem"><strong>Exercise 2:</strong> Design a lead compensator to add 45° of phase boost centered at 50 kHz. What is the ratio of pole frequency to zero frequency (α)?</p>
-            <input type="text" id="ex2-input" placeholder="Enter ratio α">
-            <button onclick="checkEx2()">Check Answer</button>
-            <div id="ex2-result"></div>
-            <div class="exercise-hint" style="display:none;">
-                <p><strong>Hint:</strong> Use φ<sub>max</sub> = arcsin((α-1)/(α+1)). Solve for α when φ<sub>max</sub> = 45°.</p>
-            </div>
-        </div>
+    <!-- SVG: RTD Wiring Configurations -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 600 320" class="circuit-svg" style="max-width: 600px; background: var(--panel);">
+            <!-- 2-Wire -->
+            <g id="rtd-2wire">
+                <text x="100" y="30" fill="#e6edf3" font-size="12" text-anchor="middle" font-weight="bold">2-Wire</text>
+                <text x="100" y="45" fill="#fb7185" font-size="9" text-anchor="middle">(Least accurate)</text>
 
-        <div class="exercise-widget" data-exercise="3">
-            <p class="exercise-problem"><strong>Exercise 3:</strong> For the lead compensator in Exercise 2 (α from your answer, centered at 50 kHz), what are the zero and pole frequencies?</p>
-            <input type="text" id="ex3-zero" placeholder="Zero frequency (kHz)">
-            <input type="text" id="ex3-pole" placeholder="Pole frequency (kHz)">
-            <button onclick="checkEx3()">Check Answer</button>
-            <div id="ex3-result"></div>
+                <!-- RTD symbol -->
+                <rect x="70" y="120" width="60" height="25" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="100" y="137" fill="#fbbf24" font-size="10" text-anchor="middle">RTD</text>
+
+                <!-- Lead wires -->
+                <line x1="70" y1="90" x2="70" y2="120" stroke="#ef4444" stroke-width="2"/>
+                <line x1="130" y1="90" x2="130" y2="120" stroke="#ef4444" stroke-width="2"/>
+                <line x1="70" y1="145" x2="70" y2="180" stroke="#6ee7ff" stroke-width="2"/>
+                <line x1="130" y1="145" x2="130" y2="180" stroke="#6ee7ff" stroke-width="2"/>
+
+                <!-- Lead resistance -->
+                <rect x="60" y="90" width="20" height="15" fill="none" stroke="#ef4444" stroke-width="1"/>
+                <text x="70" y="100" fill="#ef4444" font-size="7" text-anchor="middle">Rl</text>
+                <rect x="120" y="90" width="20" height="15" fill="none" stroke="#ef4444" stroke-width="1"/>
+                <text x="130" y="100" fill="#ef4444" font-size="7" text-anchor="middle">Rl</text>
+
+                <!-- Problem annotation -->
+                <text x="100" y="210" fill="#fb7185" font-size="9" text-anchor="middle">Error = 2×Rl</text>
+                <text x="100" y="225" fill="#fb7185" font-size="8" text-anchor="middle">(Rl adds to RTD)</text>
+            </g>
+
+            <!-- 3-Wire -->
+            <g id="rtd-3wire">
+                <text x="300" y="30" fill="#e6edf3" font-size="12" text-anchor="middle" font-weight="bold">3-Wire</text>
+                <text x="300" y="45" fill="#fbbf24" font-size="9" text-anchor="middle">(Common industrial)</text>
+
+                <rect x="270" y="120" width="60" height="25" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="300" y="137" fill="#fbbf24" font-size="10" text-anchor="middle">RTD</text>
+
+                <!-- 3 wires -->
+                <line x1="255" y1="90" x2="255" y2="132" stroke="#ef4444" stroke-width="2"/>
+                <line x1="270" y1="132" x2="255" y2="132" stroke="#ef4444" stroke-width="1"/>
+
+                <line x1="285" y1="90" x2="285" y2="120" stroke="#a78bfa" stroke-width="2"/>
+                <line x1="285" y1="120" x2="270" y2="120" stroke="#a78bfa" stroke-width="1"/>
+
+                <line x1="330" y1="90" x2="330" y2="132" stroke="#6ee7ff" stroke-width="2"/>
+
+                <!-- Lead resistances -->
+                <rect x="245" y="90" width="20" height="15" fill="none" stroke="#ef4444" stroke-width="1"/>
+                <text x="255" y="100" fill="#ef4444" font-size="7" text-anchor="middle">Rl</text>
+
+                <rect x="275" y="90" width="20" height="15" fill="none" stroke="#a78bfa" stroke-width="1"/>
+                <text x="285" y="100" fill="#a78bfa" font-size="7" text-anchor="middle">Rl</text>
+
+                <rect x="320" y="90" width="20" height="15" fill="none" stroke="#6ee7ff" stroke-width="1"/>
+                <text x="330" y="100" fill="#6ee7ff" font-size="7" text-anchor="middle">Rl</text>
+
+                <!-- Compensation -->
+                <text x="300" y="210" fill="#34d399" font-size="9" text-anchor="middle">Error ≈ 0</text>
+                <text x="300" y="225" fill="#34d399" font-size="8" text-anchor="middle">(Rl cancels in bridge)</text>
+            </g>
+
+            <!-- 4-Wire -->
+            <g id="rtd-4wire">
+                <text x="500" y="30" fill="#e6edf3" font-size="12" text-anchor="middle" font-weight="bold">4-Wire</text>
+                <text x="500" y="45" fill="#34d399" font-size="9" text-anchor="middle">(Highest accuracy)</text>
+
+                <rect x="470" y="120" width="60" height="25" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="500" y="137" fill="#fbbf24" font-size="10" text-anchor="middle">RTD</text>
+
+                <!-- 4 wires with labels -->
+                <line x1="460" y1="90" x2="460" y2="120" stroke="#ef4444" stroke-width="2"/>
+                <line x1="460" y1="120" x2="470" y2="120" stroke="#ef4444" stroke-width="1"/>
+                <text x="450" y="85" fill="#ef4444" font-size="8">I+</text>
+
+                <line x1="480" y1="90" x2="480" y2="120" stroke="#fbbf24" stroke-width="2"/>
+                <text x="475" y="85" fill="#fbbf24" font-size="8">V+</text>
+
+                <line x1="520" y1="90" x2="520" y2="145" stroke="#a78bfa" stroke-width="2"/>
+                <line x1="520" y1="145" x2="530" y2="145" stroke="#a78bfa" stroke-width="1"/>
+                <text x="525" y="85" fill="#a78bfa" font-size="8">V-</text>
+
+                <line x1="540" y1="90" x2="540" y2="145" stroke="#6ee7ff" stroke-width="2"/>
+                <text x="550" y="85" fill="#6ee7ff" font-size="8">I-</text>
+
+                <!-- Kelvin sensing annotation -->
+                <text x="500" y="210" fill="#34d399" font-size="9" text-anchor="middle">Error = 0</text>
+                <text x="500" y="225" fill="#34d399" font-size="8" text-anchor="middle">(Kelvin sensing)</text>
+            </g>
+
+            <!-- Excitation current -->
+            <text x="300" y="280" fill="#e6edf3" font-size="10" text-anchor="middle">
+                All configurations use constant current excitation (0.1-1mA)
+            </text>
+            <text x="300" y="295" fill="#e6edf3" font-size="9" text-anchor="middle">
+                Higher current = more signal, but more self-heating error
+            </text>
+        </svg>
+    </div>
+
+    <h4>RTD Calculator</h4>
+    <div class="controls">
+        <div class="c3">
+            <label>RTD Type</label>
+            <select id="rtd-type">
+                <option value="100">PT100</option>
+                <option value="1000">PT1000</option>
+            </select>
+        </div>
+        <div class="c3">
+            <label>Temperature (°C)</label>
+            <input type="range" id="rtd-temp" min="-50" max="300" value="25" step="1">
+            <span id="rtd-temp-val">25°C</span>
+        </div>
+        <div class="c3">
+            <label>Excitation Current (mA)</label>
+            <input type="range" id="rtd-iex" min="0.1" max="2" value="1" step="0.1">
+            <span id="rtd-iex-val">1mA</span>
+        </div>
+        <div class="c3">
+            <label>Lead Resistance (Ω)</label>
+            <input type="range" id="rtd-rl" min="0" max="10" value="2" step="0.5">
+            <span id="rtd-rl-val">2Ω</span>
+        </div>
+    </div>
+
+    <div id="rtd-results" class="results">
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">RTD Resistance</span>
+                <span class="value" id="rtd-res">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Voltage Across RTD</span>
+                <span class="value" id="rtd-vrtd">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">2-Wire Error</span>
+                <span class="value" id="rtd-err2">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Self-Heating Power</span>
+                <span class="value" id="rtd-psh">—</span>
+            </div>
         </div>
     </div>
 
     <script>
     (function() {
-        // Dominant Pole Compensation Visualization
-        const dpCanvas = document.getElementById('dominant-pole-canvas');
-        if (!dpCanvas || typeof AD === 'undefined') return;
-        const dpCtx = dpCanvas.getContext('2d');
-        const TEK = AD.TEK_COLORS;
+        const rtdIds = ['rtd-type', 'rtd-temp', 'rtd-iex', 'rtd-rl'];
 
-        window.updateDominantPole = function() {
-            const fp1 = AD.num('orig-p1') * 1000;
-            const fp2 = AD.num('orig-p2') * 1000;
-            const A0_dB = AD.num('dc-gain-comp');
-            const fd = AD.num('dom-pole');
-            const A0 = Math.pow(10, A0_dB/20);
+        function updateRTD() {
+            const r0 = AD.num('rtd-type');
+            const temp = AD.num('rtd-temp');
+            const iex = AD.num('rtd-iex') / 1000;
+            const rl = AD.num('rtd-rl');
 
-            const w = dpCanvas.width, h = dpCanvas.height;
-            const margin = { left: 60, right: 30, top: 30, bottom: 50 };
-            const plotW = w - margin.left - margin.right;
-            const plotH = (h - margin.top - margin.bottom - 20) / 2;
+            document.getElementById('rtd-temp-val').textContent = temp + '°C';
+            document.getElementById('rtd-iex-val').textContent = (iex*1000).toFixed(1) + 'mA';
+            document.getElementById('rtd-rl-val').textContent = rl + 'Ω';
 
-            dpCtx.fillStyle = '#0d1117';
-            dpCtx.fillRect(0, 0, w, h);
+            // Calculate RTD resistance
+            const alpha = 0.00385055;
+            const rrtd = r0 * (1 + alpha * temp);
+            const vrtd = iex * rrtd;
 
-            // Frequency range: 1 Hz to 10 MHz
-            const fMin = 1, fMax = 10e6;
-            const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
+            // 2-wire error (lead resistance adds to measurement)
+            const errOhm = 2 * rl;
+            const errDegC = errOhm / (r0 * alpha);
 
-            function freqToX(f) {
-                return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
-            }
+            // Self-heating
+            const psh = iex * iex * rrtd * 1000;  // mW
 
-            // Magnitude plot
-            const magTop = margin.top;
-            const magBot = margin.top + plotH;
-            const dBMin = -40, dBMax = 100;
-
-            function dBToY(dB) {
-                return magBot - (dB - dBMin) / (dBMax - dBMin) * plotH;
-            }
-
-            // Draw magnitude grid
-            dpCtx.strokeStyle = '#333';
-            dpCtx.lineWidth = 1;
-            for (let dB = -20; dB <= 100; dB += 20) {
-                const y = dBToY(dB);
-                dpCtx.beginPath();
-                dpCtx.moveTo(margin.left, y);
-                dpCtx.lineTo(w - margin.right, y);
-                dpCtx.stroke();
-                dpCtx.fillStyle = '#888';
-                dpCtx.font = '10px monospace';
-                dpCtx.textAlign = 'right';
-                dpCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
-            }
-
-            // Frequency grid
-            for (let exp = 0; exp <= 7; exp++) {
-                const f = Math.pow(10, exp);
-                const x = freqToX(f);
-                dpCtx.beginPath();
-                dpCtx.moveTo(x, magTop);
-                dpCtx.lineTo(x, magBot);
-                dpCtx.stroke();
-            }
-
-            // 0 dB line (bold)
-            dpCtx.strokeStyle = '#666';
-            dpCtx.lineWidth = 2;
-            dpCtx.beginPath();
-            dpCtx.moveTo(margin.left, dBToY(0));
-            dpCtx.lineTo(w - margin.right, dBToY(0));
-            dpCtx.stroke();
-
-            // Calculate uncompensated and compensated responses
-            function uncompMag(f) {
-                const w = 2 * Math.PI * f;
-                const wp1 = 2 * Math.PI * fp1;
-                const wp2 = 2 * Math.PI * fp2;
-                const mag = A0 / Math.sqrt(1 + (w/wp1)**2) / Math.sqrt(1 + (w/wp2)**2);
-                return 20 * Math.log10(mag);
-            }
-
-            function compMag(f) {
-                const w = 2 * Math.PI * f;
-                const wd = 2 * Math.PI * fd;
-                const wp1 = 2 * Math.PI * fp1;
-                const wp2 = 2 * Math.PI * fp2;
-                const mag = A0 / Math.sqrt(1 + (w/wd)**2) / Math.sqrt(1 + (w/wp1)**2) / Math.sqrt(1 + (w/wp2)**2);
-                return 20 * Math.log10(mag);
-            }
-
-            // Draw uncompensated
-            dpCtx.strokeStyle = TEK.yellow;
-            dpCtx.lineWidth = 2;
-            dpCtx.beginPath();
-            let first = true;
-            for (let i = 0; i <= 500; i++) {
-                const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                const dB = uncompMag(f);
-                const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                if (first) { dpCtx.moveTo(x, y); first = false; }
-                else dpCtx.lineTo(x, y);
-            }
-            dpCtx.stroke();
-
-            // Draw compensated
-            dpCtx.strokeStyle = TEK.green;
-            dpCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 500; i++) {
-                const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                const dB = compMag(f);
-                const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                if (first) { dpCtx.moveTo(x, y); first = false; }
-                else dpCtx.lineTo(x, y);
-            }
-            dpCtx.stroke();
-
-            // Phase plot
-            const phTop = magBot + 30;
-            const phBot = h - margin.bottom;
-            const phPlotH = phBot - phTop;
-            const phMin = -270, phMax = 0;
-
-            function phToY(ph) {
-                return phBot - (ph - phMin) / (phMax - phMin) * phPlotH;
-            }
-
-            // Phase grid
-            dpCtx.strokeStyle = '#333';
-            dpCtx.lineWidth = 1;
-            for (let ph = -270; ph <= 0; ph += 45) {
-                const y = phToY(ph);
-                dpCtx.beginPath();
-                dpCtx.moveTo(margin.left, y);
-                dpCtx.lineTo(w - margin.right, y);
-                dpCtx.stroke();
-                dpCtx.fillStyle = '#888';
-                dpCtx.textAlign = 'right';
-                dpCtx.fillText(ph + '°', margin.left - 5, y + 4);
-            }
-
-            // -180° line (bold)
-            dpCtx.strokeStyle = TEK.red;
-            dpCtx.lineWidth = 2;
-            dpCtx.setLineDash([5, 5]);
-            dpCtx.beginPath();
-            dpCtx.moveTo(margin.left, phToY(-180));
-            dpCtx.lineTo(w - margin.right, phToY(-180));
-            dpCtx.stroke();
-            dpCtx.setLineDash([]);
-
-            // Phase frequency grid
-            for (let exp = 0; exp <= 7; exp++) {
-                const f = Math.pow(10, exp);
-                const x = freqToX(f);
-                dpCtx.strokeStyle = '#333';
-                dpCtx.beginPath();
-                dpCtx.moveTo(x, phTop);
-                dpCtx.lineTo(x, phBot);
-                dpCtx.stroke();
-                dpCtx.fillStyle = '#888';
-                dpCtx.textAlign = 'center';
-                const label = exp === 0 ? '1' : exp <= 3 ? Math.pow(10, exp) + '' : (exp === 4 ? '10k' : exp === 5 ? '100k' : exp === 6 ? '1M' : '10M');
-                dpCtx.fillText(label, x, phBot + 15);
-            }
-            dpCtx.fillText('Frequency (Hz)', margin.left + plotW/2, h - 5);
-
-            // Calculate phases
-            function uncompPhase(f) {
-                const w = 2 * Math.PI * f;
-                return -Math.atan(w / (2*Math.PI*fp1)) * 180/Math.PI - Math.atan(w / (2*Math.PI*fp2)) * 180/Math.PI;
-            }
-
-            function compPhase(f) {
-                const w = 2 * Math.PI * f;
-                return -Math.atan(w / (2*Math.PI*fd)) * 180/Math.PI - Math.atan(w / (2*Math.PI*fp1)) * 180/Math.PI - Math.atan(w / (2*Math.PI*fp2)) * 180/Math.PI;
-            }
-
-            // Draw uncompensated phase
-            dpCtx.strokeStyle = TEK.yellow;
-            dpCtx.lineWidth = 2;
-            dpCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 500; i++) {
-                const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                const ph = uncompPhase(f);
-                const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                if (first) { dpCtx.moveTo(x, y); first = false; }
-                else dpCtx.lineTo(x, y);
-            }
-            dpCtx.stroke();
-
-            // Draw compensated phase
-            dpCtx.strokeStyle = TEK.green;
-            dpCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 500; i++) {
-                const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                const ph = compPhase(f);
-                const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                if (first) { dpCtx.moveTo(x, y); first = false; }
-                else dpCtx.lineTo(x, y);
-            }
-            dpCtx.stroke();
-
-            // Find crossovers and phase margins
-            function findCrossover(magFn) {
-                for (let f = 1; f < 10e6; f *= 1.01) {
-                    if (magFn(f) < 0) return f;
-                }
-                return 10e6;
-            }
-
-            const fcUncomp = findCrossover(uncompMag);
-            const fcComp = findCrossover(compMag);
-            const pmUncomp = 180 + uncompPhase(fcUncomp);
-            const pmComp = 180 + compPhase(fcComp);
-
-            // Legend
-            dpCtx.fillStyle = TEK.yellow;
-            dpCtx.fillRect(w - 200, 10, 15, 10);
-            dpCtx.fillStyle = '#fff';
-            dpCtx.textAlign = 'left';
-            dpCtx.fillText('Uncompensated', w - 180, 18);
-
-            dpCtx.fillStyle = TEK.green;
-            dpCtx.fillRect(w - 200, 25, 15, 10);
-            dpCtx.fillStyle = '#fff';
-            dpCtx.fillText('Compensated', w - 180, 33);
-
-            // Results
-            const result = document.getElementById('dominant-pole-result');
-            result.innerHTML = `
-                <strong>Uncompensated:</strong> f<sub>crossover</sub> = ${AD.fmtUnit(fcUncomp, 'Hz')}, Phase Margin = ${pmUncomp.toFixed(1)}°<br>
-                <strong>Compensated:</strong> f<sub>crossover</sub> = ${AD.fmtUnit(fcComp, 'Hz')}, Phase Margin = ${pmComp.toFixed(1)}°<br>
-                <strong>Bandwidth reduction:</strong> ${(fcUncomp/fcComp).toFixed(1)}× slower, but ${(pmComp - pmUncomp).toFixed(1)}° more phase margin
-            `;
-        };
-
-        // Compensation comparison visualization
-        const compCanvas = document.getElementById('compensation-canvas');
-        if (compCanvas) {
-            const compCtx = compCanvas.getContext('2d');
-
-            window.updateCompensation = function() {
-                // Free-text list, so parse it defensively: an empty box or a
-                // stray character used to yield [NaN] and take every readout
-                // and both curves down with it. Keep only finite positive
-                // entries, and fall back to the field's own default when
-                // nothing usable is left.
-                const polesEl = document.getElementById('sys-poles');
-                const parsePoles = (str) => String(str || '')
-                    .split(',')
-                    .map(s => parseFloat(s.trim()) * 1000)
-                    .filter(v => isFinite(v) && v > 0)
-                    .sort((a, b) => a - b);
-                let poles = parsePoles(polesEl.value);
-                if (!poles.length) poles = parsePoles(polesEl.defaultValue);
-                if (!poles.length) poles = [10e3, 100e3, 500e3];
-                const A0_dB = AD.num('sys-gain');
-                const compType = document.getElementById('comp-type').value;
-                const A0 = Math.pow(10, A0_dB/20);
-
-                const w = compCanvas.width, h = compCanvas.height;
-                const margin = { left: 60, right: 30, top: 30, bottom: 50 };
-                const plotW = w - margin.left - margin.right;
-                const plotH = (h - margin.top - margin.bottom - 20) / 2;
-
-                compCtx.fillStyle = '#0d1117';
-                compCtx.fillRect(0, 0, w, h);
-
-                const fMin = 0.1, fMax = 100e6;
-                const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
-
-                function freqToX(f) {
-                    return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
-                }
-
-                const magTop = margin.top;
-                const magBot = margin.top + plotH;
-                const dBMin = -60, dBMax = 120;
-
-                function dBToY(dB) {
-                    return magBot - (dB - dBMin) / (dBMax - dBMin) * plotH;
-                }
-
-                // Draw grids
-                compCtx.strokeStyle = '#333';
-                compCtx.lineWidth = 1;
-                for (let dB = -40; dB <= 100; dB += 20) {
-                    const y = dBToY(dB);
-                    compCtx.beginPath();
-                    compCtx.moveTo(margin.left, y);
-                    compCtx.lineTo(w - margin.right, y);
-                    compCtx.stroke();
-                    compCtx.fillStyle = '#888';
-                    compCtx.font = '10px monospace';
-                    compCtx.textAlign = 'right';
-                    compCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
-                }
-
-                // 0 dB line
-                compCtx.strokeStyle = '#666';
-                compCtx.lineWidth = 2;
-                compCtx.beginPath();
-                compCtx.moveTo(margin.left, dBToY(0));
-                compCtx.lineTo(w - margin.right, dBToY(0));
-                compCtx.stroke();
-
-                // Uncompensated magnitude
-                function uncompMag(f) {
-                    let mag = A0;
-                    for (const fp of poles) {
-                        mag /= Math.sqrt(1 + (f/fp)**2);
-                    }
-                    return 20 * Math.log10(mag);
-                }
-
-                function uncompPhase(f) {
-                    let phase = 0;
-                    for (const fp of poles) {
-                        phase -= Math.atan(f/fp) * 180/Math.PI;
-                    }
-                    return phase;
-                }
-
-                // Compensated transfer function based on type
-                function compMag(f) {
-                    let mag = A0;
-
-                    if (compType === 'dominant') {
-                        // Add dominant pole at 10 Hz
-                        const fd = 10;
-                        mag /= Math.sqrt(1 + (f/fd)**2);
-                    } else if (compType === 'lead') {
-                        // Lead: zero at fc/3, pole at fc*3 (roughly)
-                        const fc = 10000; // approx crossover
-                        const fz = fc / 3, fp = fc * 3;
-                        mag *= Math.sqrt(1 + (f/fz)**2) / Math.sqrt(1 + (f/fp)**2);
-                    } else if (compType === 'lag') {
-                        // Lag: pole at 1 Hz, zero at 10 Hz
-                        const fpl = 1, fzl = 10;
-                        mag /= Math.sqrt(1 + (f/fpl)**2);
-                        mag *= Math.sqrt(1 + (f/fzl)**2);
-                    } else if (compType === 'leadlag') {
-                        // Combined
-                        const fpl = 1, fzl = 10; // lag
-                        const fzld = 3000, fpld = 30000; // lead
-                        mag /= Math.sqrt(1 + (f/fpl)**2);
-                        mag *= Math.sqrt(1 + (f/fzl)**2);
-                        mag *= Math.sqrt(1 + (f/fzld)**2) / Math.sqrt(1 + (f/fpld)**2);
-                    }
-
-                    for (const fp of poles) {
-                        mag /= Math.sqrt(1 + (f/fp)**2);
-                    }
-                    return 20 * Math.log10(mag);
-                }
-
-                function compPhase(f) {
-                    let phase = 0;
-
-                    if (compType === 'dominant') {
-                        const fd = 10;
-                        phase -= Math.atan(f/fd) * 180/Math.PI;
-                    } else if (compType === 'lead') {
-                        const fc = 10000;
-                        const fz = fc / 3, fp = fc * 3;
-                        phase += Math.atan(f/fz) * 180/Math.PI - Math.atan(f/fp) * 180/Math.PI;
-                    } else if (compType === 'lag') {
-                        const fpl = 1, fzl = 10;
-                        phase -= Math.atan(f/fpl) * 180/Math.PI;
-                        phase += Math.atan(f/fzl) * 180/Math.PI;
-                    } else if (compType === 'leadlag') {
-                        const fpl = 1, fzl = 10;
-                        const fzld = 3000, fpld = 30000;
-                        phase -= Math.atan(f/fpl) * 180/Math.PI;
-                        phase += Math.atan(f/fzl) * 180/Math.PI;
-                        phase += Math.atan(f/fzld) * 180/Math.PI - Math.atan(f/fpld) * 180/Math.PI;
-                    }
-
-                    for (const fp of poles) {
-                        phase -= Math.atan(f/fp) * 180/Math.PI;
-                    }
-                    return phase;
-                }
-
-                // Draw uncompensated
-                compCtx.strokeStyle = TEK.yellow;
-                compCtx.lineWidth = 2;
-                compCtx.beginPath();
-                let first = true;
-                for (let i = 0; i <= 500; i++) {
-                    const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                    const dB = uncompMag(f);
-                    const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                    if (first) { compCtx.moveTo(x, y); first = false; }
-                    else compCtx.lineTo(x, y);
-                }
-                compCtx.stroke();
-
-                // Draw compensated (if not 'none')
-                if (compType !== 'none') {
-                    compCtx.strokeStyle = TEK.green;
-                    compCtx.beginPath();
-                    first = true;
-                    for (let i = 0; i <= 500; i++) {
-                        const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                        const dB = compMag(f);
-                        const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                        if (first) { compCtx.moveTo(x, y); first = false; }
-                        else compCtx.lineTo(x, y);
-                    }
-                    compCtx.stroke();
-                }
-
-                // Phase plot
-                const phTop = magBot + 30;
-                const phBot = h - margin.bottom;
-                const phPlotH = phBot - phTop;
-                const phMin = -360, phMax = 90;
-
-                function phToY(ph) {
-                    return phBot - (ph - phMin) / (phMax - phMin) * phPlotH;
-                }
-
-                // Phase grid
-                compCtx.strokeStyle = '#333';
-                compCtx.lineWidth = 1;
-                for (let ph = -360; ph <= 90; ph += 45) {
-                    const y = phToY(ph);
-                    if (y >= phTop && y <= phBot) {
-                        compCtx.beginPath();
-                        compCtx.moveTo(margin.left, y);
-                        compCtx.lineTo(w - margin.right, y);
-                        compCtx.stroke();
-                        compCtx.fillStyle = '#888';
-                        compCtx.textAlign = 'right';
-                        compCtx.fillText(ph + '°', margin.left - 5, y + 4);
-                    }
-                }
-
-                // -180° reference
-                compCtx.strokeStyle = TEK.red;
-                compCtx.lineWidth = 2;
-                compCtx.setLineDash([5, 5]);
-                compCtx.beginPath();
-                compCtx.moveTo(margin.left, phToY(-180));
-                compCtx.lineTo(w - margin.right, phToY(-180));
-                compCtx.stroke();
-                compCtx.setLineDash([]);
-
-                // Draw uncompensated phase
-                compCtx.strokeStyle = TEK.yellow;
-                compCtx.lineWidth = 2;
-                compCtx.beginPath();
-                first = true;
-                for (let i = 0; i <= 500; i++) {
-                    const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                    const ph = uncompPhase(f);
-                    const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                    if (first) { compCtx.moveTo(x, y); first = false; }
-                    else compCtx.lineTo(x, y);
-                }
-                compCtx.stroke();
-
-                // Draw compensated phase
-                if (compType !== 'none') {
-                    compCtx.strokeStyle = TEK.green;
-                    compCtx.beginPath();
-                    first = true;
-                    for (let i = 0; i <= 500; i++) {
-                        const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                        const ph = compPhase(f);
-                        const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                        if (first) { compCtx.moveTo(x, y); first = false; }
-                        else compCtx.lineTo(x, y);
-                    }
-                    compCtx.stroke();
-                }
-
-                // Frequency labels
-                for (let exp = -1; exp <= 8; exp++) {
-                    const f = Math.pow(10, exp);
-                    const x = freqToX(f);
-                    compCtx.fillStyle = '#888';
-                    compCtx.textAlign = 'center';
-                    let label;
-                    if (exp < 0) label = '0.1';
-                    else if (exp < 3) label = Math.pow(10, exp) + '';
-                    else if (exp === 3) label = '1k';
-                    else if (exp === 4) label = '10k';
-                    else if (exp === 5) label = '100k';
-                    else if (exp === 6) label = '1M';
-                    else if (exp === 7) label = '10M';
-                    else label = '100M';
-                    compCtx.fillText(label, x, phBot + 15);
-                }
-                compCtx.fillText('Frequency (Hz)', margin.left + plotW/2, h - 5);
-
-                // Calculate phase margins
-                function findCrossover(magFn) {
-                    for (let f = 0.1; f < 100e6; f *= 1.02) {
-                        if (magFn(f) < 0) return f;
-                    }
-                    return 100e6;
-                }
-
-                const fcUncomp = findCrossover(uncompMag);
-                const pmUncomp = 180 + uncompPhase(fcUncomp);
-
-                let resultHTML = `<strong>System Poles:</strong> ${poles.map(p => AD.fmtUnit(p, 'Hz')).join(', ')}<br>`;
-                resultHTML += `<strong>Uncompensated:</strong> f<sub>c</sub> = ${AD.fmtUnit(fcUncomp, 'Hz')}, PM = ${pmUncomp.toFixed(1)}°`;
-
-                if (compType !== 'none') {
-                    const fcComp = findCrossover(compMag);
-                    const pmComp = 180 + compPhase(fcComp);
-                    resultHTML += `<br><strong>Compensated:</strong> f<sub>c</sub> = ${AD.fmtUnit(fcComp, 'Hz')}, PM = ${pmComp.toFixed(1)}°`;
-
-                    const stable = pmComp > 0 ? (pmComp > 45 ? '(Stable, good margin)' : '(Marginally stable)') : '(UNSTABLE!)';
-                    resultHTML += ` <span style="color: ${pmComp > 45 ? TEK.green : pmComp > 0 ? TEK.yellow : TEK.red}">${stable}</span>`;
-                }
-
-                document.getElementById('compensation-result').innerHTML = resultHTML;
-
-                // Legend
-                compCtx.fillStyle = TEK.yellow;
-                compCtx.fillRect(w - 200, 10, 15, 10);
-                compCtx.fillStyle = '#fff';
-                compCtx.textAlign = 'left';
-                compCtx.fillText('Uncompensated', w - 180, 18);
-
-                if (compType !== 'none') {
-                    compCtx.fillStyle = TEK.green;
-                    compCtx.fillRect(w - 200, 25, 15, 10);
-                    compCtx.fillStyle = '#fff';
-                    compCtx.fillText('Compensated', w - 180, 33);
-                }
-            };
+            document.getElementById('rtd-res').textContent = rrtd.toFixed(2) + 'Ω';
+            document.getElementById('rtd-vrtd').textContent = (vrtd * 1000).toFixed(2) + 'mV';
+            document.getElementById('rtd-err2').textContent = errDegC.toFixed(1) + '°C';
+            document.getElementById('rtd-psh').textContent = psh.toFixed(2) + 'mW';
         }
 
-        // Lead compensator schematic
-        const leadSch = document.getElementById('sch-lead-comp');
-        if (leadSch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(leadSch, 400, 120);
+        rtdIds.forEach(id => {
+            document.getElementById(id).addEventListener('input', updateRTD);
+            document.getElementById(id).addEventListener('change', updateRTD);
+        });
 
-            // Input
-            sch.wire([[30, 60], [70, 60]]);
-            sch.nodeLabel(30, 60, 'Vin', { position: 'left' });
-
-            // R1
-            sch.resistor(70, 60, 'horizontal', { label: 'R1' });
-
-            // Junction after R1
-            sch.dot(120, 60);
-
-            // C from junction to output
-            sch.wire([[120, 60], [120, 30]]);
-            sch.capacitor(120, 30, 'horizontal', { label: 'C' });
-            sch.wire([[170, 30], [220, 30]]);
-            sch.wire([[220, 30], [220, 60]]);
-
-            // R2 from junction down to ground, parallel path
-            sch.wire([[120, 60], [120, 90]]);
-            sch.resistor(120, 90, 'vertical', { label: 'R2' });
-            sch.wire([[120, 140], [220, 140]]);
-            sch.ground(170, 145);
-
-            // Output from R2/C junction
-            sch.wire([[120, 60], [220, 60]]);
-            sch.dot(220, 60);
-            sch.wire([[220, 60], [280, 60]]);
-            sch.nodeLabel(280, 60, 'Vout', { position: 'right' });
-
-            sch.render();
-        }
-
-        // Exercise checking
-        window.checkEx1 = function() {
-            const input = AD.num('ex1-input');
-            const result = document.getElementById('ex1-result');
-            // For 60° PM, crossover should be at f_p2/tan(30°) = 100k/0.577 = 173 kHz
-            // DC gain 10000 (80 dB) with dominant pole at fd
-            // At crossover: gain = 10000 * fd / fc = 1, so fd = fc / 10000
-            // Need fc = 173 kHz, so fd = 17.3 Hz
-            // Accept range 15-20 Hz
-            if (input >= 15 && input <= 20) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! A dominant pole around 17 Hz will reduce the crossover to about 170 kHz, where the second pole at 100 kHz contributes only arctan(1.7) = 60° of phase shift.</span>';
-            } else if (input >= 10 && input <= 30) {
-                result.innerHTML = '<span style="color: #fbbf24">Close. The answer is around 17 Hz. Calculate: for 60° PM, crossover needs to be where phase from p2 is 30° → f_c = f_p2×tan(60°) = 173 kHz. Then f_d = f_c/A0.</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. Review the dominant pole placement strategy.</span>';
-            }
-        };
-
-        window.checkEx2 = function() {
-            const input = AD.num('ex2-input');
-            const result = document.getElementById('ex2-result');
-            // sin(45°) = (α-1)/(α+1) → 0.707 = (α-1)/(α+1)
-            // 0.707(α+1) = α-1 → 0.707α + 0.707 = α - 1
-            // 1.707 = 0.293α → α = 5.83
-            if (Math.abs(input - 5.83) < 0.3 || Math.abs(input - 5.8) < 0.2) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! α ≈ 5.83 gives 45° of maximum phase boost.</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. Use φ_max = arcsin((α-1)/(α+1)) and solve for α when φ_max = 45°.</span>';
-            }
-        };
-
-        window.checkEx3 = function() {
-            const zeroIn = AD.num('ex3-zero');
-            const poleIn = AD.num('ex3-pole');
-            const result = document.getElementById('ex3-result');
-            // α = 5.83, geometric mean = 50 kHz
-            // fz = 50/√5.83 = 20.7 kHz, fp = 50×√5.83 = 121 kHz
-            const zeroOK = Math.abs(zeroIn - 20.7) < 3 || Math.abs(zeroIn - 21) < 2;
-            const poleOK = Math.abs(poleIn - 121) < 15 || Math.abs(poleIn - 120) < 10;
-
-            if (zeroOK && poleOK) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! Zero at ~21 kHz, pole at ~121 kHz, with geometric mean at 50 kHz.</span>';
-            } else if (zeroOK || poleOK) {
-                result.innerHTML = '<span style="color: #fbbf24">Partially correct. Remember: f_z = f_center/√α and f_p = f_center×√α.</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. Use the relationship √(f_z × f_p) = 50 kHz and f_p/f_z = α.</span>';
-            }
-        };
-
-        // Initialize visualizations
-        updateDominantPole();
-        if (typeof updateCompensation === 'function') {
-            updateCompensation();
-        }
+        updateRTD();
     })();
     </script>
-</article>
+</section>
+
+<!-- Thermistor Interface -->
+<section class="card">
+    <h3>NTC Thermistor Interface</h3>
+    <p>
+        NTC (Negative Temperature Coefficient) thermistors have <strong>high sensitivity</strong>
+        (~4%/°C) but are highly nonlinear. A 10kΩ NTC might range from 30kΩ at 0°C to 1kΩ at 100°C.
+    </p>
+
+    <h4>Steinhart-Hart Equation</h4>
+    <div class="diagram-container">
+        <canvas id="steinhart-hart-canvas" width="650" height="340" style="width:100%;max-width:650px;background:#0d1117;border-radius:8px;"></canvas>
+    </div>
+
+    <h4>Voltage Divider Interface</h4>
+
+    <!-- SVG: Thermistor Divider -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 450 280" class="circuit-svg" style="max-width: 450px; background: var(--panel);">
+            <!-- VCC -->
+            <text x="100" y="30" fill="#ef4444" font-size="11">VCC (3.3V)</text>
+            <line x1="100" y1="40" x2="100" y2="60" stroke="#ef4444" stroke-width="2"/>
+
+            <!-- Fixed Resistor R1 -->
+            <line x1="100" y1="60" x2="100" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+            <rect x="85" y="80" width="30" height="50" fill="none" stroke="#6ee7ff" stroke-width="2"/>
+            <text x="100" y="110" fill="#6ee7ff" font-size="10" text-anchor="middle">R1</text>
+            <text x="140" y="105" fill="#6ee7ff" font-size="9">10kΩ</text>
+            <line x1="100" y1="130" x2="100" y2="150" stroke="#e6edf3" stroke-width="1.5"/>
+
+            <!-- Vout node -->
+            <circle cx="100" cy="150" r="3" fill="#34d399"/>
+            <line x1="100" y1="150" x2="200" y2="150" stroke="#34d399" stroke-width="1.5"/>
+            <text x="210" y="155" fill="#34d399" font-size="11">Vout → ADC</text>
+
+            <!-- NTC Thermistor -->
+            <line x1="100" y1="150" x2="100" y2="170" stroke="#e6edf3" stroke-width="1.5"/>
+            <rect x="85" y="170" width="30" height="50" fill="none" stroke="#fbbf24" stroke-width="2"/>
+            <text x="100" y="200" fill="#fbbf24" font-size="10" text-anchor="middle">NTC</text>
+            <text x="140" y="195" fill="#fbbf24" font-size="9">10kΩ@25°C</text>
+            <line x1="100" y1="220" x2="100" y2="250" stroke="#e6edf3" stroke-width="1.5"/>
+
+            <!-- GND -->
+            <line x1="80" y1="250" x2="120" y2="250" stroke="#6ee7ff" stroke-width="2"/>
+            <line x1="85" y1="255" x2="115" y2="255" stroke="#6ee7ff" stroke-width="1.5"/>
+            <line x1="90" y1="260" x2="110" y2="260" stroke="#6ee7ff" stroke-width="1"/>
+            <text x="100" y="275" fill="#6ee7ff" font-size="10" text-anchor="middle">GND</text>
+
+            <!-- Equations -->
+            <text x="280" y="80" fill="#e6edf3" font-size="11">Vout = VCC × NTC / (R1 + NTC)</text>
+            <text x="280" y="110" fill="#e6edf3" font-size="10">At 25°C: Vout = 3.3 × 10k/(10k+10k)</text>
+            <text x="280" y="125" fill="#34d399" font-size="10">         = 1.65V (midscale)</text>
+            <text x="280" y="155" fill="#e6edf3" font-size="10">At 0°C:  NTC ≈ 30kΩ</text>
+            <text x="280" y="170" fill="#e6edf3" font-size="10">         Vout = 2.475V</text>
+            <text x="280" y="200" fill="#e6edf3" font-size="10">At 50°C: NTC ≈ 4kΩ</text>
+            <text x="280" y="215" fill="#e6edf3" font-size="10">         Vout = 0.94V</text>
+
+            <text x="280" y="250" fill="#fbbf24" font-size="10">Choose R1 = R₂₅ for</text>
+            <text x="280" y="265" fill="#fbbf24" font-size="10">max sensitivity at 25°C</text>
+        </svg>
+    </div>
+
+    <h4>Thermistor Calculator</h4>
+    <div class="controls">
+        <div class="c3">
+            <label>R25 (kΩ)</label>
+            <input type="text" id="ntc-r25" value="10">
+        </div>
+        <div class="c3">
+            <label>Beta (K)</label>
+            <input type="text" id="ntc-beta" value="3950">
+        </div>
+        <div class="c3">
+            <label>Temperature (°C)</label>
+            <input type="range" id="ntc-temp" min="-20" max="100" value="25" step="1">
+            <span id="ntc-temp-val">25°C</span>
+        </div>
+        <div class="c3">
+            <label>VCC (V)</label>
+            <input type="text" id="ntc-vcc" value="3.3" min="0.5" max="20">
+        </div>
+    </div>
+    <div class="controls">
+        <div class="c3">
+            <label>R1 (divider, kΩ)</label>
+            <input type="text" id="ntc-r1" value="10">
+        </div>
+        <div class="c6">
+            <button onclick="calcNTC()">Calculate</button>
+        </div>
+    </div>
+
+    <div id="ntc-results" class="results">
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">NTC Resistance</span>
+                <span class="value" id="ntc-res">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Divider Voltage</span>
+                <span class="value" id="ntc-vout">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">ADC Reading (12-bit)</span>
+                <span class="value" id="ntc-adc">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Sensitivity (mV/°C)</span>
+                <span class="value" id="ntc-sens">—</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.getElementById('ntc-temp').addEventListener('input', function() {
+        document.getElementById('ntc-temp-val').textContent = this.value + '°C';
+    });
+
+    function calcNTC() {
+        const r25 = AD.num('ntc-r25') * 1000;
+        const beta = AD.num('ntc-beta');
+        const tempC = AD.num('ntc-temp');
+        const vcc = AD.num('ntc-vcc');
+        const r1 = AD.num('ntc-r1') * 1000;
+
+        const t25 = 298.15;
+        const t = tempC + 273.15;
+
+        // Calculate NTC resistance using beta equation
+        const rntc = r25 * Math.exp(beta * (1/t - 1/t25));
+
+        // Voltage divider output
+        const vout = vcc * rntc / (r1 + rntc);
+
+        // ADC reading (12-bit, assuming VREF = VCC)
+        const adc = Math.round((vout / vcc) * 4095);
+
+        // Sensitivity (numerical derivative)
+        const tPlus = tempC + 1 + 273.15;
+        const rPlus = r25 * Math.exp(beta * (1/tPlus - 1/t25));
+        const vPlus = vcc * rPlus / (r1 + rPlus);
+        const sens = (vout - vPlus) * 1000;  // mV/°C
+
+        document.getElementById('ntc-res').textContent = (rntc/1000).toFixed(2) + 'kΩ';
+        document.getElementById('ntc-vout').textContent = vout.toFixed(3) + 'V';
+        document.getElementById('ntc-adc').textContent = adc;
+        document.getElementById('ntc-sens').textContent = sens.toFixed(1) + 'mV/°C';
+    }
+    </script>
+</section>
+
+<!-- Thermocouple Interface -->
+<section class="card">
+    <h3>Thermocouple Interface</h3>
+    <p>
+        Thermocouples generate a voltage from the <strong>Seebeck effect</strong> at the junction
+        of two dissimilar metals. They're self-powered but produce tiny signals (µV) and require
+        <strong>cold junction compensation</strong>.
+    </p>
+
+    <h4>Common Thermocouple Types</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Materials</th>
+                <th>Range</th>
+                <th>Seebeck Coeff</th>
+                <th>Application</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>K</td><td>Chromel/Alumel</td><td>-200 to +1250°C</td><td>~41 µV/°C</td><td>General purpose</td></tr>
+            <tr><td>J</td><td>Iron/Constantan</td><td>-40 to +750°C</td><td>~52 µV/°C</td><td>Industrial</td></tr>
+            <tr><td>T</td><td>Copper/Constantan</td><td>-200 to +350°C</td><td>~43 µV/°C</td><td>Cryogenic, food</td></tr>
+            <tr><td>E</td><td>Chromel/Constantan</td><td>-40 to +900°C</td><td>~68 µV/°C</td><td>Highest output</td></tr>
+            <tr><td>N</td><td>Nicrosil/Nisil</td><td>-270 to +1300°C</td><td>~39 µV/°C</td><td>High temp stability</td></tr>
+        </tbody>
+    </table>
+
+    <h4>Cold Junction Compensation</h4>
+
+    <!-- SVG: Thermocouple CJC -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 550 300" class="circuit-svg" style="max-width: 550px; background: var(--panel);">
+            <!-- Hot Junction -->
+            <circle cx="80" cy="150" r="20" fill="#ef4444" fill-opacity="0.3" stroke="#ef4444" stroke-width="2"/>
+            <text x="80" y="155" fill="#ef4444" font-size="10" text-anchor="middle">Hot</text>
+            <text x="80" y="100" fill="#ef4444" font-size="9" text-anchor="middle">T_hot</text>
+            <text x="80" y="115" fill="#ef4444" font-size="9" text-anchor="middle">(measure)</text>
+
+            <!-- TC wires -->
+            <line x1="100" y1="140" x2="200" y2="80" stroke="#fbbf24" stroke-width="2"/>
+            <text x="150" y="100" fill="#fbbf24" font-size="9">+TC</text>
+            <line x1="100" y1="160" x2="200" y2="220" stroke="#a78bfa" stroke-width="2"/>
+            <text x="150" y="200" fill="#a78bfa" font-size="9">-TC</text>
+
+            <!-- Cold Junction (connector) -->
+            <rect x="200" y="60" width="80" height="180" fill="#374151" fill-opacity="0.3" stroke="#6ee7ff" stroke-width="2" rx="5"/>
+            <text x="240" y="155" fill="#6ee7ff" font-size="10" text-anchor="middle">Cold</text>
+            <text x="240" y="170" fill="#6ee7ff" font-size="10" text-anchor="middle">Junction</text>
+            <text x="240" y="40" fill="#6ee7ff" font-size="9" text-anchor="middle">T_cold (PCB temp)</text>
+
+            <!-- CJC sensor -->
+            <rect x="215" y="190" width="50" height="25" fill="none" stroke="#34d399" stroke-width="2"/>
+            <text x="240" y="207" fill="#34d399" font-size="8" text-anchor="middle">CJC</text>
+            <text x="240" y="235" fill="#34d399" font-size="8" text-anchor="middle">Sensor</text>
+
+            <!-- Copper traces to amplifier -->
+            <line x1="280" y1="80" x2="350" y2="80" stroke="#fb7185" stroke-width="2"/>
+            <line x1="280" y1="220" x2="350" y2="220" stroke="#fb7185" stroke-width="2"/>
+            <text x="315" y="70" fill="#fb7185" font-size="9" text-anchor="middle">Cu trace</text>
+            <text x="315" y="235" fill="#fb7185" font-size="9" text-anchor="middle">Cu trace</text>
+
+            <!-- Amplifier -->
+            <polygon points="350,50 420,150 350,250" fill="none" stroke="#34d399" stroke-width="2"/>
+            <text x="380" y="155" fill="#34d399" font-size="10" text-anchor="middle">Amp</text>
+            <text x="380" y="170" fill="#34d399" font-size="9" text-anchor="middle">G=100</text>
+
+            <!-- Output -->
+            <line x1="420" y1="150" x2="480" y2="150" stroke="#e6edf3" stroke-width="1.5"/>
+            <text x="490" y="155" fill="#e6edf3" font-size="10">V_out</text>
+
+            <!-- Equations -->
+            <text x="300" y="280" fill="#e6edf3" font-size="10" text-anchor="middle">
+                V_measured = V_seebeck(T_hot - T_cold)
+            </text>
+            <text x="300" y="295" fill="#fbbf24" font-size="10" text-anchor="middle">
+                T_hot = T_measured + T_cold (from CJC sensor)
+            </text>
+        </svg>
+    </div>
+
+    <h4>Thermocouple Signal Chain</h4>
+    <div class="diagram-container">
+        <canvas id="tc-signal-chain-canvas" width="700" height="320" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+    </div>
+
+    <h4>Thermocouple Calculator</h4>
+    <div class="controls">
+        <div class="c3">
+            <label>TC Type</label>
+            <select id="tc-type">
+                <option value="41">K (41 µV/°C)</option>
+                <option value="52">J (52 µV/°C)</option>
+                <option value="43">T (43 µV/°C)</option>
+                <option value="68">E (68 µV/°C)</option>
+            </select>
+        </div>
+        <div class="c3">
+            <label>Hot Junction (°C)</label>
+            <input type="range" id="tc-thot" min="0" max="500" value="200" step="5">
+            <span id="tc-thot-val">200°C</span>
+        </div>
+        <div class="c3">
+            <label>Cold Junction (°C)</label>
+            <input type="range" id="tc-tcold" min="15" max="45" value="25" step="1">
+            <span id="tc-tcold-val">25°C</span>
+        </div>
+        <div class="c3">
+            <label>Amplifier Gain</label>
+            <input type="text" id="tc-gain" value="100">
+        </div>
+    </div>
+
+    <div id="tc-results" class="results">
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">TC Voltage</span>
+                <span class="value" id="tc-vtc">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Amplified Output</span>
+                <span class="value" id="tc-vout">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">CJC Voltage (to add)</span>
+                <span class="value" id="tc-vcjc">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Total Equivalent</span>
+                <span class="value" id="tc-vtotal">—</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const tcIds = ['tc-type', 'tc-thot', 'tc-tcold', 'tc-gain'];
+
+        function updateTC() {
+            const seebeck = AD.num('tc-type');
+            const thot = AD.num('tc-thot');
+            const tcold = AD.num('tc-tcold');
+            const gain = AD.num('tc-gain');
+
+            document.getElementById('tc-thot-val').textContent = thot + '°C';
+            document.getElementById('tc-tcold-val').textContent = tcold + '°C';
+
+            // TC voltage (relative to cold junction)
+            const vtc = (thot - tcold) * seebeck / 1000;  // mV
+            const vout = vtc * gain;
+
+            // CJC compensation voltage (what cold junction contributes)
+            const vcjc = tcold * seebeck / 1000;  // mV
+
+            // Total equivalent (as if measured against 0°C reference)
+            const vtotal = vtc + vcjc;
+
+            document.getElementById('tc-vtc').textContent = vtc.toFixed(3) + ' mV';
+            document.getElementById('tc-vout').textContent = vout.toFixed(1) + ' mV';
+            document.getElementById('tc-vcjc').textContent = vcjc.toFixed(3) + ' mV';
+            document.getElementById('tc-vtotal').textContent = vtotal.toFixed(3) + ' mV';
+        }
+
+        tcIds.forEach(id => {
+            document.getElementById(id).addEventListener('input', updateTC);
+            document.getElementById(id).addEventListener('change', updateTC);
+        });
+
+        updateTC();
+    })();
+    </script>
+</section>
+
+<!-- Component Selection -->
+<section class="card">
+    <h3>Real Component Selection</h3>
+
+    <h4>Temperature Sensor ICs (Integrated)</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Part Number</th>
+                <th>Type</th>
+                <th>Accuracy</th>
+                <th>Interface</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>TMP117</td><td>Digital</td><td>±0.1°C</td><td>I²C</td><td>Medical grade</td></tr>
+            <tr><td>LM75B</td><td>Digital</td><td>±2°C</td><td>I²C</td><td>Low cost</td></tr>
+            <tr><td>MAX31865</td><td>RTD AFE</td><td>0.03°C</td><td>SPI</td><td>PT100/1000</td></tr>
+            <tr><td>MAX31855</td><td>TC AFE</td><td>±2°C</td><td>SPI</td><td>K/J/N/T types</td></tr>
+            <tr><td>ADS1247</td><td>ADC</td><td>24-bit</td><td>SPI</td><td>RTD/TC/Bridge</td></tr>
+            <tr><td>AD7794</td><td>ADC</td><td>24-bit</td><td>SPI</td><td>Excitation currents</td></tr>
+        </tbody>
+    </table>
+
+    <h4>Precision Current Sources (for RTD)</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Part Number</th>
+                <th>Current</th>
+                <th>Accuracy</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>REF200</td><td>100µA × 2</td><td>±0.5%</td><td>Dual matched</td></tr>
+            <tr><td>LM334</td><td>1µA-10mA</td><td>±3%</td><td>Adjustable</td></tr>
+            <tr><td>XTR105</td><td>0.8mA</td><td>±0.1%</td><td>4-20mA transmitter</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- Checklist -->
+<section class="card">
+    <h3>Temperature Sensing Design Checklist</h3>
+    <div class="checklist" data-lesson="m24l4">
+        <label><input type="checkbox" data-k="1"><span>Select sensor type based on range and accuracy needs</span></label>
+        <label><input type="checkbox" data-k="2"><span>For RTD: Choose 2/3/4-wire based on lead length</span></label>
+        <label><input type="checkbox" data-k="3"><span>Calculate excitation current for acceptable self-heating</span></label>
+        <label><input type="checkbox" data-k="4"><span>For thermistor: Size divider resistor for range of interest</span></label>
+        <label><input type="checkbox" data-k="5"><span>For thermocouple: Include cold junction compensation</span></label>
+        <label><input type="checkbox" data-k="6"><span>Design amplifier gain for ADC input range</span></label>
+        <label><input type="checkbox" data-k="7"><span>Add low-pass filtering for noise rejection</span></label>
+        <label><input type="checkbox" data-k="8"><span>Consider linearization (lookup table or algorithm)</span></label>
+        <label><input type="checkbox" data-k="9"><span>Add fault detection (open/short sensor)</span></label>
+        <label><input type="checkbox" data-k="10"><span>Calibrate at known temperature points</span></label>
+    </div>
+</section>
+
+<!-- Exercises -->
+<section class="card">
+    <h3>Progressive Exercises</h3>
+
+    <div class="exercise-group">
+        <h4>Level 1: Fundamentals</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 1:</strong> A PT100 RTD reads 119.4Ω. Using the simplified equation R = R₀(1 + αT) with α = 0.00385, what is the temperature?</p>
+            <input type="text" id="temp-ex1" placeholder="Temperature (°C)">
+            <button onclick="checkTemp(1, 50.4, 2)">Check</button>
+            <span id="temp-ex1-fb" class="feedback"></span>
+            <div class="hint">T = (R/R₀ - 1) / α</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 2:</strong> A Type K thermocouple measures 8.2mV. If cold junction is at 25°C, what is the hot junction temperature? (41µV/°C)</p>
+            <input type="text" id="temp-ex2" placeholder="Hot junction (°C)">
+            <button onclick="checkTemp(2, 225, 3)">Check</button>
+            <span id="temp-ex2-fb" class="feedback"></span>
+            <div class="hint">ΔT = V_tc / (41µV/°C), then T_hot = ΔT + T_cold</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 3:</strong> A 10kΩ NTC thermistor (β=3950) is in a divider with R1=10kΩ and VCC=3.3V. At 25°C, what is the divider output voltage?</p>
+            <input type="text" id="temp-ex3" placeholder="Voltage (V)">
+            <button onclick="checkTemp(3, 1.65, 2)">Check</button>
+            <span id="temp-ex3-fb" class="feedback"></span>
+            <div class="hint">At 25°C, NTC = 10kΩ. Vout = VCC × 10k/(10k+10k)</div>
+        </div>
+    </div>
+
+    <div class="exercise-group">
+        <h4>Level 2: Application</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 4:</strong> A 2-wire PT100 has 5Ω total lead resistance. What temperature error does this introduce?</p>
+            <input type="text" id="temp-ex4" placeholder="Error (°C)">
+            <button onclick="checkTemp(4, 13, 5)">Check</button>
+            <span id="temp-ex4-fb" class="feedback"></span>
+            <div class="hint">Error(Ω) = 2×Rl. Then ΔT = Error / (R₀ × α) = 5 / (100 × 0.00385)</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 5:</strong> A PT1000 needs 1mV signal per degree. What excitation current is required?</p>
+            <input type="text" id="temp-ex5" placeholder="Current (µA)">
+            <button onclick="checkTemp(5, 260, 5)">Check</button>
+            <span id="temp-ex5-fb" class="feedback"></span>
+            <div class="hint">dR/dT = 1000 × 0.00385 = 3.85Ω/°C. I = dV/dR = 1mV / 3.85Ω</div>
+        </div>
+    </div>
+
+    <script>
+    function checkTemp(n, expected, tolerance) {
+        const ans = parseFloat(document.getElementById('temp-ex' + n).value);
+        const fb = document.getElementById('temp-ex' + n + '-fb');
+
+        if (isNaN(ans)) {
+            fb.textContent = 'Please enter a number';
+            fb.className = 'feedback incorrect';
+            return;
+        }
+
+        const error = Math.abs((ans - expected) / expected * 100);
+
+        if (error <= tolerance) {
+            fb.textContent = '✓ Correct!';
+            fb.className = 'feedback correct';
+        } else {
+            fb.textContent = '✗ Try again. Expected: ' + expected.toFixed(1);
+            fb.className = 'feedback incorrect';
+        }
+    }
+    </script>
+</section>
+
+<!-- References -->
+<section class="card">
+    <h3>Industry References</h3>
+    <ul>
+        <li><strong>IEC 60751</strong> - RTD temperature-resistance standard</li>
+        <li><strong>NIST ITS-90</strong> - Thermocouple reference tables</li>
+        <li><a href="https://www.analog.com/en/technical-articles/rtd-measurement-basics.html" target="_blank">RTD Measurement Basics (Analog Devices)</a></li>
+        <li><a href="https://www.ti.com/lit/an/sbaa275/sbaa275.pdf" target="_blank">Temperature Measurement with NTC Thermistors (TI)</a></li>
+        <li><strong>MAX31865 Datasheet</strong> - RTD-to-digital converter</li>
+    </ul>
+</section>
+
+<script>
+(function() {
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    // RTD Equation Canvas
+    (function() {
+        const canvas = document.getElementById('rtd-equation-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('CALLENDAR-VAN DUSEN EQUATION:', 20, 25);
+
+        ctx.font = '11px monospace';
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('For T ≥ 0°C:', 20, 50);
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('R(T) = R₀ × [1 + αT + βT² + γ(T-100)T³]', 30, 70);
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('Simplified (for typical accuracy):', 20, 100);
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('R(T) ≈ R₀ × (1 + αT)', 30, 120);
+
+        ctx.font = '11px monospace';
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('Where:', 20, 150);
+        ctx.fillText('  R₀ = 100Ω (PT100) or 1000Ω (PT1000)', 20, 168);
+        ctx.fillStyle = TEK.ch3;
+        ctx.fillText('  α  = 0.00385055 Ω/(Ω·°C) for European standard', 20, 186);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('  β  = -5.775×10⁻⁷', 20, 204);
+        ctx.fillText('  γ  = -4.183×10⁻¹² (only for T < 0°C)', 20, 222);
+
+        // Example box
+        ctx.strokeStyle = '#374151';
+        ctx.lineWidth = 1;
+        roundRect(ctx, 350, 40, 230, 100, 5);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('EXAMPLE: PT100 at 100°C', 360, 60);
+        ctx.font = '10px monospace';
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('R(100) = 100 × (1 + 0.00385 × 100)', 360, 85);
+        ctx.fillText('       = 100 × 1.385', 360, 103);
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('       = 138.5Ω', 360, 125);
+    })();
+
+    // Steinhart-Hart Canvas
+    (function() {
+        const canvas = document.getElementById('steinhart-hart-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('STEINHART-HART EQUATION:', 20, 25);
+
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('1/T = A + B×ln(R) + C×(ln(R))³', 20, 50);
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('Where T is in Kelvin, R is thermistor resistance', 20, 72);
+
+        ctx.fillStyle = TEK.ch3;
+        ctx.font = 'bold 13px monospace';
+        ctx.fillText('SIMPLIFIED β-PARAMETER MODEL:', 20, 105);
+
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('R(T) = R₂₅ × exp[β × (1/T - 1/T₂₅)]', 20, 130);
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('Where:', 20, 158);
+        ctx.fillText('  R₂₅ = Resistance at 25°C (e.g., 10kΩ)', 20, 176);
+        ctx.fillText('  β   = Material constant (3000-5000K typical)', 20, 194);
+        ctx.fillText('  T   = Temperature in Kelvin (K = °C + 273.15)', 20, 212);
+        ctx.fillText('  T₂₅ = 298.15K', 20, 230);
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('Solving for temperature:', 20, 258);
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('  T = β / [ln(R/R₂₅) + β/T₂₅]', 20, 276);
+
+        // Example box
+        ctx.strokeStyle = '#374151';
+        ctx.lineWidth = 1;
+        roundRect(ctx, 380, 90, 250, 120, 5);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('EXAMPLE: 10kΩ NTC, β = 3950', 390, 115);
+        ctx.font = '10px monospace';
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('At 50°C:', 390, 138);
+        ctx.fillText('R = 10k × exp[3950 × (1/323.15', 390, 156);
+        ctx.fillText('              - 1/298.15)]', 390, 171);
+        ctx.fillText('  = 10k × exp[-0.518]', 390, 189);
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('  = 5.96kΩ', 390, 207);
+    })();
+
+    // Thermocouple Signal Chain Canvas
+    (function() {
+        const canvas = document.getElementById('tc-signal-chain-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('TYPICAL THERMOCOUPLE SIGNAL CHAIN:', 20, 25);
+
+        // Signal chain blocks
+        const blocks = [
+            { x: 30, label: 'TC', sub: 'Junction', val: '0-50mV', color: TEK.ch1 },
+            { x: 130, label: 'Filter', sub: 'RFI/EMI', val: 'reject', color: TEK.ch2 },
+            { x: 240, label: 'Diff Amp', sub: 'G=50-200', val: '', color: TEK.ch3 },
+            { x: 360, label: 'ADC', sub: '16-24b', val: 'Σ-Δ', color: TEK.ch4 },
+            { x: 470, label: 'MCU', sub: 'CJC calc', val: '', color: '#ef4444' }
+        ];
+
+        blocks.forEach((b, i) => {
+            ctx.strokeStyle = b.color;
+            ctx.lineWidth = 2;
+            roundRect(ctx, b.x, 45, 85, 55, 5);
+            ctx.stroke();
+            ctx.fillStyle = b.color;
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(b.label, b.x + 42, 65);
+            ctx.fillStyle = '#e6edf3';
+            ctx.font = '9px monospace';
+            ctx.fillText(b.sub, b.x + 42, 80);
+            if (b.val) ctx.fillText(b.val, b.x + 42, 93);
+
+            // Arrow
+            if (i < blocks.length - 1) {
+                ctx.strokeStyle = '#6b7280';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(b.x + 90, 72);
+                ctx.lineTo(blocks[i + 1].x - 5, 72);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(blocks[i + 1].x - 5, 72);
+                ctx.lineTo(blocks[i + 1].x - 12, 67);
+                ctx.moveTo(blocks[i + 1].x - 5, 72);
+                ctx.lineTo(blocks[i + 1].x - 12, 77);
+                ctx.stroke();
+            }
+        });
+
+        // Component Example section
+        ctx.textAlign = 'left';
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('COMPONENT EXAMPLE (Type K, 0-500°C):', 20, 130);
+
+        ctx.font = '10px monospace';
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('V_tc_max = 500°C × 41µV/°C = 20.5mV', 30, 150);
+        ctx.fillText('With G = 100:', 30, 170);
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('V_out_max = 2.05V (good for 3.3V ADC)', 40, 188);
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('Resolution needed:', 30, 215);
+        ctx.fillText('1°C = 41µV × 100 = 4.1mV', 40, 233);
+        ctx.fillText('For 0.1°C resolution: 0.41mV', 40, 251);
+        ctx.fillText('At 3.3V ADC: need ~13 bits (8192 levels)', 40, 269);
+
+        // Integrated Solutions box
+        ctx.strokeStyle = '#374151';
+        ctx.lineWidth = 1;
+        roundRect(ctx, 380, 120, 300, 100, 5);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('INTEGRATED SOLUTIONS:', 390, 140);
+        ctx.font = '10px monospace';
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('MAX31855 - SPI output, K/J/N/T,', 390, 160);
+        ctx.fillText('           0.25°C resolution', 390, 175);
+        ctx.fillText('MAX31856 - Multi-type, 19-bit, fault', 390, 193);
+        ctx.fillText('ADS1118 - 16-bit ADC + CJC sensor', 390, 211);
+    })();
+})();
+</script>
+
+</lesson-content>

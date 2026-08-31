@@ -1,603 +1,916 @@
-<!-- Module 25, Lesson 1: Feedback Fundamentals -->
-<div class="lesson-content" data-module="25" data-lesson="1">
-    <div class="card">
-        <h2>Feedback Fundamentals</h2>
-        <p>Feedback is the most powerful technique in analog design. It trades gain for predictability, reduces distortion, and stabilizes operating points. This lesson develops the fundamental concepts following Razavi's systematic approach.</p>
-        <div class="info-box">
-            <p><strong>Key Insight (Razavi):</strong> "Feedback allows us to sacrifice excess gain to achieve other desirable properties: reduced sensitivity to component variations, extended bandwidth, and lower distortion."</p>
-        </div>
-    </div>
+<lesson-content>
+<section class="card">
+    <h2>BLDC Motor Driver Design</h2>
+    <p>
+        Brushless DC (BLDC) motors are found in everything from drones and electric vehicles
+        to hard drives and industrial robots. Understanding the <strong>three-phase inverter bridge</strong>
+        and <strong>gate driver design</strong> is essential for power electronics work.
+    </p>
 
-    <div class="card">
-        <h3>The Basic Feedback System</h3>
-        <p>Consider the canonical feedback system:</p>
-
-        <canvas id="feedback-block-canvas" width="500" height="200"></canvas>
-
-        <h4>Definitions</h4>
+    <div class="notice">
+        <strong>What You'll Learn:</strong>
         <ul>
-            <li><strong>A</strong> = Open-loop gain (forward amplifier gain)</li>
-            <li><strong>&beta;</strong> = Feedback factor (fraction of output fed back)</li>
-            <li><strong>Loop Gain</strong> = A&beta; (the "strength" of the feedback)</li>
-            <li><strong>Return Ratio</strong> = A&beta; (same quantity, different context)</li>
+            <li>Three-phase bridge topology and commutation</li>
+            <li>Bootstrap gate driver circuit operation</li>
+            <li>Dead-time control to prevent shoot-through</li>
+            <li>Current sensing for motor control</li>
+            <li>Practical component selection</li>
         </ul>
+    </div>
+</section>
 
-        <h4>Closed-Loop Gain Derivation</h4>
-        <p>Starting from the block diagram:</p>
-        <div class="info-box" style="background: #1a2a1a; border-color: #4caf50;">
-            <p style="font-family: monospace; font-size: 1.1em;">
-                Error signal: e = x<sub>in</sub> - &beta;x<sub>out</sub><br><br>
-                Output: x<sub>out</sub> = A &times; e = A(x<sub>in</sub> - &beta;x<sub>out</sub>)<br><br>
-                Solving: x<sub>out</sub> = Ax<sub>in</sub> - A&beta;x<sub>out</sub><br>
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; x<sub>out</sub>(1 + A&beta;) = Ax<sub>in</sub><br><br>
-                <strong>Closed-loop gain: A<sub>CL</sub> = A / (1 + A&beta;)</strong>
-            </p>
-        </div>
+<!-- Three-Phase Bridge Architecture -->
+<section class="card">
+    <h3>Three-Phase Inverter Bridge</h3>
+    <p>
+        A BLDC motor is driven by a <strong>six-switch inverter</strong> that creates a rotating
+        magnetic field by energizing the stator coils in sequence. Each phase (U, V, W) has a
+        high-side and low-side MOSFET.
+    </p>
 
-        <h4>The Feedback Approximation</h4>
-        <p>When loop gain A&beta; >> 1 (negative feedback is "strong"):</p>
-        <p style="font-family: monospace; font-size: 1.2em; text-align: center;">
-            A<sub>CL</sub> &asymp; 1/&beta;
-        </p>
-        <p><strong>This is the magic of feedback:</strong> The closed-loop gain depends only on &beta;, not on A!</p>
+    <!-- SVG Diagram: Three-Phase Bridge -->
+    <div class="diagram-container">
+        <div id="inverter-bridge-diagram"></div>
     </div>
 
-    <div class="card">
-        <h3>Desensitization: The Power of Feedback</h3>
-        <p>How sensitive is the closed-loop gain to changes in the open-loop gain A?</p>
+    <h4>Commutation Sequence (Six-Step)</h4>
+    <p>
+        BLDC motors use <strong>trapezoidal commutation</strong> where only two phases conduct at a time.
+        The controller sequences through 6 states, each 60 electrical degrees apart:
+    </p>
 
-        <h4>Sensitivity Derivation (Razavi/Agarwal Approach)</h4>
-        <div class="info-box" style="background: #1a1a2a; border-color: #4fc3f7;">
-            <p>The sensitivity of A<sub>CL</sub> to A is defined as:</p>
-            <p style="font-family: monospace;">
-                S<sup>A<sub>CL</sub></sup><sub>A</sub> = (dA<sub>CL</sub>/A<sub>CL</sub>) / (dA/A) = (A/A<sub>CL</sub>) &times; (dA<sub>CL</sub>/dA)
-            </p>
-            <p>Taking the derivative:</p>
-            <p style="font-family: monospace;">
-                dA<sub>CL</sub>/dA = d/dA [A/(1+A&beta;)] = (1+A&beta; - A&beta;)/(1+A&beta;)&sup2; = 1/(1+A&beta;)&sup2;
-            </p>
-            <p>Therefore:</p>
-            <p style="font-family: monospace; font-size: 1.1em;">
-                <strong>S<sup>A<sub>CL</sub></sup><sub>A</sub> = 1/(1+A&beta;)</strong>
-            </p>
-        </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Step</th>
+                <th>High-Side ON</th>
+                <th>Low-Side ON</th>
+                <th>Current Flow</th>
+                <th>Hall Sensors</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>1</td><td>Q1 (U)</td><td>Q4 (V)</td><td>U → V</td><td>101</td></tr>
+            <tr><td>2</td><td>Q1 (U)</td><td>Q6 (W)</td><td>U → W</td><td>001</td></tr>
+            <tr><td>3</td><td>Q3 (V)</td><td>Q6 (W)</td><td>V → W</td><td>011</td></tr>
+            <tr><td>4</td><td>Q3 (V)</td><td>Q2 (U)</td><td>V → U</td><td>010</td></tr>
+            <tr><td>5</td><td>Q5 (W)</td><td>Q2 (U)</td><td>W → U</td><td>110</td></tr>
+            <tr><td>6</td><td>Q5 (W)</td><td>Q4 (V)</td><td>W → V</td><td>100</td></tr>
+        </tbody>
+    </table>
+</section>
 
-        <p><strong>Interpretation:</strong> If A&beta; = 99, then a 10% change in A causes only 0.1% change in A<sub>CL</sub>!</p>
+<!-- Bootstrap Gate Driver -->
+<section class="card">
+    <h3>Bootstrap Gate Driver Circuit</h3>
+    <p>
+        The high-side MOSFETs need a gate voltage <strong>10-12V above their source</strong>,
+        which floats with the motor phase. The <strong>bootstrap</strong> circuit charges a
+        capacitor when the low-side is ON, then uses that charge to drive the high-side gate.
+    </p>
 
-        <canvas id="sensitivity-canvas" width="500" height="280"></canvas>
+    <!-- SVG Diagram: Bootstrap Circuit -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 500 350" class="circuit-svg" style="max-width: 500px; background: var(--panel);">
+            <defs>
+                <marker id="arrow-boot" viewBox="0 0 10 10" refX="9" refY="5"
+                        markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#fbbf24"/>
+                </marker>
+            </defs>
+
+            <!-- VCC Rail (12V logic supply) -->
+            <line x1="50" y1="40" x2="200" y2="40" stroke="#ef4444" stroke-width="2"/>
+            <text x="30" y="45" fill="#e6edf3" font-size="12">VCC</text>
+            <text x="210" y="45" fill="#e6edf3" font-size="10">(12V)</text>
+
+            <!-- Bootstrap Diode -->
+            <polygon points="120,40 140,60 120,80" fill="none" stroke="#a78bfa" stroke-width="2"/>
+            <line x1="120" y1="60" x2="140" y2="60" stroke="#a78bfa" stroke-width="2"/>
+            <text x="155" y="65" fill="#a78bfa" font-size="10">D_boot</text>
+            <text x="155" y="78" fill="#a78bfa" font-size="9">(Fast recovery)</text>
+
+            <!-- Wire from VCC to diode -->
+            <line x1="120" y1="40" x2="120" y2="40" stroke="#e6edf3" stroke-width="1.5"/>
+            <line x1="120" y1="40" x2="120" y2="60" stroke="#e6edf3" stroke-width="1.5"/>
+
+            <!-- VB node (bootstrap voltage) -->
+            <line x1="140" y1="60" x2="200" y2="60" stroke="#e6edf3" stroke-width="1.5"/>
+            <circle cx="200" cy="60" r="3" fill="#34d399"/>
+            <text x="210" y="55" fill="#34d399" font-size="11" font-weight="bold">VB</text>
+
+            <!-- Bootstrap Capacitor -->
+            <line x1="200" y1="60" x2="200" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
+            <line x1="185" y1="100" x2="215" y2="100" stroke="#6ee7ff" stroke-width="3"/>
+            <line x1="185" y1="110" x2="215" y2="110" stroke="#6ee7ff" stroke-width="3"/>
+            <text x="225" y="110" fill="#6ee7ff" font-size="10">C_boot</text>
+            <text x="225" y="122" fill="#6ee7ff" font-size="9">(0.1-10µF)</text>
+            <line x1="200" y1="110" x2="200" y2="150" stroke="#e6edf3" stroke-width="1.5"/>
+
+            <!-- VS node (phase output = HS source) -->
+            <circle cx="200" cy="150" r="3" fill="#fbbf24"/>
+            <text x="210" y="155" fill="#fbbf24" font-size="11" font-weight="bold">VS</text>
+            <text x="210" y="168" fill="#e6edf3" font-size="9">(Phase Out)</text>
+
+            <!-- Gate Driver IC -->
+            <rect x="280" y="80" width="100" height="120" fill="none" stroke="#34d399" stroke-width="2" rx="5"/>
+            <text x="330" y="100" fill="#34d399" font-size="11" text-anchor="middle" font-weight="bold">GATE</text>
+            <text x="330" y="115" fill="#34d399" font-size="11" text-anchor="middle" font-weight="bold">DRIVER</text>
+            <text x="330" y="130" fill="#34d399" font-size="9" text-anchor="middle">(IR2110)</text>
+
+            <!-- VB input to driver -->
+            <line x1="200" y1="60" x2="280" y2="60" stroke="#e6edf3" stroke-width="1.5"/>
+            <line x1="280" y1="60" x2="280" y2="90" stroke="#e6edf3" stroke-width="1.5"/>
+            <text x="270" y="95" fill="#e6edf3" font-size="9" text-anchor="end">VB</text>
+
+            <!-- VS input to driver -->
+            <line x1="200" y1="150" x2="280" y2="150" stroke="#e6edf3" stroke-width="1.5"/>
+            <text x="270" y="155" fill="#e6edf3" font-size="9" text-anchor="end">VS</text>
+
+            <!-- HO output (to high-side gate) -->
+            <line x1="380" y1="110" x2="430" y2="110" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrow-boot)"/>
+            <text x="390" y="105" fill="#fbbf24" font-size="10">HO</text>
+            <text x="440" y="115" fill="#e6edf3" font-size="9">To HS Gate</text>
+
+            <!-- LO output (to low-side gate) -->
+            <line x1="380" y1="170" x2="430" y2="170" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrow-boot)"/>
+            <text x="390" y="165" fill="#fbbf24" font-size="10">LO</text>
+            <text x="440" y="175" fill="#e6edf3" font-size="9">To LS Gate</text>
+
+            <!-- HIN/LIN inputs -->
+            <line x1="230" y1="110" x2="280" y2="110" stroke="#a78bfa" stroke-width="1.5"/>
+            <text x="245" y="107" fill="#a78bfa" font-size="9">HIN</text>
+            <line x1="230" y1="170" x2="280" y2="170" stroke="#a78bfa" stroke-width="1.5"/>
+            <text x="245" y="167" fill="#a78bfa" font-size="9">LIN</text>
+
+            <!-- From MCU -->
+            <text x="180" y="110" fill="#a78bfa" font-size="9">From</text>
+            <text x="180" y="122" fill="#a78bfa" font-size="9">MCU</text>
+            <text x="180" y="172" fill="#a78bfa" font-size="9">PWM</text>
+
+            <!-- Timing diagram annotation -->
+            <rect x="50" y="220" width="400" height="110" fill="none" stroke="#374151" stroke-width="1" rx="5"/>
+            <text x="250" y="240" fill="#e6edf3" font-size="11" text-anchor="middle" font-weight="bold">Bootstrap Charging Cycle</text>
+
+            <!-- Charging waveform -->
+            <text x="60" y="260" fill="#e6edf3" font-size="9">VS:</text>
+            <polyline points="100,265 150,265 150,285 250,285 250,265 350,265 350,285 400,285"
+                      fill="none" stroke="#fbbf24" stroke-width="1.5"/>
+            <text x="175" y="300" fill="#6ee7ff" font-size="9">LS ON</text>
+            <text x="175" y="310" fill="#6ee7ff" font-size="8">(C charges)</text>
+            <text x="300" y="260" fill="#ef4444" font-size="9">HS ON</text>
+            <text x="300" y="270" fill="#ef4444" font-size="8">(C provides VGS)</text>
+        </svg>
     </div>
 
-    <div class="card">
-        <h3>Worked Example 1: Inverting Amplifier (Art of Electronics Style)</h3>
+    <div class="warn">
+        <strong>Bootstrap Limitations:</strong>
+        <ul>
+            <li><strong>Max duty cycle ~95%:</strong> Low-side must turn ON periodically to refresh C_boot</li>
+            <li><strong>Startup:</strong> Need initial LS pulse to charge bootstrap before HS can turn on</li>
+            <li><strong>Leakage:</strong> At very low frequencies, C_boot may discharge too much</li>
+        </ul>
+    </div>
 
-        <div id="sch-inverting-amp"></div>
-
-        <div class="info-box" style="background: #2a1a1a; border-color: #ff9800;">
-            <h4>Problem (Razavi-style)</h4>
-            <p>An inverting amplifier uses an op-amp with A<sub>OL</sub> = 100,000 (100 dB). The feedback network consists of R<sub>1</sub> = 1k&Omega; and R<sub>2</sub> = 10k&Omega;.</p>
-            <ol>
-                <li>Find the ideal closed-loop gain</li>
-                <li>Find the feedback factor &beta;</li>
-                <li>Find the loop gain A&beta;</li>
-                <li>Calculate the actual closed-loop gain including finite A</li>
-                <li>Determine the gain error</li>
-            </ol>
-
-            <h4>Solution</h4>
-            <p><strong>Step 1: Ideal Closed-Loop Gain</strong></p>
-            <p style="font-family: monospace;">
-                A<sub>CL,ideal</sub> = -R<sub>2</sub>/R<sub>1</sub> = -10k/1k = -10
-            </p>
-
-            <p><strong>Step 2: Feedback Factor</strong></p>
-            <p>For an inverting amplifier, the feedback factor is (from voltage divider at summing node):</p>
-            <p style="font-family: monospace;">
-                &beta; = R<sub>1</sub>/(R<sub>1</sub> + R<sub>2</sub>) = 1k/(1k + 10k) = 1/11 = 0.0909
-            </p>
-
-            <p><strong>Step 3: Loop Gain</strong></p>
-            <p style="font-family: monospace;">
-                A&beta; = 100,000 &times; 0.0909 = 9090
-            </p>
-
-            <p><strong>Step 4: Actual Closed-Loop Gain</strong></p>
-            <p>For the inverting configuration with finite A:</p>
-            <p style="font-family: monospace;">
-                A<sub>CL</sub> = -R<sub>2</sub>/R<sub>1</sub> &times; [1/(1 + (1 + R<sub>2</sub>/R<sub>1</sub>)/A)]<br>
-                A<sub>CL</sub> = -10 &times; [1/(1 + 11/100000)]<br>
-                A<sub>CL</sub> = -10 &times; [1/1.00011]<br>
-                A<sub>CL</sub> = -9.9989
-            </p>
-
-            <p><strong>Step 5: Gain Error</strong></p>
-            <p style="font-family: monospace;">
-                Error = (|A<sub>CL</sub>| - |A<sub>CL,ideal</sub>|)/|A<sub>CL,ideal</sub>| = (9.9989 - 10)/10 = -0.011%
-            </p>
-
-            <p style="color: #4caf50;"><strong>Conclusion:</strong> With loop gain of 9090, the gain error is only 0.011%!</p>
+    <h4>Bootstrap Capacitor Sizing</h4>
+    <div class="controls">
+        <div class="c3">
+            <label>Gate Charge Qg (nC)</label>
+            <input type="text" id="boot-qg" value="50">
+        </div>
+        <div class="c3">
+            <label>Quiescent Current (mA)</label>
+            <input type="text" id="boot-iqbs" value="0.2">
+        </div>
+        <div class="c3">
+            <label>Leakage Current (µA)</label>
+            <input type="text" id="boot-ilk" value="50">
+        </div>
+        <div class="c3">
+            <label>Max HS ON Time (ms)</label>
+            <input type="text" id="boot-ton" value="10">
+        </div>
+    </div>
+    <div class="controls">
+        <div class="c3">
+            <label>Allowed Droop (V)</label>
+            <input type="text" id="boot-droop" value="0.5">
+        </div>
+        <div class="c3">
+            <label>Bootstrap Voltage (V)</label>
+            <input type="text" id="boot-vbs" value="12">
+        </div>
+        <div class="c6">
+            <button onclick="calcBootstrap()">Calculate C_boot</button>
         </div>
     </div>
 
-    <div class="card">
-        <h3>The Four Effects of Negative Feedback</h3>
-        <p>Feedback simultaneously affects multiple circuit parameters:</p>
-
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Property</th>
-                    <th>Without Feedback</th>
-                    <th>With Feedback</th>
-                    <th>Change Factor</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Gain</td>
-                    <td>A</td>
-                    <td>A/(1+A&beta;)</td>
-                    <td>&div; (1+A&beta;)</td>
-                </tr>
-                <tr>
-                    <td>Sensitivity</td>
-                    <td>1</td>
-                    <td>1/(1+A&beta;)</td>
-                    <td>&div; (1+A&beta;)</td>
-                </tr>
-                <tr>
-                    <td>Nonlinearity</td>
-                    <td>THD<sub>OL</sub></td>
-                    <td>THD<sub>OL</sub>/(1+A&beta;)</td>
-                    <td>&div; (1+A&beta;)</td>
-                </tr>
-                <tr>
-                    <td>Bandwidth</td>
-                    <td>f<sub>3dB</sub></td>
-                    <td>f<sub>3dB</sub>(1+A&beta;)</td>
-                    <td>&times; (1+A&beta;)</td>
-                </tr>
-                <tr>
-                    <td>Input Impedance*</td>
-                    <td>Z<sub>in</sub></td>
-                    <td>Depends on topology</td>
-                    <td>See Lesson 2</td>
-                </tr>
-                <tr>
-                    <td>Output Impedance*</td>
-                    <td>Z<sub>out</sub></td>
-                    <td>Depends on topology</td>
-                    <td>See Lesson 2</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <p>*Impedance changes depend on the feedback topology (series vs shunt at input/output).</p>
-
-        <div class="info-box warning">
-            <h4>Art of Electronics Warning</h4>
-            <p>"Feedback is the engineer's best friend, but also the source of oscillation nightmares. The bandwidth extension comes at the cost of reduced phase margin. Always check stability!"</p>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Interactive Loop Gain Calculator</h3>
-        <div class="calculator-section">
-            <div class="input-group">
-                <label for="open-loop-gain">Open-Loop Gain A (dB):</label>
-                <input type="range" id="open-loop-gain" min="20" max="140" value="100" oninput="updateFeedbackCalc()">
-                <span id="open-loop-gain-val">100 dB</span>
+    <div id="boot-results" class="results">
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">Total Charge Required</span>
+                <span class="value" id="boot-qtotal">—</span>
             </div>
-            <div class="input-group">
-                <label for="feedback-factor">Feedback Factor &beta;:</label>
-                <input type="range" id="feedback-factor" min="0.001" max="1" step="0.001" value="0.1" oninput="updateFeedbackCalc()">
-                <span id="feedback-factor-val">0.1</span>
+            <div class="result-item">
+                <span class="label">Minimum C_boot</span>
+                <span class="value" id="boot-cmin">—</span>
             </div>
-            <div id="feedback-results" class="result-box"></div>
+            <div class="result-item">
+                <span class="label">Recommended C_boot</span>
+                <span class="value" id="boot-crec">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Safety Factor</span>
+                <span class="value" id="boot-sf">2×</span>
+            </div>
         </div>
-    </div>
-
-    <div class="card">
-        <h3>Gain-Bandwidth Product Conservation</h3>
-        <p>For a single-pole system, the gain-bandwidth product (GBW) is constant:</p>
-
-        <canvas id="gbw-canvas" width="500" height="300"></canvas>
-
-        <div class="info-box" style="background: #1a2a1a; border-color: #4caf50;">
-            <h4>Derivation (Agarwal Approach)</h4>
-            <p>If the open-loop amplifier has a single pole at f<sub>p</sub>:</p>
-            <p style="font-family: monospace;">
-                A(s) = A<sub>0</sub> / (1 + s/&omega;<sub>p</sub>)
-            </p>
-            <p>The closed-loop transfer function becomes:</p>
-            <p style="font-family: monospace;">
-                A<sub>CL</sub>(s) = [A<sub>0</sub>/(1+A<sub>0</sub>&beta;)] / [1 + s/(&omega;<sub>p</sub>(1+A<sub>0</sub>&beta;))]
-            </p>
-            <p>The new closed-loop pole is at:</p>
-            <p style="font-family: monospace;">
-                &omega;<sub>CL</sub> = &omega;<sub>p</sub>(1 + A<sub>0</sub>&beta;)
-            </p>
-            <p>Therefore:</p>
-            <p style="font-family: monospace; font-size: 1.1em;">
-                <strong>GBW = A<sub>CL</sub> &times; f<sub>CL</sub> = A<sub>0</sub> &times; f<sub>p</sub> = constant</strong>
-            </p>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Exercises</h3>
-        <div id="exercise-container"></div>
     </div>
 
     <script>
-    (function() {
-        // Feedback block diagram
-        const blockCanvas = document.getElementById('feedback-block-canvas');
-        if (blockCanvas) {
-            const ctx = blockCanvas.getContext('2d');
-            const w = blockCanvas.width, h = blockCanvas.height;
+    function calcBootstrap() {
+        const qg = AD.num('boot-qg') * 1e-9;
+        const iqbs = AD.num('boot-iqbs') * 1e-3;
+        const ilk = AD.num('boot-ilk') * 1e-6;
+        const ton = AD.num('boot-ton') * 1e-3;
+        const droop = AD.num('boot-droop');
+        const vbs = AD.num('boot-vbs');
 
-            ctx.fillStyle = '#1a1a2e';
-            ctx.fillRect(0, 0, w, h);
+        // Total charge = Qg + (Iqbs + Ilk) × t_on
+        const qtotal = qg + (iqbs + ilk) * ton;
 
-            // Draw blocks and connections
-            ctx.strokeStyle = '#4fc3f7';
-            ctx.lineWidth = 2;
-            ctx.fillStyle = '#4fc3f7';
+        // C_boot_min = Q_total / V_droop
+        const cmin = qtotal / droop;
+        const crec = cmin * 2;  // 2x safety factor
 
-            // Summing junction (circle)
-            ctx.beginPath();
-            ctx.arc(80, 100, 15, 0, 2*Math.PI);
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '16px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('+', 80, 90);
-            ctx.fillText('-', 80, 118);
-
-            // Forward amplifier block
-            ctx.strokeStyle = '#4caf50';
-            ctx.strokeRect(160, 70, 80, 60);
-            ctx.fillStyle = '#4caf50';
-            ctx.font = '18px monospace';
-            ctx.fillText('A', 200, 108);
-
-            // Feedback block
-            ctx.strokeStyle = '#ff9800';
-            ctx.strokeRect(200, 150, 80, 40);
-            ctx.fillStyle = '#ff9800';
-            ctx.font = '16px monospace';
-            ctx.fillText('\u03B2', 240, 178);
-
-            // Arrows and connections
-            ctx.strokeStyle = '#4fc3f7';
-            ctx.beginPath();
-            // Input arrow
-            ctx.moveTo(20, 100);
-            ctx.lineTo(65, 100);
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '14px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('xin', 20, 90);
-
-            // Summing to amplifier
-            ctx.beginPath();
-            ctx.moveTo(95, 100);
-            ctx.lineTo(160, 100);
-            ctx.stroke();
-            ctx.fillText('e', 120, 90);
-
-            // Amplifier to output
-            ctx.beginPath();
-            ctx.moveTo(240, 100);
-            ctx.lineTo(480, 100);
-            ctx.stroke();
-            ctx.fillText('xout', 430, 90);
-
-            // Output to feedback (down, then left)
-            ctx.beginPath();
-            ctx.moveTo(380, 100);
-            ctx.lineTo(380, 170);
-            ctx.lineTo(280, 170);
-            ctx.stroke();
-
-            // Feedback to summing junction
-            ctx.beginPath();
-            ctx.moveTo(200, 170);
-            ctx.lineTo(80, 170);
-            ctx.lineTo(80, 115);
-            ctx.stroke();
-
-            // Dot at junction
-            ctx.fillStyle = '#4fc3f7';
-            ctx.beginPath();
-            ctx.arc(380, 100, 4, 0, 2*Math.PI);
-            ctx.fill();
-        }
-
-        // Sensitivity plot
-        const sensCanvas = document.getElementById('sensitivity-canvas');
-        if (sensCanvas) {
-            const ctx = sensCanvas.getContext('2d');
-            const w = sensCanvas.width, h = sensCanvas.height;
-
-            ctx.fillStyle = '#1a1a2e';
-            ctx.fillRect(0, 0, w, h);
-
-            // Margins
-            const ml = 60, mr = 30, mt = 30, mb = 50;
-            const pw = w - ml - mr, ph = h - mt - mb;
-
-            // Axes
-            ctx.strokeStyle = '#4a4a6a';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(ml, mt);
-            ctx.lineTo(ml, h - mb);
-            ctx.lineTo(w - mr, h - mb);
-            ctx.stroke();
-
-            // Labels
-            ctx.fillStyle = '#b0b0b0';
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Loop Gain A\u03B2', w/2, h - 10);
-
-            ctx.save();
-            ctx.translate(15, h/2);
-            ctx.rotate(-Math.PI/2);
-            ctx.fillText('Sensitivity 1/(1+A\u03B2)', 0, 0);
-            ctx.restore();
-
-            // X-axis ticks (log scale: 0.1 to 10000)
-            const xTicks = [0.1, 1, 10, 100, 1000, 10000];
-            xTicks.forEach((val, i) => {
-                const x = ml + (Math.log10(val) + 1) * pw / 5;
-                ctx.fillText(val >= 1 ? val.toString() : '0.1', x, h - mb + 15);
-            });
-
-            // Y-axis ticks
-            ctx.textAlign = 'right';
-            [0, 0.25, 0.5, 0.75, 1].forEach(val => {
-                const y = h - mb - val * ph;
-                ctx.fillText(val.toFixed(2), ml - 5, y + 4);
-            });
-
-            // Plot sensitivity curve
-            ctx.strokeStyle = '#ff5252';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            for (let log = -1; log <= 4; log += 0.1) {
-                const ab = Math.pow(10, log);
-                const sens = 1 / (1 + ab);
-                const x = ml + (log + 1) * pw / 5;
-                const y = h - mb - sens * ph;
-                log === -1 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-
-            // Annotations
-            ctx.fillStyle = '#ffeb3b';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('A\u03B2 = 9 \u2192 10% sensitivity', ml + pw * 0.4, mt + 30);
-            ctx.fillText('A\u03B2 = 99 \u2192 1% sensitivity', ml + pw * 0.55, mt + 50);
-            ctx.fillText('A\u03B2 = 999 \u2192 0.1% sensitivity', ml + pw * 0.7, mt + 70);
-        }
-
-        // GBW canvas
-        const gbwCanvas = document.getElementById('gbw-canvas');
-        if (gbwCanvas) {
-            const ctx = gbwCanvas.getContext('2d');
-            const w = gbwCanvas.width, h = gbwCanvas.height;
-
-            ctx.fillStyle = '#1a1a2e';
-            ctx.fillRect(0, 0, w, h);
-
-            const ml = 60, mr = 30, mt = 30, mb = 50;
-            const pw = w - ml - mr, ph = h - mt - mb;
-
-            // Axes
-            ctx.strokeStyle = '#4a4a6a';
-            ctx.beginPath();
-            ctx.moveTo(ml, mt);
-            ctx.lineTo(ml, h - mb);
-            ctx.lineTo(w - mr, h - mb);
-            ctx.stroke();
-
-            ctx.fillStyle = '#b0b0b0';
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Frequency (log scale)', w/2, h - 10);
-
-            ctx.save();
-            ctx.translate(15, h/2);
-            ctx.rotate(-Math.PI/2);
-            ctx.fillText('Gain (dB)', 0, 0);
-            ctx.restore();
-
-            // Open-loop curve (single pole at 10Hz, DC gain = 100dB)
-            const A0 = 100; // dB
-            const fp = 10; // Hz
-            const fmax = 1e7;
-
-            ctx.strokeStyle = '#ff5252';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([]);
-            ctx.beginPath();
-            for (let log = 0; log <= 7; log += 0.05) {
-                const f = Math.pow(10, log);
-                const gain_dB = A0 - 20 * Math.log10(Math.sqrt(1 + Math.pow(f/fp, 2)));
-                const x = ml + log * pw / 7;
-                const y = h - mb - (gain_dB + 20) * ph / 140;
-                log === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-
-            // Closed-loop curves for different beta values
-            const betas = [1, 0.1, 0.01];
-            const colors = ['#4caf50', '#4fc3f7', '#ff9800'];
-
-            betas.forEach((beta, i) => {
-                const Acl_dB = -20 * Math.log10(beta);
-                const fcl = fp * (1 + Math.pow(10, A0/20) * beta);
-
-                ctx.strokeStyle = colors[i];
-                ctx.beginPath();
-                for (let log = 0; log <= 7; log += 0.05) {
-                    const f = Math.pow(10, log);
-                    const gain_dB = Acl_dB - 20 * Math.log10(Math.sqrt(1 + Math.pow(f/fcl, 2)));
-                    if (gain_dB < -20) break;
-                    const x = ml + log * pw / 7;
-                    const y = h - mb - (gain_dB + 20) * ph / 140;
-                    log === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-            });
-
-            // GBW line
-            ctx.strokeStyle = '#808080';
-            ctx.setLineDash([4, 4]);
-            ctx.beginPath();
-            ctx.moveTo(ml, h - mb - (A0 + 20) * ph / 140);
-            ctx.lineTo(w - mr, h - mb - (-20 + 20) * ph / 140);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Legend
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillStyle = '#ff5252';
-            ctx.fillText('Open-loop A(f)', w - 120, mt + 15);
-            ctx.fillStyle = '#4caf50';
-            ctx.fillText('\u03B2 = 1 (G = 0dB)', w - 120, mt + 30);
-            ctx.fillStyle = '#4fc3f7';
-            ctx.fillText('\u03B2 = 0.1 (G = 20dB)', w - 120, mt + 45);
-            ctx.fillStyle = '#ff9800';
-            ctx.fillText('\u03B2 = 0.01 (G = 40dB)', w - 120, mt + 60);
-        }
-
-        // Feedback calculator
-        window.updateFeedbackCalc = function() {
-            const A_dB = AD.num('open-loop-gain');
-            const beta = AD.num('feedback-factor');
-
-            const A = Math.pow(10, A_dB / 20);
-            const loopGain = A * beta;
-            const Acl = A / (1 + loopGain);
-            const Acl_dB = 20 * Math.log10(Acl);
-            const sensitivity = 1 / (1 + loopGain);
-            const bandwidthFactor = 1 + loopGain;
-
-            document.getElementById('open-loop-gain-val').textContent = A_dB + ' dB (' + A.toExponential(1) + ')';
-            document.getElementById('feedback-factor-val').textContent = beta.toFixed(3);
-
-            document.getElementById('feedback-results').innerHTML = `
-                <p><strong>Loop Gain A&beta;:</strong> ${loopGain.toFixed(1)} (${(20*Math.log10(loopGain)).toFixed(1)} dB)</p>
-                <p><strong>Closed-Loop Gain:</strong> ${Acl.toFixed(2)} (${Acl_dB.toFixed(1)} dB)</p>
-                <p><strong>Ideal Gain 1/&beta;:</strong> ${(1/beta).toFixed(2)} (${(-20*Math.log10(beta)).toFixed(1)} dB)</p>
-                <p><strong>Gain Error:</strong> ${((Acl - 1/beta) / (1/beta) * 100).toFixed(4)}%</p>
-                <p><strong>Sensitivity:</strong> ${(sensitivity * 100).toFixed(4)}%</p>
-                <p><strong>Bandwidth Extension:</strong> ${bandwidthFactor.toFixed(0)}&times;</p>
-                <p><strong>Distortion Reduction:</strong> ${bandwidthFactor.toFixed(0)}&times;</p>
-            `;
-        };
-        updateFeedbackCalc();
-
-        // Schematic
-        if (typeof SchematicSVG !== 'undefined') {
-            const container = document.getElementById('sch-inverting-amp');
-            if (container) {
-                const sch = new SchematicSVG(container, 400, 200);
-
-                // Op-amp
-                const opX = 200, opY = 100;
-                sch.opamp(opX, opY);
-                const op = SchematicSVG.opampTerminals(opX, opY);
-
-                // R1 (input resistor)
-                const r1X = 80;
-                sch.resistor(r1X, op.invInput.y, 'horizontal', { label: 'R1' });
-                sch.wire([[r1X + 50, op.invInput.y], [op.invInput.x, op.invInput.y]]);
-
-                // R2 (feedback resistor)
-                const r2Y = op.invInput.y - 40;
-                sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, r2Y]]);
-                sch.resistor(op.invInput.x, r2Y, 'horizontal', { label: 'R2' });
-                sch.wire([[op.invInput.x + 50, r2Y], [op.output.x + 30, r2Y]]);
-                sch.wire([[op.output.x + 30, r2Y], [op.output.x + 30, op.output.y]]);
-                sch.wire([[op.output.x, op.output.y], [op.output.x + 30, op.output.y]]);
-                sch.dot(op.output.x + 30, op.output.y);
-
-                // Non-inverting to ground
-                sch.wire([[op.nonInvInput.x, op.nonInvInput.y], [op.nonInvInput.x - 20, op.nonInvInput.y]]);
-                sch.ground(op.nonInvInput.x - 20, op.nonInvInput.y + 20);
-                sch.wire([[op.nonInvInput.x - 20, op.nonInvInput.y], [op.nonInvInput.x - 20, op.nonInvInput.y + 20]]);
-
-                // Input label
-                sch.nodeLabel(r1X - 10, op.invInput.y, 'Vin');
-
-                // Output label
-                sch.nodeLabel(op.output.x + 50, op.output.y, 'Vout');
-                sch.wire([[op.output.x + 30, op.output.y], [op.output.x + 50, op.output.y]]);
-
-                container.innerHTML = sch.render();
-            }
-        }
-
-        // Exercises
-        const exercises = [
-            {
-                question: "An op-amp has A = 80 dB. With \u03B2 = 0.01, what is the loop gain in dB?",
-                type: "numeric",
-                answer: 40,
-                tolerance: 1,
-                unit: "dB",
-                hint: "Loop gain = A\u03B2. Convert 80 dB to linear (10000), multiply by 0.01, convert back."
-            },
-            {
-                question: "If A = 100,000 and the closed-loop gain is 10, what is the feedback factor \u03B2?",
-                type: "numeric",
-                answer: 0.1,
-                tolerance: 0.01,
-                unit: "",
-                hint: "Use A_CL = A/(1+A\u03B2) \u2248 1/\u03B2 when A\u03B2 >> 1"
-            },
-            {
-                question: "With A\u03B2 = 1000, by what factor is the open-loop distortion reduced?",
-                type: "numeric",
-                answer: 1001,
-                tolerance: 10,
-                unit: "\u00D7",
-                hint: "Distortion is reduced by (1 + A\u03B2)"
-            },
-            {
-                question: "An amplifier has 100 MHz GBW. At closed-loop gain of 100, what is the bandwidth?",
-                type: "numeric",
-                answer: 1,
-                tolerance: 0.1,
-                unit: "MHz",
-                hint: "BW = GBW / A_CL"
-            }
-        ];
-
-        const container = document.getElementById('exercise-container');
-        if (typeof ExerciseWidget !== 'undefined') {
-            exercises.forEach((ex, i) => {
-                const div = document.createElement('div');
-                div.className = 'exercise-item';
-                container.appendChild(div);
-                new ExerciseWidget(div, {
-                    question: ex.question,
-                    type: ex.type,
-                    answer: ex.answer,
-                    tolerance: ex.tolerance,
-                    unit: ex.unit,
-                    options: ex.options,
-                    hint: ex.hint
-                });
-            });
-        }
-    })();
+        document.getElementById('boot-qtotal').textContent = (qtotal * 1e9).toFixed(1) + ' nC';
+        document.getElementById('boot-cmin').textContent = AD.fmt(cmin, 2) + 'F';
+        document.getElementById('boot-crec').textContent = AD.fmt(crec, 2) + 'F';
+    }
     </script>
-</div>
+</section>
+
+<!-- Dead-Time Control -->
+<section class="card">
+    <h3>Dead-Time Control</h3>
+    <p>
+        <strong>Shoot-through</strong> occurs when both high-side and low-side MOSFETs conduct
+        simultaneously, creating a short from V+ to GND. This causes massive current spikes
+        that can destroy the MOSFETs instantly.
+    </p>
+
+    <!-- SVG: Dead-time waveform -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 500 220" class="circuit-svg" style="max-width: 500px; background: var(--panel);">
+            <!-- Time axis -->
+            <line x1="50" y1="200" x2="480" y2="200" stroke="#6b7280" stroke-width="1"/>
+            <text x="490" y="205" fill="#e6edf3" font-size="10">t</text>
+
+            <!-- HS Gate Signal -->
+            <text x="30" y="60" fill="#ef4444" font-size="10">HS</text>
+            <polyline points="50,80 100,80 100,40 200,40 200,80 350,80 350,40 450,40 450,80 480,80"
+                      fill="none" stroke="#ef4444" stroke-width="2"/>
+
+            <!-- LS Gate Signal -->
+            <text x="30" y="140" fill="#6ee7ff" font-size="10">LS</text>
+            <polyline points="50,160 120,160 120,120 180,120 180,160 370,160 370,120 430,120 430,160 480,160"
+                      fill="none" stroke="#6ee7ff" stroke-width="2"/>
+
+            <!-- Dead-time markers -->
+            <rect x="100" y="35" width="20" height="130" fill="#fbbf24" fill-opacity="0.2"/>
+            <line x1="100" y1="170" x2="100" y2="185" stroke="#fbbf24" stroke-width="1"/>
+            <line x1="120" y1="170" x2="120" y2="185" stroke="#fbbf24" stroke-width="1"/>
+            <line x1="100" y1="180" x2="120" y2="180" stroke="#fbbf24" stroke-width="1"/>
+            <text x="110" y="195" fill="#fbbf24" font-size="9" text-anchor="middle">t_d</text>
+
+            <rect x="180" y="35" width="20" height="130" fill="#fbbf24" fill-opacity="0.2"/>
+            <line x1="180" y1="170" x2="180" y2="185" stroke="#fbbf24" stroke-width="1"/>
+            <line x1="200" y1="170" x2="200" y2="185" stroke="#fbbf24" stroke-width="1"/>
+            <line x1="180" y1="180" x2="200" y2="180" stroke="#fbbf24" stroke-width="1"/>
+            <text x="190" y="195" fill="#fbbf24" font-size="9" text-anchor="middle">t_d</text>
+
+            <!-- Annotations -->
+            <text x="150" y="25" fill="#e6edf3" font-size="10" text-anchor="middle">BOTH OFF</text>
+            <text x="280" y="100" fill="#34d399" font-size="10" text-anchor="middle">Safe region</text>
+        </svg>
+    </div>
+
+    <h4>Dead-Time Calculation</h4>
+    <p>
+        Dead-time must be longer than the MOSFET turn-off time but short enough to minimize
+        distortion and body diode conduction losses.
+    </p>
+
+    <div class="controls">
+        <div class="c3">
+            <label>Turn-off Delay t_d(off) (ns)</label>
+            <input type="text" id="dt-tdoff" value="40">
+        </div>
+        <div class="c3">
+            <label>Fall Time t_f (ns)</label>
+            <input type="text" id="dt-tf" value="20">
+        </div>
+        <div class="c3">
+            <label>Driver Prop Delay (ns)</label>
+            <input type="text" id="dt-tprop" value="100">
+        </div>
+        <div class="c3">
+            <label>Safety Margin (ns)</label>
+            <input type="text" id="dt-margin" value="50">
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="c6">
+            <button onclick="calcDeadTime()">Calculate Dead-Time</button>
+        </div>
+    </div>
+
+    <div id="dt-results" class="results">
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">Minimum Dead-Time</span>
+                <span class="value" id="dt-min">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Recommended Dead-Time</span>
+                <span class="value" id="dt-rec">—</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function calcDeadTime() {
+        const tdoff = AD.num('dt-tdoff');
+        const tf = AD.num('dt-tf');
+        const tprop = AD.num('dt-tprop');
+        const margin = AD.num('dt-margin');
+
+        // Dead-time > t_d(off) + t_f + propagation mismatch + margin
+        const dtMin = tdoff + tf + margin;
+        const dtRec = dtMin + tprop * 0.2;  // Add 20% of prop delay for mismatch
+
+        document.getElementById('dt-min').textContent = dtMin.toFixed(0) + ' ns';
+        document.getElementById('dt-rec').textContent = dtRec.toFixed(0) + ' ns';
+    }
+    </script>
+
+    <div class="notice">
+        <strong>Dead-Time Trade-offs:</strong>
+        <ul>
+            <li><strong>Too short:</strong> Risk of shoot-through → MOSFET destruction</li>
+            <li><strong>Too long:</strong> Body diode conduction → losses, voltage spikes, EMI</li>
+            <li><strong>Typical values:</strong> 100-500ns for 48V systems, 50-200ns for 12V</li>
+        </ul>
+    </div>
+</section>
+
+<!-- Current Sensing -->
+<section class="card">
+    <h3>Motor Current Sensing</h3>
+    <p>
+        Current sensing is essential for torque control, overcurrent protection, and sensorless
+        commutation (back-EMF zero-crossing detection).
+    </p>
+
+    <h4>Sensing Methods</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Method</th>
+                <th>Location</th>
+                <th>Pros</th>
+                <th>Cons</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>DC Bus Shunt</strong></td>
+                <td>Between V- and GND</td>
+                <td>Single resistor, simple, low-side sensing</td>
+                <td>Only sees total DC current, not phase currents</td>
+            </tr>
+            <tr>
+                <td><strong>Low-Side Shunts</strong></td>
+                <td>Each LS source to GND</td>
+                <td>Low-side sensing (easy), phase currents visible</td>
+                <td>Only valid when respective LS is ON, 3 resistors</td>
+            </tr>
+            <tr>
+                <td><strong>Inline Phase Shunts</strong></td>
+                <td>In series with each motor phase</td>
+                <td>Always valid, true phase currents</td>
+                <td>High-side sensing needed, 3 resistors, complex</td>
+            </tr>
+            <tr>
+                <td><strong>Hall Effect Sensor</strong></td>
+                <td>Around phase wire</td>
+                <td>Isolated, no insertion loss</td>
+                <td>Cost, bandwidth, offset drift</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h4>Low-Side Shunt Current Sensing</h4>
+    <div class="diagram-container">
+        <canvas id="ls-shunt-canvas" width="500" height="400" style="width:100%;max-width:500px;background:#0d1117;border-radius:8px;"></canvas>
+    </div>
+
+    <h4>Current Sense Amplifier Calculator</h4>
+    <div class="controls">
+        <div class="c3">
+            <label>Shunt Resistance (mΩ)</label>
+            <input type="text" id="cs-rshunt" value="10" min="0.1" max="1000">
+        </div>
+        <div class="c3">
+            <label>Max Motor Current (A)</label>
+            <input type="text" id="cs-imax" value="30" min="0.01" max="1000">
+        </div>
+        <div class="c3">
+            <label>ADC Reference (V)</label>
+            <input type="text" id="cs-vref" value="3.3">
+        </div>
+        <div class="c3">
+            <button onclick="calcCSA()">Calculate Gain</button>
+        </div>
+    </div>
+
+    <div id="csa-results" class="results">
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">Max Shunt Voltage</span>
+                <span class="value" id="cs-vmax">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Required CSA Gain</span>
+                <span class="value" id="cs-gain">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Shunt Power @ Imax</span>
+                <span class="value" id="cs-power">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Current Resolution @ 12-bit</span>
+                <span class="value" id="cs-res">—</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function calcCSA() {
+        const rshunt = AD.num('cs-rshunt') * 1e-3;
+        const imax = AD.num('cs-imax');
+        const vref = AD.num('cs-vref');
+
+        const vmax = imax * rshunt;
+        const gain = (vref * 0.9) / vmax;  // Use 90% of ADC range
+        const power = imax * imax * rshunt;
+        const resolution = imax / 4096;  // 12-bit ADC
+
+        document.getElementById('cs-vmax').textContent = (vmax * 1000).toFixed(1) + ' mV';
+        document.getElementById('cs-gain').textContent = gain.toFixed(1) + ' V/V';
+        document.getElementById('cs-power').textContent = power.toFixed(2) + ' W';
+        document.getElementById('cs-res').textContent = (resolution * 1000).toFixed(1) + ' mA/LSB';
+    }
+    </script>
+</section>
+
+<!-- Component Selection -->
+<section class="card">
+    <h3>Real Component Selection</h3>
+
+    <h4>Gate Drivers</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Part Number</th>
+                <th>Channels</th>
+                <th>VBS Max</th>
+                <th>Peak Current</th>
+                <th>Dead-Time</th>
+                <th>Package</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>IR2110</td><td>1 HS + 1 LS</td><td>500V</td><td>2A/2A</td><td>External</td><td>DIP-14</td></tr>
+            <tr><td>IR2301</td><td>1 HS + 1 LS</td><td>200V</td><td>0.25A</td><td>External</td><td>SO-8</td></tr>
+            <tr><td>DRV8301</td><td>6 (3-phase)</td><td>60V</td><td>1.7A</td><td>Programmable</td><td>QFN-56</td></tr>
+            <tr><td>DRV8323</td><td>6 (3-phase)</td><td>60V</td><td>1.5A</td><td>Programmable</td><td>QFN-48</td></tr>
+            <tr><td>FD6288</td><td>6 (3-phase)</td><td>250V</td><td>1.5A</td><td>Built-in</td><td>SSOP-20</td></tr>
+            <tr><td>MP6540</td><td>3-phase + FETs</td><td>30V</td><td>3A</td><td>Built-in</td><td>QFN-28</td></tr>
+        </tbody>
+    </table>
+
+    <h4>Power MOSFETs for Motor Driving</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Part Number</th>
+                <th>VDS</th>
+                <th>ID</th>
+                <th>RDS(on)</th>
+                <th>Qg</th>
+                <th>Package</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>IRLZ44N</td><td>55V</td><td>47A</td><td>22mΩ</td><td>48nC</td><td>TO-220</td></tr>
+            <tr><td>IRF3205</td><td>55V</td><td>110A</td><td>8mΩ</td><td>146nC</td><td>TO-220</td></tr>
+            <tr><td>CSD18540Q5B</td><td>60V</td><td>100A</td><td>4.2mΩ</td><td>35nC</td><td>SON 5×6</td></tr>
+            <tr><td>BSZ0909NS</td><td>30V</td><td>40A</td><td>6.5mΩ</td><td>12nC</td><td>TDSON-8</td></tr>
+            <tr><td>TPH1R306PL</td><td>60V</td><td>120A</td><td>1.9mΩ</td><td>90nC</td><td>TOLL</td></tr>
+        </tbody>
+    </table>
+
+    <h4>Integrated BLDC Driver ICs</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Part Number</th>
+                <th>Voltage</th>
+                <th>Current</th>
+                <th>Features</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>DRV8313</td><td>8-52V</td><td>2.5A/phase</td><td>3 half-bridges, fault protection</td></tr>
+            <tr><td>TB6612FNG</td><td>2.5-13.5V</td><td>1.2A avg</td><td>Dual H-bridge, low voltage</td></tr>
+            <tr><td>L6234</td><td>7-52V</td><td>4A peak</td><td>Three-phase, boot diodes internal</td></tr>
+            <tr><td>A4963</td><td>5.5-50V</td><td>Ext FETs</td><td>Sensorless, FOC capable</td></tr>
+            <tr><td>MP6540</td><td>4.5-28V</td><td>3A continuous</td><td>All-in-one with FETs</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- SPICE Netlist -->
+<section class="card">
+    <h3>SPICE Simulation - Half-Bridge with Bootstrap</h3>
+
+    <div class="spice-netlist">
+        <h4>Bootstrap Gate Driver Simulation</h4>
+        <pre id="spice-bldc">* Half-Bridge with Bootstrap Gate Driver
+* Demonstrates bootstrap capacitor charging
+
+.param VDC=24 VLOGIC=12 FSWITCH=20k
+
+* DC Bus
+VDC vdc 0 DC {VDC}
+VLOGIC vlogic 0 DC {VLOGIC}
+
+* PWM input (50% duty cycle with dead-time)
+VPWM_H pwm_h 0 PULSE(0 {VLOGIC} 0 10n 10n 24u 50u)
+VPWM_L pwm_l 0 PULSE(0 {VLOGIC} 26u 10n 10n 24u 50u)
+
+* Bootstrap Circuit
+Dboot vlogic vb DFAST
+Cboot vb vs 1u IC={VLOGIC}
+.model DFAST D(IS=1n RS=0.5 CJO=10p TT=10n)
+
+* High-Side MOSFET
+MHS vdc vs pwm_h_gate NMOS_HS
+Rg_hs vb pwm_h_gate_in 10
+* Gate drive simplified (should use level shifter model)
+EHS pwm_h_gate_in vs VALUE={IF(V(pwm_h)>{VLOGIC}/2, V(vb,vs)-0.5, 0)}
+Rhs_gd pwm_h_gate_in pwm_h_gate 1
+
+* Low-Side MOSFET
+MLS vs 0 pwm_l_gate NMOS_LS
+Rg_ls vlogic pwm_l_gate_in 10
+ELS pwm_l_gate_in 0 VALUE={IF(V(pwm_l)>{VLOGIC}/2, {VLOGIC}-0.5, 0)}
+Rls_gd pwm_l_gate_in pwm_l_gate 1
+
+* Motor winding model (RL load)
+Lmotor vs vmotor_mid 100u
+Rmotor vmotor_mid 0 0.5
+
+* Freewheeling diodes (body diodes)
+Dhs_body vs vdc DBODY
+Dls_body 0 vs DBODY
+.model DBODY D(IS=100n RS=10m)
+
+* MOSFET Models (simplified)
+.model NMOS_HS NMOS(VTO=2 KP=100 RD=10m)
+.model NMOS_LS NMOS(VTO=2 KP=100 RD=10m)
+
+.tran 100n 200u 0 100n
+
+.control
+run
+plot V(vs) V(vb,vs) title 'Phase Output and Bootstrap Voltage'
+plot V(pwm_h_gate,vs) V(pwm_l_gate) title 'Gate Drive Signals'
+plot I(Lmotor) title 'Motor Current'
+.endc
+.end</pre>
+        <button onclick="AD.copyToClipboard(document.getElementById('spice-bldc').textContent)">Copy Netlist</button>
+    </div>
+</section>
+
+<!-- Verification Checklist -->
+<section class="card">
+    <h3>BLDC Driver Design Checklist</h3>
+    <div class="checklist" data-lesson="m24l1">
+        <label><input type="checkbox" data-k="1"><span>Verify MOSFET voltage rating > 1.5× bus voltage</span></label>
+        <label><input type="checkbox" data-k="2"><span>Calculate RDS(on) losses at max current</span></label>
+        <label><input type="checkbox" data-k="3"><span>Size bootstrap capacitor for max duty cycle</span></label>
+        <label><input type="checkbox" data-k="4"><span>Select fast-recovery bootstrap diode (trr < 100ns)</span></label>
+        <label><input type="checkbox" data-k="5"><span>Set dead-time > MOSFET turn-off time + margin</span></label>
+        <label><input type="checkbox" data-k="6"><span>Add gate resistors to control dV/dt</span></label>
+        <label><input type="checkbox" data-k="7"><span>Design current sensing with appropriate CSA gain</span></label>
+        <label><input type="checkbox" data-k="8"><span>Include bulk capacitors on DC bus (low ESR)</span></label>
+        <label><input type="checkbox" data-k="9"><span>Plan thermal management for power stage</span></label>
+        <label><input type="checkbox" data-k="10"><span>Add fault protection (OCP, OVP, UVLO)</span></label>
+    </div>
+</section>
+
+<!-- Exercises -->
+<section class="card">
+    <h3>Progressive Exercises</h3>
+
+    <div class="exercise-group">
+        <h4>Level 1: Fundamentals</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 1:</strong> A BLDC motor runs at 24V DC with 30A max phase current. If using MOSFETs with RDS(on) = 10mΩ, what is the conduction loss in each MOSFET (one HS + one LS conducting)?</p>
+            <input type="text" id="bldc-ex1" placeholder="Total conduction loss (W)">
+            <button onclick="checkBLDC(1, 18, 5)">Check</button>
+            <span id="bldc-ex1-fb" class="feedback"></span>
+            <div class="hint">P = I²R for each MOSFET, then sum for both conducting FETs</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 2:</strong> Calculate the bootstrap capacitor for: Qg = 40nC, Iqbs = 150µA, ton_max = 20ms, allowed droop = 0.3V.</p>
+            <input type="text" id="bldc-ex2" placeholder="C_boot minimum (µF)">
+            <button onclick="checkBLDC(2, 10.13, 5)">Check</button>
+            <span id="bldc-ex2-fb" class="feedback"></span>
+            <div class="hint">Q_total = Qg + Iqbs × ton, then C = Q/V</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 3:</strong> A gate driver has 120ns propagation delay and 10% matching spec. MOSFETs have td(off) = 45ns and tf = 25ns. What is the minimum dead-time?</p>
+            <input type="text" id="bldc-ex3" placeholder="Dead-time (ns)">
+            <button onclick="checkBLDC(3, 82, 10)">Check</button>
+            <span id="bldc-ex3-fb" class="feedback"></span>
+            <div class="hint">DT > td(off) + tf + prop_mismatch. Mismatch = 120ns × 10%</div>
+        </div>
+    </div>
+
+    <div class="exercise-group">
+        <h4>Level 2: Application</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 4:</strong> A shunt resistor of 5mΩ measures motor current. At 25A, the shunt voltage is amplified by a CSA with gain 50. What is the output voltage?</p>
+            <input type="text" id="bldc-ex4" placeholder="CSA output (V)">
+            <button onclick="checkBLDC(4, 6.25, 2)">Check</button>
+            <span id="bldc-ex4-fb" class="feedback"></span>
+            <div class="hint">Vshunt = I × R, Vout = Vshunt × Gain</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 5:</strong> A BLDC driver switches at 20kHz with 95% max duty cycle. What is the minimum low-side ON time per cycle to refresh bootstrap?</p>
+            <input type="text" id="bldc-ex5" placeholder="Min LS ON time (µs)">
+            <button onclick="checkBLDC(5, 2.5, 5)">Check</button>
+            <span id="bldc-ex5-fb" class="feedback"></span>
+            <div class="hint">Period = 1/f, LS ON time = (1 - D) × Period</div>
+        </div>
+    </div>
+
+    <div class="exercise-group">
+        <h4>Level 3: Design Analysis</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 6:</strong> A 48V/50A BLDC controller uses MOSFETs with Qg = 80nC. At 20kHz switching, what is the total gate drive power for all 6 MOSFETs (P = Qg × Vgs × f)?</p>
+            <input type="text" id="bldc-ex6" placeholder="Gate drive power (W)">
+            <button onclick="checkBLDC(6, 0.115, 10)">Check</button>
+            <span id="bldc-ex6-fb" class="feedback"></span>
+            <div class="hint">P = 6 × Qg × Vgs × f, assume Vgs = 12V</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 7:</strong> Motor current sampling uses a 12-bit ADC with 3.3V reference. CSA gain is 20, shunt is 10mΩ. What is the current resolution (A per LSB)?</p>
+            <input type="text" id="bldc-ex7" placeholder="Resolution (mA/LSB)">
+            <button onclick="checkBLDC(7, 4.03, 3)">Check</button>
+            <span id="bldc-ex7-fb" class="feedback"></span>
+            <div class="hint">1 LSB = Vref/4096. Then I_lsb = V_lsb / (Gain × Rshunt)</div>
+        </div>
+    </div>
+
+    <script>
+    function checkBLDC(n, expected, tolerance) {
+        const ans = parseFloat(document.getElementById('bldc-ex' + n).value);
+        const fb = document.getElementById('bldc-ex' + n + '-fb');
+
+        if (isNaN(ans)) {
+            fb.textContent = 'Please enter a number';
+            fb.className = 'feedback incorrect';
+            return;
+        }
+
+        const error = Math.abs((ans - expected) / expected * 100);
+
+        if (error <= tolerance) {
+            fb.textContent = '✓ Correct!';
+            fb.className = 'feedback correct';
+        } else {
+            fb.textContent = '✗ Try again. Expected: ' + expected.toFixed(2);
+            fb.className = 'feedback incorrect';
+        }
+    }
+    </script>
+</section>
+
+<!-- References -->
+<section class="card">
+    <h3>Industry References</h3>
+    <ul>
+        <li><a href="https://www.diodes.com/assets/App-Note-Files/DN1156_Gate_Drivers_in_BLDC_motors.pdf" target="_blank">DN1156 - Gate Drivers in BLDC Motors (Diodes Inc)</a></li>
+        <li><a href="https://resources.altium.com/p/build-advanced-brushless-motor-controller" target="_blank">How to Make Advanced BLDC Motor Controllers (Altium)</a></li>
+        <li><a href="https://www.ti.com/lit/an/slua887a/slua887a.pdf" target="_blank">Bootstrap Circuitry Selection for Half-Bridge Configurations (TI)</a></li>
+        <li><strong>IR2110 Datasheet</strong> - Classic half-bridge gate driver</li>
+        <li><strong>DRV8323 Datasheet</strong> - Modern 3-phase smart gate driver</li>
+    </ul>
+</section>
+
+<script>
+// Low-Side Shunt Current Sensing Canvas
+(function() {
+    const canvas = document.getElementById('ls-shunt-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const cx = 250;
+
+    // Title
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Low-Side Shunt Current Sensing', cx, 25);
+
+    // Phase U Output label
+    ctx.font = '12px monospace';
+    ctx.fillStyle = TEK.ch4;
+    ctx.fillText('Phase U Output', cx, 55);
+
+    // Connection line from phase to MOSFET
+    ctx.strokeStyle = '#e6edf3';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, 65);
+    ctx.lineTo(cx, 90);
+    ctx.stroke();
+
+    // Low-Side MOSFET box
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 50, 90, 100, 60);
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('Q2 (LS)', cx, 115);
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('Low-Side MOSFET', cx, 135);
+
+    // Connection to shunt
+    ctx.strokeStyle = '#e6edf3';
+    ctx.beginPath();
+    ctx.moveTo(cx, 150);
+    ctx.lineTo(cx, 175);
+    ctx.stroke();
+
+    // Shunt Resistor box
+    ctx.strokeStyle = TEK.ch3;
+    ctx.strokeRect(cx - 50, 175, 100, 50);
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('R_sense', cx, 195);
+    ctx.font = '10px monospace';
+    ctx.fillText('(1-50mΩ)', cx, 212);
+
+    // Label "Shunt Resistor"
+    ctx.fillStyle = '#e6edf3';
+    ctx.textAlign = 'left';
+    ctx.fillText('Shunt Resistor', cx + 60, 200);
+
+    // Connection to GND
+    ctx.strokeStyle = '#e6edf3';
+    ctx.beginPath();
+    ctx.moveTo(cx, 225);
+    ctx.lineTo(cx, 255);
+    ctx.stroke();
+
+    // GND symbol
+    ctx.strokeStyle = TEK.ch2;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - 30, 255);
+    ctx.lineTo(cx + 30, 255);
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 20, 262);
+    ctx.lineTo(cx + 20, 262);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, 269);
+    ctx.lineTo(cx + 10, 269);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('GND', cx, 290);
+
+    // Equations on the right side
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '11px monospace';
+    const eqX = 320;
+    ctx.fillText('Voltage across shunt:', eqX, 100);
+    ctx.fillStyle = TEK.ch1;
+    ctx.fillText('V_sense = I_motor × R_sense', eqX, 120);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('Typical values:', eqX, 155);
+    ctx.fillText('R_sense = 10mΩ', eqX, 175);
+    ctx.fillText('I_max = 30A', eqX, 195);
+    ctx.fillStyle = TEK.ch4;
+    ctx.fillText('V_sense_max = 0.3V', eqX, 215);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('Use CSA (Current Sense', eqX, 250);
+    ctx.fillText('Amplifier) with 20-100x', eqX, 268);
+    ctx.fillText('gain for 0-3.3V ADC', eqX, 286);
+})();
+</script>
+
+</lesson-content>
+\n
+<script>
+(function () {
+    // Three-phase inverter bridge. Each leg was previously two labelled
+    // rectangles; they are real NMOS symbols now, so the half-bridge topology
+    // and the body-diode orientation are actually visible.
+    const host = document.getElementById('inverter-bridge-diagram');
+    if (!host || !window.ComponentModels) return;
+
+    const VBUS = 55, GND = 400, HS = 140, LS = 300, MID = 220;
+    const LEGS = [
+        { x: 165, hs: 'Q1', ls: 'Q2', phase: 'U' },
+        { x: 320, hs: 'Q3', ls: 'Q4', phase: 'V' },
+        { x: 475, hs: 'Q5', ls: 'Q6', phase: 'W' }
+    ];
+
+    const parts = [
+        { key: 'vcc',    x: 90, y: VBUS - 10, label: 'V+', value: '12–48 V', labelPos: 'left' },
+        { key: 'ground', x: 90, y: GND + 10 }
+    ];
+    const wires = [
+        [[90, VBUS], [LEGS[2].x + 15, VBUS]],     // DC+ bus
+        [[90, GND], [LEGS[2].x + 15, GND]]        // DC- bus
+    ];
+    const dots = [];
+    const texts = [];
+
+    LEGS.forEach(leg => {
+        const gx = leg.x + 15;                     // drain/source pin column
+        // Labels on the RIGHT: the gate ports added below occupy the space
+        // to the left of each device, and a left-placed label lands on them.
+        parts.push({ key: 'nmos', x: leg.x, y: HS, label: leg.hs, labelPos: 'right' });
+        parts.push({ key: 'nmos', x: leg.x, y: LS, label: leg.ls, labelPos: 'right' });
+        // drain of the high side up to the bus
+        wires.push([[gx, VBUS], [gx, HS - 35]]);
+        // high-side source down to the phase node, then into the low-side drain
+        wires.push([[gx, HS + 35], [gx, LS - 35]]);
+        // low-side source to the return bus
+        wires.push([[gx, LS + 35], [gx, GND]]);
+        // Phase output tap, terminated on a labelled port so the motor lead
+        // does not simply stop in empty space.
+        parts.push({ key: 'port', x: gx + 75, y: MID,
+                     label: leg.phase, labelPos: 'right' });
+        wires.push([[gx, MID], [gx + 60, MID]]);
+
+        // Gate drive. Without these six connections the bridge has no input
+        // at all, which is the one thing the figure exists to show. The gate
+        // pin sits at leg.x - 25; a port rotated 180 presents its pin at
+        // x + 15, so the port body goes at leg.x - 60 and the stub is 20 px.
+        [[HS, leg.hs], [LS, leg.ls]].forEach(pair => {
+            const y = pair[0], ref = pair[1];
+            parts.push({ key: 'port', x: leg.x - 60, y: y, rotate: 180,
+                         label: 'G' + ref.replace(/^Q/, ''), labelPos: 'top' });
+            wires.push([[leg.x - 45, y], [leg.x - 25, y]]);
+        });
+        dots.push([gx, VBUS], [gx, GND], [gx, MID]);
+        texts.push({ x: leg.x - 46, y: HS - 42, text: 'HS', size: 10, color: '#9fb0c0' });
+        texts.push({ x: leg.x - 46, y: LS - 42, text: 'LS', size: 10, color: '#9fb0c0' });
+    });
+
+    texts.push({ x: 320, y: 30, text: 'three-phase inverter bridge', size: 11 });
+
+    host.innerHTML = ComponentModels.diagram({
+        width: 640, height: 440, title: 'Three-phase inverter bridge',
+        parts: parts, wires: wires, dots: dots, texts: texts
+    });
+})();
+</script>

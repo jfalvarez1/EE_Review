@@ -1,120 +1,153 @@
-<!-- Module 19, Lesson 2: Power Supply Debugging -->
+<!-- Module 19, Lesson 2: SPI Signal Integrity -->
 <div class="lesson-content" data-module="19" data-lesson="2">
 
     <div class="card">
-        <h2>Power Supply Debugging</h2>
-        <p>Power supply issues cause many analog failures. Learn to identify noise, ripple, and regulation problems.</p>
+        <h2>SPI Signal Integrity</h2>
+        <p>SPI runs at higher speeds than I2C (up to 100MHz+) using push-pull drivers. This brings transmission line effects, crosstalk, and EMI challenges that require careful PCB design.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">DC Accuracy</div>
-                <div class="v">Use DMM, not scope</div>
+                <div class="k">SCLK</div>
+                <div class="v">Serial Clock (master drives)</div>
             </div>
             <div class="box">
-                <div class="k">Ripple/Noise</div>
-                <div class="v">AC coupled, BW limit</div>
+                <div class="k">MOSI</div>
+                <div class="v">Master Out, Slave In</div>
             </div>
             <div class="box">
-                <div class="k">Transient Response</div>
-                <div class="v">Load step test</div>
+                <div class="k">MISO</div>
+                <div class="v">Master In, Slave Out</div>
+            </div>
+            <div class="box">
+                <div class="k">CS/SS</div>
+                <div class="v">Chip Select (active low)</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> When measuring millivolts of ripple on a volt-level DC rail, AC coupling removes the DC offset. Use 20 MHz bandwidth limit to reject high-frequency probe noise.
+            <strong>Key Insight:</strong> Unlike I2C, SPI uses push-pull drivers providing fast, defined edge rates. At speeds above ~10MHz, trace lengths become significant fractions of wavelength and require controlled impedance and termination.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Power Supply Analysis</h3>
+        <h3>Interactive: SPI Transmission Line Effects</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="psu-vout">V<sub>OUT</sub> (V)</label>
-                <input type="text" id="psu-vout" value="3.3">
+                <label for="spi-freq">SPI Clock (MHz)</label>
+                <input type="range" id="spi-freq" min="1" max="100" step="1" value="25">
+                <span id="spi-freq-val" class="mono">25 MHz</span>
             </div>
             <div class="c3">
-                <label for="psu-ripple">Ripple (mV<sub>pp</sub>)</label>
-                <input type="range" id="psu-ripple" min="1" max="200" step="1" value="30">
-                <span id="psu-ripple-val" class="mono">30mV</span>
+                <label for="spi-length">Trace Length (cm)</label>
+                <input type="range" id="spi-length" min="1" max="30" step="1" value="10">
+                <span id="spi-length-val" class="mono">10 cm</span>
             </div>
             <div class="c3">
-                <label for="psu-freq">Switching Freq (kHz)</label>
-                <input type="range" id="psu-freq" min="50" max="2000" step="50" value="500">
-                <span id="psu-freq-val" class="mono">500kHz</span>
+                <label for="spi-z0">Z<sub>0</sub> (Ω)</label>
+                <input type="text" id="spi-z0" value="50">
             </div>
             <div class="c3">
-                <label for="psu-noise">HF Noise (mV)</label>
-                <input type="range" id="psu-noise" min="0" max="50" step="1" value="10">
-                <span id="psu-noise-val" class="mono">10mV</span>
+                <label for="spi-zdrv">Driver Z (Ω)</label>
+                <input type="text" id="spi-zdrv" value="25">
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="psu-canvas" width="980" height="300"></canvas>
+            <canvas id="spi-canvas" width="980" height="350"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Total Noise</div>
-                <div class="v mono" id="psu-total">—</div>
+                <div class="k">Wavelength</div>
+                <div class="v mono" id="spi-wavelength">—</div>
             </div>
             <div class="box">
-                <div class="k">% of V<sub>OUT</sub></div>
-                <div class="v mono" id="psu-percent">—</div>
+                <div class="k">Trace as λ fraction</div>
+                <div class="v mono" id="spi-fraction">—</div>
             </div>
             <div class="box">
-                <div class="k">ADC LSBs (12-bit)</div>
-                <div class="v mono" id="psu-lsb">—</div>
+                <div class="k">Propagation Delay</div>
+                <div class="v mono" id="spi-tpd">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Termination Needed?</div>
+                <div class="v mono" id="spi-term">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Measurement Setup</h3>
-        <div class="diagram-container">
-            <canvas id="power-measurement-canvas" width="800" height="500" style="width:100%;max-width:800px;background:#0d1117;border-radius:8px;"></canvas>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Common Power Problems</h3>
+        <h3>SPI Mode Definitions</h3>
 
         <table class="table">
             <tr>
-                <th>Symptom</th>
-                <th>Likely Cause</th>
-                <th>Debug Action</th>
+                <th>Mode</th>
+                <th>CPOL</th>
+                <th>CPHA</th>
+                <th>Clock Idle</th>
+                <th>Data Sample</th>
             </tr>
             <tr>
-                <td>Large ripple at f<sub>sw</sub></td>
-                <td>Insufficient output capacitance</td>
-                <td>Add bulk capacitor, check ESR</td>
+                <td>Mode 0</td>
+                <td>0</td>
+                <td>0</td>
+                <td>Low</td>
+                <td>Rising edge</td>
             </tr>
             <tr>
-                <td>Spikes at switching edges</td>
-                <td>Poor layout, high ESL</td>
-                <td>Add ceramic caps near switcher</td>
+                <td>Mode 1</td>
+                <td>0</td>
+                <td>1</td>
+                <td>Low</td>
+                <td>Falling edge</td>
             </tr>
             <tr>
-                <td>LF oscillation</td>
-                <td>Compensation issue, ESR too low</td>
-                <td>Check feedback network, add ESR</td>
+                <td>Mode 2</td>
+                <td>1</td>
+                <td>0</td>
+                <td>High</td>
+                <td>Falling edge</td>
             </tr>
             <tr>
-                <td>Voltage droop under load</td>
-                <td>Inadequate regulation, trace resistance</td>
-                <td>Measure at load, check feedback</td>
-            </tr>
-            <tr>
-                <td>Startup overshoot</td>
-                <td>Soft-start too fast</td>
-                <td>Increase soft-start cap</td>
+                <td>Mode 3</td>
+                <td>1</td>
+                <td>1</td>
+                <td>High</td>
+                <td>Rising edge</td>
             </tr>
         </table>
+    </div>
+
+    <div class="card">
+        <h3>PCB Design Guidelines</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Trace Length</div>
+                <div class="v">Keep < λ/10 for no termination</div>
+            </div>
+            <div class="box">
+                <div class="k">Impedance</div>
+                <div class="v">Match driver Z to trace Z<sub>0</sub></div>
+            </div>
+            <div class="box">
+                <div class="k">Length Matching</div>
+                <div class="v">Match SCLK, MOSI, MISO within 5mm</div>
+            </div>
+            <div class="box">
+                <div class="k">Ground Return</div>
+                <div class="v">Continuous ground plane under traces</div>
+            </div>
+        </div>
 
         <div class="warn">
-            <strong>Beware Ground Bounce:</strong> If you see noise that correlates with digital activity, you may be measuring ground bounce, not actual supply noise. Probe between VCC and local GND.
+            <strong>Termination Options:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li><strong>Series:</strong> 22-33Ω at driver output, matches Z<sub>0</sub></li>
+                <li><strong>Parallel:</strong> Z<sub>0</sub> to ground at receiver, high power</li>
+                <li><strong>AC (RC):</strong> Series R + shunt C, lower power</li>
+            </ul>
         </div>
     </div>
 
@@ -137,347 +170,259 @@
 
 <script>
 (function() {
-    const canvas = document.getElementById('psu-canvas');
+    const canvas = document.getElementById('spi-canvas');
     const ctx = canvas.getContext('2d');
 
     function update() {
-        const vout = AD.parseValue(document.getElementById('psu-vout').value) || 3.3;
-        const ripple = AD.num('psu-ripple');
-        const freq = AD.num('psu-freq');
-        const noise = AD.num('psu-noise');
+        const freq = AD.num('spi-freq') * 1e6;
+        const length = AD.num('spi-length') / 100; // cm to m
+        const z0 = AD.parseValue(document.getElementById('spi-z0').value) || 50;
+        const zdrv = AD.parseValue(document.getElementById('spi-zdrv').value) || 25;
 
-        document.getElementById('psu-ripple-val').textContent = ripple + 'mV';
-        document.getElementById('psu-freq-val').textContent = freq + 'kHz';
-        document.getElementById('psu-noise-val').textContent = noise + 'mV';
+        document.getElementById('spi-freq-val').textContent = (freq / 1e6) + ' MHz';
+        document.getElementById('spi-length-val').textContent = (length * 100) + ' cm';
 
-        // Total noise (RMS approximation)
-        const rippleRms = ripple / (2 * Math.sqrt(2)); // Triangle approximation
-        const noiseRms = noise / Math.sqrt(2);
-        const totalRms = Math.sqrt(rippleRms * rippleRms + noiseRms * noiseRms);
-        const totalPp = ripple + 2 * noise; // Peak-to-peak worst case
+        // Signal velocity in FR4 (approximately 0.5c)
+        const velocity = 0.5 * 3e8; // m/s
+        const wavelength = velocity / freq;
+        const fraction = length / wavelength;
+        const tpd = length / velocity;
 
-        document.getElementById('psu-total').textContent =
-            totalPp.toFixed(0) + 'mV pp (' + totalRms.toFixed(1) + 'mV rms)';
+        document.getElementById('spi-wavelength').textContent = AD.fmtUnit(wavelength, 'm');
+        document.getElementById('spi-fraction').textContent = (fraction * 100).toFixed(1) + '% of λ';
+        document.getElementById('spi-tpd').textContent = AD.fmtUnit(tpd, 's');
 
-        const percent = (totalPp / 1000 / vout) * 100;
-        const percentEl = document.getElementById('psu-percent');
-        percentEl.textContent = percent.toFixed(2) + '%';
-        percentEl.style.color = percent < 1 ? 'var(--ok)' : percent < 3 ? 'var(--warn)' : 'var(--bad)';
+        const termEl = document.getElementById('spi-term');
+        if (fraction < 0.1) {
+            termEl.textContent = 'No (< λ/10)';
+            termEl.style.color = 'var(--ok)';
+        } else if (fraction < 0.25) {
+            termEl.textContent = 'Recommended';
+            termEl.style.color = 'var(--warn)';
+        } else {
+            termEl.textContent = 'Required';
+            termEl.style.color = 'var(--bad)';
+        }
 
-        // How many LSBs for 12-bit ADC
-        const lsb12 = vout / 4096;
-        const noiseLsbs = (totalPp / 1000) / lsb12;
-        document.getElementById('psu-lsb').textContent = noiseLsbs.toFixed(1) + ' LSB';
-
-        plotPowerSupply(ripple, freq, noise);
+        plotSPI(freq, z0, zdrv, tpd, fraction);
     }
 
-    function plotPowerSupply(ripple, freq, noise) {
+    function plotSPI(freq, z0, zdrv, tpd, fraction) {
         const w = canvas.width;
         const h = canvas.height;
 
-        const period = 1 / (freq * 1e3);
-        const totalTime = period * 5; // Show 5 cycles
+        const period = 1 / freq;
+        const totalTime = 4 * period;
 
+        // Draw labeled axes
         const axes = AD.drawAxes(ctx, w, h, {
             xMin: 0,
             xMax: totalTime,
-            yMin: -ripple * 0.8,
-            yMax: ripple * 0.8,
+            yMin: -0.5,
+            yMax: 4,
             xLabel: 'Time',
-            yLabel: 'AC Ripple',
+            yLabel: 'Voltage',
             xUnit: 's',
-            yUnit: 'mV',
+            yUnit: 'V',
             xDivs: 10,
             yDivs: 8
         });
 
-        const N = 500;
+        // Generate SPI clock waveform with reflections
+        const N = 600;
         const tData = [];
-        const vData = [];
+        const vDriverData = [];
+        const vReceiverData = [];
+
+        const vcc = 3.3;
+        const riseTime = 2e-9; // 2ns rise time
+
+        // Reflection coefficient at receiver (assuming high-Z input)
+        const rhoLoad = (1e6 - z0) / (1e6 + z0); // ~1 (open circuit reflection)
+        const rhoDriver = (zdrv - z0) / (zdrv + z0);
 
         for (let i = 0; i < N; i++) {
             const t = (i / N) * totalTime;
             tData.push(t);
 
-            // Sawtooth ripple (typical switching regulator)
-            const phase = (t % period) / period;
-            let v = ripple * (phase - 0.5);
+            // Ideal clock at driver
+            const clockCycle = Math.floor(t / period);
+            const withinPeriod = t - clockCycle * period;
+            let vIdeal;
+            if (withinPeriod < period / 2) {
+                vIdeal = vcc;
+            } else {
+                vIdeal = 0;
+            }
 
-            // Add high-frequency noise
-            v += noise * (Math.random() - 0.5) * 2;
+            // Driver output with finite rise time
+            const edgePhase = withinPeriod % (period / 2);
+            let vDriver;
+            if (withinPeriod < period / 2) {
+                // Rising edge
+                if (edgePhase < riseTime) {
+                    vDriver = vcc * (edgePhase / riseTime);
+                } else {
+                    vDriver = vcc;
+                }
+            } else {
+                // Falling edge
+                if (edgePhase < riseTime) {
+                    vDriver = vcc * (1 - edgePhase / riseTime);
+                } else {
+                    vDriver = 0;
+                }
+            }
+            vDriverData.push(vDriver);
 
-            vData.push(v);
+            // Receiver sees delayed signal with reflections
+            let vReceiver = 0;
+            const numReflections = 5;
+
+            for (let r = 0; r <= numReflections; r++) {
+                const delay = (2 * r + 1) * tpd;
+                const tDelayed = t - delay;
+                if (tDelayed >= 0) {
+                    // Calculate what driver was doing at tDelayed
+                    const delayedCycle = Math.floor(tDelayed / period);
+                    const delayedWithin = tDelayed - delayedCycle * period;
+                    let delayedV;
+                    if (delayedWithin < period / 2) {
+                        const ep = delayedWithin;
+                        if (ep < riseTime) {
+                            delayedV = vcc * (ep / riseTime);
+                        } else {
+                            delayedV = vcc;
+                        }
+                    } else {
+                        const ep = delayedWithin - period / 2;
+                        if (ep < riseTime) {
+                            delayedV = vcc * (1 - ep / riseTime);
+                        } else {
+                            delayedV = 0;
+                        }
+                    }
+
+                    // Apply reflection coefficient
+                    const reflectionFactor = Math.pow(rhoLoad * rhoDriver, r) * (1 + rhoLoad);
+                    vReceiver += delayedV * reflectionFactor * (r === 0 ? 0.5 : 0.25); // Simplified
+                }
+            }
+
+            // Add overshoot/ringing based on impedance mismatch
+            if (fraction > 0.1) {
+                const ringing = 0.3 * Math.sin(2 * Math.PI * freq * 3 * t) * Math.exp(-t / (period * 2));
+                vReceiver += ringing * (fraction > 0.25 ? 1 : 0.5);
+            }
+
+            // Clamp and normalize
+            vReceiver = Math.max(0, Math.min(vcc * 1.3, vReceiver));
+            vReceiverData.push(vReceiver);
         }
 
-        AD.plotData(ctx, axes, tData, vData, {
+        // Plot driver output
+        AD.plotData(ctx, axes, tData, vDriverData, {
             color: 'rgba(110, 231, 255, 0.95)',
-            lineWidth: 1.5
+            lineWidth: 2,
+            label: 'Driver output'
         });
 
-        // Draw ripple envelope
-        ctx.save();
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
-        ctx.lineWidth = 1;
+        // Plot receiver input
+        AD.plotData(ctx, axes, tData, vReceiverData, {
+            color: 'rgba(251, 113, 133, 0.9)',
+            lineWidth: 2,
+            label: 'Receiver input'
+        });
 
-        const upperPt = axes.toCanvas(0, ripple / 2);
-        const lowerPt = axes.toCanvas(0, -ripple / 2);
-
-        ctx.beginPath();
-        ctx.moveTo(axes.left, upperPt.y);
-        ctx.lineTo(axes.left + axes.width, upperPt.y);
-        ctx.moveTo(axes.left, lowerPt.y);
-        ctx.lineTo(axes.left + axes.width, lowerPt.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.restore();
-
+        // Legend
         AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
-            { color: 'rgba(110, 231, 255, 0.95)', label: 'AC coupled measurement' },
-            { color: 'rgba(251, 191, 36, 0.5)', label: 'Ripple envelope' }
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'SCLK at driver' },
+            { color: 'rgba(251, 113, 133, 0.9)', label: 'SCLK at receiver' }
         ]);
+
+        // Add note about trace length effect
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '11px ui-sans-serif';
+        if (fraction > 0.25) {
+            ctx.fillStyle = 'rgba(251, 113, 133, 0.9)';
+            ctx.fillText('Significant ringing - termination required!', w - 280, h - 60);
+        } else if (fraction > 0.1) {
+            ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+            ctx.fillText('Some ringing - consider termination', w - 250, h - 60);
+        } else {
+            ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+            ctx.fillText('Clean signal - no termination needed', w - 250, h - 60);
+        }
+        ctx.restore();
     }
 
-    ['psu-vout', 'psu-ripple', 'psu-freq', 'psu-noise'].forEach(id => {
+    ['spi-freq', 'spi-length', 'spi-z0', 'spi-zdrv'].forEach(id => {
         document.getElementById(id).addEventListener('input', update);
     });
 
     update();
 
     new SpiceNetlistWidget('spice-container', {
-        title: 'Buck Regulator Output Analysis',
-        netlist: `* Buck Regulator Output Stage
-* Analyze ripple and transient response
+        title: 'SPI Transmission Line Model',
+        netlist: `* SPI Signal Integrity with Transmission Line
 
-* Switching node (simplified)
-VSW sw 0 PULSE(0 12 0 10n 10n 1u 2u)
+* Driver (push-pull CMOS)
+.SUBCKT DRIVER in out vcc gnd
+MP out in vcc vcc PMOS W=20u L=0.35u
+MN out in gnd gnd NMOS W=10u L=0.35u
+.MODEL PMOS PMOS (VTO=-0.7 KP=50u)
+.MODEL NMOS NMOS (VTO=0.7 KP=110u)
+.ENDS
 
-* Output LC filter
-L_OUT sw lx 10u
-R_DCR lx out 20m
+* Series termination resistor
+RTERM driver_out tline_in 33
 
-* Output capacitors
-C_BULK out 0 100u
-R_ESR_BULK out out_esr 10m
+* Transmission line (10cm, 50Ω, ~500ps delay)
+T1 tline_in 0 receiver_in 0 Z0=50 TD=500p
 
-C_MLCC out 0 22u
-R_ESR_MLCC out out_mlcc 2m
+* Receiver input capacitance
+CLOAD receiver_in 0 5p
 
-* Load current (step for transient test)
-ILOAD out 0 PWL(0 0.5 50u 0.5 50.1u 2 150u 2 150.1u 0.5)
+* Driver instance
+XDRV clk_in driver_out vcc 0 DRIVER
 
-.TRAN 0.1u 200u
+* Clock signal (25MHz)
+VCLK clk_in 0 PULSE(0 3.3 0 1n 1n 20n 40n)
 
-.PROBE V(out) I(L_OUT)
+* Supply
+VCC vcc 0 DC 3.3
+
+.TRAN 0.1n 200n
+
+.PROBE V(driver_out) V(receiver_in)
 .END
 
-* Observe:
-* - Steady-state ripple (switching frequency)
-* - Load transient response
-* - Voltage dip at load step`
+* Compare with/without RTERM to see ringing reduction
+* Try longer TD (transmission line delay) for longer traces`
     });
 
     new ChecklistWidget('checklist-container', {
-        lessonKey: 'm19l2',
+        lessonKey: 'm13l2',
         items: [
-            'Use AC coupling for ripple measurement',
-            'Apply 20MHz BW limit to reduce probe noise',
-            'Measure at load, not at regulator',
-            'Test with realistic load conditions',
-            'Check both steady-state and transient'
+            'Know SPI uses push-pull drivers',
+            'Calculate wavelength: λ = v/f, v ≈ 0.5c in FR4',
+            'Apply λ/10 rule for termination decision',
+            'Understand CPOL/CPHA mode definitions',
+            'Length-match clock and data traces'
         ]
     });
 
     new ExerciseWidget('exercise-container', {
-        id: 'D2-1',
+        id: 'M2-2',
         type: 'numeric',
-        question: 'A 3.3V rail has 50mVpp ripple. You are using it as ADC reference for a 12-bit ADC. How many LSBs of noise does this contribute?',
-        hint: 'LSB = Vref / 2^bits, Noise LSBs = Vripple / LSB',
-        expected: 62,
+        question: 'A 50MHz SPI clock runs on FR4 PCB (velocity ≈ 1.5×10⁸ m/s). What is the maximum unterminated trace length using the λ/10 rule?',
+        hint: 'λ = v/f, max length = λ/10',
+        expected: 30,
         tolerance: 0.1,
-        unit: 'LSB',
-        solution: 'LSB = 3.3V / 4096 = 0.806mV. Noise = 50mV / 0.806mV = 62 LSB',
-        explanation: '62 LSB of noise means you effectively lose 6 bits of resolution. This rail needs heavy filtering before use as ADC reference.'
+        unit: 'cm',
+        solution: 'λ = 1.5×10⁸ / 50×10⁶ = 3m, max length = 3m / 10 = 30cm',
+        explanation: 'At 50MHz, traces up to 30cm can work without termination. But adding series termination (22-33Ω) is good practice for robustness.'
     });
-})();
-
-// Power Measurement Setup Canvas
-(function() {
-    const canvas = document.getElementById('power-measurement-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
-
-    ctx.fillStyle = '#0d1117';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Title
-    ctx.fillStyle = TEK.ch1;
-    ctx.font = 'bold 14px monospace';
-    ctx.fillText('Power Supply Measurement Setup', 30, 30);
-
-    // Draw regulator block
-    ctx.strokeStyle = TEK.ch2;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(100, 100, 120, 80);
-    ctx.fillStyle = '#e6edf3';
-    ctx.font = '12px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('Switching', 160, 130);
-    ctx.fillText('Regulator', 160, 150);
-
-    // Input rail
-    ctx.strokeStyle = TEK.ch3;
-    ctx.beginPath();
-    ctx.moveTo(30, 140);
-    ctx.lineTo(100, 140);
-    ctx.stroke();
-    ctx.fillStyle = TEK.ch3;
-    ctx.textAlign = 'left';
-    ctx.fillText('VIN', 40, 130);
-
-    // Output rail
-    ctx.strokeStyle = TEK.ch4;
-    ctx.beginPath();
-    ctx.moveTo(220, 140);
-    ctx.lineTo(350, 140);
-    ctx.stroke();
-
-    // Output capacitor
-    ctx.strokeStyle = '#e6edf3';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(280, 140);
-    ctx.lineTo(280, 160);
-    ctx.moveTo(270, 160);
-    ctx.lineTo(290, 160);
-    ctx.moveTo(270, 170);
-    ctx.lineTo(290, 170);
-    ctx.moveTo(280, 170);
-    ctx.lineTo(280, 200);
-    ctx.stroke();
-    ctx.fillStyle = '#888';
-    ctx.font = '10px monospace';
-    ctx.fillText('COUT', 295, 170);
-
-    // Ground symbol
-    ctx.beginPath();
-    ctx.moveTo(280, 200);
-    ctx.lineTo(280, 210);
-    ctx.moveTo(270, 210);
-    ctx.lineTo(290, 210);
-    ctx.moveTo(273, 215);
-    ctx.lineTo(287, 215);
-    ctx.moveTo(276, 220);
-    ctx.lineTo(284, 220);
-    ctx.stroke();
-
-    // Load
-    ctx.strokeStyle = '#e6edf3';
-    ctx.strokeRect(360, 110, 80, 60);
-    ctx.fillStyle = '#e6edf3';
-    ctx.font = '11px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('LOAD', 400, 145);
-
-    ctx.beginPath();
-    ctx.moveTo(350, 140);
-    ctx.lineTo(360, 140);
-    ctx.stroke();
-
-    // Scope probe positions
-    ctx.fillStyle = TEK.ch1;
-    ctx.font = 'bold 11px monospace';
-    ctx.textAlign = 'left';
-
-    // Probe 1 - at regulator output
-    ctx.beginPath();
-    ctx.arc(250, 140, 8, 0, 2 * Math.PI);
-    ctx.fillStyle = 'rgba(255,255,0,0.3)';
-    ctx.fill();
-    ctx.strokeStyle = TEK.ch1;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = TEK.ch1;
-    ctx.fillText('Probe 1', 260, 125);
-    ctx.font = '10px monospace';
-    ctx.fillText('(At regulator)', 260, 138);
-
-    // Probe 2 - at load
-    ctx.beginPath();
-    ctx.arc(350, 140, 8, 0, 2 * Math.PI);
-    ctx.fillStyle = 'rgba(0,255,0,0.3)';
-    ctx.fill();
-    ctx.strokeStyle = TEK.ch4;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = TEK.ch4;
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('Probe 2', 330, 100);
-    ctx.font = '10px monospace';
-    ctx.fillText('(At load)', 330, 113);
-
-    // Ground clip position
-    ctx.fillStyle = '#fb7185';
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('GND Clip → Local ground near measurement point', 30, 260);
-
-    // Measurement tips box
-    ctx.strokeStyle = '#374151';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(450, 80, 320, 180);
-    ctx.fillStyle = TEK.ch2;
-    ctx.font = 'bold 12px monospace';
-    ctx.fillText('Measurement Tips:', 470, 105);
-
-    ctx.fillStyle = '#e6edf3';
-    ctx.font = '11px monospace';
-    const tips = [
-        '• Use spring ground, not long clip',
-        '• Set 20MHz BW limit for ripple',
-        '• AC couple for mV-level ripple',
-        '• Measure at load, not regulator',
-        '• Use probe tip directly on cap',
-        '• Document probe compensation'
-    ];
-    tips.forEach((tip, i) => {
-        ctx.fillText(tip, 470, 130 + i * 20);
-    });
-
-    // Waveform example
-    ctx.fillStyle = TEK.ch1;
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('Expected Waveform (AC coupled):', 30, 320);
-
-    // Draw simple ripple waveform
-    ctx.strokeStyle = TEK.ch2;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let x = 50; x < 380; x += 2) {
-        const y = 380 + 30 * Math.sin((x - 50) * 0.1) + (Math.random() - 0.5) * 8;
-        if (x === 50) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-
-    // Axis labels
-    ctx.fillStyle = '#888';
-    ctx.font = '10px monospace';
-    ctx.fillText('0V', 30, 385);
-    ctx.fillText('+', 30, 355);
-    ctx.fillText('-', 30, 415);
-    ctx.fillText('Time →', 350, 430);
-
-    // Ripple annotation
-    ctx.strokeStyle = TEK.ch3;
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath();
-    ctx.moveTo(400, 350);
-    ctx.lineTo(400, 410);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = TEK.ch3;
-    ctx.fillText('Vpp ripple', 410, 385);
 })();
 </script>

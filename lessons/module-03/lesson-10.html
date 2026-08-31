@@ -1,559 +1,896 @@
-<!-- Module 3, Lesson 10: Window Comparators -->
-<div class="lesson-content" data-module="3" data-lesson="10">
+<article class="lesson-content">
+    <p class="author-credit">Practical design examples integrating concepts from this module</p>
 
-    <div class="card">
-        <h2>Window Comparators</h2>
-        <p>Window comparators detect when an input voltage is within (or outside) a defined voltage range. They're essential for limit detection, fault monitoring, battery management, and go/no-go testing in production environments.</p>
+    <h2>Introduction</h2>
+    <p>This lesson presents complete feedback design case studies that integrate the concepts from this module. Each case study follows a systematic approach: specifications → analysis → design → verification.</p>
 
-        <div class="kv">
-            <div class="box">
-                <div class="k">In-Window</div>
-                <div class="v mono">V<sub>LO</sub> < V<sub>in</sub> < V<sub>HI</sub></div>
-            </div>
-            <div class="box">
-                <div class="k">Output States</div>
-                <div class="v">HIGH when in-window (typically)</div>
-            </div>
+    <h2>Case Study 1: Precision Instrumentation Amplifier</h2>
+
+    <div class="concept-box">
+        <h3>Specifications</h3>
+        <ul>
+            <li>Gain: 100 V/V (40 dB)</li>
+            <li>Bandwidth: 10 kHz minimum</li>
+            <li>Phase margin: ≥ 60°</li>
+            <li>Source impedance: Up to 10 kΩ</li>
+            <li>Load capacitance: Up to 100 pF (probe + cable)</li>
+        </ul>
+    </div>
+
+    <h3>Analysis</h3>
+    <p>For a non-inverting configuration with gain G = 100:</p>
+    <ul>
+        <li>Feedback factor: β = 1/100 = 0.01</li>
+        <li>Noise gain: 1/β = 100</li>
+        <li>Required GBW: Bandwidth × Noise gain = 10 kHz × 100 = 1 MHz minimum</li>
+    </ul>
+
+    <p>We'll use an op-amp with GBW = 10 MHz to provide margin. The closed-loop bandwidth will be approximately GBW × β = 10 MHz × 0.01 = 100 kHz.</p>
+
+    <h3>Stability Considerations</h3>
+    <p>The 100 pF capacitive load with the op-amp's output impedance (~50Ω at high frequency) creates a pole at:</p>
+    <div class="formula-box">
+        <p>f<sub>p,CL</sub> = 1/(2π × 50Ω × 100pF) = 31.8 MHz</p>
+    </div>
+    <p>This is well above our 100 kHz bandwidth, but let's verify with simulation.</p>
+
+    <h3>Interactive: Instrumentation Amp Analyzer</h3>
+    <div class="control-group">
+        <label>Op-Amp GBW (MHz): <input type="number" id="ia-gbw" value="10" min="1" max="100" step="1"></label>
+        <label>Gain (V/V): <input type="number" id="ia-gain" value="100" min="1" max="1000" step="10"></label>
+        <label>Load Cap (pF): <input type="number" id="ia-cload" value="100" min="10" max="1000" step="10"></label>
+        <label>Output Z (Ω): <input type="number" id="ia-zo" value="50" min="10" max="200" step="10"></label>
+        <button onclick="updateInstrumentationAmp()">Analyze</button>
+    </div>
+    <canvas id="ia-bode-canvas" width="700" height="350"></canvas>
+    <div id="ia-result" class="result-box"></div>
+
+    <h3>Design Solution</h3>
+    <div id="sch-instr-amp" class="schematic-placeholder" style="height: 180px;"></div>
+
+    <p><strong>Component selection:</strong></p>
+    <ul>
+        <li>Op-amp: OPAx177 or similar (10 MHz GBW, low noise)</li>
+        <li>R<sub>f</sub> = 99 kΩ, R<sub>in</sub> = 1 kΩ (for G = 100)</li>
+        <li>R<sub>iso</sub> = 100Ω (isolation resistor for capacitive load)</li>
+        <li>C<sub>f</sub> = 1 pF (optional feedback capacitor for additional stability margin)</li>
+    </ul>
+
+    <hr>
+
+    <h2>Case Study 2: Active Filter with High Q</h2>
+
+    <div class="concept-box">
+        <h3>Specifications</h3>
+        <ul>
+            <li>Type: Second-order bandpass filter</li>
+            <li>Center frequency: 1 kHz</li>
+            <li>Q factor: 10 (narrow bandwidth)</li>
+            <li>Gain at center frequency: 20 dB</li>
+        </ul>
+    </div>
+
+    <h3>The High-Q Challenge</h3>
+    <p>High-Q active filters are notorious for stability problems because:</p>
+    <ul>
+        <li>The filter poles are close to the jω axis (high Q means low damping)</li>
+        <li>The internal loop gain can be very high at resonance</li>
+        <li>Op-amp non-idealities become significant</li>
+    </ul>
+
+    <div class="warning-box">
+        <h4>Art of Electronics Warning</h4>
+        <p>For Q > 10, use state-variable or biquad topologies instead of Sallen-Key. The multiple-feedback (MFB) topology also handles high Q better than single op-amp designs.</p>
+    </div>
+
+    <h3>Design Approach: State Variable Filter</h3>
+    <p>The state variable topology uses three op-amps and provides independent control of Q, frequency, and gain:</p>
+
+    <canvas id="svf-block-canvas" width="600" height="200"></canvas>
+
+    <h3>Stability Analysis</h3>
+    <p>For Q = 10 at 1 kHz, the filter poles are at:</p>
+    <div class="formula-box">
+        <p>s = -ω<sub>0</sub>/(2Q) ± jω<sub>0</sub>√(1 - 1/(4Q²))</p>
+        <p>s ≈ -314 ± j6267 rad/s</p>
+        <p>The poles are very close to the jω axis (σ = -314, |jω| = 6267)</p>
+    </div>
+
+    <p>Each op-amp in the filter needs adequate phase margin at the frequencies where internal loop gain is high.</p>
+
+    <h3>Op-Amp Requirements</h3>
+    <table class="info-table">
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Requirement</th>
+                <th>Reasoning</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>GBW</td>
+                <td>> 100 × f<sub>0</sub> × Q = 1 MHz</td>
+                <td>Must maintain gain at resonance</td>
+            </tr>
+            <tr>
+                <td>Slew Rate</td>
+                <td>> 2π × f<sub>0</sub> × V<sub>peak</sub></td>
+                <td>Avoid slew limiting at full output</td>
+            </tr>
+            <tr>
+                <td>Output Current</td>
+                <td>Sufficient for Q-dependent peaking</td>
+                <td>Internal currents can be Q× higher</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <hr>
+
+    <h2>Case Study 3: Transimpedance Amplifier (Photodiode)</h2>
+
+    <div class="concept-box">
+        <h3>Specifications</h3>
+        <ul>
+            <li>Photodiode capacitance: 50 pF</li>
+            <li>Transimpedance: 100 kΩ</li>
+            <li>Bandwidth: 100 kHz</li>
+            <li>Phase margin: ≥ 45°</li>
+        </ul>
+    </div>
+
+    <h3>The TIA Stability Problem</h3>
+    <p>Transimpedance amplifiers are challenging because the photodiode capacitance C<sub>d</sub> creates a zero in the noise gain that peaks at high frequency:</p>
+
+    <div class="formula-box">
+        <h4>Noise Gain for TIA</h4>
+        <div class="formula">Noise Gain = 1 + C<sub>d</sub>/C<sub>f</sub> + jωR<sub>f</sub>C<sub>d</sub></div>
+        <p>The noise gain has a zero at f<sub>z</sub> = 1/(2πR<sub>f</sub>C<sub>d</sub>) and increases at 20 dB/decade above this.</p>
+        <p>If the noise gain crosses the open-loop gain with insufficient phase margin, the TIA oscillates.</p>
+    </div>
+
+    <h3>Interactive: TIA Stability Analyzer</h3>
+    <div class="control-group">
+        <label>R<sub>f</sub> (kΩ): <input type="number" id="tia-rf" value="100" min="1" max="1000" step="10"></label>
+        <label>C<sub>d</sub> (pF): <input type="number" id="tia-cd" value="50" min="1" max="500" step="5"></label>
+        <label>C<sub>f</sub> (pF): <input type="number" id="tia-cf" value="0.5" min="0.1" max="10" step="0.1"></label>
+        <label>GBW (MHz): <input type="number" id="tia-gbw" value="10" min="1" max="100" step="1"></label>
+        <button onclick="updateTIA()">Analyze</button>
+    </div>
+    <canvas id="tia-bode-canvas" width="700" height="400"></canvas>
+    <div id="tia-result" class="result-box"></div>
+
+    <h3>Design Solution</h3>
+    <p>The feedback capacitor C<sub>f</sub> is critical for stability. The optimal value balances bandwidth against stability:</p>
+
+    <div class="formula-box">
+        <h4>TIA Compensation Design</h4>
+        <p>For 45° phase margin:</p>
+        <div class="formula">C<sub>f</sub> = √(C<sub>d</sub> / (2π × R<sub>f</sub> × GBW))</div>
+        <p>For 50 pF diode, 100 kΩ, 10 MHz op-amp:</p>
+        <div class="formula">C<sub>f</sub> = √(50pF / (2π × 100kΩ × 10MHz)) = 0.28 pF</div>
+        <p>Use 0.3 pF or rely on parasitic capacitance.</p>
+
+        <h4>Resulting Bandwidth</h4>
+        <div class="formula">f<sub>-3dB</sub> = √(GBW / (2π × R<sub>f</sub> × C<sub>d</sub>))</div>
+        <p>= √(10MHz / (2π × 100kΩ × 50pF)) = 178 kHz</p>
+    </div>
+
+    <div id="sch-tia" class="schematic-placeholder" style="height: 180px;"></div>
+
+    <hr>
+
+    <h2>Case Study 4: Voltage Reference Buffer</h2>
+
+    <div class="concept-box">
+        <h3>Specifications</h3>
+        <ul>
+            <li>Input: 2.5V precision reference (high impedance output)</li>
+            <li>Output: Drive 10 mA into varying loads</li>
+            <li>Load capacitance: 0.1 μF to 10 μF (decoupling caps)</li>
+            <li>Settling time: < 10 μs to 0.1%</li>
+        </ul>
+    </div>
+
+    <h3>The Challenge</h3>
+    <p>Large capacitive loads create low-frequency poles that can severely degrade phase margin. A 10 μF capacitor with 50Ω output impedance creates a pole at only 318 Hz!</p>
+
+    <h3>Solution: Unity-Gain Stable Op-Amp with Output Stage</h3>
+    <p>Options for driving large capacitive loads:</p>
+
+    <table class="info-table">
+        <thead>
+            <tr>
+                <th>Approach</th>
+                <th>Pros</th>
+                <th>Cons</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>High output current op-amp</td>
+                <td>Simple, low output Z</td>
+                <td>Expensive, may still need compensation</td>
+            </tr>
+            <tr>
+                <td>Isolation resistor</td>
+                <td>Simple, cheap</td>
+                <td>Load regulation suffers</td>
+            </tr>
+            <tr>
+                <td>In-loop buffer transistor</td>
+                <td>High current, good regulation</td>
+                <td>Adds pole, needs careful design</td>
+            </tr>
+            <tr>
+                <td>Composite amplifier</td>
+                <td>Best performance</td>
+                <td>Complex, more components</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>In-Loop Buffer Design</h3>
+    <p>Using an NPN emitter follower inside the feedback loop:</p>
+
+    <div id="sch-buffer-loop" class="schematic-placeholder" style="height: 200px;"></div>
+
+    <div class="formula-box">
+        <h4>Stability Analysis</h4>
+        <p>The emitter follower adds a pole at approximately:</p>
+        <div class="formula">f<sub>p,buffer</sub> = g<sub>m</sub> / (2π × C<sub>load</sub>)</div>
+        <p>With I<sub>C</sub> = 10 mA, g<sub>m</sub> = 0.4 S:</p>
+        <div class="formula">f<sub>p</sub> = 0.4 / (2π × 10μF) = 6.4 kHz</div>
+        <p>This is manageable if the op-amp crossover is above this frequency with adequate margin.</p>
+    </div>
+
+    <h3>Interactive: Buffer Stability Check</h3>
+    <div class="control-group">
+        <label>Load Cap (μF): <input type="number" id="buf-cload" value="10" min="0.1" max="100" step="1"></label>
+        <label>Bias Current (mA): <input type="number" id="buf-ibias" value="10" min="1" max="100" step="1"></label>
+        <label>Op-Amp GBW (MHz): <input type="number" id="buf-gbw" value="10" min="1" max="50" step="1"></label>
+        <button onclick="updateBuffer()">Analyze</button>
+    </div>
+    <div id="buffer-result" class="result-box"></div>
+
+    <hr>
+
+    <h2>Design Checklist</h2>
+
+    <div class="concept-box">
+        <h3>Feedback System Design Verification</h3>
+        <ol>
+            <li><strong>Define loop gain:</strong> T(s) = A(s) × β(s)</li>
+            <li><strong>Identify all poles and zeros</strong> in the loop gain</li>
+            <li><strong>Calculate crossover frequency</strong> where |T| = 1</li>
+            <li><strong>Check phase margin:</strong> PM = 180° + ∠T(jω<sub>c</sub>) ≥ 45°</li>
+            <li><strong>Check gain margin:</strong> GM = 1/|T| at -180° phase ≥ 6 dB</li>
+            <li><strong>Verify capacitive load handling:</strong> Add isolation or compensation</li>
+            <li><strong>Check over temperature and process variation</strong></li>
+            <li><strong>Simulate step response:</strong> Look for ringing, overshoot</li>
+            <li><strong>Prototype and measure:</strong> Real circuits have parasitics!</li>
+        </ol>
+    </div>
+
+    <h2>Common Mistakes Summary</h2>
+
+    <div class="warning-box">
+        <h4>Feedback Design Pitfalls</h4>
+        <ol>
+            <li><strong>Ignoring capacitive loads:</strong> Cables, PCB traces, and input capacitances all add load</li>
+            <li><strong>Forgetting about power supply rejection:</strong> High-frequency noise can couple through poor PSRR</li>
+            <li><strong>Insufficient decoupling:</strong> Creates local oscillations</li>
+            <li><strong>Not considering startup:</strong> Systems may be unstable during power-up transients</li>
+            <li><strong>Over-relying on simulation:</strong> Models don't include all parasitics</li>
+            <li><strong>Ignoring component tolerances:</strong> Phase margin must be robust to variations</li>
+            <li><strong>Using wrong op-amp topology:</strong> Decompensated op-amps need external compensation</li>
+        </ol>
+    </div>
+
+    <h2>Exercises</h2>
+    <div id="exercises-container">
+        <div class="exercise-widget" data-exercise="1">
+            <p class="exercise-problem"><strong>Exercise 1:</strong> A transimpedance amplifier has R<sub>f</sub> = 1 MΩ, C<sub>d</sub> = 10 pF, and uses an op-amp with GBW = 5 MHz. What feedback capacitor C<sub>f</sub> is needed for 45° phase margin?</p>
+            <input type="text" id="ex1-input" placeholder="Enter Cf in pF">
+            <button onclick="checkEx1()">Check Answer</button>
+            <div id="ex1-result"></div>
+        </div>
+
+        <div class="exercise-widget" data-exercise="2">
+            <p class="exercise-problem"><strong>Exercise 2:</strong> An op-amp buffer with GBW = 20 MHz drives a 1 μF load through a 10Ω isolation resistor. At what frequency does the isolation resistor create a stabilizing zero?</p>
+            <input type="text" id="ex2-input" placeholder="Enter frequency in kHz">
+            <button onclick="checkEx2()">Check Answer</button>
+            <div id="ex2-result"></div>
+        </div>
+
+        <div class="exercise-widget" data-exercise="3">
+            <p class="exercise-problem"><strong>Exercise 3:</strong> For a non-inverting amplifier with gain = 10, what minimum op-amp GBW is needed to achieve 100 kHz bandwidth with at least one decade of margin?</p>
+            <input type="text" id="ex3-input" placeholder="Enter GBW in MHz">
+            <button onclick="checkEx3()">Check Answer</button>
+            <div id="ex3-result"></div>
         </div>
     </div>
 
-    <div class="card">
-        <h3>Basic Window Comparator Circuit</h3>
-        <p>Two comparators with open-drain/open-collector outputs create an AND function:</p>
+    <script>
+    (function() {
+        const iaCanvas = document.getElementById('ia-bode-canvas');
+        if (!iaCanvas || typeof AD === 'undefined') return;
+        const iaCtx = iaCanvas.getContext('2d');
+        const TEK = AD.TEK_COLORS;
 
-        <svg viewBox="0 0 600 340" class="circuit-diagram" style="max-width: 600px; margin: 1rem auto; display: block;">
-            <!-- Input -->
-            <text x="40" y="170" fill="rgba(110, 231, 255, 0.9)" font-size="11">V<tspan baseline-shift="sub" font-size="8">in</tspan></text>
-            <line x1="60" y1="165" x2="100" y2="165" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <circle cx="100" cy="165" r="3" fill="rgba(110, 231, 255, 0.9)"/>
+        window.updateInstrumentationAmp = function() {
+            const gbw = AD.num('ia-gbw') * 1e6;
+            const gain = AD.num('ia-gain');
+            const cload = AD.num('ia-cload') * 1e-12;
+            const zo = AD.num('ia-zo');
 
-            <!-- Upper comparator U1 -->
-            <path d="M 180 70 L 180 130 L 240 100 Z" fill="none" stroke="rgba(52, 211, 153, 0.9)" stroke-width="2"/>
-            <text x="190" y="93" fill="rgba(200,200,200,0.8)" font-size="10">−</text>
-            <text x="190" y="115" fill="rgba(200,200,200,0.8)" font-size="10">+</text>
-            <text x="205" y="103" fill="rgba(52, 211, 153, 0.9)" font-size="9">U1</text>
+            const w = iaCanvas.width, h = iaCanvas.height;
+            const margin = { left: 60, right: 30, top: 30, bottom: 40 };
+            const plotW = w - margin.left - margin.right;
+            const plotH = h - margin.top - margin.bottom;
 
-            <!-- Lower comparator U2 -->
-            <path d="M 180 200 L 180 260 L 240 230 Z" fill="none" stroke="rgba(251, 146, 60, 0.9)" stroke-width="2"/>
-            <text x="190" y="223" fill="rgba(200,200,200,0.8)" font-size="10">+</text>
-            <text x="190" y="245" fill="rgba(200,200,200,0.8)" font-size="10">−</text>
-            <text x="205" y="233" fill="rgba(251, 146, 60, 0.9)" font-size="9">U2</text>
+            iaCtx.fillStyle = '#0d1117';
+            iaCtx.fillRect(0, 0, w, h);
 
-            <!-- Input to both comparators -->
-            <line x1="100" y1="165" x2="100" y2="108" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <line x1="100" y1="108" x2="180" y2="108" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <line x1="100" y1="165" x2="100" y2="218" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <line x1="100" y1="218" x2="180" y2="218" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
+            const fMin = 10, fMax = 100e6;
+            const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
 
-            <!-- VHI reference to U1 inverting input -->
-            <line x1="130" y1="92" x2="180" y2="92" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <text x="110" y="95" fill="rgba(251, 113, 133, 0.9)" font-size="10">V<tspan baseline-shift="sub" font-size="8">HI</tspan></text>
+            function freqToX(f) {
+                return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
+            }
 
-            <!-- VLO reference to U2 inverting input -->
-            <line x1="130" y1="248" x2="180" y2="248" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <text x="110" y="252" fill="rgba(251, 113, 133, 0.9)" font-size="10">V<tspan baseline-shift="sub" font-size="8">LO</tspan></text>
+            const dBMin = -20, dBMax = 100;
+            function dBToY(dB) {
+                return margin.top + plotH - (dB - dBMin) / (dBMax - dBMin) * plotH;
+            }
 
-            <!-- U1 output -->
-            <line x1="240" y1="100" x2="300" y2="100" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <circle cx="300" cy="100" r="3" fill="rgba(110, 231, 255, 0.9)"/>
+            // Grid
+            iaCtx.strokeStyle = '#333';
+            iaCtx.lineWidth = 1;
+            for (let dB = 0; dB <= 100; dB += 20) {
+                const y = dBToY(dB);
+                iaCtx.beginPath();
+                iaCtx.moveTo(margin.left, y);
+                iaCtx.lineTo(w - margin.right, y);
+                iaCtx.stroke();
+                iaCtx.fillStyle = '#888';
+                iaCtx.font = '10px monospace';
+                iaCtx.textAlign = 'right';
+                iaCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
+            }
 
-            <!-- U2 output -->
-            <line x1="240" y1="230" x2="300" y2="230" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <circle cx="300" cy="230" r="3" fill="rgba(110, 231, 255, 0.9)"/>
+            // Open-loop gain
+            const A0 = 1e6; // 120 dB
+            function openLoopGain(f) {
+                return 20 * Math.log10(A0 / (1 + f * A0 / gbw));
+            }
 
-            <!-- Wired-AND connection -->
-            <line x1="300" y1="100" x2="300" y2="165" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <line x1="300" y1="165" x2="300" y2="230" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <circle cx="300" cy="165" r="3" fill="rgba(110, 231, 255, 0.9)"/>
+            // Noise gain (1/β)
+            function noiseGain(f) {
+                return 20 * Math.log10(gain);
+            }
 
-            <!-- Pull-up resistor -->
-            <line x1="300" y1="100" x2="300" y2="50" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <rect x="287" y="50" width="26" height="35" fill="none" stroke="rgba(251, 146, 60, 0.9)" stroke-width="2"/>
-            <text x="320" y="70" fill="rgba(251, 146, 60, 0.9)" font-size="10">R<tspan baseline-shift="sub" font-size="8">P</tspan></text>
-            <line x1="300" y1="50" x2="300" y2="30" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <text x="290" y="25" fill="rgba(200,200,200,0.6)" font-size="10">V+</text>
+            // Loop gain with capacitive load pole
+            const fpCL = 1 / (2 * Math.PI * zo * cload);
 
-            <!-- Output -->
-            <line x1="300" y1="165" x2="380" y2="165" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <text x="390" y="170" fill="rgba(52, 211, 153, 0.9)" font-size="11">V<tspan baseline-shift="sub" font-size="8">out</tspan></text>
+            iaCtx.strokeStyle = TEK.yellow;
+            iaCtx.lineWidth = 2;
+            iaCtx.beginPath();
+            let first = true;
+            for (let i = 0; i <= 400; i++) {
+                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
+                let dB = openLoopGain(f);
+                dB -= 20 * Math.log10(Math.sqrt(1 + (f/fpCL)**2)); // Add CL pole
+                const x = freqToX(f), y = Math.max(margin.top, Math.min(h - margin.bottom, dBToY(dB)));
+                if (first) { iaCtx.moveTo(x, y); first = false; }
+                else iaCtx.lineTo(x, y);
+            }
+            iaCtx.stroke();
 
-            <!-- Open-drain symbols -->
-            <text x="265" y="95" fill="rgba(200,200,200,0.6)" font-size="8">OD</text>
-            <text x="265" y="225" fill="rgba(200,200,200,0.6)" font-size="8">OD</text>
+            // Noise gain line
+            iaCtx.strokeStyle = TEK.cyan;
+            iaCtx.setLineDash([5, 5]);
+            iaCtx.beginPath();
+            iaCtx.moveTo(margin.left, dBToY(noiseGain(10)));
+            iaCtx.lineTo(w - margin.right, dBToY(noiseGain(10)));
+            iaCtx.stroke();
+            iaCtx.setLineDash([]);
 
-            <!-- Transfer function graph -->
-            <rect x="420" y="50" width="160" height="120" fill="rgba(0,0,0,0.3)" stroke="rgba(255,255,255,0.2)"/>
-            <text x="500" y="45" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="10">Transfer Function</text>
+            // Find crossover
+            let fc = 0;
+            for (let f = 10; f < fMax; f *= 1.1) {
+                const ol = openLoopGain(f) - 20 * Math.log10(Math.sqrt(1 + (f/fpCL)**2));
+                const ng = noiseGain(f);
+                if (ol < ng) {
+                    fc = f;
+                    break;
+                }
+            }
 
-            <!-- Axes -->
-            <line x1="440" y1="150" x2="560" y2="150" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
-            <line x1="440" y1="150" x2="440" y2="60" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
-            <text x="555" y="165" fill="rgba(200,200,200,0.6)" font-size="8">V<tspan baseline-shift="sub" font-size="6">in</tspan></text>
-            <text x="425" y="65" fill="rgba(200,200,200,0.6)" font-size="8">V<tspan baseline-shift="sub" font-size="6">out</tspan></text>
+            // Mark crossover
+            iaCtx.strokeStyle = TEK.green;
+            iaCtx.lineWidth = 2;
+            iaCtx.setLineDash([5, 5]);
+            iaCtx.beginPath();
+            iaCtx.moveTo(freqToX(fc), margin.top);
+            iaCtx.lineTo(freqToX(fc), h - margin.bottom);
+            iaCtx.stroke();
+            iaCtx.setLineDash([]);
 
-            <!-- Window response -->
-            <line x1="440" y1="140" x2="475" y2="140" stroke="rgba(52, 211, 153, 0.9)" stroke-width="2"/>
-            <line x1="475" y1="140" x2="475" y2="70" stroke="rgba(52, 211, 153, 0.9)" stroke-width="2"/>
-            <line x1="475" y1="70" x2="525" y2="70" stroke="rgba(52, 211, 153, 0.9)" stroke-width="2"/>
-            <line x1="525" y1="70" x2="525" y2="140" stroke="rgba(52, 211, 153, 0.9)" stroke-width="2"/>
-            <line x1="525" y1="140" x2="560" y2="140" stroke="rgba(52, 211, 153, 0.9)" stroke-width="2"/>
+            // Frequency labels
+            for (let exp = 1; exp <= 8; exp++) {
+                const f = Math.pow(10, exp);
+                if (f >= fMin && f <= fMax) {
+                    const x = freqToX(f);
+                    iaCtx.fillStyle = '#888';
+                    iaCtx.textAlign = 'center';
+                    const label = exp === 1 ? '10' : exp === 2 ? '100' : exp === 3 ? '1k' : exp === 4 ? '10k' : exp === 5 ? '100k' : exp === 6 ? '1M' : exp === 7 ? '10M' : '100M';
+                    iaCtx.fillText(label, x, h - margin.bottom + 15);
+                }
+            }
 
-            <!-- Threshold markers -->
-            <line x1="475" y1="145" x2="475" y2="155" stroke="rgba(251, 113, 133, 0.8)" stroke-width="1"/>
-            <text x="475" y="168" text-anchor="middle" fill="rgba(251, 113, 133, 0.8)" font-size="8">V<tspan baseline-shift="sub" font-size="6">LO</tspan></text>
-            <line x1="525" y1="145" x2="525" y2="155" stroke="rgba(251, 113, 133, 0.8)" stroke-width="1"/>
-            <text x="525" y="168" text-anchor="middle" fill="rgba(251, 113, 133, 0.8)" font-size="8">V<tspan baseline-shift="sub" font-size="6">HI</tspan></text>
+            // Legend
+            iaCtx.fillStyle = TEK.yellow;
+            iaCtx.fillRect(w - 180, 10, 15, 10);
+            iaCtx.fillStyle = '#fff';
+            iaCtx.textAlign = 'left';
+            iaCtx.fillText('Open Loop (with CL pole)', w - 160, 18);
+            iaCtx.fillStyle = TEK.cyan;
+            iaCtx.fillRect(w - 180, 25, 15, 10);
+            iaCtx.fillStyle = '#fff';
+            iaCtx.fillText('Noise Gain (1/β)', w - 160, 33);
 
-            <!-- Logic table -->
-            <text x="460" y="210" fill="rgba(255,255,255,0.7)" font-size="10">Logic:</text>
-            <text x="460" y="230" fill="rgba(200,200,200,0.6)" font-size="9">V<tspan baseline-shift="sub" font-size="7">in</tspan> < V<tspan baseline-shift="sub" font-size="7">LO</tspan>: OUT=LOW</text>
-            <text x="460" y="250" fill="rgba(52, 211, 153, 0.8)" font-size="9">V<tspan baseline-shift="sub" font-size="7">LO</tspan> < V<tspan baseline-shift="sub" font-size="7">in</tspan> < V<tspan baseline-shift="sub" font-size="7">HI</tspan>: OUT=HIGH</text>
-            <text x="460" y="270" fill="rgba(200,200,200,0.6)" font-size="9">V<tspan baseline-shift="sub" font-size="7">in</tspan> > V<tspan baseline-shift="sub" font-size="7">HI</tspan>: OUT=LOW</text>
-        </svg>
-    </div>
+            // Calculate closed-loop bandwidth
+            const clBW = gbw / gain;
 
-    <div class="card">
-        <h3>Interactive: Window Comparator Designer</h3>
-        <p>Set the window thresholds and observe the output:</p>
+            const result = document.getElementById('ia-result');
+            result.innerHTML = `
+                <strong>Closed-loop Bandwidth:</strong> ${AD.fmtUnit(clBW, 'Hz')}<br>
+                <strong>Noise Gain:</strong> ${gain} (${(20*Math.log10(gain)).toFixed(1)} dB)<br>
+                <strong>Capacitive Load Pole:</strong> ${AD.fmtUnit(fpCL, 'Hz')}<br>
+                <strong>Loop Crossover:</strong> ${AD.fmtUnit(fc, 'Hz')}<br>
+                <strong>Status:</strong> ${fpCL > 10 * fc ? '<span style="color:' + TEK.green + '">CL pole well above crossover - stable</span>' : '<span style="color:' + TEK.yellow + '">Consider adding isolation resistor</span>'}
+            `;
+        };
 
-        <div class="controls">
-            <div class="c3">
-                <label for="win-vlo">V<sub>LO</sub> Threshold (V)</label>
-                <input type="text" id="win-vlo" value="2">
-            </div>
-            <div class="c3">
-                <label for="win-vhi">V<sub>HI</sub> Threshold (V)</label>
-                <input type="text" id="win-vhi" value="4">
-            </div>
-            <div class="c3">
-                <label for="win-hyst">Hysteresis (V)</label>
-                <input type="text" id="win-hyst" value="0.1">
-            </div>
-        </div>
+        // TIA analyzer
+        const tiaCanvas = document.getElementById('tia-bode-canvas');
+        if (tiaCanvas) {
+            const tiaCtx = tiaCanvas.getContext('2d');
 
-        <div class="controls">
-            <div class="c6">
-                <label for="win-vin">Input Voltage (V)</label>
-                <input type="range" id="win-vin" min="0" max="5" step="0.01" value="3">
-                <span id="win-vin-val" class="mono">3.00V</span>
-            </div>
-        </div>
+            window.updateTIA = function() {
+                const Rf = AD.num('tia-rf') * 1000;
+                const Cd = AD.num('tia-cd') * 1e-12;
+                const Cf = AD.num('tia-cf') * 1e-12;
+                const gbw = AD.num('tia-gbw') * 1e6;
 
-        <div class="canvas-wrap">
-            <canvas id="win-canvas" width="980" height="280"></canvas>
-        </div>
+                const w = tiaCanvas.width, h = tiaCanvas.height;
+                const margin = { left: 60, right: 30, top: 30, bottom: 50 };
+                const plotW = w - margin.left - margin.right;
+                const plotH = (h - margin.top - margin.bottom - 20) / 2;
 
-        <div class="kv">
-            <div class="box">
-                <div class="k">Window Width</div>
-                <div class="v mono" id="win-width">—</div>
-            </div>
-            <div class="box">
-                <div class="k">Center Voltage</div>
-                <div class="v mono" id="win-center">—</div>
-            </div>
-            <div class="box">
-                <div class="k">Input Status</div>
-                <div class="v mono" id="win-status">—</div>
-            </div>
-            <div class="box">
-                <div class="k">Output</div>
-                <div class="v mono" id="win-out">—</div>
-            </div>
-        </div>
-    </div>
+                tiaCtx.fillStyle = '#0d1117';
+                tiaCtx.fillRect(0, 0, w, h);
 
-    <div class="card">
-        <h3>Adding Hysteresis</h3>
-        <p>Hysteresis prevents output chattering when Vin is near a threshold:</p>
+                const fMin = 10, fMax = 100e6;
+                const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
 
-        <svg viewBox="0 0 500 200" class="circuit-diagram" style="max-width: 500px; margin: 1rem auto; display: block;">
-            <!-- Without hysteresis -->
-            <text x="125" y="25" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">Without Hysteresis</text>
+                function freqToX(f) {
+                    return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
+                }
 
-            <line x1="30" y1="100" x2="220" y2="100" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+                const magTop = margin.top;
+                const magBot = margin.top + plotH;
+                const dBMin = -20, dBMax = 100;
 
-            <!-- Noisy input crossing threshold -->
-            <path d="M 50 140 Q 70 120 90 130 Q 110 100 130 110 Q 150 90 170 100 Q 190 110 210 90"
-                  fill="none" stroke="rgba(110, 231, 255, 0.8)" stroke-width="1.5"/>
+                function dBToY(dB) {
+                    return magBot - (dB - dBMin) / (dBMax - dBMin) * plotH;
+                }
 
-            <!-- Threshold line -->
-            <line x1="30" y1="105" x2="220" y2="105" stroke="rgba(251, 113, 133, 0.6)" stroke-width="1" stroke-dasharray="3,3"/>
-            <text x="20" y="108" fill="rgba(251, 113, 133, 0.8)" font-size="8">V<tspan baseline-shift="sub" font-size="6">TH</tspan></text>
+                // Grid
+                tiaCtx.strokeStyle = '#333';
+                tiaCtx.lineWidth = 1;
+                for (let dB = 0; dB <= 100; dB += 20) {
+                    const y = dBToY(dB);
+                    tiaCtx.beginPath();
+                    tiaCtx.moveTo(margin.left, y);
+                    tiaCtx.lineTo(w - margin.right, y);
+                    tiaCtx.stroke();
+                    tiaCtx.fillStyle = '#888';
+                    tiaCtx.font = '10px monospace';
+                    tiaCtx.textAlign = 'right';
+                    tiaCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
+                }
 
-            <!-- Chattering output -->
-            <path d="M 50 170 L 70 170 L 70 160 L 85 160 L 85 170 L 95 170 L 95 160 L 110 160 L 110 170 L 125 170 L 125 160 L 145 160 L 145 170 L 160 170 L 160 160 L 175 160 L 175 170 L 190 170 L 190 160 L 210 160"
-                  fill="none" stroke="rgba(251, 113, 133, 0.9)" stroke-width="2"/>
+                // Open-loop gain
+                const A0 = 1e6;
+                function openLoopMag(f) {
+                    return 20 * Math.log10(A0 / (1 + f * A0 / gbw));
+                }
 
-            <text x="125" y="195" text-anchor="middle" fill="rgba(251, 113, 133, 0.8)" font-size="9">Multiple transitions (chattering)</text>
+                // Noise gain magnitude
+                function noiseGainMag(f) {
+                    const omega = 2 * Math.PI * f;
+                    // 1 + Cd/Cf + jωRf*Cd, then add Cf zero at high frequency
+                    // Simplified: rises at 20dB/dec above fz = 1/(2πRfCd)
+                    const fz = 1 / (2 * Math.PI * Rf * Cd);
+                    const fp = 1 / (2 * Math.PI * Rf * Cf);
+                    let ng = 1 + Cd / Cf;
+                    ng *= Math.sqrt(1 + (f / fz) ** 2);
+                    ng /= Math.sqrt(1 + (f / fp) ** 2);
+                    return 20 * Math.log10(ng);
+                }
 
-            <!-- With hysteresis -->
-            <text x="375" y="25" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">With Hysteresis</text>
+                // Loop gain = open loop - noise gain (in dB)
+                function loopGainMag(f) {
+                    return openLoopMag(f) - noiseGainMag(f);
+                }
 
-            <line x1="280" y1="100" x2="470" y2="100" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+                // Draw open-loop
+                tiaCtx.strokeStyle = TEK.yellow;
+                tiaCtx.lineWidth = 2;
+                tiaCtx.beginPath();
+                let first = true;
+                for (let i = 0; i <= 400; i++) {
+                    const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
+                    const dB = openLoopMag(f);
+                    const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
+                    if (first) { tiaCtx.moveTo(x, y); first = false; }
+                    else tiaCtx.lineTo(x, y);
+                }
+                tiaCtx.stroke();
 
-            <!-- Same noisy input -->
-            <path d="M 300 140 Q 320 120 340 130 Q 360 100 380 110 Q 400 90 420 100 Q 440 110 460 90"
-                  fill="none" stroke="rgba(110, 231, 255, 0.8)" stroke-width="1.5"/>
+                // Draw noise gain
+                tiaCtx.strokeStyle = TEK.cyan;
+                tiaCtx.beginPath();
+                first = true;
+                for (let i = 0; i <= 400; i++) {
+                    const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
+                    const dB = noiseGainMag(f);
+                    const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
+                    if (first) { tiaCtx.moveTo(x, y); first = false; }
+                    else tiaCtx.lineTo(x, y);
+                }
+                tiaCtx.stroke();
 
-            <!-- Upper threshold -->
-            <line x1="280" y1="100" x2="470" y2="100" stroke="rgba(251, 146, 60, 0.6)" stroke-width="1" stroke-dasharray="3,3"/>
-            <text x="475" y="103" fill="rgba(251, 146, 60, 0.8)" font-size="8">V<tspan baseline-shift="sub" font-size="6">TH+</tspan></text>
+                // Find intersection (crossover)
+                let fc = 0;
+                for (let f = 10; f < fMax; f *= 1.05) {
+                    if (loopGainMag(f) < 0) {
+                        fc = f;
+                        break;
+                    }
+                }
 
-            <!-- Lower threshold -->
-            <line x1="280" y1="115" x2="470" y2="115" stroke="rgba(251, 146, 60, 0.6)" stroke-width="1" stroke-dasharray="3,3"/>
-            <text x="475" y="118" fill="rgba(251, 146, 60, 0.8)" font-size="8">V<tspan baseline-shift="sub" font-size="6">TH−</tspan></text>
+                // Mark crossover
+                tiaCtx.strokeStyle = TEK.green;
+                tiaCtx.setLineDash([5, 5]);
+                tiaCtx.beginPath();
+                tiaCtx.moveTo(freqToX(fc), magTop);
+                tiaCtx.lineTo(freqToX(fc), magBot);
+                tiaCtx.stroke();
+                tiaCtx.setLineDash([]);
 
-            <!-- Clean output -->
-            <path d="M 300 170 L 380 170 L 380 160 L 460 160"
-                  fill="none" stroke="rgba(52, 211, 153, 0.9)" stroke-width="2"/>
+                // Phase plot
+                const phTop = magBot + 30;
+                const phBot = h - margin.bottom;
+                const phPlotH = phBot - phTop;
+                const phMin = -180, phMax = 0;
 
-            <text x="375" y="195" text-anchor="middle" fill="rgba(52, 211, 153, 0.8)" font-size="9">Clean single transition</text>
-        </svg>
-    </div>
+                function phToY(ph) {
+                    return phBot - (ph - phMin) / (phMax - phMin) * phPlotH;
+                }
 
-    <div class="card">
-        <h3>Dedicated Window Comparator ICs</h3>
+                // Phase grid
+                tiaCtx.strokeStyle = '#333';
+                for (let ph = -180; ph <= 0; ph += 45) {
+                    const y = phToY(ph);
+                    tiaCtx.beginPath();
+                    tiaCtx.moveTo(margin.left, y);
+                    tiaCtx.lineTo(w - margin.right, y);
+                    tiaCtx.stroke();
+                    tiaCtx.fillStyle = '#888';
+                    tiaCtx.textAlign = 'right';
+                    tiaCtx.fillText(ph + '°', margin.left - 5, y + 4);
+                }
 
-        <table class="table">
-            <tr>
-                <th>Part</th>
-                <th>Thresholds</th>
-                <th>Features</th>
-            </tr>
-            <tr>
-                <td>LM339</td>
-                <td>Adjustable</td>
-                <td>Quad comparator, open-collector, build window from 2</td>
-            </tr>
-            <tr>
-                <td>TL431</td>
-                <td>2.5V ref</td>
-                <td>Can be used to create precise thresholds</td>
-            </tr>
-            <tr>
-                <td>MAX6381-MAX6390</td>
-                <td>Fixed ±5%</td>
-                <td>Supervisory IC with window detection</td>
-            </tr>
-            <tr>
-                <td>LTC1042</td>
-                <td>Adjustable</td>
-                <td>Dedicated window comparator with hysteresis</td>
-            </tr>
-            <tr>
-                <td>ADM1184</td>
-                <td>Adjustable</td>
-                <td>Quad supervisor with sequencing</td>
-            </tr>
-        </table>
-    </div>
+                // Loop gain phase (simplified)
+                function loopPhase(f) {
+                    // Open loop phase
+                    let ph = -90 - Math.atan(f * 1e6 / gbw) * 180 / Math.PI;
+                    // Noise gain adds phase from zero and pole
+                    const fz = 1 / (2 * Math.PI * Rf * Cd);
+                    const fp = 1 / (2 * Math.PI * Rf * Cf);
+                    ph -= Math.atan(f / fz) * 180 / Math.PI;
+                    ph += Math.atan(f / fp) * 180 / Math.PI;
+                    return ph;
+                }
 
-    <div class="card">
-        <h3>Applications</h3>
+                tiaCtx.strokeStyle = TEK.green;
+                tiaCtx.lineWidth = 2;
+                tiaCtx.beginPath();
+                first = true;
+                for (let i = 0; i <= 400; i++) {
+                    const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
+                    const ph = loopPhase(f);
+                    const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
+                    if (first) { tiaCtx.moveTo(x, y); first = false; }
+                    else tiaCtx.lineTo(x, y);
+                }
+                tiaCtx.stroke();
 
-        <table class="table">
-            <tr>
-                <th>Application</th>
-                <th>VLO</th>
-                <th>VHI</th>
-                <th>Purpose</th>
-            </tr>
-            <tr>
-                <td>Battery Monitor</td>
-                <td>3.0V (discharge)</td>
-                <td>4.2V (overcharge)</td>
-                <td>Li-ion safe operating range</td>
-            </tr>
-            <tr>
-                <td>Temperature Alarm</td>
-                <td>10°C equivalent</td>
-                <td>40°C equivalent</td>
-                <td>Comfort zone monitoring</td>
-            </tr>
-            <tr>
-                <td>Power Supply Monitor</td>
-                <td>4.75V (−5%)</td>
-                <td>5.25V (+5%)</td>
-                <td>5V rail tolerance check</td>
-            </tr>
-            <tr>
-                <td>Production Test</td>
-                <td>Min spec</td>
-                <td>Max spec</td>
-                <td>Go/No-Go testing</td>
-            </tr>
-            <tr>
-                <td>Analog Watchdog</td>
-                <td>Normal−Δ</td>
-                <td>Normal+Δ</td>
-                <td>Detect sensor anomalies</td>
-            </tr>
-        </table>
+                // -180° line
+                tiaCtx.strokeStyle = TEK.red;
+                tiaCtx.setLineDash([5, 5]);
+                tiaCtx.beginPath();
+                tiaCtx.moveTo(margin.left, phToY(-180));
+                tiaCtx.lineTo(w - margin.right, phToY(-180));
+                tiaCtx.stroke();
+                tiaCtx.setLineDash([]);
 
-        <div class="notice">
-            <strong>ADC Watchdog:</strong> Many microcontrollers have built-in analog watchdog comparators in their ADC peripheral. These can interrupt on out-of-window conditions without CPU polling.
-        </div>
-    </div>
+                // Calculate phase margin
+                const pm = 180 + loopPhase(fc);
 
-    <div class="card">
-        <h3>Reference Voltage Generation</h3>
-        <p>Setting precise thresholds using a resistor divider and reference:</p>
+                // Frequency labels
+                for (let exp = 1; exp <= 8; exp++) {
+                    const f = Math.pow(10, exp);
+                    if (f >= fMin && f <= fMax) {
+                        const x = freqToX(f);
+                        tiaCtx.fillStyle = '#888';
+                        tiaCtx.textAlign = 'center';
+                        const label = exp === 1 ? '10' : exp === 2 ? '100' : exp === 3 ? '1k' : exp === 4 ? '10k' : exp === 5 ? '100k' : exp === 6 ? '1M' : exp === 7 ? '10M' : '100M';
+                        tiaCtx.fillText(label, x, phBot + 15);
+                    }
+                }
 
-        <svg viewBox="0 0 400 200" class="circuit-diagram" style="max-width: 400px; margin: 1rem auto; display: block;">
-            <!-- Vref input -->
-            <text x="50" y="30" fill="rgba(200,200,200,0.6)" font-size="10">V<tspan baseline-shift="sub" font-size="8">REF</tspan></text>
-            <line x1="70" y1="35" x2="70" y2="55" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
+                // Legend
+                tiaCtx.fillStyle = TEK.yellow;
+                tiaCtx.fillRect(10, 10, 15, 10);
+                tiaCtx.fillStyle = '#fff';
+                tiaCtx.textAlign = 'left';
+                tiaCtx.fillText('Open Loop', 30, 18);
+                tiaCtx.fillStyle = TEK.cyan;
+                tiaCtx.fillRect(10, 25, 15, 10);
+                tiaCtx.fillStyle = '#fff';
+                tiaCtx.fillText('Noise Gain', 30, 33);
 
-            <!-- R1 -->
-            <rect x="57" y="55" width="26" height="35" fill="none" stroke="rgba(251, 146, 60, 0.9)" stroke-width="2"/>
-            <text x="90" y="75" fill="rgba(251, 146, 60, 0.9)" font-size="10">R1</text>
+                // Calculate optimal Cf
+                const CfOpt = Math.sqrt(Cd / (2 * Math.PI * Rf * gbw));
+                const bandwidth = Math.sqrt(gbw / (2 * Math.PI * Rf * Cd));
 
-            <line x1="70" y1="90" x2="70" y2="105" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <circle cx="70" cy="105" r="3" fill="rgba(110, 231, 255, 0.9)"/>
-
-            <!-- VHI tap -->
-            <line x1="70" y1="105" x2="150" y2="105" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <text x="160" y="108" fill="rgba(52, 211, 153, 0.9)" font-size="10">V<tspan baseline-shift="sub" font-size="8">HI</tspan></text>
-
-            <!-- R2 -->
-            <line x1="70" y1="105" x2="70" y2="115" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <rect x="57" y="115" width="26" height="25" fill="none" stroke="rgba(251, 146, 60, 0.9)" stroke-width="2"/>
-            <text x="90" y="130" fill="rgba(251, 146, 60, 0.9)" font-size="10">R2</text>
-
-            <line x1="70" y1="140" x2="70" y2="150" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <circle cx="70" cy="150" r="3" fill="rgba(110, 231, 255, 0.9)"/>
-
-            <!-- VLO tap -->
-            <line x1="70" y1="150" x2="150" y2="150" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <text x="160" y="153" fill="rgba(52, 211, 153, 0.9)" font-size="10">V<tspan baseline-shift="sub" font-size="8">LO</tspan></text>
-
-            <!-- R3 -->
-            <line x1="70" y1="150" x2="70" y2="160" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <rect x="57" y="160" width="26" height="25" fill="none" stroke="rgba(251, 146, 60, 0.9)" stroke-width="2"/>
-            <text x="90" y="175" fill="rgba(251, 146, 60, 0.9)" font-size="10">R3</text>
-
-            <line x1="70" y1="185" x2="70" y2="195" stroke="rgba(110, 231, 255, 0.8)" stroke-width="2"/>
-            <line x1="60" y1="195" x2="80" y2="195" stroke="rgba(200,200,200,0.8)" stroke-width="2"/>
-
-            <!-- Equations -->
-            <text x="250" y="80" fill="rgba(255,255,255,0.8)" font-size="11">V<tspan baseline-shift="sub" font-size="8">HI</tspan> = V<tspan baseline-shift="sub" font-size="8">REF</tspan> × (R2+R3)/(R1+R2+R3)</text>
-            <text x="250" y="110" fill="rgba(255,255,255,0.8)" font-size="11">V<tspan baseline-shift="sub" font-size="8">LO</tspan> = V<tspan baseline-shift="sub" font-size="8">REF</tspan> × R3/(R1+R2+R3)</text>
-            <text x="250" y="150" fill="rgba(200,200,200,0.6)" font-size="10">Window = V<tspan baseline-shift="sub" font-size="8">HI</tspan> − V<tspan baseline-shift="sub" font-size="8">LO</tspan></text>
-            <text x="250" y="175" fill="rgba(200,200,200,0.6)" font-size="10">         = V<tspan baseline-shift="sub" font-size="8">REF</tspan> × R2/(R1+R2+R3)</text>
-        </svg>
-    </div>
-
-    <div class="card">
-        <h3>Practice Exercises</h3>
-        <div id="exercise-container"></div>
-    </div>
-
-</div>
-
-<script>
-(function() {
-    const canvas = document.getElementById('win-canvas');
-    const ctx = canvas.getContext('2d');
-
-    function update() {
-        const vlo = AD.num('win-vlo');
-        const vhi = AD.num('win-vhi');
-        const hyst = AD.num('win-hyst');
-        const vin = AD.num('win-vin');
-
-        document.getElementById('win-vin-val').textContent = vin.toFixed(2) + 'V';
-
-        // Calculate window properties
-        const width = vhi - vlo;
-        const center = (vhi + vlo) / 2;
-
-        document.getElementById('win-width').textContent = width.toFixed(2) + 'V';
-        document.getElementById('win-center').textContent = center.toFixed(2) + 'V';
-
-        // Determine status
-        let status, output;
-        if (vin < vlo) {
-            status = 'BELOW';
-            output = 'LOW';
-        } else if (vin > vhi) {
-            status = 'ABOVE';
-            output = 'LOW';
-        } else {
-            status = 'IN WINDOW';
-            output = 'HIGH';
+                const result = document.getElementById('tia-result');
+                result.innerHTML = `
+                    <strong>Crossover Frequency:</strong> ${AD.fmtUnit(fc, 'Hz')}<br>
+                    <strong>Phase Margin:</strong> <span style="color: ${pm > 45 ? TEK.green : pm > 0 ? TEK.yellow : TEK.red}">${pm.toFixed(1)}°</span><br>
+                    <strong>Optimal C<sub>f</sub> for 45° PM:</strong> ${(CfOpt * 1e12).toFixed(2)} pF<br>
+                    <strong>Estimated Bandwidth:</strong> ${AD.fmtUnit(bandwidth, 'Hz')}<br>
+                    ${pm < 30 ? '<span style="color:' + TEK.red + '">WARNING: Increase Cf for stability!</span>' : ''}
+                `;
+            };
         }
 
-        document.getElementById('win-status').textContent = status;
-        document.getElementById('win-status').style.color = status === 'IN WINDOW' ? 'var(--ok)' : 'var(--bad)';
-        document.getElementById('win-out').textContent = output;
-        document.getElementById('win-out').style.color = output === 'HIGH' ? 'var(--ok)' : 'var(--bad)';
+        // Buffer analyzer
+        window.updateBuffer = function() {
+            const Cload = AD.num('buf-cload') * 1e-6;
+            const Ibias = AD.num('buf-ibias') * 1e-3;
+            const gbw = AD.num('buf-gbw') * 1e6;
 
-        plotWindow(vlo, vhi, hyst, vin);
-    }
+            const gm = Ibias / 0.026; // gm = Ic/Vt at room temp
+            const fpBuffer = gm / (2 * Math.PI * Cload);
 
-    function plotWindow(vlo, vhi, hyst, vin) {
-        const w = canvas.width;
-        const h = canvas.height;
+            const result = document.getElementById('buffer-result');
+            result.innerHTML = `
+                <strong>Transistor g<sub>m</sub>:</strong> ${(gm * 1000).toFixed(1)} mS<br>
+                <strong>Buffer Pole Frequency:</strong> ${AD.fmtUnit(fpBuffer, 'Hz')}<br>
+                <strong>Op-Amp Crossover:</strong> ${AD.fmtUnit(gbw, 'Hz')}<br>
+                <strong>Ratio (crossover/buffer pole):</strong> ${(gbw/fpBuffer).toFixed(1)}×<br>
+                <strong>Assessment:</strong> ${fpBuffer > gbw/3 ? '<span style="color:' + TEK.green + '">Buffer pole above crossover/3 - should be stable</span>' : '<span style="color:' + TEK.yellow + '">Buffer pole may reduce phase margin - increase bias current or use faster op-amp</span>'}
+            `;
+        };
 
-        AD.drawGrid(ctx, w, h, 10, 8);
+        // State variable filter block diagram
+        const svfCanvas = document.getElementById('svf-block-canvas');
+        if (svfCanvas) {
+            const svfCtx = svfCanvas.getContext('2d');
+            const w = svfCanvas.width, h = svfCanvas.height;
 
-        const vMin = 0;
-        const vMax = 5;
-        const plotH = h - 60;
+            svfCtx.fillStyle = '#0d1117';
+            svfCtx.fillRect(0, 0, w, h);
 
-        // Draw window region (shaded)
-        ctx.save();
-        ctx.fillStyle = 'rgba(52, 211, 153, 0.15)';
-        const xLo = (vlo / vMax) * w;
-        const xHi = (vhi / vMax) * w;
-        ctx.fillRect(xLo, 30, xHi - xLo, plotH);
+            // Draw blocks
+            function drawBlock(x, y, ww, hh, label) {
+                svfCtx.strokeStyle = TEK.green;
+                svfCtx.lineWidth = 2;
+                svfCtx.strokeRect(x, y, ww, hh);
+                svfCtx.fillStyle = '#fff';
+                svfCtx.font = '12px monospace';
+                svfCtx.textAlign = 'center';
+                svfCtx.fillText(label, x + ww/2, y + hh/2 + 5);
+            }
 
-        // Threshold lines
-        ctx.strokeStyle = 'rgba(251, 113, 133, 0.8)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(xLo, 30);
-        ctx.lineTo(xLo, 30 + plotH);
-        ctx.moveTo(xHi, 30);
-        ctx.lineTo(xHi, 30 + plotH);
-        ctx.stroke();
-        ctx.setLineDash([]);
+            // Input
+            svfCtx.fillStyle = '#fff';
+            svfCtx.textAlign = 'right';
+            svfCtx.fillText('Vin', 40, 100);
 
-        // Hysteresis bands
-        if (hyst > 0) {
-            ctx.strokeStyle = 'rgba(251, 146, 60, 0.4)';
-            ctx.lineWidth = 1;
-            const xLoMinus = ((vlo - hyst) / vMax) * w;
-            const xLoPlus = ((vlo + hyst) / vMax) * w;
-            const xHiMinus = ((vhi - hyst) / vMax) * w;
-            const xHiPlus = ((vhi + hyst) / vMax) * w;
+            // Summing junction
+            svfCtx.strokeStyle = TEK.yellow;
+            svfCtx.beginPath();
+            svfCtx.arc(80, 100, 15, 0, 2*Math.PI);
+            svfCtx.stroke();
+            svfCtx.fillStyle = '#fff';
+            svfCtx.font = '16px monospace';
+            svfCtx.fillText('Σ', 80, 105);
 
-            ctx.fillStyle = 'rgba(251, 146, 60, 0.1)';
-            ctx.fillRect(xLoMinus, 30, xLoPlus - xLoMinus, plotH);
-            ctx.fillRect(xHiMinus, 30, xHiPlus - xHiMinus, plotH);
+            // First integrator
+            svfCtx.strokeStyle = '#666';
+            svfCtx.beginPath();
+            svfCtx.moveTo(95, 100);
+            svfCtx.lineTo(130, 100);
+            svfCtx.stroke();
+            drawBlock(130, 75, 80, 50, '∫ (HP out)');
+
+            // Second integrator
+            svfCtx.beginPath();
+            svfCtx.moveTo(210, 100);
+            svfCtx.lineTo(260, 100);
+            svfCtx.stroke();
+            drawBlock(260, 75, 80, 50, '∫ (BP out)');
+
+            // Output
+            svfCtx.beginPath();
+            svfCtx.moveTo(340, 100);
+            svfCtx.lineTo(400, 100);
+            svfCtx.stroke();
+            svfCtx.fillStyle = '#fff';
+            svfCtx.textAlign = 'left';
+            svfCtx.fillText('LP out', 410, 105);
+
+            // Feedback paths
+            svfCtx.strokeStyle = TEK.cyan;
+            svfCtx.setLineDash([5, 5]);
+
+            // Q feedback from BP to summing
+            svfCtx.beginPath();
+            svfCtx.moveTo(300, 125);
+            svfCtx.lineTo(300, 160);
+            svfCtx.lineTo(80, 160);
+            svfCtx.lineTo(80, 115);
+            svfCtx.stroke();
+            svfCtx.fillStyle = TEK.cyan;
+            svfCtx.fillText('-1/Q', 180, 175);
+
+            // LP feedback to summing
+            svfCtx.beginPath();
+            svfCtx.moveTo(380, 100);
+            svfCtx.lineTo(380, 40);
+            svfCtx.lineTo(80, 40);
+            svfCtx.lineTo(80, 85);
+            svfCtx.stroke();
+            svfCtx.fillText('-1', 220, 35);
+
+            svfCtx.setLineDash([]);
         }
 
-        // Transfer function
-        ctx.strokeStyle = 'rgba(52, 211, 153, 0.9)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
+        // Schematics
+        const instrAmpSch = document.getElementById('sch-instr-amp');
+        if (instrAmpSch && typeof SchematicSVG !== 'undefined') {
+            const sch = new SchematicSVG(instrAmpSch, 400, 160);
 
-        for (let i = 0; i < w; i++) {
-            const v = (i / w) * vMax;
-            let out;
-            if (v < vlo - hyst) out = 0;
-            else if (v < vlo + hyst) out = 0; // Rising - would need state
-            else if (v < vhi - hyst) out = 1;
-            else if (v < vhi + hyst) out = 1; // Falling - would need state
-            else out = 0;
+            sch.opamp(150, 80, { label: '' });
+            const op = SchematicSVG.opampTerminals(150, 80);
 
-            // Simplified (no state tracking)
-            if (v < vlo) out = 0;
-            else if (v > vhi) out = 0;
-            else out = 1;
+            // Non-inv input
+            sch.wire([[30, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
+            sch.nodeLabel(30, op.nonInvInput.y, 'Vin', { position: 'left' });
 
-            const y = 30 + plotH - out * (plotH - 40);
+            // Inv input with Rin to ground
+            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 20, op.invInput.y]]);
+            sch.dot(op.invInput.x, op.invInput.y);
+            sch.resistor(op.invInput.x - 45, op.invInput.y, 'horizontal', { label: 'Rin' });
+            sch.ground(op.invInput.x - 70, op.invInput.y);
 
-            if (i === 0) ctx.moveTo(i, y);
-            else ctx.lineTo(i, y);
+            // Feedback Rf
+            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 35]]);
+            sch.wire([[op.invInput.x, 35], [op.output.x, 35]]);
+            sch.resistor((op.invInput.x + op.output.x)/2, 35, 'horizontal', { label: 'Rf' });
+            sch.wire([[op.output.x, 35], [op.output.x, op.output.y]]);
+            sch.dot(op.output.x, op.output.y);
+
+            // Output with Riso
+            sch.wire([[op.output.x, op.output.y], [op.output.x + 20, op.output.y]]);
+            sch.resistor(op.output.x + 45, op.output.y, 'horizontal', { label: 'Riso' });
+            sch.wire([[op.output.x + 70, op.output.y], [op.output.x + 100, op.output.y]]);
+            sch.nodeLabel(op.output.x + 100, op.output.y, 'Vout', { position: 'right' });
+
+            sch.render();
         }
-        ctx.stroke();
 
-        // Input marker
-        const xVin = (vin / vMax) * w;
-        ctx.strokeStyle = 'rgba(110, 231, 255, 0.9)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(xVin, 30);
-        ctx.lineTo(xVin, 30 + plotH);
-        ctx.stroke();
+        const tiaSch = document.getElementById('sch-tia');
+        if (tiaSch && typeof SchematicSVG !== 'undefined') {
+            const sch = new SchematicSVG(tiaSch, 400, 160);
 
-        // Marker dot
-        let markerOut = (vin >= vlo && vin <= vhi) ? 1 : 0;
-        const markerY = 30 + plotH - markerOut * (plotH - 40);
-        ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
-        ctx.beginPath();
-        ctx.arc(xVin, markerY, 6, 0, 2 * Math.PI);
-        ctx.fill();
+            sch.opamp(180, 80, { label: '' });
+            const op = SchematicSVG.opampTerminals(180, 80);
 
-        // Labels
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
-        ctx.fillText('Vin: 0-5V', 10, 20);
-        ctx.fillText('Vout: HIGH when in window', 10, h - 10);
-        ctx.fillStyle = 'rgba(251, 113, 133, 0.9)';
-        ctx.fillText('VLO', xLo - 15, h - 25);
-        ctx.fillText('VHI', xHi - 15, h - 25);
-        ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
-        ctx.fillText('Vin=' + vin.toFixed(2), xVin + 10, 50);
+            // Photodiode at inv input
+            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 50, op.invInput.y]]);
+            sch.dot(op.invInput.x, op.invInput.y);
+            // Diode symbol (simplified)
+            sch.wire([[op.invInput.x - 50, op.invInput.y], [op.invInput.x - 50, op.invInput.y - 30]]);
+            sch.nodeLabel(op.invInput.x - 50, op.invInput.y - 40, 'Photodiode', { position: 'above' });
 
-        ctx.restore();
-    }
+            // Cd to ground
+            sch.wire([[op.invInput.x - 30, op.invInput.y], [op.invInput.x - 30, op.invInput.y + 30]]);
+            sch.dot(op.invInput.x - 30, op.invInput.y);
+            sch.capacitor(op.invInput.x - 30, op.invInput.y + 30, 'vertical', { label: 'Cd' });
+            sch.ground(op.invInput.x - 30, op.invInput.y + 80);
 
-    ['win-vlo', 'win-vhi', 'win-hyst'].forEach(id => {
-        document.getElementById(id).addEventListener('input', update);
-    });
-    document.getElementById('win-vin').addEventListener('input', update);
+            // Non-inv to ground
+            sch.ground(op.nonInvInput.x - 20, op.nonInvInput.y);
+            sch.wire([[op.nonInvInput.x, op.nonInvInput.y], [op.nonInvInput.x - 20, op.nonInvInput.y]]);
 
-    update();
+            // Feedback Rf || Cf
+            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 30]]);
+            sch.wire([[op.invInput.x, 30], [op.output.x, 30]]);
+            sch.resistor((op.invInput.x + op.output.x)/2 - 15, 30, 'horizontal', { label: 'Rf' });
 
-    // Exercises
-    const exercises = [
-        {
-            id: 'M3L10-1',
-            type: 'choice',
-            question: 'What output configuration allows two comparators to form a wired-AND?',
-            choices: [
-                { text: 'Push-pull outputs', correct: false },
-                { text: 'Open-drain/open-collector outputs', correct: true },
-                { text: 'Differential outputs', correct: false },
-                { text: 'Current-mode outputs', correct: false }
-            ],
-            solution: 'Open-drain outputs can be tied together with a pull-up resistor. The output is HIGH only when BOTH comparators have their outputs high-impedance (both conditions met).'
-        },
-        {
-            id: 'M3L10-2',
-            type: 'numeric',
-            question: 'Design a ±5% window around 5V. What is VHI?',
-            hint: 'VHI = 5V × 1.05',
-            expected: 5.25,
-            tolerance: 0.01,
-            unit: 'V',
-            solution: 'VHI = 5V × (1 + 0.05) = 5.25V'
-        },
-        {
-            id: 'M3L10-3',
-            type: 'numeric',
-            question: 'A Li-ion battery window is 3.0V to 4.2V. What percentage of 3.7V nominal is this window?',
-            hint: 'Window = (VHI - VLO) / Vnominal × 100',
-            expected: 32.4,
-            tolerance: 0.5,
-            unit: '%',
-            solution: 'Window = (4.2 - 3.0) / 3.7 × 100 = 32.4%'
-        },
-        {
-            id: 'M3L10-4',
-            type: 'choice',
-            question: 'Why is hysteresis added to window comparators?',
-            choices: [
-                { text: 'To increase accuracy', correct: false },
-                { text: 'To prevent output chattering with noisy signals', correct: true },
-                { text: 'To reduce power consumption', correct: false },
-                { text: 'To extend the window range', correct: false }
-            ],
-            solution: 'Hysteresis creates a dead-band around each threshold, preventing multiple output transitions when the input hovers near a threshold with noise.'
+            sch.wire([[op.invInput.x, 30], [op.invInput.x, 10]]);
+            sch.dot(op.invInput.x, 30);
+            sch.wire([[op.invInput.x, 10], [op.output.x, 10]]);
+            sch.capacitor((op.invInput.x + op.output.x)/2, 10, 'horizontal', { label: 'Cf' });
+            sch.wire([[op.output.x, 10], [op.output.x, 30]]);
+            sch.dot(op.output.x, 30);
+            sch.wire([[op.output.x, 30], [op.output.x, op.output.y]]);
+            sch.dot(op.output.x, op.output.y);
+
+            // Output
+            sch.wire([[op.output.x, op.output.y], [op.output.x + 40, op.output.y]]);
+            sch.nodeLabel(op.output.x + 40, op.output.y, 'Vout', { position: 'right' });
+
+            sch.render();
         }
-    ];
 
-    const container = document.getElementById('exercise-container');
-    exercises.forEach((ex, i) => {
-        const div = document.createElement('div');
-        div.id = `exercise-m3l10-${i}`;
-        div.style.marginBottom = '15px';
-        container.appendChild(div);
-        new ExerciseWidget(`exercise-m3l10-${i}`, ex);
-    });
-})();
-</script>
+        // Exercise checking
+        window.checkEx1 = function() {
+            const input = AD.num('ex1-input');
+            const result = document.getElementById('ex1-result');
+            // Cf = √(Cd/(2π×Rf×GBW)) = √(10p/(2π×1M×5M)) = √(10e-12/(31.4e6)) = √(3.18e-19) = 0.56 pF
+            if (Math.abs(input - 0.56) < 0.15 || Math.abs(input - 0.6) < 0.1) {
+                result.innerHTML = '<span style="color: #4ade80">Correct! C<sub>f</sub> = √(C<sub>d</sub>/(2πR<sub>f</sub>×GBW)) = √(10pF/(2π×1MΩ×5MHz)) ≈ 0.56 pF</span>';
+            } else {
+                result.innerHTML = '<span style="color: #f87171">Use C<sub>f</sub> = √(C<sub>d</sub>/(2πR<sub>f</sub>×GBW)).</span>';
+            }
+        };
+
+        window.checkEx2 = function() {
+            const input = AD.num('ex2-input');
+            const result = document.getElementById('ex2-result');
+            // fz = 1/(2π×10Ω×1μF) = 1/(2π×10e-6) = 15.9 kHz
+            if (Math.abs(input - 15.9) < 2 || Math.abs(input - 16) < 2) {
+                result.innerHTML = '<span style="color: #4ade80">Correct! f<sub>z</sub> = 1/(2π×R<sub>iso</sub>×C<sub>load</sub>) = 1/(2π×10Ω×1μF) ≈ 16 kHz</span>';
+            } else {
+                result.innerHTML = '<span style="color: #f87171">The zero is at f<sub>z</sub> = 1/(2π×R<sub>iso</sub>×C<sub>load</sub>).</span>';
+            }
+        };
+
+        window.checkEx3 = function() {
+            const input = AD.num('ex3-input');
+            const result = document.getElementById('ex3-result');
+            // GBW needed = Bandwidth × Gain × 10 (for decade margin) = 100k × 10 × 10 = 10 MHz
+            if (input >= 9 && input <= 11) {
+                result.innerHTML = '<span style="color: #4ade80">Correct! GBW = Bandwidth × Noise Gain × Margin Factor = 100 kHz × 10 × 10 = 10 MHz</span>';
+            } else if (input >= 1 && input <= 2) {
+                result.innerHTML = '<span style="color: #fbbf24">That gives closed-loop bandwidth = 100 kHz, but no margin. Add factor of 10 for margin.</span>';
+            } else {
+                result.innerHTML = '<span style="color: #f87171">GBW = Bandwidth × Noise Gain, then multiply by 10 for one decade of margin.</span>';
+            }
+        };
+
+        // Initialize
+        updateInstrumentationAmp();
+        if (typeof updateTIA === 'function') updateTIA();
+    })();
+    </script>
+</article>

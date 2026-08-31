@@ -1,394 +1,543 @@
-<!-- Module 17, Lesson 5: Oscillation Problems -->
+<!-- Module 17, Lesson 5: FPGA Power System Design -->
 <div class="lesson-content" data-module="17" data-lesson="5">
 
     <div class="card">
-        <h2>Debugging Oscillation Problems</h2>
-        <p>Unwanted oscillations cause noise, instability, and failures. Learn to identify, characterize, and eliminate oscillations in amplifiers, power supplies, and feedback systems.</p>
+        <h2>Scenario: FPGA Power System Design</h2>
+        <p>Design the power system for a mid-range FPGA with multiple voltage rails, sequencing requirements, and high transient current demands.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Motor-boating</div>
-                <div class="v">Low-frequency (Hz-kHz)</div>
+                <div class="k">Core</div>
+                <div class="v">1.0V @ 10A</div>
             </div>
             <div class="box">
-                <div class="k">Ringing</div>
-                <div class="v">Damped oscillation on edges</div>
+                <div class="k">Aux</div>
+                <div class="v">1.8V @ 2A</div>
             </div>
             <div class="box">
-                <div class="k">Squegging</div>
-                <div class="v">Burst oscillation</div>
-            </div>
-            <div class="box">
-                <div class="k">Parasitic</div>
-                <div class="v">VHF/UHF unwanted</div>
+                <div class="k">I/O</div>
+                <div class="v">3.3V @ 1A</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Debug Insight:</strong> Oscillations satisfy Barkhausen criteria: loop gain ≥1 and phase shift = 0° (or 360°). Find where the phase margin disappeared—that's your fix location.
+            <strong>Key Challenge:</strong> FPGA core power can have di/dt of 10A/µs during logic transitions. This requires low-impedance power delivery with extensive decoupling and fast transient response.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Oscillation Analyzer</h3>
+        <h3>Interactive: Power Rail Analysis</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="osc-type">Oscillation Type</label>
-                <select id="osc-type">
-                    <option value="continuous">Continuous</option>
-                    <option value="ringing">Ringing/Damped</option>
-                    <option value="burst">Burst (Squegging)</option>
-                    <option value="motorboat">Motor-boating</option>
+                <label for="fpga-rail">Power Rail</label>
+                <select id="fpga-rail">
+                    <option value="core" selected>1.0V Core</option>
+                    <option value="aux">1.8V Aux</option>
+                    <option value="io">3.3V I/O</option>
                 </select>
             </div>
             <div class="c3">
-                <label for="osc-freq">Frequency (Hz)</label>
-                <input type="text" id="osc-freq" value="1M">
+                <label for="fpga-didt">Load Step di/dt (A/µs)</label>
+                <input type="range" id="fpga-didt" min="1" max="20" step="1" value="10">
+                <span id="fpga-didt-val" class="mono">10A/µs</span>
             </div>
             <div class="c3">
-                <label for="osc-damp">Damping Factor</label>
-                <input type="range" id="osc-damp" min="0" max="2" step="0.1" value="0.2">
-                <span id="osc-damp-val" class="mono">0.2</span>
+                <label for="fpga-caps">Decoupling (µF total)</label>
+                <input type="range" id="fpga-caps" min="100" max="2000" step="100" value="500">
+                <span id="fpga-caps-val" class="mono">500µF</span>
+            </div>
+            <div class="c3">
+                <label for="fpga-esl">Effective ESL (nH)</label>
+                <input type="range" id="fpga-esl" min="0.1" max="5" step="0.1" value="1">
+                <span id="fpga-esl-val" class="mono">1nH</span>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="osc-canvas" width="980" height="320"></canvas>
+            <canvas id="fpga-canvas" width="980" height="280"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Likely Cause</div>
-                <div class="v mono" id="osc-cause">—</div>
+                <div class="k">Inductive Drop</div>
+                <div class="v mono" id="fpga-ldrop">—</div>
             </div>
             <div class="box">
-                <div class="k">Check Location</div>
-                <div class="v mono" id="osc-location">—</div>
+                <div class="k">Cap Response</div>
+                <div class="v mono" id="fpga-cdrop">—</div>
             </div>
             <div class="box">
-                <div class="k">Fix Strategy</div>
-                <div class="v mono" id="osc-fix">—</div>
+                <div class="k">Total Droop</div>
+                <div class="v mono" id="fpga-droop">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Margin</div>
+                <div class="v mono" id="fpga-margin">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Oscillation Causes and Fixes</h3>
-
-        <table class="table">
-            <tr>
-                <th>Symptom</th>
-                <th>Frequency</th>
-                <th>Cause</th>
-                <th>Fix</th>
-            </tr>
-            <tr>
-                <td>Continuous sine</td>
-                <td>Near bandwidth</td>
-                <td>Insufficient phase margin</td>
-                <td>Add compensation (Cc)</td>
-            </tr>
-            <tr>
-                <td>Ringing on edges</td>
-                <td>MHz range</td>
-                <td>Underdamped LC/RLC</td>
-                <td>Add series R, snubber</td>
-            </tr>
-            <tr>
-                <td>Motor-boating</td>
-                <td>Hz to kHz</td>
-                <td>Power supply coupling</td>
-                <td>Bypass caps, decoupling</td>
-            </tr>
-            <tr>
-                <td>VHF parasitic</td>
-                <td>>100MHz</td>
-                <td>Lead inductance</td>
-                <td>Ferrite beads, layout</td>
-            </tr>
-            <tr>
-                <td>Squegging</td>
-                <td>Irregular bursts</td>
-                <td>Gain margin cycling</td>
-                <td>Reduce gain, add damping</td>
-            </tr>
-            <tr>
-                <td>Output swinging rail-to-rail</td>
-                <td>Low frequency</td>
-                <td>Feedback polarity wrong</td>
-                <td>Swap FB connection</td>
-            </tr>
-        </table>
+        <h3>Power Architecture</h3>
+        <div class="diagram-container">
+            <canvas id="fpga-power-tree-canvas" width="850" height="550" style="width:100%;max-width:850px;background:#0d1117;border-radius:8px;"></canvas>
+        </div>
     </div>
 
     <div class="card">
-        <h3>Op-Amp Stability</h3>
-        <div id="osc-schematic"></div>
+        <h3>Transient Response Requirements</h3>
+
+        <table class="table">
+            <tr>
+                <th>Rail</th>
+                <th>Tolerance</th>
+                <th>Transient</th>
+                <th>Challenge</th>
+            </tr>
+            <tr>
+                <td>1.0V Core</td>
+                <td>±3% (970-1030mV)</td>
+                <td>10A step in 100ns</td>
+                <td>Only 30mV margin!</td>
+            </tr>
+            <tr>
+                <td>1.8V Aux</td>
+                <td>±5% (1.71-1.89V)</td>
+                <td>2A step</td>
+                <td>Moderate</td>
+            </tr>
+            <tr>
+                <td>3.3V I/O</td>
+                <td>±5% (3.13-3.47V)</td>
+                <td>1A step</td>
+                <td>Least critical</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Layout Critical:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>Place decoupling caps as close to FPGA power pins as possible</li>
+                <li>Use multiple vias for each cap to reduce inductance</li>
+                <li>Wide power planes, avoid routing signals through power area</li>
+                <li>Separate analog power from digital if FPGA has analog blocks</li>
+            </ul>
+        </div>
     </div>
 
     <div class="card">
         <h3>SPICE Netlist</h3>
-        <div id="osc-spice"></div>
+        <div id="spice-container"></div>
     </div>
 
     <div class="card">
-        <h3>Debug Checklist</h3>
-        <div id="osc-checklist"></div>
+        <h3>Design Checklist</h3>
+        <div id="checklist-container"></div>
     </div>
 
     <div class="card">
-        <h3>Practice Exercises</h3>
-        <div id="osc-exercises"></div>
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
     </div>
 
 </div>
 
 <script>
 (function() {
-    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
-
-    const canvas = document.getElementById('osc-canvas');
+    const canvas = document.getElementById('fpga-canvas');
     const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const mL = 80, mR = 40, mT = 40, mB = 50;
 
-    const oscInfo = {
-        continuous: {cause: 'Insufficient phase margin (<45°)', location: 'Feedback network, compensation', fix: 'Add Cc, reduce bandwidth'},
-        ringing: {cause: 'Underdamped resonance', location: 'Output LC, cable inductance', fix: 'Add snubber RC, ferrite bead'},
-        burst: {cause: 'Nonlinear gain margin', location: 'Bias circuit, thermal effects', fix: 'Improve bias stability'},
-        motorboat: {cause: 'Power supply impedance', location: 'Decoupling, ground path', fix: 'Add bypass caps, star ground'}
+    const rails = {
+        core: { v: 1.0, i: 10, tol: 0.03 },
+        aux: { v: 1.8, i: 2, tol: 0.05 },
+        io: { v: 3.3, i: 1, tol: 0.05 }
     };
 
     function update() {
-        const type = document.getElementById('osc-type').value || 'continuous';
-        const freq = AD.parseValue(document.getElementById('osc-freq').value) || 1e6;
-        const damp = AD.num('osc-damp') || 0.2;
+        const railName = document.getElementById('fpga-rail').value || 'core';
+        const rail = rails[railName] || rails.core;
+        const didt = AD.num('fpga-didt'); // A/µs
+        const caps = AD.num('fpga-caps'); // µF
+        const esl = AD.num('fpga-esl'); // nH
 
-        document.getElementById('osc-damp-val').textContent = damp.toFixed(1);
+        document.getElementById('fpga-didt-val').textContent = didt + 'A/µs';
+        document.getElementById('fpga-caps-val').textContent = caps + 'µF';
+        document.getElementById('fpga-esl-val').textContent = esl + 'nH';
 
-        const info = oscInfo[type] || oscInfo.continuous;
-        document.getElementById('osc-cause').textContent = info.cause;
-        document.getElementById('osc-location').textContent = info.location;
-        document.getElementById('osc-fix').textContent = info.fix;
+        // Inductive voltage drop: V = L × di/dt
+        const lDrop = esl * 1e-9 * didt * 1e6; // V
+        document.getElementById('fpga-ldrop').textContent = (lDrop * 1000).toFixed(1) + 'mV';
 
-        // Draw oscillation waveform
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, W, H);
+        // Capacitive response during transient
+        // Assume step lasts 1µs, C provides current
+        const dt = 1e-6; // 1µs step
+        const di = didt * 1; // A change in 1µs
+        const cDrop = di * dt / (caps * 1e-6); // V = I×t/C
+        document.getElementById('fpga-cdrop').textContent = (cDrop * 1000).toFixed(1) + 'mV';
 
-        const plotW = W - mL - mR;
-        const plotH = H - mT - mB;
+        // Total droop (approximate, dominated by inductance initially)
+        const totalDroop = lDrop + cDrop * 0.5;
+        document.getElementById('fpga-droop').textContent = (totalDroop * 1000).toFixed(1) + 'mV';
 
-        ctx.strokeStyle = TEK.grid;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(mL, mT, plotW, plotH);
+        // Margin
+        const allowed = rail.v * rail.tol;
+        const margin = allowed - totalDroop;
+        const marginEl = document.getElementById('fpga-margin');
+        marginEl.textContent = (margin * 1000).toFixed(1) + 'mV';
+        marginEl.style.color = margin > 0 ? 'var(--ok)' : 'var(--bad)';
 
-        // Zero line
-        ctx.strokeStyle = TEK.ref;
-        const yCenter = mT + plotH / 2;
-        ctx.beginPath();
-        ctx.moveTo(mL, yCenter);
-        ctx.lineTo(mL + plotW, yCenter);
-        ctx.stroke();
+        plotTransient(rail, didt, caps, esl);
+    }
 
-        // Draw waveform based on type
-        ctx.strokeStyle = TEK.ch1;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
+    function plotTransient(rail, didt, caps, esl) {
+        const w = canvas.width;
+        const h = canvas.height;
 
-        const period = 1 / freq;
-        const totalTime = period * 10; // Show 10 cycles
+        const totalTime = 10; // µs
+        const vNom = rail.v;
+        const vMin = vNom * (1 - rail.tol);
+        const vMax = vNom * (1 + rail.tol);
 
-        for (let i = 0; i <= plotW; i++) {
-            const t = i / plotW * totalTime;
-            let v = 0;
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: totalTime,
+            yMin: vNom * 0.9,
+            yMax: vNom * 1.05,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 'µs',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 6
+        });
 
-            switch(type) {
-                case 'continuous':
-                    v = Math.sin(2 * Math.PI * freq * t);
-                    break;
-                case 'ringing':
-                    // Damped sinusoid
-                    v = Math.exp(-damp * 2 * Math.PI * freq * t) * Math.sin(2 * Math.PI * freq * t);
-                    break;
-                case 'burst':
-                    // Burst oscillation
-                    const burstPeriod = totalTime / 3;
-                    const burstPhase = t % burstPeriod;
-                    if (burstPhase < burstPeriod * 0.6) {
-                        const env = Math.sin(Math.PI * burstPhase / (burstPeriod * 0.6));
-                        v = env * Math.sin(2 * Math.PI * freq * t);
-                    }
-                    break;
-                case 'motorboat':
-                    // Low frequency modulated
-                    const modFreq = freq / 100;
-                    v = (1 + 0.8 * Math.sin(2 * Math.PI * modFreq * t)) *
-                        Math.sin(2 * Math.PI * freq * 0.1 * t);
-                    v = Math.sin(2 * Math.PI * modFreq * t);
-                    break;
+        const N = 300;
+        const tData = [];
+        const vData = [];
+
+        const tStep = 2; // Step occurs at 2µs
+        const tRise = 0.1; // 100ns rise
+        const lDrop = esl * 1e-9 * didt * 1e6;
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * totalTime;
+            tData.push(t);
+
+            let v = vNom;
+
+            if (t >= tStep) {
+                const tEvt = t - tStep;
+
+                if (tEvt < tRise) {
+                    // During fast edge - inductive drop dominates
+                    v = vNom - lDrop * (tEvt / tRise);
+                } else {
+                    // After edge - capacitor supplies current, regulator recovers
+                    const tRecover = tEvt - tRise;
+                    const tau = caps * 1e-6 * 0.01; // Simplified recovery time
+                    const droopPeak = lDrop + (didt * tRise / (caps));
+                    v = vNom - droopPeak * Math.exp(-tRecover * 1e-6 / tau);
+                }
             }
 
-            const y = yCenter - v * plotH * 0.4;
-            if (i === 0) ctx.moveTo(mL + i, y);
-            else ctx.lineTo(mL + i, y);
+            vData.push(v);
         }
+
+        // Draw tolerance band
+        ctx.save();
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.15)';
+        const ptMin = axes.toCanvas(0, vMin);
+        const ptMax = axes.toCanvas(0, vMax);
+        ctx.fillRect(axes.left, ptMax.y, axes.width, ptMin.y - ptMax.y);
+
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
+        ctx.setLineDash([3, 3]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(axes.left, ptMin.y);
+        ctx.lineTo(axes.left + axes.width, ptMin.y);
+        ctx.moveTo(axes.left, ptMax.y);
+        ctx.lineTo(axes.left + axes.width, ptMax.y);
         ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
 
-        // Labels
-        ctx.fillStyle = '#fff';
-        ctx.font = '12px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('Time', mL + plotW/2, H - 10);
-        ctx.fillText('Oscillation Waveform: ' + type.replace('_', ' '), mL + plotW/2, 20);
+        // Plot voltage
+        AD.plotData(ctx, axes, tData, vData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2
+        });
 
-        // Frequency indicator
-        ctx.fillStyle = '#4af';
-        ctx.font = '11px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('f = ' + AD.formatValue(freq, 'Hz'), mL + 10, mT + 20);
-        ctx.fillText('ζ = ' + damp.toFixed(2), mL + 10, mT + 35);
+        // Draw nominal
+        ctx.save();
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
+        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1;
+        const nomPt = axes.toCanvas(0, vNom);
+        ctx.beginPath();
+        ctx.moveTo(axes.left, nomPt.y);
+        ctx.lineTo(axes.left + axes.width, nomPt.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'Rail voltage' },
+            { color: 'rgba(52, 211, 153, 0.5)', label: 'Tolerance band' },
+            { color: 'rgba(251, 191, 36, 0.5)', label: 'Nominal' }
+        ]);
     }
 
-    ['osc-type', 'osc-freq', 'osc-damp'].forEach(id => {
+    ['fpga-rail', 'fpga-didt', 'fpga-caps', 'fpga-esl'].forEach(id => {
         document.getElementById(id).addEventListener('input', update);
-        document.getElementById(id).addEventListener('change', update);
     });
 
-    // Schematic
-    function drawSchematic() {
-        const container = document.getElementById('osc-schematic');
-        const svg = new SchematicSVG(550, 220);
-
-        // Oscillating op-amp circuit
-        svg.text(30, 80, 'Vin', {fontSize: 10});
-        svg.wire([[50, 80], [100, 80]]);
-
-        // Input resistor
-        svg.resistor(120, 80, {horizontal: true});
-        svg.text(120, 65, 'Rin', {fontSize: 9});
-        svg.wire([[140, 80], [180, 80]]);
-
-        // Op-amp
-        svg.opAmp(220, 90, {mirror: false});
-        svg.wire([[180, 80], [195, 80]]);
-        svg.wire([[180, 80], [180, 100], [195, 100]]);
-
-        // Feedback resistor
-        svg.wire([[245, 90], [280, 90], [280, 40], [180, 40], [180, 80]]);
-        svg.resistor(230, 40, {horizontal: true});
-        svg.text(230, 28, 'Rf', {fontSize: 9});
-
-        // Compensation cap (the fix!)
-        svg.wire([[280, 90], [280, 60]]);
-        svg.capacitor(320, 40, {horizontal: true});
-        svg.text(320, 28, 'Cc', {fontSize: 9, fill: '#4af'});
-        svg.wire([[280, 40], [300, 40]]);
-        svg.wire([[340, 40], [360, 40], [360, 90], [280, 90]]);
-
-        // Output
-        svg.wire([[245, 90], [320, 90]]);
-
-        // Capacitive load (cause of instability)
-        svg.wire([[320, 90], [320, 110]]);
-        svg.capacitor(320, 130, {horizontal: false});
-        svg.text(335, 130, 'CL', {fontSize: 9, fill: '#f44'});
-        svg.wire([[320, 150], [320, 170]]);
-        svg.ground(320, 170);
-
-        svg.wire([[320, 90], [380, 90]]);
-        svg.text(390, 95, 'Vout', {fontSize: 10});
-
-        // Annotations
-        svg.text(100, 180, 'Capacitive load causes phase shift → oscillation', {fontSize: 10, fill: '#f44'});
-        svg.text(100, 195, 'Fix: Add Cc for pole-splitting compensation', {fontSize: 10, fill: '#4af'});
-
-        container.innerHTML = svg.render();
-    }
-
-    // SPICE
-    function initSpice() {
-        new SpiceNetlistWidget('osc-spice', {
-            title: 'Op-Amp Stability Analysis',
-            netlist: `* Op-Amp with Capacitive Load
-* Demonstrates oscillation from capacitive loading
-
-* Input
-Vin in 0 AC 1 PULSE(0 0.1 1u 10n 10n 100u 200u)
-
-* Op-amp (with realistic bandwidth)
-.subckt opamp inp inn out
-Rin inp inn 1MEG
-Egain int 0 inp inn 100k
-* Single pole at 10Hz (GBW = 1MHz)
-Rpole int out 1
-Cpole out 0 15.9u
-.ends
-
-Xamp 0 fb out opamp
-
-* Feedback network
-Rin in fb 10k
-Rf fb out 10k
-
-* Capacitive load (problem!)
-Cload out 0 1n  ; Try 10n for more oscillation
-
-* Compensation cap (uncomment to fix)
-* Cc fb out 10p
-
-.tran 1n 50u
-.ac dec 100 1 10MEG
-.probe V(out) V(fb)
-.end`
-        });
-    }
-
-    // Checklist
-    function initChecklist() {
-        new ChecklistWidget('osc-checklist', {
-            title: 'Oscillation Debug Checklist',
-            items: [
-                'Measure oscillation frequency precisely',
-                'Check if oscillation is load-dependent',
-                'Verify power supply decoupling',
-                'Test with minimum load capacitance',
-                'Check feedback component values',
-                'Look for long PCB traces in feedback',
-                'Verify compensation network installed',
-                'Check for ground loops',
-                'Test at temperature extremes'
-            ]
-        });
-    }
-
-    // Exercises
-    function initExercises() {
-        new ExerciseWidget('osc-exercises', {
-            exercises: [
-                {
-                    question: 'An op-amp oscillates at 2MHz. Its GBW is 10MHz. What is the approximate closed-loop gain?',
-                    answer: '5',
-                    solution: 'At oscillation, loop gain = 1 near the unity-gain frequency. f_osc ≈ GBW/Acl. Acl = 10MHz/2MHz = 5'
-                },
-                {
-                    question: 'Adding 100pF compensation cap stops oscillation. If the oscillation was at 1MHz, what pole did you create?',
-                    answer: '~1.6MHz',
-                    solution: 'The comp cap creates a dominant pole. If Rf = 10k, f = 1/(2π × 10k × 100p) = 159kHz. But effectively shifts crossover to safe margin.'
-                },
-                {
-                    question: 'Motor-boating occurs at 5Hz. Power supply has 100µF cap with 0.5Ω ESR. Is this the cause?',
-                    answer: 'Likely yes',
-                    solution: 'At 5Hz: Zc = 1/(2π × 5 × 100µ) = 318Ω. ESR = 0.5Ω. The capacitor is effective. But if multiple stages share this supply, the ESR creates coupling. Check for proper star grounding.'
-                }
-            ]
-        });
-    }
-
     update();
-    drawSchematic();
-    initSpice();
-    initChecklist();
-    initExercises();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'FPGA Core Power PDN',
+        netlist: `* FPGA Core Power Distribution Network
+* Analyze impedance and transient response
+
+* Voltage regulator model (simplified)
+VREG reg_out 0 DC 1.0
+RREG reg_out pdn_in 5m
+
+* PDN inductance (PCB traces + vias)
+LPDN pdn_in pdn_mid 0.5n
+RPDN pdn_mid vcore 2m
+
+* Bulk capacitors (polymer, near regulator)
+C_BULK vcore 0 470u IC=1.0
+R_ESR_BULK vcore vcore_bulk 5m
+L_ESL_BULK vcore_bulk 0 1n
+
+* MLCC capacitors (distributed)
+C_MLCC vcore 0 100u IC=1.0
+R_ESR_MLCC vcore vcore_mlcc 2m
+L_ESL_MLCC vcore_mlcc 0 0.3n
+
+* HF decoupling (at FPGA pins)
+C_HF vcore 0 10u IC=1.0
+R_ESR_HF vcore vcore_hf 3m
+L_ESL_HF vcore_hf 0 0.1n
+
+* FPGA load (current step)
+ILOAD vcore 0 PWL(0 1 2u 1 2.1u 5 10u 5 10.1u 1)
+
+.TRAN 10n 15u UIC
+
+.PROBE V(vcore) I(VREG)
+.END
+
+* Watch voltage droop during load step
+* Adjust cap values to meet tolerance`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm20l5',
+        items: [
+            'Follow vendor power sequencing requirements',
+            'Calculate decoupling for di/dt transients',
+            'Minimize loop inductance in layout',
+            'Use impedance target (milliohms at MHz)',
+            'Verify with load step testing'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'SC5-1',
+        type: 'numeric',
+        question: 'An FPGA core experiences a 5A load step in 100ns through 1nH of inductance. What is the voltage drop?',
+        hint: 'V = L × di/dt',
+        expected: 50,
+        tolerance: 0.1,
+        unit: 'mV',
+        solution: 'di/dt = 5A / 100ns = 50×10⁶ A/s. V = 1nH × 50×10⁶ = 50mV',
+        explanation: 'With only 30mV tolerance on a 1V rail, this 50mV drop is unacceptable. Reduce inductance by using more caps in parallel, shorter traces, and more vias.'
+    });
+})();
+
+// FPGA Power Tree Canvas
+(function() {
+    const canvas = document.getElementById('fpga-power-tree-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('FPGA Power Architecture', 30, 30);
+
+    // Helper to draw rounded rect
+    function roundRect(x, y, w, h, r, color, fill) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, r);
+        if (fill) {
+            ctx.fillStyle = fill;
+            ctx.fill();
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    // Input power
+    roundRect(30, 80, 100, 50, 6, TEK.ch3, 'rgba(255,102,255,0.1)');
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('12V Input', 80, 110);
+
+    // Main DC-DC stages
+    const regulators = [
+        { x: 200, y: 60, w: 120, h: 50, label: 'Buck 1', out: '1.0V @ 10A', color: TEK.ch2 },
+        { x: 200, y: 150, w: 120, h: 50, label: 'Buck 2', out: '1.8V @ 2A', color: TEK.ch2 },
+        { x: 200, y: 240, w: 120, h: 50, label: 'Buck 3', out: '3.3V @ 1A', color: TEK.ch2 }
+    ];
+
+    regulators.forEach(r => {
+        roundRect(r.x, r.y, r.w, r.h, 6, r.color);
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(r.label, r.x + r.w/2, r.y + 20);
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '10px monospace';
+        ctx.fillText(r.out, r.x + r.w/2, r.y + 38);
+    });
+
+    // Lines from input to regulators
+    ctx.strokeStyle = TEK.ch3;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(130, 105);
+    ctx.lineTo(160, 105);
+    ctx.lineTo(160, 85);
+    ctx.lineTo(200, 85);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(160, 105);
+    ctx.lineTo(160, 175);
+    ctx.lineTo(200, 175);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(160, 175);
+    ctx.lineTo(160, 265);
+    ctx.lineTo(200, 265);
+    ctx.stroke();
+
+    // Decoupling networks
+    const decoupling = [
+        { x: 380, y: 50, w: 150, h: 70, rail: 'VCORE (1.0V)', caps: ['10×22µF MLCC', '100×0.1µF HF', '10×470µF bulk'] },
+        { x: 380, y: 140, w: 150, h: 70, rail: 'VAUX (1.8V)', caps: ['4×22µF MLCC', '20×0.1µF HF'] },
+        { x: 380, y: 230, w: 150, h: 70, rail: 'VIO (3.3V)', caps: ['2×22µF MLCC', '10×0.1µF HF'] }
+    ];
+
+    decoupling.forEach((d, i) => {
+        roundRect(d.x, d.y, d.w, d.h, 4, '#555');
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(d.rail, d.x + 10, d.y + 18);
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        d.caps.forEach((c, j) => {
+            ctx.fillText(c, d.x + 10, d.y + 35 + j * 12);
+        });
+
+        // Connection line
+        ctx.strokeStyle = TEK.ch2;
+        ctx.beginPath();
+        ctx.moveTo(320, regulators[i].y + 25);
+        ctx.lineTo(380, d.y + 35);
+        ctx.stroke();
+    });
+
+    // FPGA block
+    roundRect(580, 100, 140, 180, 8, TEK.ch4, 'rgba(0,255,0,0.05)');
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('FPGA', 650, 140);
+
+    // Power pins
+    const pins = [
+        { y: 160, label: 'VCCINT', rail: '1.0V' },
+        { y: 190, label: 'VCCAUX', rail: '1.8V' },
+        { y: 220, label: 'VCCO', rail: '3.3V' },
+        { y: 250, label: 'GND', rail: '' }
+    ];
+
+    pins.forEach(p => {
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(p.label, 600, p.y);
+        if (p.rail) {
+            ctx.fillStyle = '#888';
+            ctx.fillText(p.rail, 680, p.y);
+        }
+    });
+
+    // Power connections to FPGA
+    ctx.strokeStyle = TEK.ch2;
+    ctx.lineWidth = 2;
+    [[530, 85, 580, 157], [530, 175, 580, 187], [530, 265, 580, 217]].forEach(c => {
+        ctx.beginPath();
+        ctx.moveTo(c[0], c[1]);
+        ctx.lineTo(c[2], c[3]);
+        ctx.stroke();
+    });
+
+    // Sequencing note
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(30, 340, 400, 100);
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Power Sequencing (Critical!):', 50, 365);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    const seq = [
+        '1. VCCINT (1.0V) must power up first',
+        '2. VCCAUX (1.8V) ramps after VCCINT stable',
+        '3. VCCO (3.3V) last, after config complete',
+        '4. Use supervisor IC or soft-start control'
+    ];
+    seq.forEach((s, i) => {
+        ctx.fillText(s, 50, 385 + i * 15);
+    });
+
+    // PDN impedance note
+    ctx.strokeRect(450, 340, 370, 100);
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('PDN Impedance Target:', 470, 365);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    const pdn = [
+        'Z_target = ΔV / ΔI = 30mV / 10A = 3mΩ',
+        'From DC to ~10MHz frequency range',
+        'Requires multiple cap values for broad BW',
+        'Bulk (low f) → MLCC (mid f) → HF (high f)'
+    ];
+    pdn.forEach((p, i) => {
+        ctx.fillText(p, 470, 385 + i * 15);
+    });
+
+    // Ground plane note
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = '10px monospace';
+    ctx.fillText('Solid ground plane under FPGA - no splits!', 30, 460);
 })();
 </script>

@@ -1,107 +1,129 @@
-<!-- Module 17, Lesson 3: Hot-Swap & Inrush Limiting -->
+<!-- Module 17, Lesson 3: Precision RTD Temperature Measurement -->
 <div class="lesson-content" data-module="17" data-lesson="3">
 
     <div class="card">
-        <h2>Hot-Swap & Inrush Limiting</h2>
-        <p>Hot-swap circuits allow safe insertion of boards into powered backplanes. They limit inrush current to prevent supply dips and connector damage.</p>
+        <h2>Scenario: Precision RTD Temperature Measurement</h2>
+        <p>Design a PT100 RTD interface with 0.1°C accuracy over -50°C to +200°C range. This requires careful attention to excitation current, lead resistance, and signal conditioning.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Inrush Problem</div>
-                <div class="v">C × dV/dt can exceed 100A</div>
+                <div class="k">Sensor</div>
+                <div class="v">PT100 (100Ω @ 0°C)</div>
             </div>
             <div class="box">
-                <div class="k">Solution</div>
-                <div class="v">Control FET slew rate</div>
+                <div class="k">Sensitivity</div>
+                <div class="v">0.385Ω/°C</div>
             </div>
             <div class="box">
-                <div class="k">Current Limit</div>
-                <div class="v">Protect against shorts</div>
+                <div class="k">Target Accuracy</div>
+                <div class="v">±0.1°C</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> When a capacitive load is suddenly connected, the capacitors look like a short circuit. The hot-swap controller limits current during startup and protects against sustained faults.
+            <strong>Key Challenge:</strong> 0.1°C accuracy requires measuring 0.0385Ω change (38.5mΩ). With 1mA excitation, this is 38.5µV - easily swamped by noise, offset, and lead resistance errors.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Inrush Current Control</h3>
+        <h3>Interactive: RTD Signal Chain</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="hs-vin">V<sub>IN</sub> (V)</label>
-                <input type="text" id="hs-vin" value="12">
+                <label for="rtd-temp">Temperature (°C)</label>
+                <input type="range" id="rtd-temp" min="-50" max="200" step="1" value="25">
+                <span id="rtd-temp-val" class="mono">25°C</span>
             </div>
             <div class="c3">
-                <label for="hs-cout">C<sub>OUT</sub> (µF)</label>
-                <input type="text" id="hs-cout" value="1000">
+                <label for="rtd-iex">Excitation (mA)</label>
+                <input type="range" id="rtd-iex" min="0.1" max="2" step="0.1" value="1">
+                <span id="rtd-iex-val" class="mono">1mA</span>
             </div>
             <div class="c3">
-                <label for="hs-ilim">Current Limit (A)</label>
-                <input type="range" id="hs-ilim" min="0.5" max="10" step="0.5" value="2">
-                <span id="hs-ilim-val" class="mono">2A</span>
+                <label for="rtd-wire">Wiring Config</label>
+                <select id="rtd-wire">
+                    <option value="2">2-wire</option>
+                    <option value="3" selected>3-wire</option>
+                    <option value="4">4-wire (Kelvin)</option>
+                </select>
             </div>
             <div class="c3">
-                <label for="hs-tstart">Startup Time (ms)</label>
-                <input type="range" id="hs-tstart" min="1" max="50" step="1" value="10">
-                <span id="hs-tstart-val" class="mono">10ms</span>
+                <label for="rtd-rlead">Lead R (Ω each)</label>
+                <input type="range" id="rtd-rlead" min="0" max="5" step="0.1" value="1">
+                <span id="rtd-rlead-val" class="mono">1Ω</span>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="hs-canvas" width="980" height="300"></canvas>
+            <canvas id="rtd-canvas" width="980" height="280"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Uncontrolled Inrush</div>
-                <div class="v mono" id="hs-inrush">—</div>
+                <div class="k">RTD Resistance</div>
+                <div class="v mono" id="rtd-r">—</div>
             </div>
             <div class="box">
-                <div class="k">Controlled Startup</div>
-                <div class="v mono" id="hs-tstartup">—</div>
+                <div class="k">Signal Voltage</div>
+                <div class="v mono" id="rtd-v">—</div>
             </div>
             <div class="box">
-                <div class="k">FET SOA Check</div>
-                <div class="v mono" id="hs-soa">—</div>
+                <div class="k">Lead Error</div>
+                <div class="v mono" id="rtd-err">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Self-Heating</div>
+                <div class="v mono" id="rtd-heat">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Hot-Swap Controller Features</h3>
+        <h3>Wiring Configurations</h3>
+        <div class="diagram-container">
+            <canvas id="rtd-wiring-canvas" width="800" height="450" style="width:100%;max-width:800px;background:#0d1117;border-radius:8px;"></canvas>
+        </div>
+
+        <div class="warn">
+            <strong>3-Wire Assumption:</strong> 3-wire compensation assumes Rlead1 = Rlead2. Use matched cables and connectors. For critical applications, use 4-wire.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Error Sources</h3>
 
         <table class="table">
             <tr>
-                <th>Feature</th>
-                <th>Purpose</th>
+                <th>Error Source</th>
+                <th>Typical Magnitude</th>
+                <th>Mitigation</th>
             </tr>
             <tr>
-                <td>Soft-Start</td>
-                <td>Slowly turns on FET to limit dV/dt</td>
+                <td>Lead resistance</td>
+                <td>1-10Ω per wire</td>
+                <td>3-wire or 4-wire compensation</td>
             </tr>
             <tr>
-                <td>Current Limit</td>
-                <td>Prevents excessive current during faults</td>
+                <td>Self-heating</td>
+                <td>0.1-1°C with 1mA</td>
+                <td>Reduce excitation, pulsed measurement</td>
             </tr>
             <tr>
-                <td>SOA Timer</td>
-                <td>Shuts off if FET exceeds safe area too long</td>
+                <td>Reference current</td>
+                <td>0.1-1% drift</td>
+                <td>Ratiometric measurement</td>
             </tr>
             <tr>
-                <td>Power Good</td>
-                <td>Output signal when startup is complete</td>
+                <td>Amplifier offset</td>
+                <td>10-100µV</td>
+                <td>Chopper amp or calibration</td>
             </tr>
             <tr>
-                <td>Retry/Latch</td>
-                <td>Behavior after fault condition</td>
+                <td>ADC noise</td>
+                <td>1-10 LSB</td>
+                <td>Oversampling and averaging</td>
             </tr>
         </table>
-
-        <div class="warn">
-            <strong>FET Selection:</strong> During soft-start, the FET operates in linear region with high VDS and significant current. SOA (Safe Operating Area) must allow this for the startup duration.
-        </div>
     </div>
 
     <div class="card">
@@ -110,7 +132,7 @@
     </div>
 
     <div class="card">
-        <h3>Verification Checklist</h3>
+        <h3>Design Checklist</h3>
         <div id="checklist-container"></div>
     </div>
 
@@ -123,192 +145,423 @@
 
 <script>
 (function() {
-    const canvas = document.getElementById('hs-canvas');
+    const canvas = document.getElementById('rtd-canvas');
     const ctx = canvas.getContext('2d');
 
-    function update() {
-        const vin = AD.parseValue(document.getElementById('hs-vin').value) || 12;
-        const cout = AD.parseValue(document.getElementById('hs-cout').value) * 1e-6 || 1000e-6;
-        const ilim = AD.num('hs-ilim');
-        const tstart = AD.num('hs-tstart') * 1e-3;
+    // PT100 Callendar-Van Dusen coefficients
+    const R0 = 100; // Ω at 0°C
+    const alpha = 0.00385;
+    const A = 3.9083e-3;
+    const B = -5.775e-7;
 
-        document.getElementById('hs-ilim-val').textContent = ilim + 'A';
-        document.getElementById('hs-tstart-val').textContent = (tstart * 1000).toFixed(0) + 'ms';
-
-        // Uncontrolled inrush (assuming 0.1Ω source impedance)
-        const rsource = 0.1;
-        const inrush = vin / rsource;
-
-        // Controlled startup time (at current limit)
-        // t = C × V / I
-        const tstartup = cout * vin / ilim;
-
-        // SOA check (simplified: FET dissipates P = VDS × I during ramp)
-        // Average VDS ≈ VIN/2, Average I = ILIM
-        const pAvg = (vin / 2) * ilim;
-        const energyDissipated = pAvg * tstartup;
-
-        document.getElementById('hs-inrush').textContent = AD.fmtUnit(inrush, 'A') + ' (!)';
-        document.getElementById('hs-tstartup').textContent = AD.fmtUnit(tstartup, 's');
-
-        const soaEl = document.getElementById('hs-soa');
-        // Typical SOA: 10W for 10ms, derate for longer
-        const soaLimit = 0.1; // 100mJ simplified
-        if (energyDissipated < soaLimit) {
-            soaEl.textContent = 'OK (' + (energyDissipated * 1000).toFixed(1) + 'mJ)';
-            soaEl.style.color = 'var(--ok)';
-        } else {
-            soaEl.textContent = 'CHECK FET (' + (energyDissipated * 1000).toFixed(0) + 'mJ)';
-            soaEl.style.color = 'var(--bad)';
-        }
-
-        plotHotSwap(vin, ilim, tstartup);
+    function rtdResistance(temp) {
+        // Simplified linear for positive temps
+        return R0 * (1 + alpha * temp);
     }
 
-    function plotHotSwap(vin, ilim, tstartup) {
+    function update() {
+        const temp = AD.num('rtd-temp');
+        const iex = AD.num('rtd-iex');
+        const wire = document.getElementById('rtd-wire').value;
+        const rlead = AD.num('rtd-rlead');
+
+        document.getElementById('rtd-temp-val').textContent = temp + '°C';
+        document.getElementById('rtd-iex-val').textContent = iex + 'mA';
+        document.getElementById('rtd-rlead-val').textContent = rlead + 'Ω';
+
+        const rRtd = rtdResistance(temp);
+        document.getElementById('rtd-r').textContent = rRtd.toFixed(2) + 'Ω';
+
+        // Signal voltage
+        const vSig = rRtd * iex / 1000;
+        document.getElementById('rtd-v').textContent = (vSig * 1000).toFixed(2) + 'mV';
+
+        // Lead resistance error
+        let leadError;
+        if (wire === '2') {
+            leadError = 2 * rlead; // Both leads add
+        } else if (wire === '3') {
+            leadError = 0.1 * rlead; // ~10% mismatch assumed
+        } else {
+            leadError = 0; // 4-wire eliminates it
+        }
+        const tempError = leadError / 0.385;
+        document.getElementById('rtd-err').textContent =
+            leadError.toFixed(2) + 'Ω (' + tempError.toFixed(1) + '°C)';
+
+        // Self-heating (assuming 0.5°C/mW typical for small RTD)
+        const power = iex * iex * rRtd / 1000; // mW
+        const selfHeat = power * 0.5;
+        document.getElementById('rtd-heat').textContent =
+            power.toFixed(2) + 'mW (' + selfHeat.toFixed(2) + '°C)';
+
+        plotRTD(temp, iex, wire, rlead);
+    }
+
+    function plotRTD(currentTemp, iex, wire, rlead) {
         const w = canvas.width;
         const h = canvas.height;
 
-        const totalTime = tstartup * 2.5;
+        const tempMin = -50;
+        const tempMax = 200;
+
+        const rMin = rtdResistance(tempMin);
+        const rMax = rtdResistance(tempMax);
 
         const axes = AD.drawAxes(ctx, w, h, {
-            xMin: 0,
-            xMax: totalTime,
-            yMin: 0,
-            yMax: Math.max(vin * 1.2, ilim * 2),
-            xLabel: 'Time',
-            yLabel: 'V / I',
-            xUnit: 's',
-            yUnit: '',
+            xMin: tempMin,
+            xMax: tempMax,
+            yMin: rMin * 0.9,
+            yMax: rMax * 1.1,
+            xLabel: 'Temperature',
+            yLabel: 'Resistance',
+            xUnit: '°C',
+            yUnit: 'Ω',
             xDivs: 10,
-            yDivs: 8
+            yDivs: 6
         });
 
-        const N = 300;
+        const N = 200;
         const tData = [];
-        const voutData = [];
-        const iData = [];
+        const rData = [];
+        const rMeasData = [];
+
+        // Lead resistance addition
+        let leadAdd = 0;
+        if (wire === '2') leadAdd = 2 * rlead;
+        else if (wire === '3') leadAdd = 0.1 * rlead;
 
         for (let i = 0; i < N; i++) {
-            const t = (i / N) * totalTime;
-            tData.push(t);
-
-            let vout, current;
-            if (t < tstartup) {
-                // Current-limited ramp
-                current = ilim;
-                vout = vin * (t / tstartup);
-            } else {
-                // Fully on
-                current = 0.5; // Just load current
-                vout = vin;
-            }
-
-            voutData.push(vout);
-            iData.push(current);
+            const temp = tempMin + (i / N) * (tempMax - tempMin);
+            tData.push(temp);
+            rData.push(rtdResistance(temp));
+            rMeasData.push(rtdResistance(temp) + leadAdd);
         }
 
-        // Plot voltage
-        AD.plotData(ctx, axes, tData, voutData, {
+        // Plot true resistance
+        AD.plotData(ctx, axes, tData, rData, {
             color: 'rgba(52, 211, 153, 0.95)',
-            lineWidth: 2,
-            label: 'VOUT'
+            lineWidth: 2
         });
 
-        // Plot current
-        AD.plotData(ctx, axes, tData, iData, {
-            color: 'rgba(251, 191, 36, 0.95)',
-            lineWidth: 2,
-            label: 'Current'
-        });
+        // Plot measured resistance (with lead error)
+        if (leadAdd > 0.1) {
+            AD.plotData(ctx, axes, tData, rMeasData, {
+                color: 'rgba(251, 113, 133, 0.8)',
+                lineWidth: 2
+            });
+        }
 
-        // Mark current limit
+        // Mark current operating point
+        const currentR = rtdResistance(currentTemp);
+        const opPt = axes.toCanvas(currentTemp, currentR);
+
         ctx.save();
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = 'rgba(251, 113, 133, 0.6)';
-        ctx.lineWidth = 1;
-
-        const ilimPt = axes.toCanvas(0, ilim);
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.95)';
         ctx.beginPath();
-        ctx.moveTo(axes.left, ilimPt.y);
-        ctx.lineTo(axes.left + axes.width, ilimPt.y);
-        ctx.stroke();
+        ctx.arc(opPt.x, opPt.y, 8, 0, 2 * Math.PI);
+        ctx.fill();
 
-        ctx.setLineDash([]);
-        ctx.fillStyle = 'rgba(251, 113, 133, 0.9)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.font = '10px ui-sans-serif';
-        ctx.fillText('ILIM', axes.left + axes.width + 3, ilimPt.y + 3);
+        ctx.fillText(currentTemp + '°C: ' + currentR.toFixed(1) + 'Ω', opPt.x + 12, opPt.y + 4);
         ctx.restore();
 
-        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
-            { color: 'rgba(52, 211, 153, 0.95)', label: 'Output voltage (V)' },
-            { color: 'rgba(251, 191, 36, 0.95)', label: 'Inrush current (A)' }
-        ]);
+        const legendItems = [
+            { color: 'rgba(52, 211, 153, 0.95)', label: 'True RTD resistance' }
+        ];
+        if (leadAdd > 0.1) {
+            legendItems.push({ color: 'rgba(251, 113, 133, 0.8)', label: 'With lead error' });
+        }
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, legendItems);
     }
 
-    ['hs-vin', 'hs-cout', 'hs-ilim', 'hs-tstart'].forEach(id => {
+    ['rtd-temp', 'rtd-iex', 'rtd-wire', 'rtd-rlead'].forEach(id => {
         document.getElementById(id).addEventListener('input', update);
     });
 
     update();
 
     new SpiceNetlistWidget('spice-container', {
-        title: 'Hot-Swap Controller',
-        netlist: `* Hot-Swap Circuit with Inrush Limiting
+        title: 'RTD Signal Conditioning',
+        netlist: `* PT100 RTD Interface Circuit
+* 4-wire measurement with instrumentation amp
 
-* Input supply
-VIN in 0 DC 12
+* Precision current source (1mA)
+IEX 0 rtd_hi DC 1m
 
-* Current sense resistor
-RSENSE in sense 10m
+* RTD model (100Ω + 0.385Ω/°C)
+* At 25°C: R = 100 + 0.385×25 = 109.625Ω
+RRTD rtd_hi rtd_lo 109.625
 
-* N-FET pass transistor
-M1 sense gate out out NMOS W=10000u L=1u
-.MODEL NMOS NMOS (VTO=2 KP=100)
+* Lead resistances (4-wire eliminates these)
+RLEAD1 rtd_hi sense_hi 1
+RLEAD2 rtd_lo sense_lo 1
 
-* Simplified hot-swap controller model
-* Limits gate voltage based on current
-* Gate ramps slowly with soft-start
-B_CTRL gate 0 V={min(10, max(0,
-+  5*(TIME/10m) - 100*(I(RSENSE)-2)))}
+* Instrumentation amplifier (G=10)
+* Measures voltage across RTD only
+EAMP amp_out 0 sense_hi sense_lo 10
 
-* Output capacitor (large)
-COUT out 0 1000u IC=0
+* ADC input filter
+RFILT amp_out adc_in 1k
+CFILT adc_in 0 100n
 
-* Load resistor
-RLOAD out 0 24
+* Reference resistor for ratiometric
+RREF iex_out 0 1k
+* Same current through RREF gives
+* VREF = 1mA × 1kΩ = 1V
 
-.TRAN 1u 50m UIC
+.DC IEX 0.5m 1.5m 0.1m
 
-.PROBE V(out) I(RSENSE) V(gate)
+.PROBE V(amp_out) V(adc_in)
 .END
 
-* Controller ramps gate over 10ms
-* Current is limited to ~2A
-* Startup time = C × V / I = 1000µF × 12V / 2A = 6ms`
+* Ratiometric: measure Vrtd/Vref
+* Eliminates current source error`
     });
 
     new ChecklistWidget('checklist-container', {
-        lessonKey: 'm17l3',
+        lessonKey: 'm20l3',
         items: [
-            'Know uncontrolled inrush = VIN/Rsource',
-            'Calculate startup time: t = C × V / I',
-            'Check FET SOA for linear region operation',
-            'Understand current limit vs soft-start',
-            'Size sense resistor for controller'
+            'Use 3-wire or 4-wire for lead compensation',
+            'Limit excitation to reduce self-heating',
+            'Use ratiometric measurement',
+            'Apply linearization for wide temp range',
+            'Shield signal wires from noise'
         ]
     });
 
     new ExerciseWidget('exercise-container', {
-        id: 'R3-3',
+        id: 'SC3-1',
         type: 'numeric',
-        question: 'A hot-swap circuit must charge 2000µF to 48V with a 3A current limit. What is the minimum startup time?',
-        hint: 't = C × V / I',
-        expected: 32,
+        question: 'A PT100 reads 119.4Ω in a 2-wire configuration with 0.5Ω lead resistance per wire. What is the true RTD resistance?',
+        hint: 'In 2-wire, both leads add to the measurement',
+        expected: 118.4,
         tolerance: 0.05,
-        unit: 'ms',
-        solution: 't = C × V / I = 2000µF × 48V / 3A = 0.032s = 32ms',
-        explanation: 'During this 32ms, the FET dissipates significant power in linear region. Average power ≈ (48V/2) × 3A = 72W. Check that FET SOA allows this.'
+        unit: 'Ω',
+        solution: 'Rmeas = Rrtd + 2×Rlead → Rrtd = 119.4 - 2×0.5 = 118.4Ω',
+        explanation: '118.4Ω corresponds to (118.4-100)/0.385 = 47.8°C. The 1Ω lead error would have indicated 50.4°C - a 2.6°C error!'
+    });
+})();
+
+// RTD Wiring Configurations Canvas
+(function() {
+    const canvas = document.getElementById('rtd-wiring-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('RTD Wiring Configurations', 30, 30);
+
+    // Helper function to draw RTD symbol
+    function drawRTD(x, y) {
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - 20, y - 15, 40, 30);
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('RTD', x, y + 5);
+    }
+
+    // 2-Wire Configuration
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('2-Wire', 50, 80);
+
+    // Current source
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(80, 120, 12, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Iex', 80, 125);
+
+    // Wires with resistance
+    ctx.strokeStyle = '#888';
+    ctx.beginPath();
+    ctx.moveTo(92, 120);
+    ctx.lineTo(130, 120);
+    ctx.stroke();
+    ctx.fillStyle = '#fb7185';
+    ctx.fillText('Rlead', 110, 110);
+
+    drawRTD(160, 120);
+
+    ctx.strokeStyle = '#888';
+    ctx.beginPath();
+    ctx.moveTo(180, 120);
+    ctx.lineTo(220, 120);
+    ctx.lineTo(220, 180);
+    ctx.lineTo(80, 180);
+    ctx.lineTo(80, 132);
+    ctx.stroke();
+    ctx.fillStyle = '#fb7185';
+    ctx.fillText('Rlead', 200, 110);
+
+    // Error note
+    ctx.fillStyle = '#fb7185';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Error: 2 × Rlead added', 50, 210);
+
+    // 3-Wire Configuration
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('3-Wire', 290, 80);
+
+    // Current source
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(320, 120, 12, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Iex', 320, 125);
+
+    // Wires
+    ctx.strokeStyle = '#888';
+    ctx.beginPath();
+    ctx.moveTo(332, 120);
+    ctx.lineTo(370, 120);
+    ctx.stroke();
+
+    drawRTD(400, 120);
+
+    // Three return wires
+    ctx.strokeStyle = TEK.ch4;
+    ctx.beginPath();
+    ctx.moveTo(420, 110);
+    ctx.lineTo(460, 110);
+    ctx.stroke();
+    ctx.strokeStyle = TEK.ch4;
+    ctx.beginPath();
+    ctx.moveTo(420, 130);
+    ctx.lineTo(460, 130);
+    ctx.stroke();
+    ctx.strokeStyle = '#888';
+    ctx.beginPath();
+    ctx.moveTo(380, 135);
+    ctx.lineTo(380, 180);
+    ctx.lineTo(320, 180);
+    ctx.lineTo(320, 132);
+    ctx.stroke();
+
+    // Sense labels
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = '9px monospace';
+    ctx.fillText('Sense+', 465, 113);
+    ctx.fillText('Sense-', 465, 133);
+
+    // Compensation note
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Compensates if leads match', 290, 210);
+
+    // 4-Wire Configuration
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('4-Wire (Kelvin)', 550, 80);
+
+    // Current source
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(580, 120, 12, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Iex', 580, 125);
+
+    // Force wires
+    ctx.strokeStyle = '#888';
+    ctx.beginPath();
+    ctx.moveTo(592, 120);
+    ctx.lineTo(620, 120);
+    ctx.stroke();
+
+    drawRTD(650, 120);
+
+    ctx.strokeStyle = '#888';
+    ctx.beginPath();
+    ctx.moveTo(630, 135);
+    ctx.lineTo(630, 180);
+    ctx.lineTo(580, 180);
+    ctx.lineTo(580, 132);
+    ctx.stroke();
+
+    // Sense wires (separate)
+    ctx.strokeStyle = TEK.ch4;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(670, 110);
+    ctx.lineTo(750, 110);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(670, 130);
+    ctx.lineTo(750, 130);
+    ctx.stroke();
+
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = '9px monospace';
+    ctx.fillText('V+', 755, 113);
+    ctx.fillText('V-', 755, 133);
+
+    // Best accuracy note
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Best: No lead error', 550, 210);
+
+    // Comparison table
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(50, 260, 700, 160);
+
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('Comparison:', 70, 285);
+
+    // Headers
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = '10px monospace';
+    ctx.fillText('Config', 70, 310);
+    ctx.fillText('Wires', 170, 310);
+    ctx.fillText('Lead Compensation', 270, 310);
+    ctx.fillText('Accuracy', 470, 310);
+    ctx.fillText('Cost', 600, 310);
+
+    // Data rows
+    const rows = [
+        ['2-Wire', '2', 'None', 'Poor (±2-5°C)', 'Low'],
+        ['3-Wire', '3', 'Assumes matched leads', 'Good (±0.5°C)', 'Medium'],
+        ['4-Wire', '4', 'Complete elimination', 'Best (±0.1°C)', 'High']
+    ];
+
+    ctx.fillStyle = '#e6edf3';
+    rows.forEach((row, i) => {
+        const y = 335 + i * 25;
+        ctx.fillText(row[0], 70, y);
+        ctx.fillText(row[1], 170, y);
+        ctx.fillText(row[2], 270, y);
+        ctx.fillText(row[3], 470, y);
+        ctx.fillText(row[4], 600, y);
     });
 })();
 </script>

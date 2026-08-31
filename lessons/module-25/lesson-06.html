@@ -1,929 +1,1297 @@
-<article class="lesson-content">
-    <p class="author-credit">Based on Art of Electronics practical wisdom and Razavi stability analysis</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High-Precision DAQ System - Complex Real-World Projects</title>
+</head>
+<body>
+    <div class="lesson-content" data-module="25" data-lesson="6">
+        <div class="card">
+            <h2>High-Precision DAQ System</h2>
+            <p>This project brings together precision analog design, digital conversion, signal conditioning,
+            and noise management to create a multi-channel data acquisition system capable of measuring
+            microvolt-level signals with sub-ppm accuracy. Such systems are used in scientific instrumentation,
+            industrial process control, and medical devices.</p>
 
-    <h2>Introduction</h2>
-    <p>Op-amps are designed to be stable with resistive feedback, but real-world loads are rarely purely resistive. <strong>Capacitive loads</strong> are the most common stability challenge, adding an extra pole that can degrade phase margin and cause oscillation. Understanding how to maintain stability with reactive loads is essential for practical analog design.</p>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Resolution:</span><span class="kv-value">24-bit (16.7M levels)</span></div>
+                <div class="kv-item"><span class="kv-label">Input Range:</span><span class="kv-value">±10V, ±1V, ±100mV</span></div>
+                <div class="kv-item"><span class="kv-label">Accuracy:</span><span class="kv-value"><10 ppm</span></div>
+                <div class="kv-item"><span class="kv-label">Noise Floor:</span><span class="kv-value"><1 μVpp</span></div>
+            </div>
 
-    <div class="concept-box">
-        <h3>The Capacitive Load Problem</h3>
-        <p>When you connect a capacitor to an op-amp output:</p>
-        <ul>
-            <li>The capacitor and output impedance form an additional pole</li>
-            <li>This pole is inside the feedback loop</li>
-            <li>It adds phase shift at a frequency that may be near the unity-gain crossover</li>
-            <li>Result: Reduced phase margin, ringing, or oscillation</li>
-        </ul>
-    </div>
-
-    <h2>Op-Amp Output Impedance</h2>
-    <p>An op-amp's output is not a perfect voltage source. It has an open-loop output impedance Z<sub>o</sub> that varies with frequency:</p>
-
-    <div class="formula-box">
-        <h4>Closed-Loop Output Impedance</h4>
-        <div class="formula">Z<sub>out,CL</sub> = Z<sub>o</sub> / (1 + Aβ)</div>
-        <p>At low frequencies where loop gain Aβ is high, Z<sub>out,CL</sub> is very low (milliohms).</p>
-        <p>At high frequencies where Aβ → 0, Z<sub>out,CL</sub> → Z<sub>o</sub> (tens of ohms to hundreds of ohms).</p>
-    </div>
-
-    <h3>The Extra Pole</h3>
-    <p>When capacitive load C<sub>L</sub> is added, it forms a pole with Z<sub>o</sub>:</p>
-    <div class="formula-box">
-        <h4>Capacitive Load Pole</h4>
-        <div class="formula">f<sub>p,CL</sub> = 1 / (2π × Z<sub>o</sub> × C<sub>L</sub>)</div>
-        <p>Example: Z<sub>o</sub> = 50Ω, C<sub>L</sub> = 100pF → f<sub>p,CL</sub> = 31.8 MHz</p>
-        <p>This might seem safely high, but remember: Z<sub>o</sub> increases with frequency!</p>
-    </div>
-
-    <h3>Interactive: Capacitive Load Effect</h3>
-    <div class="control-group">
-        <label>Op-Amp GBW (MHz): <input type="number" id="gbw" value="10" min="1" max="100" step="1"></label>
-        <label>Open-loop output Z<sub>o</sub> (Ω): <input type="number" id="zo" value="50" min="10" max="500" step="10"></label>
-        <label>Load Capacitance C<sub>L</sub> (pF): <input type="number" id="cl" value="100" min="10" max="10000" step="10"></label>
-        <label>Feedback Factor (1/β): <input type="number" id="noise-gain" value="1" min="1" max="100" step="1"></label>
-        <button onclick="updateCapLoad()">Update</button>
-    </div>
-    <canvas id="cap-load-canvas" width="700" height="400"></canvas>
-    <div id="cap-load-result" class="result-box"></div>
-
-    <h2>Solution 1: Isolation Resistor</h2>
-    <p>The simplest and most common fix is to add a small resistor in series between the op-amp output and the capacitive load:</p>
-
-    <div id="sch-isolation-resistor" class="schematic-placeholder" style="height: 180px;"></div>
-
-    <div class="formula-box">
-        <h4>Isolation Resistor Design</h4>
-        <p>R<sub>iso</sub> moves the capacitive load pole and adds a zero that improves phase margin:</p>
-        <div class="formula">Zero: f<sub>z</sub> = 1 / (2π × R<sub>iso</sub> × C<sub>L</sub>)</div>
-        <div class="formula">Pole (original, now higher): f<sub>p</sub> ≈ 1 / (2π × (R<sub>iso</sub> + Z<sub>o</sub>) × C<sub>L</sub>)</div>
-
-        <h4>Design Rule of Thumb</h4>
-        <p>Choose R<sub>iso</sub> such that f<sub>z</sub> ≈ 0.5 × f<sub>crossover</sub>:</p>
-        <div class="formula">R<sub>iso</sub> = 1 / (2π × 0.5 × f<sub>c</sub> × C<sub>L</sub>) = 1 / (π × f<sub>c</sub> × C<sub>L</sub>)</div>
-    </div>
-
-    <div class="warning-box">
-        <h4>Art of Electronics Warning</h4>
-        <p>The isolation resistor causes a DC error when driving DC current into the load:</p>
-        <div class="formula">V<sub>error</sub> = I<sub>load</sub> × R<sub>iso</sub></div>
-        <p>For precision applications, consider feedback from after R<sub>iso</sub>, or use other techniques.</p>
-    </div>
-
-    <h3>Interactive: Isolation Resistor Calculator</h3>
-    <div class="control-group">
-        <label>Crossover Frequency (MHz): <input type="number" id="fc-iso" value="5" min="0.1" max="100" step="0.5"></label>
-        <label>Load Capacitance (pF): <input type="number" id="cl-iso" value="500" min="10" max="10000" step="50"></label>
-        <button onclick="calcIsoResistor()">Calculate R<sub>iso</sub></button>
-    </div>
-    <div id="iso-result" class="result-box"></div>
-
-    <h2>Solution 2: Snubber Network (RC Damping)</h2>
-    <p>A snubber adds a series R-C to ground near the op-amp output. This provides damping without the DC error of an isolation resistor:</p>
-
-    <div id="sch-snubber" class="schematic-placeholder" style="height: 180px;"></div>
-
-    <div class="formula-box">
-        <h4>Snubber Design</h4>
-        <p>The snubber resistor R<sub>s</sub> and capacitor C<sub>s</sub> add a zero-pole pair:</p>
-        <ul>
-            <li><strong>Zero:</strong> f<sub>z</sub> = 1/(2πR<sub>s</sub>C<sub>s</sub>)</li>
-            <li><strong>Pole:</strong> f<sub>p</sub> = 1/(2π × Z<sub>o</sub> × (C<sub>L</sub> + C<sub>s</sub>)) (approximately, when R<sub>s</sub> >> Z<sub>o</sub>)</li>
-        </ul>
-
-        <h4>Design Guidelines</h4>
-        <ol>
-            <li>C<sub>s</sub> ≈ C<sub>L</sub> (same order of magnitude)</li>
-            <li>R<sub>s</sub> chosen to place zero near crossover: R<sub>s</sub> = 1/(2πf<sub>c</sub>C<sub>s</sub>)</li>
-            <li>Verify with simulation - snubber design is iterative</li>
-        </ol>
-    </div>
-
-    <h2>Solution 3: Feedback Capacitor (Noise Gain Shaping)</h2>
-    <p>Adding a small capacitor across the feedback resistor increases the noise gain at high frequencies, reducing the crossover frequency before the capacitive load pole takes effect:</p>
-
-    <div id="sch-feedback-cap" class="schematic-placeholder" style="height: 180px;"></div>
-
-    <div class="formula-box">
-        <h4>Feedback Capacitor Effect</h4>
-        <p>C<sub>f</sub> in parallel with R<sub>f</sub> creates a zero in the noise gain:</p>
-        <div class="formula">f<sub>z,noise</sub> = 1 / (2π × R<sub>f</sub> × C<sub>f</sub>)</div>
-        <p>Above this frequency, noise gain increases at +20 dB/decade, reducing loop gain and crossover.</p>
-        <p>This is essentially "soft" lead compensation in the feedback network.</p>
-    </div>
-
-    <div class="design-tip">
-        <h4>Razavi Insight</h4>
-        <p>The feedback capacitor technique trades bandwidth for stability. It's most effective when bandwidth reduction is acceptable and you want to avoid the DC errors of isolation resistors.</p>
-    </div>
-
-    <h2>Solution 4: "In-the-Loop" Compensation</h2>
-    <p>For precision applications, include the load capacitor inside the feedback loop with an inner feedback path:</p>
-
-    <div id="sch-in-loop-comp" class="schematic-placeholder" style="height: 200px;"></div>
-
-    <p>The small resistor R<sub>x</sub> provides local feedback at high frequencies, creating a zero that stabilizes the loop while maintaining DC accuracy since C<sub>L</sub> is inside the overall feedback loop.</p>
-
-    <h2>Cable Capacitance</h2>
-    <p>Coaxial cables add significant capacitance (typically 30-100 pF/meter). This is one of the most common real-world sources of capacitive loading:</p>
-
-    <table class="info-table">
-        <thead>
-            <tr>
-                <th>Cable Type</th>
-                <th>Typical Capacitance</th>
-                <th>1m Cable</th>
-                <th>3m Cable</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>RG-58 (50Ω)</td>
-                <td>~100 pF/m</td>
-                <td>100 pF</td>
-                <td>300 pF</td>
-            </tr>
-            <tr>
-                <td>RG-174 (50Ω)</td>
-                <td>~100 pF/m</td>
-                <td>100 pF</td>
-                <td>300 pF</td>
-            </tr>
-            <tr>
-                <td>RG-59 (75Ω)</td>
-                <td>~70 pF/m</td>
-                <td>70 pF</td>
-                <td>210 pF</td>
-            </tr>
-            <tr>
-                <td>Standard hookup wire</td>
-                <td>~30 pF/m</td>
-                <td>30 pF</td>
-                <td>90 pF</td>
-            </tr>
-        </tbody>
-    </table>
-
-    <div class="warning-box">
-        <h4>Don't Do This: Ignoring Cable Capacitance</h4>
-        <p>A common mistake is designing an op-amp circuit on the bench with short leads, then deploying it with meters of cable. Always include expected cable capacitance in your stability analysis!</p>
-    </div>
-
-    <h2>Inductive Loads</h2>
-    <p>Inductive loads (motors, relays, solenoids) present different challenges:</p>
-
-    <div class="concept-box">
-        <h3>Inductive Load Effects</h3>
-        <ul>
-            <li>Inductor and output resistance form a <strong>zero</strong> (not a pole)</li>
-            <li>This can actually improve phase margin in some cases</li>
-            <li>But: inductive kickback on current changes can cause voltage spikes</li>
-            <li>Always use flyback diodes for inductive DC loads</li>
-        </ul>
-    </div>
-
-    <h2>Complex Loads: RLC Networks</h2>
-    <p>Real loads often combine R, L, and C. The key is to identify dominant effects at the crossover frequency:</p>
-
-    <h3>Interactive: Complex Load Analyzer</h3>
-    <div class="control-group">
-        <label>Load R (Ω): <input type="number" id="load-r" value="100" min="1" max="10000" step="10"></label>
-        <label>Load L (μH): <input type="number" id="load-l" value="0" min="0" max="1000" step="10"></label>
-        <label>Load C (pF): <input type="number" id="load-c" value="500" min="0" max="10000" step="50"></label>
-        <label>Op-Amp GBW (MHz): <input type="number" id="gbw-rlc" value="10" min="1" max="100" step="1"></label>
-        <button onclick="updateRLCLoad()">Analyze</button>
-    </div>
-    <canvas id="rlc-load-canvas" width="700" height="300"></canvas>
-    <div id="rlc-result" class="result-box"></div>
-
-    <h2>Worked Example: Driving a Scope Probe</h2>
-    <div class="worked-example">
-        <h4>Problem</h4>
-        <p>An op-amp buffer (gain = 1) with GBW = 20 MHz and Z<sub>o</sub> = 75Ω drives a 10× scope probe (10 MΩ || 15 pF) through a 1-meter RG-58 cable (100 pF). Determine stability and fix if needed.</p>
-
-        <h4>Step 1: Calculate Total Capacitive Load</h4>
-        <p>C<sub>L</sub> = C<sub>cable</sub> + C<sub>probe</sub> = 100 pF + 15 pF = 115 pF</p>
-
-        <h4>Step 2: Find Capacitive Load Pole</h4>
-        <div class="formula">f<sub>p,CL</sub> = 1 / (2π × 75Ω × 115pF) = 18.5 MHz</div>
-
-        <h4>Step 3: Assess Stability</h4>
-        <p>For unity-gain buffer, crossover ≈ GBW = 20 MHz</p>
-        <p>Capacitive load pole at 18.5 MHz is very close to crossover!</p>
-        <p>Phase shift from this pole at crossover: arctan(20/18.5) = 47°</p>
-        <p>Combined with internal op-amp phase: likely unstable or severely ringing</p>
-
-        <h4>Step 4: Design Isolation Resistor</h4>
-        <p>Target: Place zero at ~10 MHz (0.5 × crossover)</p>
-        <div class="formula">R<sub>iso</sub> = 1 / (2π × 10MHz × 115pF) = 138Ω</div>
-        <p>Use standard value: R<sub>iso</sub> = 150Ω</p>
-
-        <h4>Step 5: Verify</h4>
-        <p>New zero at: 1/(2π × 150 × 115pF) = 9.2 MHz ✓</p>
-        <p>Phase boost from zero at 20 MHz: arctan(20/9.2) = +65°</p>
-        <p>Net effect: significant improvement in phase margin</p>
-
-        <div class="formula-box" style="background: #1a3a1a;">
-            <h4>Solution</h4>
-            <p>Add 150Ω resistor in series with op-amp output</p>
-            <p>Trade-off: 150Ω × I<sub>out</sub> DC error (negligible for scope probe's 10 MΩ)</p>
-        </div>
-    </div>
-
-    <h2>Summary: Load Type Quick Reference</h2>
-    <table class="info-table">
-        <thead>
-            <tr>
-                <th>Load Type</th>
-                <th>Effect</th>
-                <th>Primary Solution</th>
-                <th>Alternative</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Pure Capacitive</td>
-                <td>Extra pole, reduced PM</td>
-                <td>Isolation resistor</td>
-                <td>Snubber, feedback cap</td>
-            </tr>
-            <tr>
-                <td>Cable + Device</td>
-                <td>Distributed C, extra pole</td>
-                <td>Isolation resistor at source</td>
-                <td>Back-termination</td>
-            </tr>
-            <tr>
-                <td>Pure Inductive</td>
-                <td>Zero (can help PM)</td>
-                <td>Flyback diode for DC</td>
-                <td>Snubber for AC</td>
-            </tr>
-            <tr>
-                <td>Parallel RLC</td>
-                <td>Resonant peak</td>
-                <td>Add damping resistance</td>
-                <td>Avoid resonance near f<sub>c</sub></td>
-            </tr>
-        </tbody>
-    </table>
-
-    <h2>Exercises</h2>
-    <div id="exercises-container">
-        <div class="exercise-widget" data-exercise="1">
-            <p class="exercise-problem"><strong>Exercise 1:</strong> An op-amp with GBW = 50 MHz and Z<sub>o</sub> = 40Ω drives a 200 pF load. At what frequency is the capacitive load pole?</p>
-            <input type="text" id="ex1-input" placeholder="Enter frequency in MHz">
-            <button onclick="checkEx1()">Check Answer</button>
-            <div id="ex1-result"></div>
+            <div class="notice">
+                <strong>Design Philosophy:</strong> In precision measurement, every component and layout decision
+                affects accuracy. The analog front-end, reference, power supply, and grounding must all be designed
+                as a coherent system, not individual blocks.
+            </div>
         </div>
 
-        <div class="exercise-widget" data-exercise="2">
-            <p class="exercise-problem"><strong>Exercise 2:</strong> For the op-amp in Exercise 1 configured as unity-gain buffer, what isolation resistor value would place a stabilizing zero at 25 MHz?</p>
-            <input type="text" id="ex2-input" placeholder="Enter resistance in Ω">
-            <button onclick="checkEx2()">Check Answer</button>
-            <div id="ex2-result"></div>
+        <!-- System Architecture -->
+        <div class="card">
+            <h3>System Architecture</h3>
+            <div class="canvas-wrap">
+                <canvas id="architecture-canvas" width="980" height="320"></canvas>
+            </div>
         </div>
 
-        <div class="exercise-widget" data-exercise="3">
-            <p class="exercise-problem"><strong>Exercise 3:</strong> A 5-meter cable with 100 pF/m capacitance connects an op-amp buffer to a load. If the op-amp has GBW = 10 MHz, what minimum isolation resistor is recommended?</p>
-            <input type="text" id="ex3-input" placeholder="Enter resistance in Ω">
-            <button onclick="checkEx3()">Check Answer</button>
-            <div id="ex3-result"></div>
+        <!-- Interactive 1: Error Budget Calculator -->
+        <div class="card">
+            <h3>Interactive: Error Budget Analysis</h3>
+            <p>Analyze the error contributors in a precision DAQ system:</p>
+
+            <div class="controls">
+                <label>Reference Drift (ppm/°C):
+                    <input type="range" id="ref-drift" min="0.1" max="10" value="2" step="0.1">
+                    <span id="ref-drift-val">2 ppm/°C</span>
+                </label>
+                <label>ADC INL (ppm):
+                    <input type="range" id="adc-inl" min="1" max="20" value="5" step="1">
+                    <span id="adc-inl-val">5 ppm</span>
+                </label>
+                <label>PGA Gain Error (ppm):
+                    <input type="range" id="pga-error" min="1" max="50" value="10" step="1">
+                    <span id="pga-error-val">10 ppm</span>
+                </label>
+                <label>Temp Variation (°C):
+                    <input type="range" id="temp-var" min="5" max="50" value="20" step="5">
+                    <span id="temp-var-val">20 °C</span>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="error-budget-canvas" width="980" height="350"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Reference Error:</span><span class="kv-value" id="ref-error">40 ppm</span></div>
+                <div class="kv-item"><span class="kv-label">ADC Error:</span><span class="kv-value" id="total-adc-error">5 ppm</span></div>
+                <div class="kv-item"><span class="kv-label">Total Error:</span><span class="kv-value" id="total-error">42 ppm</span></div>
+                <div class="kv-item"><span class="kv-label">Effective Bits:</span><span class="kv-value" id="eff-bits">21.5</span></div>
+            </div>
+        </div>
+
+        <!-- Interactive 2: Noise Analysis -->
+        <div class="card">
+            <h3>Interactive: System Noise Analysis</h3>
+            <p>Calculate the noise floor and SNR of the DAQ system:</p>
+
+            <div class="controls">
+                <label>Reference Noise (μVpp):
+                    <input type="range" id="ref-noise" min="0.1" max="10" value="1" step="0.1">
+                    <span id="ref-noise-val">1 μVpp</span>
+                </label>
+                <label>ADC Noise (μVrms):
+                    <input type="range" id="adc-noise" min="0.1" max="5" value="0.5" step="0.1">
+                    <span id="adc-noise-val">0.5 μVrms</span>
+                </label>
+                <label>PGA Gain:
+                    <select id="pga-gain">
+                        <option value="1">x1</option>
+                        <option value="2">x2</option>
+                        <option value="4">x4</option>
+                        <option value="8">x8</option>
+                        <option value="16">x16</option>
+                        <option value="64" selected>x64</option>
+                        <option value="128">x128</option>
+                    </select>
+                </label>
+                <label>Bandwidth (Hz):
+                    <input type="range" id="noise-bw" min="1" max="1000" value="100" step="10">
+                    <span id="noise-bw-val">100 Hz</span>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="noise-canvas" width="980" height="350"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Input Noise:</span><span class="kv-value" id="input-noise">0.15 μVrms</span></div>
+                <div class="kv-item"><span class="kv-label">Total RTI Noise:</span><span class="kv-value" id="rti-noise">0.18 μVrms</span></div>
+                <div class="kv-item"><span class="kv-label">SNR:</span><span class="kv-value" id="snr-val">134 dB</span></div>
+                <div class="kv-item"><span class="kv-label">Noise-Free Bits:</span><span class="kv-value" id="noise-free">22.3</span></div>
+            </div>
+        </div>
+
+        <!-- Interactive 3: Anti-Aliasing Filter Design -->
+        <div class="card">
+            <h3>Interactive: Anti-Aliasing Filter Design</h3>
+            <p>Design the input anti-aliasing filter for sigma-delta ADC:</p>
+
+            <div class="controls">
+                <label>ADC Sample Rate:
+                    <select id="sample-rate">
+                        <option value="10">10 SPS</option>
+                        <option value="60">60 SPS</option>
+                        <option value="250" selected>250 SPS</option>
+                        <option value="1000">1 kSPS</option>
+                        <option value="4000">4 kSPS</option>
+                    </select>
+                </label>
+                <label>Filter Order:
+                    <select id="filter-order">
+                        <option value="1">1st Order</option>
+                        <option value="2" selected>2nd Order</option>
+                        <option value="3">3rd Order</option>
+                        <option value="4">4th Order</option>
+                    </select>
+                </label>
+                <label>Cutoff Frequency:
+                    <input type="range" id="filter-fc" min="1" max="100" value="20" step="1">
+                    <span id="filter-fc-val">20 Hz</span>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="filter-canvas" width="980" height="350"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Nyquist Freq:</span><span class="kv-value" id="nyquist">125 Hz</span></div>
+                <div class="kv-item"><span class="kv-label">Attn @ Nyquist:</span><span class="kv-value" id="attn-nyquist">-32 dB</span></div>
+                <div class="kv-item"><span class="kv-label">Settling Time:</span><span class="kv-value" id="settling">50 ms</span></div>
+                <div class="kv-item"><span class="kv-label">Group Delay:</span><span class="kv-value" id="group-delay">8 ms</span></div>
+            </div>
+        </div>
+
+        <!-- Interactive 4: Grounding Strategy -->
+        <div class="card">
+            <h3>Interactive: Grounding and Layout</h3>
+            <p>Visualize the star-ground topology for precision analog systems:</p>
+
+            <div class="controls">
+                <label>Ground Topology:
+                    <select id="ground-topology">
+                        <option value="star">Star Ground (Recommended)</option>
+                        <option value="split">Split Ground Planes</option>
+                        <option value="single">Single Ground (Poor)</option>
+                    </select>
+                </label>
+                <label>Digital Noise (mVpp):
+                    <input type="range" id="digital-noise" min="10" max="500" value="100" step="10">
+                    <span id="digital-noise-val">100 mVpp</span>
+                </label>
+                <label>Ground Impedance (mΩ):
+                    <input type="range" id="gnd-impedance" min="1" max="100" value="10" step="1">
+                    <span id="gnd-impedance-val">10 mΩ</span>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="grounding-canvas" width="980" height="380"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Digital Current:</span><span class="kv-value" id="dig-current">50 mA</span></div>
+                <div class="kv-item"><span class="kv-label">Ground Bounce:</span><span class="kv-value" id="gnd-bounce">0.5 mV</span></div>
+                <div class="kv-item"><span class="kv-label">Coupling to Analog:</span><span class="kv-value" id="coupling">-60 dB</span></div>
+                <div class="kv-item"><span class="kv-label">Effective Resolution:</span><span class="kv-value" id="gnd-resolution">22 bits</span></div>
+            </div>
+        </div>
+
+        <!-- Schematic -->
+        <div class="card">
+            <h3>Input Stage Schematic</h3>
+            <div id="daq-schematic"></div>
+        </div>
+
+        <!-- Component Selection Guide -->
+        <div class="card">
+            <h3>Critical Component Selection</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Key Parameter</th>
+                        <th>Recommended Value</th>
+                        <th>Example Part</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Voltage Reference</td>
+                        <td>Drift, Noise</td>
+                        <td><2ppm/°C, <1μVpp</td>
+                        <td>LTC6655, ADR4525</td>
+                    </tr>
+                    <tr>
+                        <td>ADC</td>
+                        <td>INL, Noise</td>
+                        <td><5ppm, <0.5μVrms</td>
+                        <td>ADS1262, AD7177-2</td>
+                    </tr>
+                    <tr>
+                        <td>Input Amplifier</td>
+                        <td>Vos, Drift, CMRR</td>
+                        <td><5μV, <50nV/°C, >120dB</td>
+                        <td>AD8628, OPA2188</td>
+                    </tr>
+                    <tr>
+                        <td>PGA</td>
+                        <td>Gain Error, Noise</td>
+                        <td><0.01%, <5nV/√Hz</td>
+                        <td>AD8253, PGA280</td>
+                    </tr>
+                    <tr>
+                        <td>Resistors (Gain)</td>
+                        <td>TCR, Matching</td>
+                        <td><5ppm/°C, 0.01% match</td>
+                        <td>Vishay Foil, VPG</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SPICE Netlist -->
+        <div class="card">
+            <h3>SPICE Netlist</h3>
+            <div id="daq-spice"></div>
+        </div>
+
+        <!-- Design Checklist -->
+        <div class="card">
+            <h3>Design Checklist</h3>
+            <div id="daq-checklist"></div>
+        </div>
+
+        <!-- Exercises -->
+        <div class="card">
+            <h3>Practice Exercises</h3>
+            <div id="daq-exercises"></div>
         </div>
     </div>
 
     <script>
-    (function() {
-        const capLoadCanvas = document.getElementById('cap-load-canvas');
-        if (!capLoadCanvas || typeof AD === 'undefined') return;
-        const capLoadCtx = capLoadCanvas.getContext('2d');
-        const TEK = AD.TEK_COLORS;
+        // Canvas 1: Error Budget Analysis
+        const errorCanvas = document.getElementById('error-budget-canvas');
+        const errorCtx = errorCanvas.getContext('2d');
 
-        window.updateCapLoad = function() {
-            const gbw = AD.num('gbw') * 1e6;
-            const Zo = AD.num('zo');
-            const CL = AD.num('cl') * 1e-12;
-            const noiseGain = AD.num('noise-gain');
+        const refDrift = document.getElementById('ref-drift');
+        const adcInl = document.getElementById('adc-inl');
+        const pgaError = document.getElementById('pga-error');
+        const tempVar = document.getElementById('temp-var');
 
-            const w = capLoadCanvas.width, h = capLoadCanvas.height;
-            const margin = { left: 60, right: 30, top: 30, bottom: 50 };
+        function drawErrorBudget() {
+            const drift = parseFloat(refDrift.value);
+            const inl = parseFloat(adcInl.value);
+            const pga = parseFloat(pgaError.value);
+            const temp = parseFloat(tempVar.value);
+
+            document.getElementById('ref-drift-val').textContent = drift + ' ppm/°C';
+            document.getElementById('adc-inl-val').textContent = inl + ' ppm';
+            document.getElementById('pga-error-val').textContent = pga + ' ppm';
+            document.getElementById('temp-var-val').textContent = temp + ' °C';
+
+            errorCtx.fillStyle = '#181818';
+            errorCtx.fillRect(0, 0, errorCanvas.width, errorCanvas.height);
+
+            const w = errorCanvas.width;
+            const h = errorCanvas.height;
+
+            // Calculate errors
+            const refError = drift * temp;
+            const adcError = inl;
+            const pgaGainError = pga;
+            const quantError = 0.06; // 24-bit LSB in ppm
+            const noiseError = 2; // Assumed noise contribution
+
+            document.getElementById('ref-error').textContent = refError.toFixed(1) + ' ppm';
+            document.getElementById('total-adc-error').textContent = adcError.toFixed(1) + ' ppm';
+
+            // RSS total
+            const totalError = Math.sqrt(refError * refError + adcError * adcError +
+                                        pgaGainError * pgaGainError + quantError * quantError +
+                                        noiseError * noiseError);
+            document.getElementById('total-error').textContent = totalError.toFixed(1) + ' ppm';
+
+            // Effective bits
+            const effBits = 24 - Math.log2(totalError / 0.06);
+            document.getElementById('eff-bits').textContent = effBits.toFixed(1);
+
+            // Draw bar chart
+            const margin = { left: 150, right: 100, top: 40, bottom: 40 };
             const plotW = w - margin.left - margin.right;
-            const plotH = (h - margin.top - margin.bottom - 20) / 2;
+            const plotH = h - margin.top - margin.bottom;
 
-            capLoadCtx.fillStyle = '#0d1117';
-            capLoadCtx.fillRect(0, 0, w, h);
+            const errors = [
+                { name: 'Reference Drift', value: refError, color: '#FF6600' },
+                { name: 'ADC INL', value: adcError, color: '#00FFFF' },
+                { name: 'PGA Gain Error', value: pgaGainError, color: '#FFFF00' },
+                { name: 'Quantization', value: quantError, color: '#00FF00' },
+                { name: 'Noise', value: noiseError, color: '#FF66FF' },
+                { name: 'TOTAL (RSS)', value: totalError, color: '#FFF' }
+            ];
 
-            const fMin = 1e3, fMax = 1e9;
-            const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
+            const maxError = Math.max(...errors.map(e => e.value)) * 1.2;
+            const barHeight = plotH / errors.length - 10;
 
-            function freqToX(f) {
-                return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
+            errors.forEach((err, i) => {
+                const y = margin.top + i * (plotH / errors.length) + 5;
+                const barW = (err.value / maxError) * plotW;
+
+                // Bar
+                errorCtx.fillStyle = err.color;
+                if (i === errors.length - 1) {
+                    errorCtx.fillStyle = '#444';
+                    errorCtx.fillRect(margin.left, y, barW, barHeight);
+                    errorCtx.strokeStyle = '#FFF';
+                    errorCtx.lineWidth = 2;
+                    errorCtx.strokeRect(margin.left, y, barW, barHeight);
+                } else {
+                    errorCtx.fillRect(margin.left, y, barW, barHeight);
+                }
+
+                // Label
+                errorCtx.fillStyle = '#CCC';
+                errorCtx.font = '12px monospace';
+                errorCtx.textAlign = 'right';
+                errorCtx.fillText(err.name, margin.left - 10, y + barHeight / 2 + 4);
+
+                // Value
+                errorCtx.textAlign = 'left';
+                errorCtx.fillStyle = err.color;
+                errorCtx.fillText(err.value.toFixed(1) + ' ppm', margin.left + barW + 10, y + barHeight / 2 + 4);
+            });
+
+            // Title
+            errorCtx.fillStyle = '#FFF';
+            errorCtx.font = 'bold 16px monospace';
+            errorCtx.textAlign = 'center';
+            errorCtx.fillText('Error Budget Analysis', w / 2, 25);
+
+            // Scale
+            errorCtx.fillStyle = '#888';
+            errorCtx.font = '10px monospace';
+            for (let p = 0; p <= maxError; p += 10) {
+                const x = margin.left + (p / maxError) * plotW;
+                errorCtx.textAlign = 'center';
+                errorCtx.fillText(p.toFixed(0), x, h - 15);
             }
+            errorCtx.fillText('ppm', w - 50, h - 15);
 
-            const magTop = margin.top;
-            const magBot = margin.top + plotH;
-            const dBMin = -20, dBMax = 80;
+            // Target line
+            const targetPpm = 10;
+            const targetX = margin.left + (targetPpm / maxError) * plotW;
+            errorCtx.strokeStyle = '#00FF00';
+            errorCtx.setLineDash([5, 5]);
+            errorCtx.beginPath();
+            errorCtx.moveTo(targetX, margin.top);
+            errorCtx.lineTo(targetX, h - margin.bottom);
+            errorCtx.stroke();
+            errorCtx.setLineDash([]);
+            errorCtx.fillStyle = '#00FF00';
+            errorCtx.fillText('Target: 10 ppm', targetX, margin.top - 5);
+        }
 
-            function dBToY(dB) {
-                return magBot - (dB - dBMin) / (dBMax - dBMin) * plotH;
-            }
+        // Canvas 2: Noise Analysis
+        const noiseCanvas = document.getElementById('noise-canvas');
+        const noiseCtx = noiseCanvas.getContext('2d');
+
+        const refNoise = document.getElementById('ref-noise');
+        const adcNoise = document.getElementById('adc-noise');
+        const pgaGain = document.getElementById('pga-gain');
+        const noiseBw = document.getElementById('noise-bw');
+
+        function drawNoiseAnalysis() {
+            const vrefNoise = parseFloat(refNoise.value);
+            const vadcNoise = parseFloat(adcNoise.value);
+            const gain = parseFloat(pgaGain.value);
+            const bw = parseFloat(noiseBw.value);
+
+            document.getElementById('ref-noise-val').textContent = vrefNoise + ' μVpp';
+            document.getElementById('adc-noise-val').textContent = vadcNoise + ' μVrms';
+            document.getElementById('noise-bw-val').textContent = bw + ' Hz';
+
+            noiseCtx.fillStyle = '#181818';
+            noiseCtx.fillRect(0, 0, noiseCanvas.width, noiseCanvas.height);
+
+            const w = noiseCanvas.width;
+            const h = noiseCanvas.height;
+
+            // Calculate RTI noise
+            const refNoiseRms = vrefNoise / 6.6; // pp to rms
+            const adcNoiseRti = vadcNoise / gain;
+            const inputAmpNoise = 0.02 * Math.sqrt(bw); // Assume 20nV/√Hz input amp
+
+            const totalRtiNoise = Math.sqrt(refNoiseRms * refNoiseRms / (gain * gain) +
+                                            adcNoiseRti * adcNoiseRti +
+                                            inputAmpNoise * inputAmpNoise);
+
+            document.getElementById('input-noise').textContent = inputAmpNoise.toFixed(3) + ' μVrms';
+            document.getElementById('rti-noise').textContent = totalRtiNoise.toFixed(3) + ' μVrms';
+
+            // Calculate SNR (assuming 10V full scale, referred to input)
+            const fullScaleRti = 10 / gain;
+            const snrDb = 20 * Math.log10(fullScaleRti / (totalRtiNoise * 1e-6));
+            document.getElementById('snr-val').textContent = snrDb.toFixed(0) + ' dB';
+
+            // Noise-free bits
+            const noiseFree = (snrDb - 1.76) / 6.02;
+            document.getElementById('noise-free').textContent = noiseFree.toFixed(1);
+
+            // Draw noise breakdown pie chart
+            const centerX = 200;
+            const centerY = 175;
+            const radius = 120;
+
+            const noiseComponents = [
+                { name: 'Reference', value: refNoiseRms * refNoiseRms / (gain * gain), color: '#FF6600' },
+                { name: 'ADC', value: adcNoiseRti * adcNoiseRti, color: '#00FFFF' },
+                { name: 'Input Amp', value: inputAmpNoise * inputAmpNoise, color: '#FFFF00' }
+            ];
+
+            const totalSquared = noiseComponents.reduce((sum, c) => sum + c.value, 0);
+            let startAngle = -Math.PI / 2;
+
+            noiseComponents.forEach(comp => {
+                const fraction = comp.value / totalSquared;
+                const endAngle = startAngle + fraction * 2 * Math.PI;
+
+                noiseCtx.fillStyle = comp.color;
+                noiseCtx.beginPath();
+                noiseCtx.moveTo(centerX, centerY);
+                noiseCtx.arc(centerX, centerY, radius, startAngle, endAngle);
+                noiseCtx.closePath();
+                noiseCtx.fill();
+
+                // Label
+                const midAngle = (startAngle + endAngle) / 2;
+                const labelR = radius * 0.7;
+                const labelX = centerX + labelR * Math.cos(midAngle);
+                const labelY = centerY + labelR * Math.sin(midAngle);
+
+                noiseCtx.fillStyle = '#000';
+                noiseCtx.font = 'bold 11px monospace';
+                noiseCtx.textAlign = 'center';
+                if (Number.isFinite(fraction) && fraction > 0.05) {
+                    noiseCtx.fillText(comp.name, labelX, labelY);
+                    noiseCtx.fillText((fraction * 100).toFixed(0) + '%', labelX, labelY + 14);
+                }
+
+                startAngle = endAngle;
+            });
+
+            // Draw noise spectrum
+            const specX = 400;
+            const specY = 50;
+            const specW = 530;
+            const specH = 250;
+
+            noiseCtx.fillStyle = '#111';
+            noiseCtx.fillRect(specX, specY, specW, specH);
+            noiseCtx.strokeStyle = '#444';
+            noiseCtx.strokeRect(specX, specY, specW, specH);
 
             // Grid
-            capLoadCtx.strokeStyle = '#333';
-            capLoadCtx.lineWidth = 1;
-            for (let dB = -20; dB <= 80; dB += 20) {
-                const y = dBToY(dB);
-                capLoadCtx.beginPath();
-                capLoadCtx.moveTo(margin.left, y);
-                capLoadCtx.lineTo(w - margin.right, y);
-                capLoadCtx.stroke();
-                capLoadCtx.fillStyle = '#888';
-                capLoadCtx.font = '10px monospace';
-                capLoadCtx.textAlign = 'right';
-                capLoadCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
+            noiseCtx.strokeStyle = '#333';
+            noiseCtx.lineWidth = 1;
+            for (let i = 1; i < 5; i++) {
+                const x = specX + (i / 5) * specW;
+                noiseCtx.beginPath();
+                noiseCtx.moveTo(x, specY);
+                noiseCtx.lineTo(x, specY + specH);
+                noiseCtx.stroke();
             }
 
-            // 0 dB line
-            capLoadCtx.strokeStyle = '#666';
-            capLoadCtx.lineWidth = 2;
-            capLoadCtx.beginPath();
-            capLoadCtx.moveTo(margin.left, dBToY(0));
-            capLoadCtx.lineTo(w - margin.right, dBToY(0));
-            capLoadCtx.stroke();
+            // Draw noise density spectrum
+            noiseCtx.strokeStyle = '#00FF00';
+            noiseCtx.lineWidth = 2;
+            noiseCtx.beginPath();
 
-            // Open-loop gain (single pole at GBW / A0, simplified to first-order)
-            // Assume A0 = 100 dB, so dominant pole is at GBW/100000
-            const A0 = 1e5;
-            const fp1 = gbw / A0;
+            for (let i = 0; i <= specW; i++) {
+                const f = 0.1 + (i / specW) * (bw * 2);
+                const x = specX + i;
 
-            // Capacitive load pole
-            const fpCL = 1 / (2 * Math.PI * Zo * CL);
-
-            // Loop gain T = A * β = A / noise_gain
-            function loopGainMag(f) {
-                // Open loop: A0 / (1 + s/wp1)
-                const Amag = A0 / Math.sqrt(1 + (f/fp1)**2);
-                // Extra pole from capacitive load
-                const CLeffect = 1 / Math.sqrt(1 + (f/fpCL)**2);
-                return 20 * Math.log10(Amag * CLeffect / noiseGain);
-            }
-
-            function loopGainMagNoCL(f) {
-                const Amag = A0 / Math.sqrt(1 + (f/fp1)**2);
-                return 20 * Math.log10(Amag / noiseGain);
-            }
-
-            function loopPhase(f) {
-                let ph = -Math.atan(f/fp1) * 180/Math.PI;
-                ph -= Math.atan(f/fpCL) * 180/Math.PI;
-                return ph;
-            }
-
-            function loopPhaseNoCL(f) {
-                return -Math.atan(f/fp1) * 180/Math.PI;
-            }
-
-            // Draw without CL
-            capLoadCtx.strokeStyle = TEK.yellow;
-            capLoadCtx.lineWidth = 2;
-            capLoadCtx.setLineDash([5, 5]);
-            capLoadCtx.beginPath();
-            let first = true;
-            for (let i = 0; i <= 400; i++) {
-                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                const dB = loopGainMagNoCL(f);
-                const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                if (first) { capLoadCtx.moveTo(x, y); first = false; }
-                else capLoadCtx.lineTo(x, y);
-            }
-            capLoadCtx.stroke();
-            capLoadCtx.setLineDash([]);
-
-            // Draw with CL
-            capLoadCtx.strokeStyle = TEK.green;
-            capLoadCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 400; i++) {
-                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                const dB = loopGainMag(f);
-                const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                if (first) { capLoadCtx.moveTo(x, y); first = false; }
-                else capLoadCtx.lineTo(x, y);
-            }
-            capLoadCtx.stroke();
-
-            // Mark CL pole
-            capLoadCtx.strokeStyle = TEK.red;
-            capLoadCtx.setLineDash([5, 5]);
-            capLoadCtx.beginPath();
-            capLoadCtx.moveTo(freqToX(fpCL), magTop);
-            capLoadCtx.lineTo(freqToX(fpCL), magBot);
-            capLoadCtx.stroke();
-            capLoadCtx.setLineDash([]);
-            capLoadCtx.fillStyle = TEK.red;
-            capLoadCtx.textAlign = 'center';
-            capLoadCtx.fillText('CL pole', freqToX(fpCL), magTop - 5);
-
-            // Phase plot
-            const phTop = magBot + 30;
-            const phBot = h - margin.bottom;
-            const phPlotH = phBot - phTop;
-            const phMin = -270, phMax = 0;
-
-            function phToY(ph) {
-                return phBot - (ph - phMin) / (phMax - phMin) * phPlotH;
-            }
-
-            // Phase grid
-            capLoadCtx.strokeStyle = '#333';
-            capLoadCtx.lineWidth = 1;
-            for (let ph = -270; ph <= 0; ph += 45) {
-                const y = phToY(ph);
-                capLoadCtx.beginPath();
-                capLoadCtx.moveTo(margin.left, y);
-                capLoadCtx.lineTo(w - margin.right, y);
-                capLoadCtx.stroke();
-                capLoadCtx.fillStyle = '#888';
-                capLoadCtx.textAlign = 'right';
-                capLoadCtx.fillText(ph + '°', margin.left - 5, y + 4);
-            }
-
-            // -180° line
-            capLoadCtx.strokeStyle = TEK.red;
-            capLoadCtx.lineWidth = 2;
-            capLoadCtx.setLineDash([5, 5]);
-            capLoadCtx.beginPath();
-            capLoadCtx.moveTo(margin.left, phToY(-180));
-            capLoadCtx.lineTo(w - margin.right, phToY(-180));
-            capLoadCtx.stroke();
-            capLoadCtx.setLineDash([]);
-
-            // Phase without CL
-            capLoadCtx.strokeStyle = TEK.yellow;
-            capLoadCtx.lineWidth = 2;
-            capLoadCtx.setLineDash([5, 5]);
-            capLoadCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 400; i++) {
-                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                const ph = loopPhaseNoCL(f);
-                const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                if (first) { capLoadCtx.moveTo(x, y); first = false; }
-                else capLoadCtx.lineTo(x, y);
-            }
-            capLoadCtx.stroke();
-            capLoadCtx.setLineDash([]);
-
-            // Phase with CL
-            capLoadCtx.strokeStyle = TEK.green;
-            capLoadCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 400; i++) {
-                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                const ph = loopPhase(f);
-                const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                if (first) { capLoadCtx.moveTo(x, y); first = false; }
-                else capLoadCtx.lineTo(x, y);
-            }
-            capLoadCtx.stroke();
-
-            // Frequency labels
-            for (let exp = 3; exp <= 9; exp++) {
-                const f = Math.pow(10, exp);
-                const x = freqToX(f);
-                capLoadCtx.fillStyle = '#888';
-                capLoadCtx.textAlign = 'center';
-                const label = exp === 3 ? '1k' : exp === 4 ? '10k' : exp === 5 ? '100k' : exp === 6 ? '1M' : exp === 7 ? '10M' : exp === 8 ? '100M' : '1G';
-                capLoadCtx.fillText(label, x, phBot + 15);
-            }
-            capLoadCtx.fillText('Frequency (Hz)', margin.left + plotW/2, h - 5);
-
-            // Calculate phase margins
-            function findCrossover(fn) {
-                for (let f = fMin; f < fMax; f *= 1.05) {
-                    if (fn(f) < 0) return f;
-                }
-                return fMax;
-            }
-
-            const fcNoCL = findCrossover(loopGainMagNoCL);
-            const fcWithCL = findCrossover(loopGainMag);
-            const pmNoCL = 180 + loopPhaseNoCL(fcNoCL);
-            const pmWithCL = 180 + loopPhase(fcWithCL);
-
-            // Legend
-            capLoadCtx.fillStyle = TEK.yellow;
-            capLoadCtx.fillRect(w - 180, 10, 15, 10);
-            capLoadCtx.fillStyle = '#fff';
-            capLoadCtx.textAlign = 'left';
-            capLoadCtx.fillText('Without CL', w - 160, 18);
-
-            capLoadCtx.fillStyle = TEK.green;
-            capLoadCtx.fillRect(w - 180, 25, 15, 10);
-            capLoadCtx.fillStyle = '#fff';
-            capLoadCtx.fillText('With CL', w - 160, 33);
-
-            // Results
-            const result = document.getElementById('cap-load-result');
-            result.innerHTML = `
-                <strong>Capacitive Load Pole:</strong> ${AD.fmtUnit(fpCL, 'Hz')}<br>
-                <strong>Without CL:</strong> f<sub>c</sub> = ${AD.fmtUnit(fcNoCL, 'Hz')}, PM = ${pmNoCL.toFixed(1)}°<br>
-                <strong>With CL:</strong> f<sub>c</sub> = ${AD.fmtUnit(fcWithCL, 'Hz')}, PM = <span style="color: ${pmWithCL > 45 ? TEK.green : pmWithCL > 0 ? TEK.yellow : TEK.red}">${pmWithCL.toFixed(1)}°</span><br>
-                <strong>Phase Margin Degradation:</strong> ${(pmNoCL - pmWithCL).toFixed(1)}°
-                ${pmWithCL < 30 ? '<br><span style="color:' + TEK.red + '">WARNING: Circuit may ring or oscillate! Add isolation resistor.</span>' : ''}
-            `;
-        };
-
-        // Isolation resistor calculator
-        window.calcIsoResistor = function() {
-            const fc = AD.num('fc-iso') * 1e6;
-            const CL = AD.num('cl-iso') * 1e-12;
-
-            // Place zero at 0.5 × fc
-            const fz = 0.5 * fc;
-            const Riso = 1 / (2 * Math.PI * fz * CL);
-
-            const result = document.getElementById('iso-result');
-            result.innerHTML = `
-                <strong>Target zero frequency:</strong> ${AD.fmtUnit(fz, 'Hz')} (0.5 × f<sub>c</sub>)<br>
-                <strong>Recommended R<sub>iso</sub>:</strong> ${Riso.toFixed(1)} Ω<br>
-                <strong>Standard value:</strong> ${Riso < 50 ? '47Ω' : Riso < 75 ? '68Ω' : Riso < 110 ? '100Ω' : Riso < 160 ? '150Ω' : Riso < 240 ? '220Ω' : Riso < 360 ? '330Ω' : Riso < 540 ? '470Ω' : '680Ω'}
-            `;
-        };
-
-        // RLC Load analyzer
-        const rlcCanvas = document.getElementById('rlc-load-canvas');
-        if (rlcCanvas) {
-            const rlcCtx = rlcCanvas.getContext('2d');
-
-            window.updateRLCLoad = function() {
-                const R = AD.num('load-r');
-                const L = AD.num('load-l') * 1e-6;
-                const C = AD.num('load-c') * 1e-12;
-                const gbw = AD.num('gbw-rlc') * 1e6;
-
-                const w = rlcCanvas.width, h = rlcCanvas.height;
-                const margin = { left: 60, right: 30, top: 30, bottom: 40 };
-                const plotW = w - margin.left - margin.right;
-                const plotH = h - margin.top - margin.bottom;
-
-                rlcCtx.fillStyle = '#0d1117';
-                rlcCtx.fillRect(0, 0, w, h);
-
-                const fMin = 1e3, fMax = 1e9;
-                const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
-
-                function freqToX(f) {
-                    return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
+                // 1/f noise component below 10 Hz
+                let noiseDensity = 20; // nV/√Hz base
+                if (f < 10) {
+                    noiseDensity += 50 / f;
                 }
 
-                // Calculate load impedance magnitude
-                function loadZ(f) {
-                    const omega = 2 * Math.PI * f;
-                    // Parallel RLC: 1/Z = 1/R + 1/jωL + jωC
-                    // Z = 1 / (1/R + jωC - j/(ωL))
-                    const Greal = 1/R;
-                    const Bimag = omega * C - 1/(omega * L);
-                    // |Z| = 1 / sqrt(G^2 + B^2)
-                    if (L === 0) {
-                        // Just RC
-                        // Actually: |Z| for R || C
-                        return R / Math.sqrt(1 + (omega * R * C)**2);
-                    }
-                    if (C === 0 && L === 0) return R;
-                    if (L === 0) {
-                        return R / Math.sqrt(1 + (omega * R * C)**2);
-                    }
-                    return 1 / Math.sqrt(Greal**2 + Bimag**2);
-                }
+                // Convert to log scale for display
+                const y = specY + specH - (Math.log10(noiseDensity) / 3) * specH;
 
-                // Impedance plot
-                const zMin = 0.1, zMax = 10000;
+                if (i === 0) noiseCtx.moveTo(x, y);
+                else noiseCtx.lineTo(x, y);
+            }
+            noiseCtx.stroke();
 
-                function zToY(z) {
-                    const logZ = Math.log10(Math.max(z, 0.1));
-                    const logZMin = Math.log10(zMin);
-                    const logZMax = Math.log10(zMax);
-                    return margin.top + plotH - (logZ - logZMin) / (logZMax - logZMin) * plotH;
-                }
+            // Bandwidth marker
+            const bwX = specX + (bw / (bw * 2)) * specW;
+            noiseCtx.strokeStyle = '#FF0000';
+            noiseCtx.setLineDash([5, 5]);
+            noiseCtx.beginPath();
+            noiseCtx.moveTo(bwX, specY);
+            noiseCtx.lineTo(bwX, specY + specH);
+            noiseCtx.stroke();
+            noiseCtx.setLineDash([]);
 
-                // Grid
-                rlcCtx.strokeStyle = '#333';
-                rlcCtx.lineWidth = 1;
-                for (let exp = -1; exp <= 4; exp++) {
-                    const z = Math.pow(10, exp);
-                    const y = zToY(z);
-                    rlcCtx.beginPath();
-                    rlcCtx.moveTo(margin.left, y);
-                    rlcCtx.lineTo(w - margin.right, y);
-                    rlcCtx.stroke();
-                    rlcCtx.fillStyle = '#888';
-                    rlcCtx.textAlign = 'right';
-                    rlcCtx.font = '10px monospace';
-                    const label = exp === -1 ? '0.1' : exp === 0 ? '1' : exp === 1 ? '10' : exp === 2 ? '100' : exp === 3 ? '1k' : '10k';
-                    rlcCtx.fillText(label + ' Ω', margin.left - 5, y + 4);
-                }
+            noiseCtx.fillStyle = '#FF0000';
+            noiseCtx.font = '11px monospace';
+            noiseCtx.textAlign = 'center';
+            noiseCtx.fillText('BW = ' + bw + ' Hz', bwX, specY + specH + 15);
 
-                // Draw impedance
-                rlcCtx.strokeStyle = TEK.cyan;
-                rlcCtx.lineWidth = 2;
-                rlcCtx.beginPath();
-                let first = true;
-                for (let i = 0; i <= 400; i++) {
-                    const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                    let z;
-                    if (L > 0 && C > 0) {
-                        const omega = 2 * Math.PI * f;
-                        const Greal = 1/R;
-                        const Bimag = omega * C - 1/(omega * L);
-                        z = 1 / Math.sqrt(Greal**2 + Bimag**2);
-                    } else if (C > 0) {
-                        const omega = 2 * Math.PI * f;
-                        z = R / Math.sqrt(1 + (omega * R * C)**2);
-                    } else if (L > 0) {
-                        const omega = 2 * Math.PI * f;
-                        const zL = omega * L;
-                        z = R * zL / Math.sqrt(R**2 + zL**2);
-                    } else {
-                        z = R;
-                    }
-                    const x = freqToX(f), y = Math.max(margin.top, Math.min(h - margin.bottom, zToY(z)));
-                    if (first) { rlcCtx.moveTo(x, y); first = false; }
-                    else rlcCtx.lineTo(x, y);
-                }
-                rlcCtx.stroke();
+            // Labels
+            noiseCtx.fillStyle = '#CCC';
+            noiseCtx.font = '12px monospace';
+            noiseCtx.textAlign = 'center';
+            noiseCtx.fillText('Noise Spectral Density', specX + specW / 2, specY - 10);
+            noiseCtx.fillText('Frequency (Hz)', specX + specW / 2, specY + specH + 35);
 
-                // Frequency labels
-                for (let exp = 3; exp <= 9; exp++) {
-                    const f = Math.pow(10, exp);
-                    const x = freqToX(f);
-                    rlcCtx.fillStyle = '#888';
-                    rlcCtx.textAlign = 'center';
-                    const label = exp === 3 ? '1k' : exp === 4 ? '10k' : exp === 5 ? '100k' : exp === 6 ? '1M' : exp === 7 ? '10M' : exp === 8 ? '100M' : '1G';
-                    rlcCtx.fillText(label, x, h - margin.bottom + 15);
-                }
-                rlcCtx.fillText('|Z| vs Frequency', margin.left + plotW/2, 15);
-
-                // Mark crossover
-                rlcCtx.strokeStyle = TEK.yellow;
-                rlcCtx.setLineDash([5, 5]);
-                rlcCtx.beginPath();
-                rlcCtx.moveTo(freqToX(gbw), margin.top);
-                rlcCtx.lineTo(freqToX(gbw), h - margin.bottom);
-                rlcCtx.stroke();
-                rlcCtx.setLineDash([]);
-                rlcCtx.fillStyle = TEK.yellow;
-                rlcCtx.fillText('GBW', freqToX(gbw), margin.top + 15);
-
-                // Results
-                let zAtGBW;
-                if (L > 0 && C > 0) {
-                    const omega = 2 * Math.PI * gbw;
-                    const Greal = 1/R;
-                    const Bimag = omega * C - 1/(omega * L);
-                    zAtGBW = 1 / Math.sqrt(Greal**2 + Bimag**2);
-                } else if (C > 0) {
-                    const omega = 2 * Math.PI * gbw;
-                    zAtGBW = R / Math.sqrt(1 + (omega * R * C)**2);
-                } else if (L > 0) {
-                    const omega = 2 * Math.PI * gbw;
-                    const zL = omega * L;
-                    zAtGBW = R * zL / Math.sqrt(R**2 + zL**2);
-                } else {
-                    zAtGBW = R;
-                }
-
-                // Check for resonance
-                let fRes = 0;
-                if (L > 0 && C > 0) {
-                    fRes = 1 / (2 * Math.PI * Math.sqrt(L * C));
-                }
-
-                const result = document.getElementById('rlc-result');
-                result.innerHTML = `
-                    <strong>Load impedance at GBW:</strong> ${zAtGBW.toFixed(1)} Ω<br>
-                    ${fRes > 0 ? '<strong>Resonant frequency:</strong> ' + AD.fmtUnit(fRes, 'Hz') + (fRes < gbw && fRes > gbw/10 ? ' <span style="color:' + TEK.yellow + '">(Warning: near crossover!)</span>' : '') + '<br>' : ''}
-                    <strong>Recommendation:</strong> ${zAtGBW < 100 && C > 0 ? 'Consider isolation resistor to decouple capacitive component' : 'Load appears manageable'}
-                `;
-            };
+            // Title
+            noiseCtx.fillStyle = '#FFF';
+            noiseCtx.font = 'bold 16px monospace';
+            noiseCtx.fillText('Noise Contribution', centerX, 25);
         }
 
-        // Schematics
-        const isoSch = document.getElementById('sch-isolation-resistor');
-        if (isoSch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(isoSch, 450, 160);
+        // Canvas 3: Anti-Aliasing Filter
+        const filterCanvas = document.getElementById('filter-canvas');
+        const filterCtx = filterCanvas.getContext('2d');
 
-            // Op-amp
-            sch.opamp(100, 80, { label: '' });
-            const op = SchematicSVG.opampTerminals(100, 80);
+        const sampleRate = document.getElementById('sample-rate');
+        const filterOrder = document.getElementById('filter-order');
+        const filterFc = document.getElementById('filter-fc');
 
-            // Input
-            sch.wire([[30, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-            sch.nodeLabel(30, op.nonInvInput.y, 'Vin', { position: 'left' });
+        function drawFilterDesign() {
+            const fs = parseFloat(sampleRate.value);
+            const order = parseInt(filterOrder.value);
+            const fc = parseFloat(filterFc.value);
 
-            // Feedback resistor
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 30]]);
-            sch.wire([[op.invInput.x, 30], [op.output.x, 30]]);
-            sch.resistor((op.invInput.x + op.output.x)/2, 30, 'horizontal', { label: 'Rf' });
+            document.getElementById('filter-fc-val').textContent = fc + ' Hz';
 
-            // Inverting input to ground
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 30, op.invInput.y]]);
-            sch.resistor(op.invInput.x - 55, op.invInput.y, 'horizontal', { label: 'Rin' });
-            sch.ground(op.invInput.x - 80, op.invInput.y);
+            filterCtx.fillStyle = '#181818';
+            filterCtx.fillRect(0, 0, filterCanvas.width, filterCanvas.height);
 
-            // Output with isolation resistor
-            sch.wire([[op.output.x, op.output.y], [op.output.x + 30, op.output.y]]);
-            sch.dot(op.output.x, op.output.y);
-            sch.resistor(op.output.x + 55, op.output.y, 'horizontal', { label: 'Riso' });
+            const w = filterCanvas.width;
+            const h = filterCanvas.height;
+            const margin = { left: 80, right: 40, top: 50, bottom: 60 };
+            const plotW = w - margin.left - margin.right;
+            const plotH = h - margin.top - margin.bottom;
 
-            // Load
-            sch.wire([[op.output.x + 80, op.output.y], [op.output.x + 120, op.output.y]]);
-            sch.dot(op.output.x + 120, op.output.y);
-            sch.wire([[op.output.x + 120, op.output.y], [op.output.x + 120, op.output.y + 30]]);
-            sch.capacitor(op.output.x + 120, op.output.y + 30, 'vertical', { label: 'CL' });
-            sch.ground(op.output.x + 120, op.output.y + 80);
+            const fNyquist = fs / 2;
+            document.getElementById('nyquist').textContent = fNyquist + ' Hz';
 
-            sch.nodeLabel(op.output.x + 140, op.output.y, 'Vout', { position: 'right' });
-
-            sch.render();
-        }
-
-        const snubberSch = document.getElementById('sch-snubber');
-        if (snubberSch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(snubberSch, 450, 160);
-
-            // Op-amp
-            sch.opamp(100, 80, { label: '' });
-            const op = SchematicSVG.opampTerminals(100, 80);
-
-            // Simplified - just show output portion
-            sch.wire([[op.output.x, op.output.y], [op.output.x + 80, op.output.y]]);
-            sch.dot(op.output.x, op.output.y);
-            sch.dot(op.output.x + 80, op.output.y);
-
-            // Snubber branch
-            sch.wire([[op.output.x + 40, op.output.y], [op.output.x + 40, op.output.y + 25]]);
-            sch.dot(op.output.x + 40, op.output.y);
-            sch.resistor(op.output.x + 40, op.output.y + 25, 'vertical', { label: 'Rs' });
-            sch.capacitor(op.output.x + 40, op.output.y + 75, 'vertical', { label: 'Cs' });
-            sch.ground(op.output.x + 40, op.output.y + 120);
-
-            // Load capacitor
-            sch.wire([[op.output.x + 80, op.output.y], [op.output.x + 80, op.output.y + 25]]);
-            sch.capacitor(op.output.x + 80, op.output.y + 25, 'vertical', { label: 'CL' });
-            sch.ground(op.output.x + 80, op.output.y + 75);
-
-            sch.wire([[op.output.x + 80, op.output.y], [op.output.x + 120, op.output.y]]);
-            sch.nodeLabel(op.output.x + 120, op.output.y, 'Vout', { position: 'right' });
-
-            // Input side simplified
-            sch.wire([[30, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-            sch.nodeLabel(30, op.nonInvInput.y, 'Vin', { position: 'left' });
-            sch.ground(op.invInput.x - 30, op.invInput.y);
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 30, op.invInput.y]]);
-
-            sch.render();
-        }
-
-        const fbCapSch = document.getElementById('sch-feedback-cap');
-        if (fbCapSch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(fbCapSch, 450, 160);
-
-            sch.opamp(100, 80, { label: '' });
-            const op = SchematicSVG.opampTerminals(100, 80);
-
-            // Input
-            sch.wire([[30, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-            sch.nodeLabel(30, op.nonInvInput.y, 'Vin', { position: 'left' });
-
-            // Input resistor
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 20, op.invInput.y]]);
-            sch.resistor(op.invInput.x - 45, op.invInput.y, 'horizontal', { label: 'Rin' });
-            sch.ground(op.invInput.x - 70, op.invInput.y);
-
-            // Feedback with parallel R and C
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 30]]);
-            sch.dot(op.invInput.x, op.invInput.y);
-
-            // Rf on top path
-            sch.wire([[op.invInput.x, 30], [op.invInput.x + 20, 30]]);
-            sch.resistor(op.invInput.x + 45, 30, 'horizontal', { label: 'Rf' });
-            sch.wire([[op.invInput.x + 70, 30], [op.output.x, 30]]);
-
-            // Cf on bottom path (parallel)
-            sch.wire([[op.invInput.x, 30], [op.invInput.x, 50]]);
-            sch.dot(op.invInput.x, 30);
-            sch.wire([[op.invInput.x, 50], [op.invInput.x + 20, 50]]);
-            sch.capacitor(op.invInput.x + 45, 50, 'horizontal', { label: 'Cf' });
-            sch.wire([[op.invInput.x + 70, 50], [op.output.x, 50]]);
-            sch.wire([[op.output.x, 50], [op.output.x, 30]]);
-            sch.dot(op.output.x, 30);
-
-            sch.wire([[op.output.x, 30], [op.output.x, op.output.y]]);
-
-            // Output
-            sch.wire([[op.output.x, op.output.y], [op.output.x + 60, op.output.y]]);
-            sch.dot(op.output.x, op.output.y);
-            sch.nodeLabel(op.output.x + 60, op.output.y, 'Vout', { position: 'right' });
-
-            // Load capacitor
-            sch.wire([[op.output.x + 30, op.output.y], [op.output.x + 30, op.output.y + 25]]);
-            sch.dot(op.output.x + 30, op.output.y);
-            sch.capacitor(op.output.x + 30, op.output.y + 25, 'vertical', { label: 'CL' });
-            sch.ground(op.output.x + 30, op.output.y + 75);
-
-            sch.render();
-        }
-
-        const inLoopSch = document.getElementById('sch-in-loop-comp');
-        if (inLoopSch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(inLoopSch, 500, 180);
-
-            sch.opamp(120, 90, { label: '' });
-            const op = SchematicSVG.opampTerminals(120, 90);
-
-            // Input
-            sch.wire([[30, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-            sch.nodeLabel(30, op.nonInvInput.y, 'Vin', { position: 'left' });
-
-            // Main feedback resistor (outer loop - to load side)
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 20]]);
-            sch.dot(op.invInput.x, op.invInput.y);
-            sch.wire([[op.invInput.x, 20], [op.output.x + 100, 20]]);
-            sch.resistor((op.invInput.x + op.output.x + 100)/2, 20, 'horizontal', { label: 'Rf' });
-            sch.wire([[op.output.x + 100, 20], [op.output.x + 100, op.output.y]]);
-            sch.dot(op.output.x + 100, op.output.y);
-
-            // Input resistor
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 20, op.invInput.y]]);
-            sch.resistor(op.invInput.x - 45, op.invInput.y, 'horizontal', { label: 'Rin' });
-            sch.ground(op.invInput.x - 70, op.invInput.y);
-
-            // Output with Rx
-            sch.wire([[op.output.x, op.output.y], [op.output.x + 30, op.output.y]]);
-            sch.dot(op.output.x, op.output.y);
-            sch.resistor(op.output.x + 55, op.output.y, 'horizontal', { label: 'Rx' });
-            sch.wire([[op.output.x + 80, op.output.y], [op.output.x + 100, op.output.y]]);
-
-            // Local feedback to op-amp output
-            sch.wire([[op.output.x, op.output.y], [op.output.x, 50]]);
-            sch.wire([[op.output.x, 50], [op.invInput.x + 20, 50]]);
-            sch.resistor(op.invInput.x + 45, 50, 'horizontal', { label: 'Rx\'' });
-            sch.wire([[op.invInput.x + 20, 50], [op.invInput.x, 50]]);
-            sch.wire([[op.invInput.x, 50], [op.invInput.x, op.invInput.y]]);
-
-            // Load capacitor (inside feedback loop now)
-            sch.wire([[op.output.x + 100, op.output.y], [op.output.x + 100, op.output.y + 25]]);
-            sch.capacitor(op.output.x + 100, op.output.y + 25, 'vertical', { label: 'CL' });
-            sch.ground(op.output.x + 100, op.output.y + 75);
-
-            sch.wire([[op.output.x + 100, op.output.y], [op.output.x + 140, op.output.y]]);
-            sch.nodeLabel(op.output.x + 140, op.output.y, 'Vout', { position: 'right' });
-
-            sch.render();
-        }
-
-        // Exercise checking
-        window.checkEx1 = function() {
-            const input = AD.num('ex1-input');
-            const result = document.getElementById('ex1-result');
-            // fp = 1/(2π × 40 × 200p) = 19.9 MHz
-            if (Math.abs(input - 19.9) < 1.5 || Math.abs(input - 20) < 1) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! f<sub>p,CL</sub> = 1/(2π × 40Ω × 200pF) ≈ 20 MHz</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. Use f<sub>p,CL</sub> = 1/(2π × Z<sub>o</sub> × C<sub>L</sub>).</span>';
+            // Grid
+            filterCtx.strokeStyle = '#333';
+            filterCtx.lineWidth = 1;
+            for (let i = 1; i < 5; i++) {
+                const x = margin.left + (i / 5) * plotW;
+                filterCtx.beginPath();
+                filterCtx.moveTo(x, margin.top);
+                filterCtx.lineTo(x, margin.top + plotH);
+                filterCtx.stroke();
             }
-        };
-
-        window.checkEx2 = function() {
-            const input = AD.num('ex2-input');
-            const result = document.getElementById('ex2-result');
-            // Riso = 1/(2π × 25MHz × 200pF) = 31.8 Ω
-            if (Math.abs(input - 31.8) < 5 || Math.abs(input - 33) < 5) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! R<sub>iso</sub> = 1/(2π × 25MHz × 200pF) ≈ 32Ω. Standard value: 33Ω</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. R<sub>iso</sub> = 1/(2π × f<sub>z</sub> × C<sub>L</sub>).</span>';
+            for (let i = 1; i < 6; i++) {
+                const y = margin.top + (i / 6) * plotH;
+                filterCtx.beginPath();
+                filterCtx.moveTo(margin.left, y);
+                filterCtx.lineTo(margin.left + plotW, y);
+                filterCtx.stroke();
             }
-        };
 
-        window.checkEx3 = function() {
-            const input = AD.num('ex3-input');
-            const result = document.getElementById('ex3-result');
-            // CL = 5m × 100pF/m = 500 pF
-            // fc = 10 MHz (unity gain), target zero at 5 MHz
-            // Riso = 1/(2π × 5MHz × 500pF) = 63.7 Ω → use 68Ω
-            if (input >= 60 && input <= 75) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! With C<sub>L</sub> = 500pF and f<sub>z</sub> = 5MHz, R<sub>iso</sub> ≈ 64Ω. Standard value: 68Ω</span>';
-            } else if (input >= 47 && input <= 100) {
-                result.innerHTML = '<span style="color: #fbbf24">Close! Total cable capacitance is 500pF. Place zero at ~5MHz (half of GBW). R<sub>iso</sub> ≈ 64Ω.</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. First calculate total C<sub>L</sub> = 5m × 100pF/m = 500pF, then R<sub>iso</sub> = 1/(π × f<sub>c</sub> × C<sub>L</sub>).</span>';
+            // Draw filter response
+            filterCtx.strokeStyle = '#00FF00';
+            filterCtx.lineWidth = 2;
+            filterCtx.beginPath();
+
+            const fMax = fs * 2;
+            let attnAtNyquist = 0;
+
+            for (let i = 0; i <= plotW; i++) {
+                const f = (i / plotW) * fMax;
+                const x = margin.left + i;
+
+                // Butterworth response
+                const ratio = f / fc;
+                const h2 = 1 / (1 + Math.pow(ratio, 2 * order));
+                const attn = -10 * Math.log10(1 / h2);
+
+                if (Math.abs(f - fNyquist) < 1) {
+                    attnAtNyquist = attn;
+                }
+
+                const y = margin.top + (attn / 80) * plotH;
+
+                if (i === 0) filterCtx.moveTo(x, Math.max(margin.top, y));
+                else filterCtx.lineTo(x, Math.min(margin.top + plotH, Math.max(margin.top, y)));
             }
-        };
+            filterCtx.stroke();
+
+            document.getElementById('attn-nyquist').textContent = -attnAtNyquist.toFixed(0) + ' dB';
+
+            // Settling time (5 tau)
+            const tau = 1 / (2 * Math.PI * fc);
+            const settlingTime = 5 * tau * order;
+            document.getElementById('settling').textContent = (settlingTime * 1000).toFixed(0) + ' ms';
+
+            // Group delay
+            const groupDelay = order * tau;
+            document.getElementById('group-delay').textContent = (groupDelay * 1000).toFixed(0) + ' ms';
+
+            // Mark Nyquist frequency
+            const nyquistX = margin.left + (fNyquist / fMax) * plotW;
+            filterCtx.strokeStyle = '#FF0000';
+            filterCtx.setLineDash([5, 5]);
+            filterCtx.beginPath();
+            filterCtx.moveTo(nyquistX, margin.top);
+            filterCtx.lineTo(nyquistX, margin.top + plotH);
+            filterCtx.stroke();
+            filterCtx.setLineDash([]);
+
+            filterCtx.fillStyle = '#FF0000';
+            filterCtx.font = '11px monospace';
+            filterCtx.textAlign = 'center';
+            filterCtx.fillText('Nyquist', nyquistX, margin.top - 5);
+
+            // Mark cutoff
+            const fcX = margin.left + (fc / fMax) * plotW;
+            filterCtx.strokeStyle = '#FFFF00';
+            filterCtx.setLineDash([3, 3]);
+            filterCtx.beginPath();
+            filterCtx.moveTo(fcX, margin.top);
+            filterCtx.lineTo(fcX, margin.top + plotH);
+            filterCtx.stroke();
+            filterCtx.setLineDash([]);
+
+            // Labels
+            filterCtx.fillStyle = '#CCC';
+            filterCtx.font = '14px monospace';
+            filterCtx.textAlign = 'center';
+            filterCtx.fillText('Frequency (Hz)', margin.left + plotW / 2, h - 15);
+
+            filterCtx.save();
+            filterCtx.translate(25, margin.top + plotH / 2);
+            filterCtx.rotate(-Math.PI / 2);
+            filterCtx.fillText('Attenuation (dB)', 0, 0);
+            filterCtx.restore();
+
+            // Frequency scale
+            filterCtx.font = '11px monospace';
+            filterCtx.fillStyle = '#888';
+            for (let f = 0; f <= fMax; f += fMax / 5) {
+                const x = margin.left + (f / fMax) * plotW;
+                filterCtx.fillText(f.toFixed(0), x, margin.top + plotH + 20);
+            }
+
+            // Attenuation scale
+            filterCtx.textAlign = 'right';
+            for (let db = 0; db >= -80; db -= 20) {
+                const y = margin.top + (-db / 80) * plotH;
+                filterCtx.fillText(db + '', margin.left - 5, y + 4);
+            }
+
+            // Title
+            filterCtx.fillStyle = '#FFF';
+            filterCtx.font = 'bold 16px monospace';
+            filterCtx.textAlign = 'center';
+            filterCtx.fillText('Anti-Aliasing Filter Response (' + order + '-order Butterworth)', w / 2, 25);
+        }
+
+        // Canvas 4: Grounding
+        const groundCanvas = document.getElementById('grounding-canvas');
+        const groundCtx = groundCanvas.getContext('2d');
+
+        const groundTopology = document.getElementById('ground-topology');
+        const digitalNoise = document.getElementById('digital-noise');
+        const gndImpedance = document.getElementById('gnd-impedance');
+
+        function drawGrounding() {
+            const topology = groundTopology.value || 'star';
+            let digNoise = parseFloat(digitalNoise.value);
+            let gndZ = parseFloat(gndImpedance.value);
+            if (!Number.isFinite(digNoise)) digNoise = 100;
+            if (!Number.isFinite(gndZ)) gndZ = 10;
+
+            document.getElementById('digital-noise-val').textContent = digNoise + ' mVpp';
+            document.getElementById('gnd-impedance-val').textContent = gndZ + ' mΩ';
+
+            groundCtx.fillStyle = '#181818';
+            groundCtx.fillRect(0, 0, groundCanvas.width, groundCanvas.height);
+
+            const w = groundCanvas.width;
+            const h = groundCanvas.height;
+
+            // Calculate ground bounce
+            const digitalCurrent = 50; // mA
+            document.getElementById('dig-current').textContent = digitalCurrent + ' mA';
+
+            let gndBounce = digitalCurrent * gndZ * 0.01;
+            let coupling = -80;
+            let resolution;
+            switch(topology) {
+                case 'star':
+                    gndBounce = digitalCurrent * gndZ * 0.01;
+                    coupling = -80;
+                    break;
+                case 'split':
+                    gndBounce = digitalCurrent * gndZ * 0.1;
+                    coupling = -60;
+                    break;
+                case 'single':
+                    gndBounce = digitalCurrent * gndZ;
+                    coupling = -40;
+                    break;
+                default:
+                    gndBounce = digitalCurrent * gndZ * 0.01;
+                    coupling = -80;
+                    break;
+            }
+
+            document.getElementById('gnd-bounce').textContent = gndBounce.toFixed(2) + ' mV';
+            document.getElementById('coupling').textContent = coupling + ' dB';
+
+            // Calculate effective resolution
+            const coupledNoise = digNoise * Math.pow(10, coupling / 20);
+            const lsb = 10 / Math.pow(2, 24); // 24-bit, 10V FS
+            resolution = 24 - Math.log2((coupledNoise * 1e-3) / lsb);
+            document.getElementById('gnd-resolution').textContent = resolution.toFixed(1) + ' bits';
+
+            // Draw topology diagram
+            const centerX = w / 2;
+
+            // Title
+            groundCtx.fillStyle = '#FFF';
+            groundCtx.font = 'bold 16px monospace';
+            groundCtx.textAlign = 'center';
+            groundCtx.fillText('Grounding Topology: ' + topology.toUpperCase(), centerX, 30);
+
+            // Draw appropriate topology
+            switch(topology) {
+                case 'star':
+                    drawStarGround(groundCtx, centerX, 200);
+                    break;
+                case 'split':
+                    drawSplitGround(groundCtx, centerX, 200);
+                    break;
+                case 'single':
+                    drawSingleGround(groundCtx, centerX, 200);
+                    break;
+            }
+
+            // Effectiveness indicator
+            const qualityColors = { star: '#00FF00', split: '#FFFF00', single: '#FF0000' };
+            groundCtx.fillStyle = qualityColors[topology];
+            groundCtx.font = 'bold 14px monospace';
+            groundCtx.fillText(topology === 'star' ? 'OPTIMAL' :
+                              topology === 'split' ? 'ACCEPTABLE' : 'POOR', centerX, h - 20);
+        }
+
+        function drawStarGround(ctx, cx, cy) {
+            // Central star point
+            ctx.fillStyle = '#00FF00';
+            ctx.beginPath();
+            ctx.arc(cx, cy + 80, 15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('STAR', cx, cy + 84);
+
+            // Analog section
+            ctx.fillStyle = '#333';
+            ctx.fillRect(cx - 200, cy - 60, 120, 80);
+            ctx.strokeStyle = '#00FFFF';
+            ctx.strokeRect(cx - 200, cy - 60, 120, 80);
+            ctx.fillStyle = '#00FFFF';
+            ctx.fillText('ANALOG', cx - 140, cy - 15);
+
+            // Digital section
+            ctx.fillStyle = '#333';
+            ctx.fillRect(cx + 80, cy - 60, 120, 80);
+            ctx.strokeStyle = '#FFFF00';
+            ctx.strokeRect(cx + 80, cy - 60, 120, 80);
+            ctx.fillStyle = '#FFFF00';
+            ctx.fillText('DIGITAL', cx + 140, cy - 15);
+
+            // Reference
+            ctx.fillStyle = '#333';
+            ctx.fillRect(cx - 60, cy - 100, 120, 60);
+            ctx.strokeStyle = '#FF6600';
+            ctx.strokeRect(cx - 60, cy - 100, 120, 60);
+            ctx.fillStyle = '#FF6600';
+            ctx.fillText('REFERENCE', cx, cy - 65);
+
+            // Ground connections (separate paths)
+            ctx.strokeStyle = '#00FF00';
+            ctx.lineWidth = 3;
+
+            // Analog to star
+            ctx.beginPath();
+            ctx.moveTo(cx - 140, cy + 20);
+            ctx.lineTo(cx - 140, cy + 80);
+            ctx.lineTo(cx - 15, cy + 80);
+            ctx.stroke();
+
+            // Digital to star
+            ctx.beginPath();
+            ctx.moveTo(cx + 140, cy + 20);
+            ctx.lineTo(cx + 140, cy + 80);
+            ctx.lineTo(cx + 15, cy + 80);
+            ctx.stroke();
+
+            // Reference to star
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - 40);
+            ctx.lineTo(cx, cy + 65);
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = '#888';
+            ctx.font = '10px monospace';
+            ctx.fillText('Separate return paths', cx, cy + 120);
+            ctx.fillText('No shared impedance', cx, cy + 135);
+        }
+
+        function drawSplitGround(ctx, cx, cy) {
+            // Analog plane
+            ctx.fillStyle = '#00FFFF';
+            ctx.globalAlpha = 0.3;
+            ctx.fillRect(cx - 220, cy - 20, 200, 100);
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = '#00FFFF';
+            ctx.strokeRect(cx - 220, cy - 20, 200, 100);
+
+            // Digital plane
+            ctx.fillStyle = '#FFFF00';
+            ctx.globalAlpha = 0.3;
+            ctx.fillRect(cx + 20, cy - 20, 200, 100);
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = '#FFFF00';
+            ctx.strokeRect(cx + 20, cy - 20, 200, 100);
+
+            // Bridge connection
+            ctx.strokeStyle = '#FF6600';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(cx - 20, cy + 30);
+            ctx.lineTo(cx + 20, cy + 30);
+            ctx.stroke();
+
+            ctx.fillStyle = '#00FFFF';
+            ctx.font = 'bold 14px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('ANALOG GND', cx - 120, cy + 35);
+
+            ctx.fillStyle = '#FFFF00';
+            ctx.fillText('DIGITAL GND', cx + 120, cy + 35);
+
+            ctx.fillStyle = '#FF6600';
+            ctx.font = '10px monospace';
+            ctx.fillText('Single bridge point', cx, cy + 70);
+
+            // Warning
+            ctx.fillStyle = '#888';
+            ctx.fillText('Bridge at ADC only', cx, cy + 120);
+        }
+
+        function drawSingleGround(ctx, cx, cy) {
+            // Single ground plane
+            ctx.fillStyle = '#FF0000';
+            ctx.globalAlpha = 0.3;
+            ctx.fillRect(cx - 250, cy + 50, 500, 40);
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = '#FF0000';
+            ctx.strokeRect(cx - 250, cy + 50, 500, 40);
+
+            // Blocks sharing ground
+            ctx.fillStyle = '#333';
+            ctx.strokeStyle = '#888';
+
+            ctx.fillRect(cx - 200, cy - 40, 80, 60);
+            ctx.strokeRect(cx - 200, cy - 40, 80, 60);
+            ctx.fillStyle = '#888';
+            ctx.font = '11px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('ANALOG', cx - 160, cy - 5);
+
+            ctx.fillStyle = '#333';
+            ctx.fillRect(cx - 40, cy - 40, 80, 60);
+            ctx.strokeRect(cx - 40, cy - 40, 80, 60);
+            ctx.fillStyle = '#888';
+            ctx.fillText('ADC', cx, cy - 5);
+
+            ctx.fillStyle = '#333';
+            ctx.fillRect(cx + 120, cy - 40, 80, 60);
+            ctx.strokeRect(cx + 120, cy - 40, 80, 60);
+            ctx.fillStyle = '#888';
+            ctx.fillText('MCU', cx + 160, cy - 5);
+
+            // Ground currents
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            ctx.moveTo(cx - 160, cy + 20);
+            ctx.lineTo(cx - 160, cy + 70);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy + 20);
+            ctx.lineTo(cx, cy + 70);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cx + 160, cy + 20);
+            ctx.lineTo(cx + 160, cy + 70);
+            ctx.stroke();
+
+            // Noise arrows
+            ctx.fillStyle = '#FF0000';
+            ctx.font = 'bold 12px monospace';
+            ctx.fillText('← NOISE →', cx, cy + 95);
+
+            ctx.font = '10px monospace';
+            ctx.fillText('Digital noise couples through shared impedance!', cx, cy + 120);
+        }
+
+        // Canvas 0: System Architecture
+        const archCanvas = document.getElementById('architecture-canvas');
+        const archCtx = archCanvas.getContext('2d');
+
+        function drawArchitecture() {
+            archCtx.fillStyle = '#181818';
+            archCtx.fillRect(0, 0, archCanvas.width, archCanvas.height);
+
+            const w = archCanvas.width;
+            const h = archCanvas.height;
+
+            // Title
+            archCtx.fillStyle = '#FFF';
+            archCtx.font = 'bold 16px monospace';
+            archCtx.textAlign = 'center';
+            archCtx.fillText('HIGH-PRECISION DAQ SYSTEM', w / 2, 25);
+
+            // Draw signal path blocks
+            const blockY = 80;
+            const blockH = 50;
+            const colors = ['#FF6600', '#00FFFF', '#FFFF00', '#00FF00'];
+            const blocks = [
+                { x: 50, w: 100, label: 'INPUT', sub: 'PROTECT & MUX' },
+                { x: 180, w: 110, label: 'SIGNAL', sub: 'CONDITION (AA)' },
+                { x: 320, w: 90, label: 'PGA', sub: 'x1-x128' },
+                { x: 440, w: 130, label: '24-bit ADC', sub: '(Sigma-Delta)' }
+            ];
+
+            blocks.forEach((block, i) => {
+                archCtx.fillStyle = '#222';
+                archCtx.fillRect(block.x, blockY, block.w, blockH);
+                archCtx.strokeStyle = colors[i];
+                archCtx.lineWidth = 2;
+                archCtx.strokeRect(block.x, blockY, block.w, blockH);
+
+                archCtx.fillStyle = colors[i];
+                archCtx.font = 'bold 11px monospace';
+                archCtx.textAlign = 'center';
+                archCtx.fillText(block.label, block.x + block.w / 2, blockY + 20);
+                archCtx.font = '10px monospace';
+                archCtx.fillText(block.sub, block.x + block.w / 2, blockY + 35);
+            });
+
+            // Arrows between signal path blocks
+            archCtx.strokeStyle = '#888';
+            archCtx.lineWidth = 2;
+            archCtx.fillStyle = '#888';
+            [[150, 180], [290, 320], [410, 440]].forEach(([x1, x2]) => {
+                archCtx.beginPath();
+                archCtx.moveTo(x1, blockY + blockH / 2);
+                archCtx.lineTo(x2 - 8, blockY + blockH / 2);
+                archCtx.stroke();
+                archCtx.beginPath();
+                archCtx.moveTo(x2 - 8, blockY + blockH / 2);
+                archCtx.lineTo(x2 - 15, blockY + blockH / 2 - 5);
+                archCtx.lineTo(x2 - 15, blockY + blockH / 2 + 5);
+                archCtx.closePath();
+                archCtx.fill();
+            });
+
+            // Digital section
+            const digY = 155;
+            const digBlocks = [
+                { x: 600, w: 80, label: 'SPI', sub: 'Interface', color: '#FF66FF' },
+                { x: 710, w: 100, label: 'MCU', sub: 'Cortex-M4+FPU', color: '#00FFFF' },
+                { x: 840, w: 100, label: 'USB/ETH', sub: 'Interface', color: '#FFFF00' }
+            ];
+
+            digBlocks.forEach(block => {
+                archCtx.fillStyle = '#222';
+                archCtx.fillRect(block.x, digY, block.w, blockH);
+                archCtx.strokeStyle = block.color;
+                archCtx.lineWidth = 2;
+                archCtx.strokeRect(block.x, digY, block.w, blockH);
+
+                archCtx.fillStyle = block.color;
+                archCtx.font = 'bold 11px monospace';
+                archCtx.textAlign = 'center';
+                archCtx.fillText(block.label, block.x + block.w / 2, digY + 20);
+                archCtx.font = '10px monospace';
+                archCtx.fillText(block.sub, block.x + block.w / 2, digY + 35);
+            });
+
+            // Arrow from ADC to SPI
+            archCtx.strokeStyle = '#888';
+            archCtx.beginPath();
+            archCtx.moveTo(505, blockY + blockH);
+            archCtx.lineTo(505, digY + blockH / 2);
+            archCtx.lineTo(592, digY + blockH / 2);
+            archCtx.stroke();
+            archCtx.fillStyle = '#888';
+            archCtx.beginPath();
+            archCtx.moveTo(592, digY + blockH / 2);
+            archCtx.lineTo(585, digY + blockH / 2 - 5);
+            archCtx.lineTo(585, digY + blockH / 2 + 5);
+            archCtx.closePath();
+            archCtx.fill();
+
+            // Arrows between digital blocks
+            [[680, 710], [810, 840]].forEach(([x1, x2]) => {
+                archCtx.beginPath();
+                archCtx.moveTo(x1, digY + blockH / 2);
+                archCtx.lineTo(x2 - 8, digY + blockH / 2);
+                archCtx.stroke();
+                archCtx.beginPath();
+                archCtx.moveTo(x2 - 8, digY + blockH / 2);
+                archCtx.lineTo(x2 - 15, digY + blockH / 2 - 5);
+                archCtx.lineTo(x2 - 15, digY + blockH / 2 + 5);
+                archCtx.closePath();
+                archCtx.fill();
+            });
+
+            // Precision Reference System
+            const refY = 230;
+            archCtx.fillStyle = '#1a1a2e';
+            archCtx.fillRect(50, refY, 520, 40);
+            archCtx.strokeStyle = '#FF6600';
+            archCtx.strokeRect(50, refY, 520, 40);
+
+            archCtx.fillStyle = '#FF6600';
+            archCtx.font = 'bold 12px monospace';
+            archCtx.textAlign = 'center';
+            archCtx.fillText('PRECISION REFERENCE SYSTEM', 310, refY + 15);
+            archCtx.font = '10px monospace';
+            archCtx.fillStyle = '#CCC';
+            archCtx.fillText('[Low Noise LDO ±15V] ─── [Voltage Ref 2.5V] ─── [Reference Buffer]', 310, refY + 30);
+
+            // Power Management
+            const pwrY = 280;
+            archCtx.fillStyle = '#1a1a2e';
+            archCtx.fillRect(50, pwrY, 520, 35);
+            archCtx.strokeStyle = '#00FF00';
+            archCtx.strokeRect(50, pwrY, 520, 35);
+
+            archCtx.fillStyle = '#00FF00';
+            archCtx.font = 'bold 12px monospace';
+            archCtx.fillText('POWER MANAGEMENT', 310, pwrY + 13);
+            archCtx.font = '10px monospace';
+            archCtx.fillStyle = '#CCC';
+            archCtx.fillText('[DC-DC Isolated] ─── [LDO ±15V] ─── [LDO 3.3V] ─── [LDO 5V]', 310, pwrY + 27);
+
+            // Connection from reference to analog chain
+            archCtx.strokeStyle = '#FF6600';
+            archCtx.setLineDash([3, 3]);
+            archCtx.beginPath();
+            archCtx.moveTo(310, refY);
+            archCtx.lineTo(310, blockY + blockH + 10);
+            archCtx.lineTo(250, blockY + blockH + 10);
+            archCtx.stroke();
+            archCtx.setLineDash([]);
+        }
+
+        // Event listeners
+        [refDrift, adcInl, pgaError, tempVar].forEach(el =>
+            el.addEventListener('input', drawErrorBudget));
+
+        [refNoise, adcNoise, pgaGain, noiseBw].forEach(el =>
+            el.addEventListener('input', drawNoiseAnalysis));
+
+        [sampleRate, filterOrder, filterFc].forEach(el =>
+            el.addEventListener('input', drawFilterDesign));
+
+        [groundTopology, digitalNoise, gndImpedance].forEach(el =>
+            el.addEventListener('input', drawGrounding));
+
+        // Schematic
+        function createDaqSchematic() {
+            const container = document.getElementById('daq-schematic');
+            const svg = new SchematicSVG(750, 300);
+
+            // Input protection
+            svg.addText(30, 100, 'IN+', '12px', 'end');
+            svg.addText(30, 200, 'IN-', '12px', 'end');
+            svg.line(40, 100, 80, 100);
+            svg.line(40, 200, 80, 200);
+
+            // ESD protection diodes
+            svg.line(80, 100, 80, 85);
+            svg.line(80, 200, 80, 215);
+
+            // Input resistors
+            svg.addResistor(110, 100, 'horizontal', 'R1', '10k');
+            svg.addResistor(110, 200, 'horizontal', 'R2', '10k');
+
+            // Anti-aliasing filter
+            svg.addCapacitor(160, 150, 'vertical', 'C1', '100nF');
+            // Connect differential rails to capacitor terminals (avoid wiring through plates)
+            svg.line(160, 100, 160, 125);
+            svg.line(160, 175, 160, 200);
+
+            // Instrumentation amplifier
+            svg.line(140, 100, 200, 100);
+            svg.line(140, 200, 200, 200);
+
+            // IA symbol
+            svg.path('M200,60 L200,240 L280,150 Z', '#181818', '#00FFFF', 2);
+            svg.addText(230, 145, 'IA', '12px', 'middle', '#00FFFF');
+            svg.addText(230, 160, 'G=1-128', '9px', 'middle');
+
+            // IA inputs
+            svg.addText(205, 105, '+', '14px', 'start', '#00FFFF');
+            svg.addText(205, 205, '-', '14px', 'start', '#00FFFF');
+
+            // IA output
+            svg.line(280, 150, 340, 150);
+
+            // Second stage filter
+            svg.addResistor(360, 150, 'horizontal', 'R3', '1k');
+            svg.addCapacitor(410, 175, 'vertical', 'C2', '1μF');
+            svg.line(410, 195, 410, 220);
+            svg.addGround(410, 220);
+
+            // Buffer
+            svg.line(390, 150, 450, 150);
+
+            // ADC
+            svg.rect(480, 110, 100, 80, '#181818', '#FFFF00');
+            svg.addText(530, 145, '24-bit', '12px', 'middle', '#FFFF00');
+            svg.addText(530, 165, 'ADC', '14px', 'middle', '#FFFF00');
+
+            svg.line(450, 150, 480, 150);
+
+            // Reference
+            svg.rect(480, 220, 80, 40, '#181818', '#FF6600');
+            svg.addText(520, 245, 'VREF', '11px', 'middle', '#FF6600');
+            svg.line(520, 220, 520, 190);
+
+            // Digital output
+            svg.line(580, 150, 650, 150);
+            svg.addText(690, 150, 'SPI', '12px', 'end');
+
+            // Power rails
+            svg.line(240, 40, 240, 60);
+            svg.addText(240, 35, '+15V', '10px', 'middle', '#FF0000');
+            svg.line(240, 240, 240, 260);
+            svg.addText(240, 270, '-15V', '10px', 'middle', '#0000FF');
+
+            container.appendChild(svg.svg);
+        }
 
         // Initialize
-        updateCapLoad();
-        if (typeof updateRLCLoad === 'function') {
-            updateRLCLoad();
-        }
-    })();
+        document.addEventListener('DOMContentLoaded', () => {
+            drawArchitecture();
+            drawErrorBudget();
+            drawNoiseAnalysis();
+            drawFilterDesign();
+            drawGrounding();
+            createDaqSchematic();
+
+            // SPICE netlist
+            new SpiceNetlistWidget('daq-spice', {
+                title: 'High-Precision DAQ Input Stage',
+                description: 'Instrumentation amplifier with precision reference',
+                netlist: `* High-Precision DAQ Input Stage
+* 24-bit capable front-end with IA and filtering
+
+.PARAM Gain=64        ; PGA gain setting
+.PARAM Vref=2.5       ; Reference voltage
+
+* Differential input signal
+Vin+ IN+ 0 DC 0 AC 1m
+Vin- IN- 0 DC 0
+
+* Input protection resistors (also form part of AA filter)
+Rin+ IN+ N1 10k
+Rin- IN- N2 10k
+
+* Anti-aliasing RC filter (fc = 20 Hz with C1)
+C1 N1 N2 100n
+
+* Instrumentation Amplifier (ideal model)
+E_IA OUT 0 VALUE={Gain*(V(N1)-V(N2))}
+Rout_IA OUT N3 100
+
+* Second stage low-pass filter
+R_filt N3 N4 1k
+C_filt N4 0 1u
+
+* Buffer (unity gain, low noise)
+E_buf VOUT 0 N4 0 1
+Rout_buf VOUT ADC_IN 10
+
+* Precision Reference
+Vref REF 0 {Vref}
+Rref REF 0 1G
+
+* AC Analysis
+.AC DEC 100 0.1 10k
+
+* Noise Analysis
+.NOISE V(VOUT) Vin+ DEC 100 0.1 10k
+
+.PROBE V(IN+,IN-) V(OUT) V(VOUT)
+.END`,
+                nodes: [
+                    { name: 'IN+, IN-', description: 'Differential input' },
+                    { name: 'OUT', description: 'IA output' },
+                    { name: 'VOUT', description: 'Buffered output to ADC' }
+                ]
+            });
+
+            // Design checklist
+            new ChecklistWidget('daq-checklist', {
+                title: 'High-Precision DAQ System Design',
+                items: [
+                    { text: 'Select ADC with adequate INL and noise specs', critical: true },
+                    { text: 'Choose voltage reference with low drift (<2ppm/°C)', critical: true },
+                    { text: 'Design star-ground topology for analog and digital', critical: true },
+                    { text: 'Use precision resistors (0.01%, <5ppm/°C) for gain setting', critical: true },
+                    { text: 'Add proper anti-aliasing filter before ADC', critical: true },
+                    { text: 'Shield sensitive analog circuits from digital noise', critical: true },
+                    { text: 'Include proper bypassing on all power rails', critical: false },
+                    { text: 'Use kelvin connections for sense resistors', critical: false },
+                    { text: 'Design for adequate settling time between channels', critical: false },
+                    { text: 'Include self-calibration capability', critical: false },
+                    { text: 'Add input protection without degrading performance', critical: true },
+                    { text: 'Verify thermal design for reference and amplifiers', critical: false }
+                ]
+            });
+
+            // Exercises
+            new ExerciseWidget('daq-exercises', {
+                exercises: [
+                    {
+                        question: 'A 24-bit ADC with 10V full scale has an INL of 4 ppm. What is the maximum expected INL error in microvolts?',
+                        hint: '1 ppm of 10V = 10 μV',
+                        answer: 'INL error = 4 ppm × 10V = 4 × 10 μV = 40 μV. For comparison, 1 LSB of a 24-bit ADC with 10V FS = 10V / 2^24 = 0.596 μV. The 40 μV INL error is equivalent to 67 LSBs.'
+                    },
+                    {
+                        question: 'Calculate the noise-free resolution if the total input-referred noise is 0.5 μVrms and the input range is ±10V (20V full scale).',
+                        hint: 'Noise-free bits = log2(FS / (noise_rms × 6.6)) for 99.9% confidence',
+                        answer: 'Peak-to-peak noise (99.9%) = 0.5 μV × 6.6 = 3.3 μVpp. Noise-free resolution = 20V / 3.3 μV = 6.06 million levels. Noise-free bits = log2(6.06M) = 22.5 bits. The remaining 1.5 bits (24 - 22.5) are buried in noise.'
+                    },
+                    {
+                        question: 'Design an anti-aliasing filter for a sigma-delta ADC sampling at 1000 SPS. The signal bandwidth is 100 Hz and you need 60 dB attenuation at Nyquist.',
+                        hint: 'Nyquist = fs/2. Use Butterworth response: attn = -20×n×log10(f/fc)',
+                        answer: 'Nyquist = 500 Hz. Need 60 dB at 500 Hz. For Butterworth: 60 = 20×n×log10(500/fc). If we use fc = 100 Hz (signal BW): 60 = 20×n×log10(5) = 20×n×0.7 = 14×n. So n = 60/14 = 4.3, use 5th order. Alternatively, with fc = 150 Hz: n = 60/(20×log10(500/150)) = 60/10.5 = 5.7, use 6th order for more signal bandwidth.'
+                    },
+                    {
+                        question: 'A precision DAQ has ±15V supplies and uses a 2.5V reference. If the reference has 1.5 ppm/°C drift and the system operates from 10°C to 50°C, what is the gain error contribution?',
+                        hint: 'Total drift = ppm/°C × temperature range',
+                        answer: 'Temperature range = 50°C - 10°C = 40°C. Reference drift = 1.5 ppm/°C × 40°C = 60 ppm. This is a gain error because the reference scales the ADC full scale. At 10V input, 60 ppm error = 600 μV. To reduce: use a reference with lower drift, temperature-control the reference, or calibrate at multiple temperatures.'
+                    }
+                ]
+            });
+        });
     </script>
-</article>
+</body>
+</html>

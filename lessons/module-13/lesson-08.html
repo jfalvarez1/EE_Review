@@ -1,648 +1,589 @@
-<!-- Module 13, Lesson 8: SPI Daisy Chaining -->
+<!-- Module 13, Lesson 8: Soft Start Circuits -->
 <div class="lesson-content" data-module="13" data-lesson="8">
 
     <div class="card">
-        <h2>SPI Daisy Chaining</h2>
-        <p>SPI daisy chaining reduces GPIO requirements by connecting multiple devices in series. Data shifts through each device sequentially, requiring careful timing and understanding of the shift register behavior.</p>
+        <h2>Soft Start Circuit Design</h2>
+        <p>Soft start prevents inrush current, reduces stress on components, and ensures controlled power-up. Learn timing design, implementation methods, and integration with power supplies.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Single CS</div>
-                <div class="v">One chip select for all devices</div>
+                <div class="k">Inrush Limit</div>
+                <div class="v">Protect input source</div>
             </div>
             <div class="box">
-                <div class="k">Data Flow</div>
-                <div class="v">MOSI → D1 → D2 → ... → MISO</div>
+                <div class="k">Output Ramp</div>
+                <div class="v">Gradual voltage rise</div>
             </div>
             <div class="box">
-                <div class="k">Clock Cycles</div>
-                <div class="v">N devices × bits per device</div>
+                <div class="k">Sequencing</div>
+                <div class="v">Coordinate multiple rails</div>
             </div>
             <div class="box">
-                <div class="k">Latency</div>
-                <div class="v">All data shifted before latch</div>
+                <div class="k">Typical Time</div>
+                <div class="v">1-20ms</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> In daisy chain mode, each device's DOUT connects to the next device's DIN. Data for the last device in the chain must be sent first, as it shifts through all preceding devices. The total transaction requires N × (bits per device) clock cycles.
+            <strong>Key Insight:</strong> Without soft start, large output capacitors appear as short circuits at power-up, causing massive inrush current. The soft start ramp rate limits dV/dt and thus I = C × dV/dt.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Daisy Chain Timing</h3>
+        <h3>Interactive: Soft Start Timing</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="spi-devices">Number of Devices</label>
-                <input type="range" id="spi-devices" min="2" max="8" step="1" value="4">
-                <span id="spi-devices-val" class="mono">4</span>
+                <label for="ss-cout">Output Capacitance (µF)</label>
+                <input type="range" id="ss-cout" min="10" max="10000" step="10" value="1000">
+                <span id="ss-cout-val" class="mono">1000µF</span>
             </div>
             <div class="c3">
-                <label for="spi-bits">Bits per Device</label>
-                <select id="spi-bits">
-                    <option value="8">8-bit</option>
-                    <option value="12">12-bit</option>
-                    <option value="16" selected>16-bit</option>
-                    <option value="24">24-bit</option>
-                </select>
+                <label for="ss-vout">Output Voltage (V)</label>
+                <input type="range" id="ss-vout" min="1" max="24" step="0.5" value="5">
+                <span id="ss-vout-val" class="mono">5V</span>
             </div>
             <div class="c3">
-                <label for="spi-clock">SPI Clock (Hz)</label>
-                <input type="text" id="spi-clock" value="10M">
+                <label for="ss-tss">Soft Start Time (ms)</label>
+                <input type="range" id="ss-tss" min="0.5" max="50" step="0.5" value="10">
+                <span id="ss-tss-val" class="mono">10ms</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="ss-ilim">Current Limit (A)</label>
+                <input type="range" id="ss-ilim" min="0.5" max="10" step="0.5" value="2">
+                <span id="ss-ilim-val" class="mono">2A</span>
             </div>
             <div class="c3">
-                <label for="spi-mode">SPI Mode</label>
-                <select id="spi-mode">
-                    <option value="0" selected>Mode 0 (CPOL=0, CPHA=0)</option>
-                    <option value="1">Mode 1 (CPOL=0, CPHA=1)</option>
-                    <option value="2">Mode 2 (CPOL=1, CPHA=0)</option>
-                    <option value="3">Mode 3 (CPOL=1, CPHA=1)</option>
+                <label for="ss-method">Soft Start Method</label>
+                <select id="ss-method">
+                    <option value="voltage">Voltage ramp</option>
+                    <option value="current">Current limit</option>
+                    <option value="duty">Duty cycle limit</option>
                 </select>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="spi-canvas" width="980" height="350"></canvas>
+            <canvas id="ss-canvas" width="980" height="340"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Total Bits</div>
-                <div class="v mono" id="spi-totalbits">—</div>
+                <div class="k">Peak Inrush (no SS)</div>
+                <div class="v mono" id="ss-inrush">—</div>
             </div>
             <div class="box">
-                <div class="k">Transaction Time</div>
-                <div class="v mono" id="spi-time">—</div>
+                <div class="k">Charging Current</div>
+                <div class="v mono" id="ss-icharge">—</div>
             </div>
             <div class="box">
-                <div class="k">Update Rate</div>
-                <div class="v mono" id="spi-rate">—</div>
+                <div class="k">Energy Delivered</div>
+                <div class="v mono" id="ss-energy">—</div>
             </div>
             <div class="box">
-                <div class="k">GPIO Saved</div>
-                <div class="v mono" id="spi-gpio">—</div>
+                <div class="k">Status</div>
+                <div class="v mono" id="ss-status">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Daisy Chain Topology</h3>
-        <div id="spi-daisy-schematic"></div>
-    </div>
-
-    <div class="card">
-        <h3>Daisy Chain vs Individual CS</h3>
+        <h3>Soft Start Methods</h3>
 
         <table class="table">
             <tr>
-                <th>Aspect</th>
-                <th>Daisy Chain</th>
-                <th>Individual CS</th>
+                <th>Method</th>
+                <th>How It Works</th>
+                <th>Pros</th>
+                <th>Cons</th>
             </tr>
             <tr>
-                <td>GPIO Pins</td>
-                <td>1 CS total</td>
-                <td>N CS pins needed</td>
+                <td>Voltage Reference Ramp</td>
+                <td>Slowly increase internal Vref</td>
+                <td>Precise control, integrated</td>
+                <td>Requires controller support</td>
             </tr>
             <tr>
-                <td>Update Speed</td>
-                <td>Slower (all data shifts)</td>
-                <td>Faster (selective update)</td>
+                <td>Duty Cycle Limit</td>
+                <td>Start at low D, increase</td>
+                <td>Simple, effective</td>
+                <td>Output may overshoot</td>
             </tr>
             <tr>
-                <td>Flexibility</td>
-                <td>Must update all devices</td>
-                <td>Update any device individually</td>
+                <td>Current Limit</td>
+                <td>Limit charging current</td>
+                <td>Predictable inrush</td>
+                <td>Slower startup</td>
             </tr>
             <tr>
-                <td>Wiring</td>
-                <td>Series connection, cleaner</td>
-                <td>Star topology, more traces</td>
+                <td>Series Resistor</td>
+                <td>Resistor bypassed after delay</td>
+                <td>Very simple</td>
+                <td>Wastes power, timing varies</td>
             </tr>
             <tr>
-                <td>Fault Tolerance</td>
-                <td>One failure breaks chain</td>
-                <td>Independent operation</td>
+                <td>NTC Thermistor</td>
+                <td>High R cold, low R hot</td>
+                <td>Self-regulating</td>
+                <td>Slow cool-down, power loss</td>
+            </tr>
+            <tr>
+                <td>Active Inrush Limiter</td>
+                <td>MOSFET in linear region</td>
+                <td>Precise control, fast</td>
+                <td>Complex, MOSFET SOA</td>
             </tr>
         </table>
-
-        <div class="warn">
-            <strong>Device Support:</strong> Not all SPI devices support daisy chaining. Check that the device has a DOUT or SDO pin that can be connected to the next device's DIN. Some devices only have SDO for read-back, not pass-through.
-        </div>
     </div>
 
     <div class="card">
-        <h3>Data Ordering</h3>
-        <canvas id="spi-dataflow-canvas" width="900" height="320"></canvas>
+        <h3>Design Equations</h3>
+        <pre style="color:#4af; background:#111; padding:15px; border-radius:4px; font-size:11px;">
+Inrush Without Soft Start:
+    I_inrush = Vout / (ESR + Rsource)
+    Can be 10-100× normal operating current!
+
+Soft Start Capacitor Sizing:
+    Css = Iss × Tss / Vref
+    Where:
+        Iss = soft start current source
+        Tss = desired soft start time
+        Vref = reference voltage
+
+Charging Current (voltage ramp):
+    I_charge = Cout × dVout/dt = Cout × Vout / Tss
+
+Example: 1000µF, 5V, 10ms
+    I_charge = 1000µ × 5 / 10m = 0.5A
+
+Soft Start Resistor (RC timing):
+    Tss ≈ 3 × Rss × Css
+    (time to reach ~95% of final value)
+
+Power Dissipation (series R method):
+    P_dissipated = 0.5 × Cout × Vout²
+    All capacitor charging energy lost in R!
+
+Active Soft Start (current limit mode):
+    Tss = Cout × Vout / Ilimit
+        </pre>
     </div>
 
     <div class="card">
-        <h3>Common Applications</h3>
-
-        <div class="kv">
-            <div class="box">
-                <div class="k">LED Drivers</div>
-                <div class="v">WS2811, TLC5940, MAX7219</div>
-            </div>
-            <div class="box">
-                <div class="k">DAC Arrays</div>
-                <div class="v">DAC8568, AD5668</div>
-            </div>
-            <div class="box">
-                <div class="k">Shift Registers</div>
-                <div class="v">74HC595, TPIC6B595</div>
-            </div>
-            <div class="box">
-                <div class="k">ADC Chains</div>
-                <div class="v">ADS8688, MAX1270</div>
-            </div>
-        </div>
+        <h3>Soft Start Schematic</h3>
+        <div id="ss-schematic"></div>
     </div>
 
     <div class="card">
         <h3>SPICE Netlist</h3>
-        <div id="spice-container"></div>
+        <div id="ss-spice"></div>
     </div>
 
     <div class="card">
-        <h3>Verification Checklist</h3>
-        <div id="checklist-container"></div>
+        <h3>Design Checklist</h3>
+        <div id="ss-checklist"></div>
     </div>
 
     <div class="card">
         <h3>Practice Exercises</h3>
-        <div id="exercise-container"></div>
+        <div id="ss-exercises"></div>
     </div>
 
 </div>
 
 <script>
 (function() {
-    const canvas = document.getElementById('spi-canvas');
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('ss-canvas');
     const ctx = canvas.getContext('2d');
-    const TEK = AD.TEK_COLORS;
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
 
     function update() {
-        const devices = parseInt(document.getElementById('spi-devices').value);
-        const bits = parseInt(document.getElementById('spi-bits').value);
-        const clock = AD.parseValue(document.getElementById('spi-clock').value) || 10e6;
-        const mode = parseInt(document.getElementById('spi-mode').value);
+        const Cout = AD.num('ss-cout') * 1e-6 || 1000e-6;
+        const Vout = AD.num('ss-vout') || 5;
+        const Tss = AD.num('ss-tss') / 1000 || 0.01;
+        const Ilim = AD.num('ss-ilim') || 2;
+        const method = document.getElementById('ss-method').value || 'voltage';
 
-        document.getElementById('spi-devices-val').textContent = devices;
+        document.getElementById('ss-cout-val').textContent = (Cout * 1e6).toFixed(0) + 'µF';
+        document.getElementById('ss-vout-val').textContent = Vout + 'V';
+        document.getElementById('ss-tss-val').textContent = (Tss * 1000).toFixed(1) + 'ms';
+        document.getElementById('ss-ilim-val').textContent = Ilim + 'A';
 
-        // Calculate totals
-        const totalBits = devices * bits;
-        const transactionTime = totalBits / clock;
-        const updateRate = clock / totalBits;
-        const gpioSaved = devices - 1; // vs individual CS
+        // Calculations
+        const ESR = 0.02; // Assume 20mΩ ESR
+        const Rsource = 0.1; // 100mΩ source impedance
 
-        document.getElementById('spi-totalbits').textContent = totalBits;
-        document.getElementById('spi-time').textContent = AD.fmtUnit(transactionTime, 's');
-        document.getElementById('spi-rate').textContent = AD.fmtUnit(updateRate, 'Hz');
-        document.getElementById('spi-gpio').textContent = gpioSaved + ' pins';
+        const I_inrush = Vout / (ESR + Rsource); // Without soft start
+        const I_charge = Cout * Vout / Tss; // With voltage ramp
+        const energy = 0.5 * Cout * Vout * Vout;
 
-        plotSPITiming(devices, bits, clock, mode);
-    }
-
-    function plotSPITiming(devices, bits, clock, mode) {
-        const w = canvas.width;
-        const h = canvas.height;
-
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, w, h);
-
-        const margin = { left: 60, right: 20, top: 30, bottom: 30 };
-        const plotW = w - margin.left - margin.right;
-        const plotH = h - margin.top - margin.bottom;
-
-        const totalBits = devices * bits;
-        const showBits = Math.min(totalBits, 24); // Show first 24 bits max
-        const tMax = showBits + 2;
-
-        // Draw 4 signals: CS, CLK, MOSI, MISO
-        const signals = ['CS', 'CLK', 'MOSI', 'MISO'];
-        const signalH = plotH / signals.length - 10;
-
-        const cpol = (mode >> 1) & 1;
-        const cpha = mode & 1;
-
-        signals.forEach((sig, idx) => {
-            const y0 = margin.top + idx * (signalH + 10);
-            const y1 = y0 + signalH;
-            const yMid = (y0 + y1) / 2;
-
-            // Signal label
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '11px ui-sans-serif';
-            ctx.fillText(sig, 10, yMid + 4);
-
-            // Generate waveform
-            ctx.strokeStyle = TEK['ch' + (idx + 1)] || TEK.ch1;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-
-            for (let t = 0; t <= tMax; t += 0.05) {
-                const x = margin.left + (t / tMax) * plotW;
-                let level = 0;
-
-                if (sig === 'CS') {
-                    // CS low during transaction
-                    level = (t > 0.5 && t < showBits + 0.5) ? 0 : 1;
-                } else if (sig === 'CLK') {
-                    // Clock with CPOL
-                    const inBit = Math.floor(t - 0.5);
-                    if (t > 0.5 && t < showBits + 0.5) {
-                        const phase = (t - 0.5) % 1;
-                        level = (phase < 0.5) ? (1 - cpol) : cpol;
-                    } else {
-                        level = cpol;
-                    }
-                } else if (sig === 'MOSI') {
-                    // Data pattern for daisy chain
-                    const bit = Math.floor(t - 0.5);
-                    if (t > 0.5 && bit < showBits) {
-                        // Alternate pattern per device
-                        const deviceIdx = Math.floor(bit / bits);
-                        const bitInDevice = bit % bits;
-                        // Simple pattern: high for MSB, alternating
-                        level = (bitInDevice % 2 === 0) ? 1 : 0;
-                    }
-                } else if (sig === 'MISO') {
-                    // Delayed by N devices
-                    const bit = Math.floor(t - 0.5 - devices);
-                    if (bit >= 0 && bit < showBits - devices) {
-                        const bitInDevice = bit % bits;
-                        level = (bitInDevice % 2 === 1) ? 1 : 0;
-                    }
-                }
-
-                const y = level ? y0 + 5 : y1 - 5;
-                if (t === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            ctx.stroke();
-        });
-
-        // Bit markers
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.font = '9px ui-sans-serif';
-        for (let b = 0; b < Math.min(showBits, 16); b++) {
-            const x = margin.left + ((b + 1) / tMax) * plotW;
-            ctx.fillText(b.toString(), x - 3, h - 10);
-        }
-        if (showBits > 16) {
-            ctx.fillText('...', margin.left + (17 / tMax) * plotW, h - 10);
+        let status, statusColor;
+        if (I_charge < Ilim) {
+            status = 'OK - Within current limit';
+            statusColor = '#4f4';
+        } else {
+            status = 'Current limited - Slower startup';
+            statusColor = '#fa4';
         }
 
-        // Device boundaries
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-        ctx.setLineDash([3, 3]);
-        for (let d = 1; d < devices && d * bits < showBits; d++) {
-            const x = margin.left + ((d * bits + 0.5) / tMax) * plotW;
-            ctx.beginPath();
-            ctx.moveTo(x, margin.top);
-            ctx.lineTo(x, h - margin.bottom);
-            ctx.stroke();
-        }
-        ctx.setLineDash([]);
+        document.getElementById('ss-inrush').textContent = I_inrush.toFixed(1) + 'A (no SS)';
+        document.getElementById('ss-icharge').textContent = Math.min(I_charge, Ilim).toFixed(2) + 'A';
+        document.getElementById('ss-energy').textContent = (energy * 1000).toFixed(2) + 'mJ';
+        document.getElementById('ss-status').innerHTML = '<span style="color:' + statusColor + '">' + status + '</span>';
 
-        // Title
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '12px ui-sans-serif';
-        ctx.fillText(`SPI Daisy Chain: ${devices} devices × ${bits} bits = ${devices * bits} total clocks`, margin.left, 20);
-    }
-
-    // Event listeners
-    ['spi-devices', 'spi-clock'].forEach(id => {
-        document.getElementById(id).addEventListener('input', update);
-    });
-    ['spi-bits', 'spi-mode'].forEach(id => {
-        document.getElementById(id).addEventListener('change', update);
-    });
-
-    update();
-
-    // ==================== SPI DATA FLOW CANVAS ====================
-    (function() {
-        const canvas = document.getElementById('spi-dataflow-canvas');
-        if (!canvas || typeof AD === 'undefined') return;
-        const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
-        const TEK = AD.TEK_COLORS;
-
-        ctx.fillStyle = '#0d1117';
+        // Draw waveforms
+        ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, W, H);
 
-        // Title
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = 'bold 12px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('Daisy Chain Data Flow (4 devices, 8-bit each)', 20, 20);
+        const plotW = (W - mL - mR - 40) / 2;
+        const plotH = 120;
 
-        // Master sends label
-        ctx.fillStyle = TEK.ch2;
-        ctx.font = '11px ui-sans-serif';
-        ctx.fillText('Master sends:', 30, 50);
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '11px ui-monospace, monospace';
-        ctx.fillText('[D4_data][D3_data][D2_data][D1_data]', 130, 50);
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('← First in MOSI, last to reach D4', 400, 50);
+        // Voltage waveform (left)
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
 
-        // After 8 clocks section
-        ctx.fillStyle = TEK.ch1;
-        ctx.font = '11px ui-sans-serif';
-        ctx.fillText('After 8 clocks:', 30, 85);
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Output Voltage', mL + plotW/2, mT - 5);
 
-        const devices8 = [
-            { x: 150, name: 'Device1', data: '[D2_data]' },
-            { x: 300, name: 'Device2', data: '[D3_data]' },
-            { x: 450, name: 'Device3', data: '[D4_data]' },
-            { x: 600, name: 'Device4', data: '[D1_data*]' }
-        ];
-
-        devices8.forEach((dev, i) => {
-            ctx.fillStyle = 'rgba(30,41,59,0.9)';
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            AD.roundRect(ctx, dev.x, 95, 100, 45, 6);
-            ctx.fill(); ctx.stroke();
-
-            ctx.fillStyle = '#e6edf3';
-            ctx.font = 'bold 10px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(dev.name, dev.x + 50, 112);
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '9px ui-monospace, monospace';
-            ctx.fillText(dev.data, dev.x + 50, 130);
-
-            // Arrow to next device
-            if (i < devices8.length - 1) {
-                ctx.strokeStyle = TEK.ch4;
-                ctx.lineWidth = 2;
-                AD.drawArrow(ctx, dev.x + 100, 118, devices8[i+1].x, 118, { headSize: 6 });
-            }
-        });
-
-        // MISO arrow
-        ctx.strokeStyle = TEK.ch4;
-        AD.drawArrow(ctx, 700, 118, 750, 118, { headSize: 6 });
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '9px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('MISO', 755, 122);
-        ctx.fillText('(shifted out)', 755, 135);
-
-        // After 32 clocks section
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = '11px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('After 32 clocks (complete):', 30, 170);
-
-        const devices32 = [
-            { x: 150, name: 'Device1', data: '[D1_data]' },
-            { x: 300, name: 'Device2', data: '[D2_data]' },
-            { x: 450, name: 'Device3', data: '[D3_data]' },
-            { x: 600, name: 'Device4', data: '[D4_data]' }
-        ];
-
-        devices32.forEach(dev => {
-            ctx.fillStyle = 'rgba(30,41,59,0.9)';
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            AD.roundRect(ctx, dev.x, 180, 100, 45, 6);
-            ctx.fill(); ctx.stroke();
-
-            ctx.fillStyle = '#e6edf3';
-            ctx.font = 'bold 10px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(dev.name, dev.x + 50, 197);
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '9px ui-monospace, monospace';
-            ctx.fillText(dev.data, dev.x + 50, 215);
-        });
-
-        // CS rises label
-        ctx.fillStyle = TEK.ch3;
-        ctx.font = '11px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('CS rises → All devices latch simultaneously', 750, 205);
-
-        // Data Order Rule box
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        ctx.strokeStyle = TEK.ch5;
+        // Draw voltage ramp
+        ctx.strokeStyle = TEK.ch1;
         ctx.lineWidth = 2;
-        AD.roundRect(ctx, 150, 250, 450, 55, 6);
-        ctx.fill(); ctx.stroke();
+        ctx.beginPath();
 
-        ctx.fillStyle = TEK.ch5;
-        ctx.font = 'bold 11px ui-sans-serif';
-        ctx.fillText('Data Order Rule:', 170, 275);
+        const totalTime = Tss * 2;
+        for (let i = 0; i <= plotW; i++) {
+            const t = i / plotW * totalTime;
+            let V;
 
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '11px ui-sans-serif';
-        ctx.fillText('Send data for LAST device FIRST!', 300, 275);
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('Device N data → Device N-1 data → ... → D1', 170, 295);
-    })();
+            if (method === 'voltage') {
+                V = t < Tss ? Vout * t / Tss : Vout;
+            } else if (method === 'current') {
+                // Current limited - exponential-ish approach
+                const tau = Cout * Vout / Ilim;
+                V = t < tau ? Ilim * t / Cout : Vout;
+            } else { // duty
+                // Duty cycle ramp - similar to voltage ramp
+                V = t < Tss ? Vout * (1 - Math.exp(-3 * t / Tss)) : Vout;
+            }
 
-    // Daisy chain schematic
-    (function() {
-        const container = document.getElementById('spi-daisy-schematic');
-        if (!container) return;
+            const y = mT + plotH - (V / (Vout * 1.2)) * plotH;
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
+        }
+        ctx.stroke();
 
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('width', '750');
-        svg.setAttribute('height', '180');
-        svg.setAttribute('viewBox', '0 0 750 180');
-        svg.innerHTML = `
-            <style>
-                .wire { stroke: #e6edf3; stroke-width: 1.5; fill: none; }
-                .mosi { stroke: #34d399; stroke-width: 2; fill: none; }
-                .miso { stroke: #fbbf24; stroke-width: 2; fill: none; }
-                .clk { stroke: #6ee7ff; stroke-width: 1.5; fill: none; }
-                .cs { stroke: #f472b6; stroke-width: 1.5; fill: none; }
-                .box { stroke: #6ee7ff; stroke-width: 1.5; fill: rgba(30,41,59,0.8); }
-                .lbl { fill: #e6edf3; font: 11px ui-sans-serif; }
-                .lblsm { fill: #9fb0c0; font: 9px ui-sans-serif; }
-            </style>
+        // Without soft start (instant)
+        ctx.strokeStyle = TEK.ref;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(mL, mT + plotH);
+        ctx.lineTo(mL + 10, mT + plotH - plotH / 1.2);
+        ctx.lineTo(mL + plotW, mT + plotH - plotH / 1.2);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-            <!-- MCU -->
-            <rect x="20" y="50" width="70" height="80" class="box"/>
-            <text x="35" y="95" class="lbl">MCU</text>
-            <text x="92" y="70" class="lblsm">MOSI</text>
-            <text x="92" y="90" class="lblsm">CLK</text>
-            <text x="92" y="110" class="lblsm">CS</text>
-            <text x="92" y="130" class="lblsm">MISO</text>
+        // Labels
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(Vout + 'V', mL - 5, mT + 10);
+        ctx.fillText('0V', mL - 5, mT + plotH);
 
-            <!-- MOSI line (green) -->
-            <line x1="90" y1="65" x2="160" y2="65" class="mosi"/>
-            <line x1="160" y1="65" x2="160" y2="80" class="mosi"/>
+        ctx.fillStyle = TEK.ch1;
+        ctx.textAlign = 'left';
+        ctx.fillText('With soft start', mL + 10, mT + 20);
+        ctx.fillStyle = TEK.ref;
+        ctx.fillText('Without soft start', mL + 10, mT + 35);
 
-            <!-- Device 1 -->
-            <rect x="140" y="80" width="80" height="70" class="box"/>
-            <text x="157" y="120" class="lbl">Device 1</text>
-            <text x="145" y="95" class="lblsm">DIN</text>
-            <text x="195" y="95" class="lblsm">DOUT</text>
+        // Current waveform (right)
+        const plot2X = mL + plotW + 40;
+        ctx.strokeStyle = TEK.grid;
+        ctx.strokeRect(plot2X, mT, plotW, plotH);
 
-            <!-- Chain to Device 2 -->
-            <line x1="220" y1="90" x2="280" y2="90" class="mosi"/>
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Charging Current', plot2X + plotW/2, mT - 5);
 
-            <!-- Device 2 -->
-            <rect x="280" y="80" width="80" height="70" class="box"/>
-            <text x="297" y="120" class="lbl">Device 2</text>
+        // Draw current
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
 
-            <!-- Chain to Device 3 -->
-            <line x1="360" y1="90" x2="420" y2="90" class="mosi"/>
+        const Imax = Math.max(I_charge, Ilim) * 1.2;
 
-            <!-- Device 3 -->
-            <rect x="420" y="80" width="80" height="70" class="box"/>
-            <text x="437" y="120" class="lbl">Device 3</text>
+        for (let i = 0; i <= plotW; i++) {
+            const t = i / plotW * totalTime;
+            let I;
 
-            <!-- Chain to Device N -->
-            <text x="515" y="95" class="lbl">...</text>
+            if (method === 'voltage') {
+                I = t < Tss ? Math.min(I_charge, Ilim) : 0;
+            } else if (method === 'current') {
+                const tau = Cout * Vout / Ilim;
+                I = t < tau ? Ilim : 0;
+            } else {
+                I = t < Tss ? Math.min(I_charge * (1 - t / Tss), Ilim) : 0;
+            }
 
-            <!-- Device N -->
-            <rect x="550" y="80" width="80" height="70" class="box"/>
-            <text x="567" y="120" class="lbl">Device N</text>
+            const y = mT + plotH - (I / Imax) * plotH;
+            if (i === 0) ctx.moveTo(plot2X + i, y);
+            else ctx.lineTo(plot2X + i, y);
+        }
+        ctx.stroke();
 
-            <!-- MISO return (yellow) -->
-            <line x1="630" y1="90" x2="680" y2="90" class="miso"/>
-            <line x1="680" y1="90" x2="680" y2="125" class="miso"/>
-            <line x1="680" y1="125" x2="90" y2="125" class="miso"/>
+        // Inrush current spike (no soft start)
+        ctx.strokeStyle = '#f44';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(plot2X, mT + plotH);
+        ctx.lineTo(plot2X + 5, mT);
+        ctx.lineTo(plot2X + 20, mT + plotH);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-            <!-- CLK bus (cyan) -->
-            <line x1="90" y1="85" x2="130" y2="85" class="clk"/>
-            <line x1="130" y1="85" x2="130" y2="160" class="clk"/>
-            <line x1="130" y1="160" x2="640" y2="160" class="clk"/>
-            <line x1="180" y1="150" x2="180" y2="160" class="clk"/>
-            <line x1="320" y1="150" x2="320" y2="160" class="clk"/>
-            <line x1="460" y1="150" x2="460" y2="160" class="clk"/>
-            <line x1="590" y1="150" x2="590" y2="160" class="clk"/>
+        ctx.fillStyle = '#f44';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(I_inrush.toFixed(0) + 'A spike!', plot2X + 25, mT + 15);
 
-            <!-- CS bus (pink) -->
-            <line x1="90" y1="105" x2="120" y2="105" class="cs"/>
-            <line x1="120" y1="105" x2="120" y2="170" class="cs"/>
-            <line x1="120" y1="170" x2="650" y2="170" class="cs"/>
-            <line x1="180" y1="150" x2="180" y2="170" class="cs" stroke-dasharray="3,2"/>
-            <line x1="320" y1="150" x2="320" y2="170" class="cs" stroke-dasharray="3,2"/>
-            <line x1="460" y1="150" x2="460" y2="170" class="cs" stroke-dasharray="3,2"/>
-            <line x1="590" y1="150" x2="590" y2="170" class="cs" stroke-dasharray="3,2"/>
+        // Labels
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'right';
+        ctx.fillText(Ilim.toFixed(1) + 'A', plot2X - 5, mT + 10);
+        ctx.fillText('0A', plot2X - 5, mT + plotH);
 
-            <!-- Legend -->
-            <text x="20" y="25" class="lblsm" fill="#34d399">● MOSI/DIN chain</text>
-            <text x="150" y="25" class="lblsm" fill="#fbbf24">● MISO return</text>
-            <text x="260" y="25" class="lblsm" fill="#6ee7ff">● CLK (shared)</text>
-            <text x="370" y="25" class="lblsm" fill="#f472b6">● CS (shared)</text>
-        `;
-        container.appendChild(svg);
-    })();
+        // Time labels
+        ctx.textAlign = 'center';
+        ctx.fillText('Tss=' + (Tss*1000).toFixed(1) + 'ms', mL + plotW/2, mT + plotH + 15);
+        ctx.fillText('Tss=' + (Tss*1000).toFixed(1) + 'ms', plot2X + plotW/2, mT + plotH + 15);
 
-    // SPICE Netlist
-    new SpiceNetlistWidget('spice-container', {
-        title: 'SPI Daisy Chain Shift Register Model',
-        netlist: `* SPI Daisy Chain - 4 x 8-bit Shift Registers
-* Models data propagation through chain
+        // Bottom: Method diagram
+        const botY = mT + plotH + 50;
+        ctx.fillStyle = '#222';
+        ctx.fillRect(mL, botY, W - mL - mR, 100);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(mL, botY, W - mL - mR, 100);
 
-* Clock generator (10 MHz)
-VCLK clk 0 PULSE(0 3.3 50n 5n 5n 45n 100n)
+        ctx.fillStyle = '#4af';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Soft Start Method: ' + method.toUpperCase(), mL + 10, botY + 20);
 
-* Chip select (active low during transaction)
-VCS cs 0 PULSE(3.3 0 0 5n 5n 3.2u 10u)
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
 
-* MOSI data (example: 0xA5)
-VMOSI mosi 0 PULSE(0 3.3 100n 5n 5n 95n 200n)
+        const methodDesc = {
+            voltage: [
+                'Internal reference voltage ramps from 0 to Vref',
+                'Control loop follows reference, output ramps linearly',
+                'Charging current = Cout × Vout / Tss',
+                'Most common method in modern DC-DC controllers'
+            ],
+            current: [
+                'Output current is limited during startup',
+                'Capacitor charges at constant current until Vout reached',
+                'Tss = Cout × Vout / Ilimit',
+                'Good for large capacitive loads'
+            ],
+            duty: [
+                'Maximum duty cycle starts low and increases',
+                'Output voltage rises as duty cycle increases',
+                'May overshoot if ramp is too fast',
+                'Simple implementation, less precise'
+            ]
+        };
 
-* Simplified shift register model
-* Each device delays data by 8 clock cycles
+        const descLines = methodDesc[method] || methodDesc.voltage;
+        descLines.forEach((line, i) => {
+            ctx.fillText('• ' + line, mL + 20, botY + 40 + i * 15);
+        });
+    }
 
-.SUBCKT SHIFTREG DIN DOUT CLK CS VCC GND
-* 8-stage shift register delay
-* In reality, this would be 8 D flip-flops
-BDELAY DOUT 0 V=DELAY(V(DIN), 800n)
-.ENDS
-
-* Daisy chain of 4 devices
-X1 mosi d1out clk cs vcc 0 SHIFTREG
-X2 d1out d2out clk cs vcc 0 SHIFTREG
-X3 d2out d3out clk cs vcc 0 SHIFTREG
-X4 d3out miso clk cs vcc 0 SHIFTREG
-
-VCC vcc 0 DC 3.3
-
-.TRAN 10n 5u
-
-.PROBE V(clk) V(cs) V(mosi) V(d1out) V(d2out) V(d3out) V(miso)
-.END
-
-* Observe data shifting through the chain with 8-bit delay per device`
+    ['ss-cout', 'ss-vout', 'ss-tss', 'ss-ilim', 'ss-method'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', update);
+        el.addEventListener('change', update);
     });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('ss-schematic');
+        const svg = new SchematicSVG(700, 220);
+
+        // Voltage reference ramp method
+        svg.text(50, 25, 'Soft Start with Reference Ramp:', {fontSize: 12, fill: '#4af'});
+
+        // Soft start capacitor
+        svg.wire([[50, 60], [80, 60]]);
+        svg.text(40, 55, 'Iss', {fontSize: 9});
+
+        svg.wire([[80, 60], [80, 80]]);
+        svg.capacitor(80, 100, {horizontal: false});
+        svg.text(95, 100, 'Css', {fontSize: 9});
+        svg.wire([[80, 120], [80, 140]]);
+        svg.ground(80, 140);
+
+        // Soft start voltage goes to error amp
+        svg.wire([[80, 60], [150, 60]]);
+
+        // Error amplifier (simplified)
+        svg.rect(150, 40, 80, 60, {fill: 'none', stroke: '#888'});
+        svg.text(190, 75, 'Error', {fontSize: 9});
+        svg.text(190, 90, 'Amp', {fontSize: 9});
+
+        // Reference
+        svg.wire([[100, 90], [150, 90]]);
+        svg.text(110, 100, 'Vref', {fontSize: 9});
+
+        // Soft start clamp
+        svg.text(100, 55, 'min(Vss,Vref)', {fontSize: 8, fill: '#888'});
+
+        // To PWM
+        svg.wire([[230, 70], [280, 70]]);
+        svg.text(260, 60, 'To PWM', {fontSize: 9});
+
+        // NTC inrush limiter
+        svg.text(350, 25, 'NTC Inrush Limiter:', {fontSize: 12, fill: '#4af'});
+
+        svg.wire([[350, 60], [400, 60]]);
+        svg.text(340, 55, 'AC', {fontSize: 9});
+
+        // NTC (shown as variable resistor)
+        svg.resistor(420, 60, {horizontal: true});
+        svg.text(420, 50, 'NTC', {fontSize: 9, fill: '#fa4'});
+
+        // Bridge rectifier (simplified box)
+        svg.wire([[440, 60], [480, 60]]);
+        svg.rect(480, 40, 60, 50, {fill: 'none', stroke: '#888'});
+        svg.text(510, 70, 'Bridge', {fontSize: 9});
+
+        svg.wire([[540, 60], [600, 60]]);
+
+        // Filter cap
+        svg.wire([[600, 60], [600, 80]]);
+        svg.capacitor(600, 100, {horizontal: false});
+        svg.text(615, 100, 'Cbulk', {fontSize: 9});
+        svg.wire([[600, 120], [600, 140]]);
+        svg.ground(600, 140);
+
+        svg.wire([[600, 60], [650, 60]]);
+        svg.text(660, 55, 'DC', {fontSize: 9});
+
+        // Notes
+        svg.text(350, 170, 'Cold: High R → limits inrush', {fontSize: 10, fill: '#888'});
+        svg.text(350, 185, 'Hot: Low R → normal operation', {fontSize: 10, fill: '#888'});
+        svg.text(350, 200, 'Issue: Slow recovery if power cycles', {fontSize: 10, fill: '#f44'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('ss-spice', {
+            title: 'Soft Start Simulation',
+            netlist: `* Soft Start Circuit Simulation
+
+* Power supply model with soft start
+Vin in 0 DC 12
+
+* Soft start current source
+Iss 0 ss 10u  ; 10µA charging current
+
+* Soft start capacitor
+Css ss 0 100n  ; 100nF → Tss ≈ 10ms
+
+* Clamp to reference (simplified)
+Dclamp ss ref DCLAMP
+.model DCLAMP D(Is=1e-12)
+Vref ref 0 DC 1.25
+
+* Error amp (voltage follower for simplicity)
+Eamp ctrl 0 ss 0 1
+
+* Buck converter model (simplified)
+* Duty cycle proportional to control voltage
+Eduty duty 0 ctrl 0 0.4  ; D = 0.4 × Vctrl
+
+* PWM switch model
+S1 in sw duty 0 SMOD
+.model SMOD SW(Ron=0.01 Roff=1MEG Vt=0.5)
+
+* LC filter
+L1 sw out 10u
+D1 0 sw DSCHOTTKY
+.model DSCHOTTKY D(Is=1e-6)
+
+* Output cap and load
+Cout out 0 1000u IC=0
+Rload out 0 5
+
+.tran 10u 30m UIC
+
+.probe V(out) V(ss) I(L1)
+.end
+
+* Expected:
+* Vss ramps 0 to 1.25V over ~10ms
+* Vout follows Vss × (Vout_final/1.25)
+* No inrush spike on output`
+        });
+    }
 
     // Checklist
-    new ChecklistWidget('checklist-container', {
-        lessonKey: 'm13l8',
-        items: [
-            'Verify device supports daisy chain (has DOUT)',
-            'Calculate total bits: N devices × bits per device',
-            'Send data for LAST device FIRST',
-            'All devices share same CS and CLK',
-            'Account for propagation delay through chain',
-            'Consider individual CS if selective update needed',
-            'Check max clock frequency for all devices',
-            'Handle MISO readback with correct offset'
-        ]
-    });
+    function initChecklist() {
+        new ChecklistWidget('ss-checklist', {
+            title: 'Soft Start Design Checklist',
+            items: [
+                'Calculate required inrush current limit',
+                'Determine minimum soft start time',
+                'Select soft start method for application',
+                'Size soft start capacitor (if applicable)',
+                'Verify no output overshoot at end of ramp',
+                'Check pre-bias conditions (if output pre-charged)',
+                'Verify fault recovery behavior',
+                'Test startup into full load',
+                'Check startup into short circuit',
+                'Coordinate with power sequencing requirements'
+            ]
+        });
+    }
 
     // Exercises
-    const exercises = [
-        {
-            id: 'M13L8-1',
-            type: 'numeric',
-            question: 'A daisy chain has 8 devices, each with 16-bit registers. How many clock cycles are needed for a complete update?',
-            hint: 'Total = N devices × bits per device',
-            expected: 128,
-            tolerance: 0.01,
-            unit: 'clocks',
-            solution: '8 devices × 16 bits = 128 clock cycles',
-            explanation: 'All data must shift through the entire chain before CS rises to latch.'
-        },
-        {
-            id: 'M13L8-2',
-            type: 'choice',
-            question: 'In which order should data be sent for a 4-device daisy chain?',
-            choices: [
-                { text: 'Device 1 first, Device 4 last', correct: false, explanation: 'This order would put Device 1 data in Device 4 position.' },
-                { text: 'Device 4 first, Device 1 last', correct: true, explanation: 'Correct! Data shifts through the chain, so the first data sent ends up in the last device.' },
-                { text: 'Any order, devices are addressed', correct: false, explanation: 'Daisy chains don\'t use addressing; position depends on transmission order.' },
-                { text: 'Parallel transmission, order doesn\'t matter', correct: false, explanation: 'Daisy chain is serial; data shifts sequentially through all devices.' }
+    function initExercises() {
+        new ExerciseWidget('ss-exercises', {
+            exercises: [
+                {
+                    question: '1000µF capacitor, 5V output, 2A current limit. What is minimum soft start time?',
+                    answer: '2.5ms',
+                    solution: 'Tss = C × V / I = 1000µ × 5 / 2 = 2.5ms minimum to stay within current limit.'
+                },
+                {
+                    question: 'Soft start current is 10µA, Vref=1.25V, desired Tss=10ms. What Css value?',
+                    answer: '80nF',
+                    solution: 'Css = Iss × Tss / Vref = 10µ × 10m / 1.25 = 80nF'
+                },
+                {
+                    question: 'Why might you want a faster soft start than minimum required?',
+                    answer: 'System requirements',
+                    solution: 'Power sequencing may require rails to come up in specific order with timing requirements. Fast soft start reduces overall system power-up time. However, faster than needed increases inrush current and component stress.'
+                }
             ]
-        },
-        {
-            id: 'M13L8-3',
-            type: 'numeric',
-            question: 'At 20 MHz SPI clock, how long (in microseconds) does it take to update a chain of 6 devices with 24-bit registers?',
-            hint: 'Time = total bits / clock frequency',
-            expected: 7.2,
-            tolerance: 0.05,
-            unit: 'µs',
-            solution: 'Total bits = 6 × 24 = 144. Time = 144 / 20MHz = 7.2µs',
-            explanation: 'This limits the maximum update rate to about 139 kHz.'
-        }
-    ];
+        });
+    }
 
-    const container = document.getElementById('exercise-container');
-    exercises.forEach((ex, i) => {
-        const div = document.createElement('div');
-        div.id = `exercise-${i}`;
-        div.style.marginBottom = '15px';
-        container.appendChild(div);
-        new ExerciseWidget(`exercise-${i}`, ex);
-    });
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
 })();
 </script>

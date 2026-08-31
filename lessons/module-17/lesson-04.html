@@ -1,572 +1,490 @@
-<!-- Module 17, Lesson 4: Power Supply Debugging -->
+<!-- Module 17, Lesson 4: Audio DAC Output Stage -->
 <div class="lesson-content" data-module="17" data-lesson="4">
 
     <div class="card">
-        <h2>Power Supply Debugging</h2>
-        <p>Power supply problems cause more than half of all electronic failures. Master systematic approaches to diagnosing no-output, low-output, noisy, and unstable power supply issues.</p>
+        <h2>Scenario: Audio DAC Output Stage</h2>
+        <p>Design the analog output stage for a high-fidelity audio DAC. Balance between low distortion, low noise, and ability to drive headphones or line outputs.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">No Output</div>
-                <div class="v">Protection, open path, dead IC</div>
+                <div class="k">Dynamic Range</div>
+                <div class="v">>100dB (16-bit)</div>
             </div>
             <div class="box">
-                <div class="k">Low Output</div>
-                <div class="v">Overload, feedback, component</div>
+                <div class="k">THD+N</div>
+                <div class="v"><0.01%</div>
             </div>
             <div class="box">
-                <div class="k">Noisy</div>
-                <div class="v">Ripple, switching artifacts</div>
-            </div>
-            <div class="box">
-                <div class="k">Unstable</div>
-                <div class="v">Oscillation, loop issues</div>
+                <div class="k">Output</div>
+                <div class="v">2Vrms into 32-600Ω</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Debug Principle:</strong> Start with DC measurements before connecting oscilloscope. Wrong DC levels indicate component failures; correct DC with noise issues points to loop or filtering problems.
+            <strong>Key Challenge:</strong> The DAC outputs a low-level current that must be converted to voltage, filtered, amplified, and buffered. Each stage can add noise and distortion if not designed carefully.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Power Supply Fault Tree</h3>
+        <h3>Interactive: Output Stage Analysis</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="ps-symptom">Symptom</label>
-                <select id="ps-symptom">
-                    <option value="no_output">No Output</option>
-                    <option value="low_output">Low Output</option>
-                    <option value="high_ripple">High Ripple</option>
-                    <option value="oscillating">Oscillating</option>
-                    <option value="intermittent">Intermittent</option>
+                <label for="dac-vout">V<sub>out</sub> (Vrms)</label>
+                <input type="range" id="dac-vout" min="0.5" max="4" step="0.1" value="2">
+                <span id="dac-vout-val" class="mono">2Vrms</span>
+            </div>
+            <div class="c3">
+                <label for="dac-rload">Load (Ω)</label>
+                <select id="dac-rload">
+                    <option value="32">32Ω (IEMs)</option>
+                    <option value="100">100Ω (headphones)</option>
+                    <option value="300" selected>300Ω (high-Z headphones)</option>
+                    <option value="10000">10kΩ (line out)</option>
                 </select>
             </div>
             <div class="c3">
-                <label for="ps-type">Supply Type</label>
-                <select id="ps-type">
-                    <option value="linear">Linear Regulator</option>
-                    <option value="buck">Buck Converter</option>
-                    <option value="boost">Boost Converter</option>
-                    <option value="ldo">LDO</option>
-                </select>
+                <label for="dac-noise">Op-amp Noise (nV/√Hz)</label>
+                <input type="range" id="dac-noise" min="1" max="20" step="1" value="5">
+                <span id="dac-noise-val" class="mono">5nV/√Hz</span>
+            </div>
+            <div class="c3">
+                <label for="dac-gain">Gain (V/V)</label>
+                <input type="range" id="dac-gain" min="1" max="10" step="0.5" value="2">
+                <span id="dac-gain-val" class="mono">2×</span>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="ps-canvas" width="980" height="400"></canvas>
+            <canvas id="dac-canvas" width="980" height="280"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">First Check</div>
-                <div class="v mono" id="ps-first">—</div>
+                <div class="k">Output Power</div>
+                <div class="v mono" id="dac-power">—</div>
             </div>
             <div class="box">
-                <div class="k">Likely Cause</div>
-                <div class="v mono" id="ps-cause">—</div>
+                <div class="k">Output Current</div>
+                <div class="v mono" id="dac-iout">—</div>
             </div>
             <div class="box">
-                <div class="k">Test Method</div>
-                <div class="v mono" id="ps-test">—</div>
+                <div class="k">Noise Floor</div>
+                <div class="v mono" id="dac-floor">—</div>
+            </div>
+            <div class="box">
+                <div class="k">SNR</div>
+                <div class="v mono" id="dac-snr">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Common Failure Modes</h3>
+        <h3>Signal Chain Architecture</h3>
+        <div class="diagram-container">
+            <canvas id="audio-dac-chain-canvas" width="900" height="380" style="width:100%;max-width:900px;background:#0d1117;border-radius:8px;"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Op-Amp Selection Criteria</h3>
 
         <table class="table">
             <tr>
-                <th>Component</th>
-                <th>Failure Mode</th>
-                <th>Symptom</th>
-                <th>Test Method</th>
+                <th>Parameter</th>
+                <th>Requirement</th>
+                <th>Why</th>
             </tr>
             <tr>
-                <td>Input Cap</td>
-                <td>High ESR/Open</td>
-                <td>Input ripple, instability</td>
-                <td>ESR meter, scope</td>
+                <td>Voltage noise</td>
+                <td><5 nV/√Hz</td>
+                <td>Sets noise floor</td>
             </tr>
             <tr>
-                <td>Output Cap</td>
-                <td>High ESR/Low C</td>
-                <td>High ripple, oscillation</td>
-                <td>ESR meter, scope</td>
+                <td>THD</td>
+                <td><0.001% @ 1kHz</td>
+                <td>Audible distortion</td>
             </tr>
             <tr>
-                <td>Feedback Resistor</td>
-                <td>Open/Drift</td>
-                <td>Wrong voltage, OVP</td>
-                <td>DMM in-circuit</td>
+                <td>GBW</td>
+                <td>>10 MHz</td>
+                <td>Bandwidth with gain</td>
             </tr>
             <tr>
-                <td>Inductor</td>
-                <td>Saturation</td>
-                <td>High ripple at load</td>
-                <td>Current probe</td>
+                <td>Slew rate</td>
+                <td>>10 V/µs</td>
+                <td>No slew limiting at 20kHz</td>
             </tr>
             <tr>
-                <td>Schottky Diode</td>
-                <td>Short/Leaky</td>
-                <td>No output, hot component</td>
-                <td>Diode mode</td>
+                <td>Output current</td>
+                <td>>50 mA</td>
+                <td>Drive low-Z loads</td>
             </tr>
             <tr>
-                <td>Regulator IC</td>
-                <td>Thermal shutdown</td>
-                <td>Intermittent output</td>
-                <td>Thermal camera, IR</td>
+                <td>PSRR</td>
+                <td>>80 dB</td>
+                <td>Reject supply noise</td>
             </tr>
         </table>
-    </div>
 
-    <div class="card">
-        <h3>Debug Decision Tree</h3>
-        <canvas id="ps-debug-tree-canvas" width="900" height="400"></canvas>
-    </div>
-
-    <div class="card">
-        <h3>Oscilloscope Techniques</h3>
-        <div id="ps-schematic"></div>
+        <div class="warn">
+            <strong>Headphone Considerations:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>32Ω headphones @ 2Vrms need 62mA peak current</li>
+                <li>Op-amp must remain linear at this current</li>
+                <li>Consider dedicated headphone amp IC or discrete buffer</li>
+                <li>DC servo or coupling cap to block offset</li>
+            </ul>
+        </div>
     </div>
 
     <div class="card">
         <h3>SPICE Netlist</h3>
-        <div id="ps-spice"></div>
+        <div id="spice-container"></div>
     </div>
 
     <div class="card">
-        <h3>Debug Checklist</h3>
-        <div id="ps-checklist"></div>
+        <h3>Design Checklist</h3>
+        <div id="checklist-container"></div>
     </div>
 
     <div class="card">
-        <h3>Practice Exercises</h3>
-        <div id="ps-exercises"></div>
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
     </div>
 
 </div>
 
 <script>
 (function() {
-    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
-
-    const canvas = document.getElementById('ps-canvas');
+    const canvas = document.getElementById('dac-canvas');
     const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-
-    const diagnostics = {
-        no_output: {
-            first: 'Check Vin at regulator input',
-            cause: 'OVP/UVP, thermal shutdown, or dead IC',
-            test: 'DMM for Vin, oscilloscope for enable/Vcc'
-        },
-        low_output: {
-            first: 'Measure actual load current',
-            cause: 'Overload, feedback resistor, or dropout',
-            test: 'Load test, check FB divider ratio'
-        },
-        high_ripple: {
-            first: 'ESR test output capacitors',
-            cause: 'Capacitor degradation or inductor saturation',
-            test: 'ESR meter, current probe on inductor'
-        },
-        oscillating: {
-            first: 'Check output with AC coupling',
-            cause: 'Loop instability or ESR mismatch',
-            test: 'Bode plot, step load response'
-        },
-        intermittent: {
-            first: 'Thermal imaging of all components',
-            cause: 'Thermal cycling or marginal component',
-            test: 'Freeze spray, heat gun localization'
-        }
-    };
 
     function update() {
-        const symptom = document.getElementById('ps-symptom').value || 'no_output';
-        const type = document.getElementById('ps-type').value || 'linear';
+        const vout = AD.num('dac-vout');
+        const rload = AD.num('dac-rload');
+        const noise = AD.num('dac-noise');
+        const gain = AD.num('dac-gain');
 
-        const diag = diagnostics[symptom] || diagnostics.no_output;
-        document.getElementById('ps-first').textContent = diag.first;
-        document.getElementById('ps-cause').textContent = diag.cause;
-        document.getElementById('ps-test').textContent = diag.test;
+        document.getElementById('dac-vout-val').textContent = vout.toFixed(1) + 'Vrms';
+        document.getElementById('dac-noise-val').textContent = noise + 'nV/√Hz';
+        document.getElementById('dac-gain-val').textContent = gain + '×';
 
-        // Draw diagnostic flowchart
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, W, H);
+        // Output power
+        const power = (vout * vout) / rload * 1000; // mW
+        document.getElementById('dac-power').textContent = power.toFixed(1) + 'mW';
 
-        // Draw based on symptom
-        ctx.font = '14px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#fff';
-        ctx.fillText('Power Supply Debug Flow: ' + symptom.replace('_', ' ').toUpperCase(), W/2, 30);
+        // Peak output current
+        const ipeak = vout * Math.sqrt(2) / rload * 1000; // mA
+        document.getElementById('dac-iout').textContent = ipeak.toFixed(1) + 'mA peak';
 
-        // Flowchart boxes
-        const boxes = [];
-        if (symptom === 'no_output') {
-            boxes.push(
-                {x: 400, y: 60, w: 180, h: 40, text: 'No Output', color: '#f44'},
-                {x: 200, y: 140, w: 150, h: 40, text: 'Vin Present?', color: '#888'},
-                {x: 500, y: 140, w: 150, h: 40, text: 'EN Pin High?', color: '#888'},
-                {x: 100, y: 220, w: 130, h: 40, text: 'Check Input', color: '#4af'},
-                {x: 300, y: 220, w: 130, h: 40, text: 'Check Fuse', color: '#4af'},
-                {x: 450, y: 220, w: 150, h: 40, text: 'Check EN circuit', color: '#4af'},
-                {x: 600, y: 220, w: 140, h: 40, text: 'Vcc/Startup?', color: '#888'},
-                {x: 400, y: 300, w: 180, h: 40, text: 'Output Shorted?', color: '#888'},
-                {x: 250, y: 360, w: 150, h: 40, text: 'Find Short', color: '#f44'},
-                {x: 550, y: 360, w: 150, h: 40, text: 'Replace IC', color: '#fa4'}
-            );
-        } else if (symptom === 'high_ripple') {
-            boxes.push(
-                {x: 400, y: 60, w: 180, h: 40, text: 'High Ripple', color: '#f44'},
-                {x: 250, y: 140, w: 160, h: 40, text: 'Check ESR', color: '#888'},
-                {x: 550, y: 140, w: 160, h: 40, text: 'Check Inductor', color: '#888'},
-                {x: 150, y: 220, w: 140, h: 40, text: 'ESR > 0.5Ω?', color: '#888'},
-                {x: 350, y: 220, w: 140, h: 40, text: 'Replace Caps', color: '#4af'},
-                {x: 550, y: 220, w: 160, h: 40, text: 'Saturating?', color: '#888'},
-                {x: 700, y: 220, w: 140, h: 40, text: 'Size Up L', color: '#4af'},
-                {x: 400, y: 300, w: 180, h: 40, text: 'Check Layout', color: '#888'}
-            );
-        } else {
-            // Generic
-            boxes.push(
-                {x: 400, y: 80, w: 180, h: 50, text: symptom.replace('_', ' '), color: '#f44'},
-                {x: 400, y: 180, w: 200, h: 50, text: diag.first, color: '#4af'},
-                {x: 400, y: 280, w: 200, h: 50, text: diag.cause, color: '#fa4'}
-            );
-        }
+        // Noise floor (audio bandwidth 20Hz-20kHz)
+        const bw = 20000;
+        const vnoise = noise * 1e-9 * Math.sqrt(bw) * gain * 1e6; // µVrms
+        document.getElementById('dac-floor').textContent = vnoise.toFixed(1) + 'µVrms';
 
-        // Draw boxes
-        boxes.forEach(b => {
-            ctx.strokeStyle = b.color;
-            ctx.lineWidth = 2;
-            ctx.strokeRect(b.x - b.w/2, b.y, b.w, b.h);
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            ctx.fillText(b.text, b.x, b.y + b.h/2 + 4);
-        });
+        // SNR
+        const snr = 20 * Math.log10(vout / (vnoise * 1e-6));
+        const snrEl = document.getElementById('dac-snr');
+        snrEl.textContent = snr.toFixed(0) + 'dB';
+        snrEl.style.color = snr > 110 ? 'var(--ok)' : snr > 96 ? 'var(--warn)' : 'var(--bad)';
 
-        // Draw connecting lines
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 1;
-        if (symptom === 'no_output') {
-            ctx.beginPath();
-            ctx.moveTo(400, 100); ctx.lineTo(400, 120);
-            ctx.moveTo(400, 120); ctx.lineTo(200, 120); ctx.lineTo(200, 140);
-            ctx.moveTo(400, 120); ctx.lineTo(500, 120); ctx.lineTo(500, 140);
-            ctx.stroke();
-        }
-
-        // Probe points diagram
-        ctx.font = '12px monospace';
-        ctx.fillStyle = '#888';
-        ctx.textAlign = 'left';
-        ctx.fillText('Probe Points:', 50, 350);
-        ctx.fillText('1. Vin - verify input present', 50, 370);
-        ctx.fillText('2. Vout - check DC level', 50, 385);
-        ctx.fillText('3. SW node - verify switching', 200, 370);
-        ctx.fillText('4. FB pin - check feedback', 200, 385);
+        plotFrequencyResponse(gain, rload);
     }
 
-    ['ps-symptom', 'ps-type'].forEach(id => {
-        document.getElementById(id).addEventListener('change', update);
+    function plotFrequencyResponse(gain, rload) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const fMin = 10;
+        const fMax = 100000;
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: Math.log10(fMin),
+            xMax: Math.log10(fMax),
+            yMin: -6,
+            yMax: 6,
+            xLabel: 'Frequency',
+            yLabel: 'Gain Error',
+            xUnit: 'Hz',
+            yUnit: 'dB',
+            xDivs: 8,
+            yDivs: 6
+        });
+
+        const N = 200;
+        const fData = [];
+        const gainData = [];
+        const threeDbData = [];
+
+        // Simulate frequency response with output loading
+        // Assume GBW = 10MHz, Rout = 10Ω before buffer
+        const gbw = 10e6;
+        const rout = 10;
+
+        for (let i = 0; i < N; i++) {
+            const logF = Math.log10(fMin) + (i / N) * (Math.log10(fMax) - Math.log10(fMin));
+            const f = Math.pow(10, logF);
+            fData.push(logF);
+
+            // Open loop gain available
+            const aol = gbw / f;
+
+            // Closed loop gain with feedback
+            const beta = 1 / gain;
+            const acl = aol / (1 + aol * beta);
+
+            // Gain error in dB relative to DC gain
+            const gainDb = 20 * Math.log10(acl / gain);
+            gainData.push(Math.max(-6, gainDb));
+
+            // -3dB line
+            threeDbData.push(-3);
+        }
+
+        // Plot -3dB reference
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        AD.plotData(ctx, axes, fData, threeDbData, {
+            color: 'rgba(251, 191, 36, 0.5)',
+            lineWidth: 1
+        });
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        // Plot frequency response
+        AD.plotData(ctx, axes, fData, gainData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2
+        });
+
+        // Mark audio band
+        ctx.save();
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.1)';
+        const f20 = axes.toCanvas(Math.log10(20), 0);
+        const f20k = axes.toCanvas(Math.log10(20000), 0);
+        ctx.fillRect(f20.x, axes.top, f20k.x - f20.x, axes.height);
+
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(f20.x, axes.top);
+        ctx.lineTo(f20.x, axes.top + axes.height);
+        ctx.moveTo(f20k.x, axes.top);
+        ctx.lineTo(f20k.x, axes.top + axes.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.8)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('Audio Band', (f20.x + f20k.x) / 2 - 25, axes.top + 15);
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 30, [
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'Frequency response' },
+            { color: 'rgba(251, 191, 36, 0.5)', label: '-3dB reference' }
+        ]);
+    }
+
+    ['dac-vout', 'dac-rload', 'dac-noise', 'dac-gain'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
     });
-
-    // Schematic - measurement points
-    function drawSchematic() {
-        const container = document.getElementById('ps-schematic');
-        const svg = new SchematicSVG(600, 200);
-
-        // Buck converter with probe points
-        svg.text(30, 80, 'Vin', {fontSize: 10});
-        svg.wire([[50, 80], [100, 80]]);
-
-        // Input cap
-        svg.wire([[100, 80], [100, 100]]);
-        svg.capacitor(100, 120, {horizontal: false});
-        svg.wire([[100, 140], [100, 150]]);
-        svg.ground(100, 150);
-
-        // Probe point 1
-        svg.text(90, 55, '①', {fontSize: 14, fill: '#f44'});
-        svg.text(105, 55, 'Vin', {fontSize: 9, fill: '#888'});
-
-        // Switch
-        svg.wire([[100, 80], [150, 80]]);
-        svg.rect(150, 65, 40, 30, {fill: 'none', stroke: '#4af'});
-        svg.text(170, 85, 'SW', {fontSize: 10});
-
-        // SW node
-        svg.wire([[190, 80], [230, 80]]);
-
-        // Probe point 2
-        svg.text(210, 55, '②', {fontSize: 14, fill: '#f44'});
-        svg.text(225, 55, 'SW', {fontSize: 9, fill: '#888'});
-
-        // Inductor
-        svg.wire([[230, 80], [280, 80]]);
-        svg.text(255, 70, 'L', {fontSize: 10});
-
-        // Output
-        svg.wire([[280, 80], [350, 80]]);
-
-        // Output cap
-        svg.wire([[350, 80], [350, 100]]);
-        svg.capacitor(350, 120, {horizontal: false});
-        svg.wire([[350, 140], [350, 150]]);
-        svg.ground(350, 150);
-
-        // Probe point 3
-        svg.text(340, 55, '③', {fontSize: 14, fill: '#f44'});
-        svg.text(355, 55, 'Vout', {fontSize: 9, fill: '#888'});
-
-        // Feedback
-        svg.wire([[350, 80], [400, 80]]);
-        svg.wire([[400, 80], [400, 100]]);
-        svg.resistor(400, 120, {horizontal: false});
-        svg.wire([[400, 140], [400, 160]]);
-        svg.resistor(400, 180, {horizontal: false});
-        svg.wire([[400, 200], [400, 210]]);
-        svg.ground(400, 210);
-
-        // FB tap
-        svg.wire([[400, 160], [450, 160]]);
-        svg.text(460, 165, 'FB', {fontSize: 10});
-
-        // Probe point 4
-        svg.text(420, 155, '④', {fontSize: 14, fill: '#f44'});
-
-        // Output
-        svg.wire([[350, 80], [550, 80]]);
-        svg.text(560, 85, 'Vout', {fontSize: 10});
-
-        // Legend
-        svg.text(50, 180, 'Scope Probing:', {fontSize: 11, fill: '#4af'});
-        svg.text(50, 195, '① Vin: DC, ripple', {fontSize: 10, fill: '#888'});
-        svg.text(180, 195, '② SW: waveform, duty', {fontSize: 10, fill: '#888'});
-        svg.text(320, 195, '③ Vout: DC, ripple', {fontSize: 10, fill: '#888'});
-        svg.text(460, 195, '④ FB: stability', {fontSize: 10, fill: '#888'});
-
-        container.innerHTML = svg.render();
-    }
-
-    // SPICE
-    function initSpice() {
-        new SpiceNetlistWidget('ps-spice', {
-            title: 'Buck Converter Debug Model',
-            netlist: `* Buck Converter with Debug Points
-* Inject faults to observe symptoms
-
-* Input supply
-Vin vin 0 12V
-
-* Input capacitor (vary ESR to simulate failure)
-Cin_esr vin vin_cap 0.01  ; Good: 0.01Ω, Bad: 1Ω
-Cin vin_cap 0 100u
-
-* PWM switch model
-Vpwm pwm 0 PULSE(0 1 0 10n 10n 0.4u 1u)
-S1 vin_cap sw pwm 0 ideal_sw
-D1 0 sw schottky
-.model ideal_sw SW(Ron=0.05 Roff=1MEG)
-.model schottky D(Is=1u RS=0.05)
-
-* Inductor (vary to simulate saturation)
-L1 sw vout 10u
-
-* Output capacitor (vary ESR)
-Cout_esr vout vout_cap 0.01  ; Good: 0.01Ω, Bad: 0.5Ω
-Cout vout_cap 0 100u
-
-* Load
-Rload vout 0 2.5  ; 2A at 5V
-
-* Feedback (vary to simulate open)
-Rfb1 vout fb 10k
-Rfb2 fb 0 2k
-
-.tran 10n 100u
-.probe V(vin) V(sw) V(vout) V(fb)
-.end`
-        });
-    }
-
-    // Checklist
-    function initChecklist() {
-        new ChecklistWidget('ps-checklist', {
-            title: 'Power Supply Debug Checklist',
-            items: [
-                'Verify input voltage is within spec',
-                'Check all DC output voltages',
-                'Measure ripple with scope AC coupled',
-                'Inspect capacitors for bulging/leaking',
-                'ESR test electrolytic capacitors',
-                'Check for hot components (thermal)',
-                'Verify feedback resistor values',
-                'Observe switching waveform at SW node',
-                'Test under various load conditions',
-                'Check enable and soft-start timing'
-            ]
-        });
-    }
-
-    // Exercises
-    function initExercises() {
-        new ExerciseWidget('ps-exercises', {
-            exercises: [
-                {
-                    question: 'Output ripple is 500mVpp at 1MHz with 100µF cap. What is the effective ESR?',
-                    answer: '0.5Ω',
-                    solution: 'If ripple is primarily ESR-driven: ΔV = ΔI × ESR. Assuming 1A ripple: ESR = 0.5V/1A = 0.5Ω. High—cap needs replacement.'
-                },
-                {
-                    question: 'Regulator outputs 4.2V instead of 5V. Upper FB resistor is 10kΩ. What value might the lower resistor have drifted to?',
-                    answer: '~3.6kΩ',
-                    solution: 'Vout = Vref × (1 + R1/R2). If Vref=0.8V: 4.2 = 0.8 × (1 + 10k/R2). R2 = 10k/(4.2/0.8 - 1) = 10k/4.25 = 2.35kΩ. Wait, if normal is 5V: 5 = 0.8(1 + 10k/R2), R2 = 1.9kΩ. At 4.2V: R2 = 10k/(4.25-1) = 3.08kΩ. So it increased from 1.9k to ~3k.'
-                },
-                {
-                    question: 'A buck converter hiccups at 2Hz. What is the most likely cause?',
-                    answer: 'OCP or thermal shutdown cycling',
-                    solution: 'Hiccup mode indicates protection activating repeatedly. Either overcurrent (shorted output) or thermal shutdown (overheating). Check load first, then thermal.'
-                }
-            ]
-        });
-    }
 
     update();
 
-    // ==================== PS DEBUG DECISION TREE CANVAS ====================
-    (function() {
-        const canvas = document.getElementById('ps-debug-tree-canvas');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
-        const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ch5:'#FF6600'};
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Headphone Amplifier Output Stage',
+        netlist: `* Audio DAC Output / Headphone Amp
+* Low distortion, high current output
 
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, W, H);
+* Op-amp model (simplified, audio-grade)
+.SUBCKT AUDIO_OPA inp inn out vcc vee
+EOUT out 0 VALUE={1000*(V(inp)-V(inn))}
+ROUT out out_int 10
+COUT out_int 0 5p
+* Current limit ±100mA
+BLIM out_int out_lim I=LIMIT(V(out_int)/0.01, -0.1, 0.1)
+.ENDS
 
-        function roundRect(x, y, w, h, r) {
-            ctx.beginPath();
-            ctx.moveTo(x + r, y);
-            ctx.lineTo(x + w - r, y);
-            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-            ctx.lineTo(x + w, y + h - r);
-            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-            ctx.lineTo(x + r, y + h);
-            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-            ctx.lineTo(x, y + r);
-            ctx.quadraticCurveTo(x, y, x + r, y);
-            ctx.closePath();
-        }
+* Power supplies
+VCC vcc 0 DC 12
+VEE vee 0 DC -12
 
-        // Four symptom columns
-        const symptoms = [
-            { title: 'No Output?', color: TEK.ch5, checks: [
-                { q: 'Vin present?', no: 'Trace input path' },
-                { q: 'Enable pin high?', no: 'Check enable circuit' },
-                { q: 'Vcc/bias OK?', no: 'Bad aux/startup' },
-                { q: 'Output shorted?', yes: 'Find short circuit' },
-                { q: 'All OK?', def: 'Replace controller IC' }
-            ]},
-            { title: 'Low Output?', color: TEK.ch1, checks: [
-                { q: 'Overloaded?', yes: 'Reduce load, SOA' },
-                { q: 'FB correct?', no: 'Check divider' },
-                { q: 'Dropout?', yes: 'Increase Vin' },
-                { q: 'Thermal?', yes: 'Improve heatsink' }
-            ]},
-            { title: 'High Ripple?', color: TEK.ch2, checks: [
-                { q: 'ESR high?', yes: 'Replace caps' },
-                { q: 'L saturating?', yes: 'Size up inductor' },
-                { q: 'Load pulsing?', yes: 'Add bulk C' },
-                { q: 'Long traces?', yes: 'Improve layout' }
-            ]},
-            { title: 'Oscillating?', color: TEK.ch3, checks: [
-                { q: 'Phase margin?', no: 'Add compensation' },
-                { q: 'ESR too low?', yes: 'Add series R' },
-                { q: 'Long FB?', yes: 'Shorten path' },
-                { q: 'Load unstable?', yes: 'Check load reg' }
-            ]}
-        ];
+* Input signal (1kHz, 1Vpk)
+VIN inp 0 SIN(0 1 1k)
 
-        const colW = W / 4;
-        symptoms.forEach((sym, col) => {
-            const x = col * colW + colW / 2;
+* Non-inverting amplifier (G = 1 + 10k/5k = 3)
+XAMP inp fb out vcc vee AUDIO_OPA
+R1 out fb 10k
+R2 fb 0 5k
 
-            // Title
-            ctx.fillStyle = sym.color;
-            ctx.strokeStyle = sym.color;
-            ctx.lineWidth = 2;
-            roundRect(x - 70, 15, 140, 30, 6);
-            ctx.fill();
-            ctx.fillStyle = '#000';
-            ctx.font = 'bold 11px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(sym.title, x, 35);
+* DC blocking cap
+COUT out hp_in 220u
 
-            // Checks
-            sym.checks.forEach((check, i) => {
-                const y = 65 + i * 75;
+* Headphone load
+RLOAD hp_in 0 32
 
-                // Decision diamond
-                ctx.strokeStyle = '#9fb0c0';
-                ctx.lineWidth = 1.5;
-                ctx.fillStyle = 'rgba(30,41,59,0.9)';
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + 40, y + 20);
-                ctx.lineTo(x, y + 40);
-                ctx.lineTo(x - 40, y + 20);
-                ctx.closePath();
-                ctx.fill(); ctx.stroke();
+.TRAN 0.01m 5m
 
-                ctx.fillStyle = '#e6edf3';
-                ctx.font = '9px ui-sans-serif';
-                ctx.fillText(check.q, x, y + 23);
+.PROBE V(inp) V(out) V(hp_in) I(RLOAD)
+.END
 
-                // Connection line down
-                if (i < sym.checks.length - 1) {
-                    ctx.strokeStyle = '#666';
-                    ctx.beginPath();
-                    ctx.moveTo(x, y + 40);
-                    ctx.lineTo(x, y + 65);
-                    ctx.stroke();
-                }
+* Check for clipping into 32Ω load
+* Verify no crossover distortion`
+    });
 
-                // Answer/action
-                if (check.no) {
-                    ctx.fillStyle = sym.color;
-                    ctx.font = '8px ui-sans-serif';
-                    ctx.textAlign = 'left';
-                    ctx.fillText('No→', x + 45, y + 15);
-                    ctx.fillStyle = '#e6edf3';
-                    ctx.fillText(check.no, x + 45, y + 27);
-                }
-                if (check.yes) {
-                    ctx.fillStyle = sym.color;
-                    ctx.font = '8px ui-sans-serif';
-                    ctx.textAlign = 'left';
-                    ctx.fillText('Yes→', x + 45, y + 15);
-                    ctx.fillStyle = '#e6edf3';
-                    ctx.fillText(check.yes, x + 45, y + 27);
-                }
-                if (check.def) {
-                    ctx.fillStyle = sym.color;
-                    ctx.font = '8px ui-sans-serif';
-                    ctx.textAlign = 'left';
-                    ctx.fillText('→ ' + check.def, x + 45, y + 23);
-                }
-            });
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm20l4',
+        items: [
+            'Select low-noise op-amps (<5nV/√Hz)',
+            'Verify current drive for lowest load',
+            'Include DC blocking or servo',
+            'Layout for minimal crosstalk',
+            'Use star grounding for analog section'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'SC4-1',
+        type: 'numeric',
+        question: 'A headphone amp must deliver 100mW into 32Ω. What peak voltage swing is required?',
+        hint: 'P = Vrms²/R, Vpeak = Vrms × √2',
+        expected: 2.53,
+        tolerance: 0.05,
+        unit: 'V',
+        solution: 'Vrms = √(P×R) = √(0.1×32) = 1.79V. Vpeak = 1.79 × √2 = 2.53V',
+        explanation: 'With ±2.53V swing, the op-amp needs at least ±4V rails (headroom for output stage). Peak current is 2.53V/32Ω = 79mA.'
+    });
+})();
+
+// Audio DAC Signal Chain Canvas
+(function() {
+    const canvas = document.getElementById('audio-dac-chain-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Audio DAC Output Signal Chain', 30, 30);
+
+    // Helper to draw rounded rect
+    function roundRect(x, y, w, h, r, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, r);
+        ctx.stroke();
+    }
+
+    // Signal chain blocks
+    const blocks = [
+        { x: 30, y: 100, w: 100, h: 60, label: 'Digital\nSource', sublabel: 'I2S/USB', color: TEK.ch3 },
+        { x: 160, y: 100, w: 100, h: 60, label: 'DAC IC', sublabel: 'Current out', color: TEK.ch2 },
+        { x: 290, y: 100, w: 100, h: 60, label: 'I/V Stage', sublabel: 'TIA', color: TEK.ch2 },
+        { x: 420, y: 100, w: 100, h: 60, label: 'LP Filter', sublabel: 'Anti-image', color: TEK.ch2 },
+        { x: 550, y: 100, w: 100, h: 60, label: 'Gain/Buffer', sublabel: 'G=2', color: TEK.ch2 },
+        { x: 680, y: 100, w: 100, h: 60, label: 'DC Block', sublabel: 'C=220µF', color: TEK.ch2 },
+        { x: 810, y: 100, w: 70, h: 60, label: 'Output', sublabel: '', color: TEK.ch4 }
+    ];
+
+    blocks.forEach(b => {
+        roundRect(b.x, b.y, b.w, b.h, 6, b.color);
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        const lines = b.label.split('\n');
+        lines.forEach((line, i) => {
+            ctx.fillText(line, b.x + b.w/2, b.y + 22 + i * 14);
         });
-    })();
+        if (b.sublabel) {
+            ctx.fillStyle = '#888';
+            ctx.font = '9px monospace';
+            ctx.fillText(b.sublabel, b.x + b.w/2, b.y + b.h - 8);
+        }
+    });
 
-    drawSchematic();
-    initSpice();
-    initChecklist();
-    initExercises();
+    // Arrows between blocks
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < blocks.length - 1; i++) {
+        const x1 = blocks[i].x + blocks[i].w;
+        const x2 = blocks[i+1].x;
+        const y = blocks[i].y + blocks[i].h/2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2 - 5, y);
+        ctx.stroke();
+        // Arrow head
+        ctx.beginPath();
+        ctx.moveTo(x2 - 5, y);
+        ctx.lineTo(x2 - 12, y - 4);
+        ctx.lineTo(x2 - 12, y + 4);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // Signal levels
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    const levels = ['Digital', '±1mA', '±1V', '±1V', '±2V', '±2V', '2Vrms'];
+    const levelX = [80, 210, 340, 470, 600, 730, 845];
+    levels.forEach((lvl, i) => {
+        ctx.fillText(lvl, levelX[i], 180);
+    });
+
+    // I/V Stage detail
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(280, 210, 150, 150);
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('I/V Conversion:', 290, 235);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    ctx.fillText('Vout = Iout × Rfb', 290, 260);
+    ctx.fillText('Rfb = 1kΩ → 1mA = 1V', 290, 280);
+    ctx.fillText('Low noise op-amp', 290, 300);
+    ctx.fillText('e.g., OPA1612', 290, 320);
+
+    // Filter detail
+    ctx.strokeRect(450, 210, 150, 150);
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('Anti-Image Filter:', 460, 235);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    ctx.fillText('Removes images at', 460, 260);
+    ctx.fillText('multiples of Fs', 460, 280);
+    ctx.fillText('2nd order Butterworth', 460, 300);
+    ctx.fillText('fc = 50kHz typical', 460, 320);
+
+    // Key specs box
+    ctx.strokeRect(620, 210, 170, 150);
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('Target Specs:', 630, 235);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    const specs = [
+        'THD+N < 0.001%',
+        'SNR > 110dB',
+        'Noise < 2µVrms',
+        'Output Z < 1Ω',
+        'BW: 20Hz-20kHz'
+    ];
+    specs.forEach((spec, i) => {
+        ctx.fillText(spec, 630, 260 + i * 20);
+    });
 })();
 </script>

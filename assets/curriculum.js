@@ -1,6 +1,6 @@
 /**
  * Curriculum Data - Analog Design Refresher Course
- * 25 Modules, 336 Lessons.
+ * 26 Modules, 359 Lessons, in teaching order.
  * Counts are derived at runtime from this array (CURRICULUM.totalModules /
  * CURRICULUM.totalLessons) - keep one entry here per lessons/module-NN/lesson-NN.html
  * file or the lesson will exist on disk but never appear in the sidebar.
@@ -8,340 +8,107 @@
 
 const CURRICULUM = {
     modules: [
-        // ========== MODULE 1: Transistor Intuition ==========
+        // ========== MODULE 1: Op-Amp Fundamentals ==========
         {
             id: 1,
-            title: 'Transistor Intuition (BJT)',
-            description: 'Device-level understanding of bipolar junction transistors',
-            lessons: [
-                {
-                    id: 1,
-                    title: 'BJT as Voltage-Controlled Current Source',
-                    description: 'Ebers-Moll model, gm, re, temperature effects',
-                    topics: ['IC vs VBE exponential curve', 'gm = IC/VT = 40×IC(mA)', 're = 25/IC(mA)', 'VBE drift: -2.1mV/°C']
-                },
-                {
-                    id: 2,
-                    title: 'Common-Emitter Amplifier',
-                    description: 'Gain, biasing, input/output impedance',
-                    topics: ['G = -RC/(RE + re)', 'Voltage divider bias', 'Phase inversion', 'Clipping behavior']
-                },
-                {
-                    id: 3,
-                    title: 'Differential Pair',
-                    description: 'How the diff pair creates op-amp front-end',
-                    topics: ['Transfer characteristic', 'Gdiff = RC/(2(RE + re))', 'CMRR with current source tail', 'Common-mode rejection']
-                },
-                {
-                    id: 4,
-                    title: 'Current Mirrors',
-                    description: 'Simple, Wilson, and cascode configurations',
-                    topics: ['Matched transistor principle', 'Output impedance comparison', 'Compliance range', 'Early effect']
-                },
-                {
-                    id: 5,
-                    title: 'DC Biasing Techniques',
-                    description: 'Fixed, voltage-divider, and emitter bias',
-                    topics: ['β-independent design', 'Stiffness rule', 'Thermal stability', 'Q-point calculation']
-                },
-                {
-                    id: 6,
-                    title: 'Emitter Follower (Common-Collector)',
-                    description: 'Unity gain buffer with high input impedance',
-                    topics: ['Av ≈ 1', 'Zin = β(RE + re)', 'Zout = RS/β + re', 'Current gain']
-                },
-                {
-                    id: 7,
-                    title: 'Common-Base Amplifier',
-                    description: 'Low input impedance, high frequency performance',
-                    topics: ['Zin ≈ re', 'No Miller effect', 'Current buffer', 'Cascode lower device']
-                },
-                {
-                    id: 8,
-                    title: 'BJT as a Switch',
-                    description: 'Saturation, cutoff, and switching times',
-                    topics: ['Saturation conditions', 'Forced β', 'Storage time', 'Speed-up capacitor']
-                },
-                {
-                    id: 9,
-                    title: 'BJT Frequency Response',
-                    description: 'fT, fβ, and high-frequency limitations',
-                    topics: ['Transition frequency', 'Miller effect', 'Hybrid-pi model', 'Bandwidth estimation']
-                },
-                {
-                    id: 10,
-                    title: 'Power BJTs and Thermal Design',
-                    description: 'SOA, thermal resistance, and heatsinking',
-                    topics: ['Secondary breakdown', 'RθJC/RθJA', 'Thermal runaway', 'Derating curves']
-                },
-                {
-                    id: 11,
-                    title: 'Cascode Amplifier',
-                    description: 'CE-CB cascade for high bandwidth and gain',
-                    topics: ['Miller elimination', 'Output impedance', 'Voltage gain', 'Folded cascode']
-                },
-                {
-                    id: 12,
-                    title: 'Darlington and Sziklai Pairs',
-                    description: 'Compound transistors for high β',
-                    topics: ['β multiplication', 'VBE(sat) = 2VBE', 'Sziklai (complementary)', 'Speed vs gain']
-                },
-                {
-                    id: 13,
-                    title: 'BJT Noise Analysis',
-                    description: 'Shot noise, thermal noise, 1/f noise',
-                    topics: ['in² = 2qIC', 'Noise figure', 'Optimal collector current', 'Low-noise design']
-                },
-                {
-                    id: 14,
-                    title: 'Temperature Compensation Techniques',
-                    description: 'Bias stability and drift cancellation',
-                    topics: ['Diode compensation', 'PTAT currents', 'Matched pairs', 'Thermal tracking']
-                },
-                {
-                    id: 15,
-                    title: 'Multistage Amplifier Design',
-                    description: 'Cascading gain stages, coupling, and feedback',
-                    topics: ['DC coupling', 'Impedance matching', 'Overall gain', 'Feedback techniques']
-                },
-                {
-                    id: 16,
-                    title: 'BJT in Bandgap References',
-                    description: 'PTAT + CTAT for stable voltage reference',
-                    topics: ['ΔVBE generation', '1.2V reference', 'Temperature coefficient', 'Curvature correction']
-                },
-                {
-                    id: 17,
-                    title: 'BJT Current Limiters and Foldback Protection',
-                    description: 'Overcurrent protection circuits',
-                    topics: ['Simple current limit', 'Foldback characteristic', 'Safe operating area', 'Sense resistor']
-                },
-                {
-                    id: 18,
-                    title: 'BJT Active Loads',
-                    description: 'Current source loads for high gain',
-                    topics: ['Current source vs resistor', 'Gain = gm × ro', 'Output swing', 'Common-mode range']
-                },
-                {
-                    id: 19,
-                    title: 'BJT Oscillators',
-                    description: 'Colpitts, Hartley, and crystal oscillators',
-                    topics: ['Barkhausen criterion', 'Tank circuit', 'Start-up conditions', 'Amplitude limiting']
-                },
-                {
-                    id: 20,
-                    title: 'Industry BJT Selection Guide',
-                    description: 'Choosing the right BJT for your application',
-                    topics: ['2N3904/2N3906', 'BC547/BC557', 'Power transistors', 'RF transistors']
-                },
-                {
-                    id: 21,
-                    title: 'BJT High-Frequency AC Model',
-                    description: 'Miller effect, fT, and hybrid-pi capacitances',
-                    topics: ['Cπ and Cμ', 'Miller multiplication', 'Gain-bandwidth product', 'fT vs IC curve']
-                },
-                {
-                    id: 22,
-                    title: 'BJT Amplifier Distortion',
-                    description: 'Nonlinearity, harmonic distortion, and intermodulation',
-                    topics: ['Exponential nonlinearity', 'THD analysis', 'Emitter degeneration', 'Feedback linearization']
-                },
-                {
-                    id: 23,
-                    title: 'Emitter Follower Oscillation',
-                    description: 'Parasitic oscillation and why output looks inductive',
-                    topics: ['Inductive output impedance', 'Capacitive load instability', 'Base stopper resistor', 'Ferrite beads']
-                },
-                {
-                    id: 24,
-                    title: 'Wideband BJT Amplifiers',
-                    description: 'Design for maximum bandwidth',
-                    topics: ['Load capacitance reduction', 'Shunt peaking', 'Distributed amplifiers', 'Cherry-Hooper']
-                },
-                {
-                    id: 25,
-                    title: 'Low-Current BJT Operation',
-                    description: 'Micropower design and β degradation',
-                    topics: ['β vs IC at low currents', 'Leakage currents', 'fT reduction', 'Precision bias']
-                },
-                {
-                    id: 26,
-                    title: 'High-Current BJT Effects',
-                    description: 'Kirk effect, β droop, and quasi-saturation',
-                    topics: ['High-level injection', 'Base widening', 'Current crowding', 'fT degradation']
-                },
-                {
-                    id: 27,
-                    title: 'BJT SPICE Modeling',
-                    description: 'Gummel-Poon model parameters and simulation',
-                    topics: ['IS, BF, BR', 'Early voltage VA', 'Transit time TF', 'Capacitance parameters']
-                },
-                {
-                    id: 28,
-                    title: 'Translinear Circuits',
-                    description: 'Log-domain signal processing with BJTs',
-                    topics: ['Translinear principle', 'Analog multipliers', 'RMS-to-DC converters', 'Log amplifiers']
-                },
-                {
-                    id: 29,
-                    title: 'BJT Output Stages',
-                    description: 'Class A, B, AB push-pull designs',
-                    topics: ['Crossover distortion', 'Vbe multiplier bias', 'Thermal stability', 'Quasi-complementary']
-                },
-                {
-                    id: 30,
-                    title: 'BJT vs MOSFET Trade-offs',
-                    description: 'When to use BJT over MOSFET and vice versa',
-                    topics: ['gm per current', 'Input impedance', 'Noise performance', 'Matching']
-                },
-                {
-                    id: 31,
-                    title: 'High-Speed BJT Circuits',
-                    description: 'ECL logic and fast switching',
-                    topics: ['ECL gates', 'Non-saturating design', 'Current steering', 'Transmission line drivers']
-                },
-                {
-                    id: 32,
-                    title: 'BJT Bootstrapping Techniques',
-                    description: 'Increasing input impedance and swing',
-                    topics: ['Bootstrap capacitor', 'Constant current drive', 'Voltage swing extension', 'Stability considerations']
-                },
-                {
-                    id: 33,
-                    title: 'BJT in Feedback Amplifiers',
-                    description: 'Series-shunt, shunt-series feedback topologies',
-                    topics: ['Four feedback topologies', 'Gain desensitization', 'Bandwidth extension', 'Input/output impedance']
-                },
-                {
-                    id: 34,
-                    title: 'Precision BJT Matched Pairs',
-                    description: 'Matched transistors for precision analog',
-                    topics: ['VBE matching', 'Thermal coupling', 'MAT02/MAT03', 'Differential offset']
-                },
-                {
-                    id: 35,
-                    title: 'BJT Design Case Studies',
-                    description: 'Real-world designs analyzed step by step',
-                    topics: ['20V 5ns amplifier', 'Audio power amp', 'Precision current source', 'RF LNA design']
-                },
-                // The learning path's final step. Not "how does this work" but
-                // "which part do I buy, and does it still meet spec".
-                {
-                    id: 36,
-                    title: 'Design: A Current Mirror from a Datasheet',
-                    description: 'An error budget against a real spec, and choosing the part that meets it',
-                    topics: ['VBE mismatch = dVBE/VT', 'Matched pairs: 2N3904 vs BC847BS vs MAT12',
-                             'Emitter degeneration: money or headroom', 'Early effect and the cascode fix']
-                }
-            ]
-        },
-
-        // ========== MODULE 2: Op-Amp Fundamentals ==========
-        {
-            id: 2,
             title: 'Op-Amp Fundamentals',
             description: 'Golden rules, basic configurations, real-world limitations',
             lessons: [
                 {
                     id: 1,
+                    title: 'The Ideal Amplifier',
+                    description: 'Gain, Zin, Zout, and why there are exactly four kinds of amplifier',
+                    topics: ['Four amplifier types', 'Source loading derivation', 'Zin/Rs error rule', 'Real input stages: LM358 to LMP7721']
+                },
+                {
+                    id: 2,
                     title: 'Golden Rules and Basic Configurations',
                     description: 'Inverting, non-inverting, buffer, summing, difference',
                     topics: ['Rule I: Inputs draw no current', 'Rule II: V+ = V- with feedback', 'Gain formulas', 'Input/output impedance']
                 },
                 {
-                    id: 2,
-                    title: 'Bandwidth and Slew Rate',
-                    description: 'GBW product, slew rate limiting, Bode plots',
-                    topics: ['BW = GBW/Gain', 'Slew-limited response', 'Phase margin', 'Compensation']
-                },
-                {
                     id: 3,
-                    title: 'DC Errors (Vos, Ib, Ios)',
-                    description: 'Offset voltage, bias current, temperature effects',
-                    topics: ['BJT vs JFET vs CMOS inputs', 'Error budget calculation', 'Bias current compensation', 'Tempco']
-                },
-                {
-                    id: 4,
                     title: 'Integrator and Differentiator',
                     description: 'Time-domain processing with op-amps',
                     topics: ['Integrator: Vout = -(1/RC)∫Vin dt', 'DC drift prevention', 'Differentiator stability', 'Practical limits']
                 },
                 {
+                    id: 4,
+                    title: 'Bandwidth and Slew Rate',
+                    description: 'GBW product, slew rate limiting, Bode plots',
+                    topics: ['BW = GBW/Gain', 'Slew-limited response', 'Phase margin', 'Compensation']
+                },
+                {
                     id: 5,
-                    title: 'Op-Amp Input Bias Current Compensation',
-                    description: 'Matching resistors and compensation techniques',
-                    topics: ['Bias current effects', 'Matching technique', 'FET vs BJT inputs', 'Error analysis']
+                    title: 'DC Errors (Vos, Ib, Ios)',
+                    description: 'Offset voltage, bias current, temperature effects',
+                    topics: ['BJT vs JFET vs CMOS inputs', 'Error budget calculation', 'Bias current compensation', 'Tempco']
                 },
                 {
                     id: 6,
-                    title: 'Composite Amplifiers',
-                    description: 'Combining op-amps for improved performance',
-                    topics: ['Gain × bandwidth extension', 'Precision composites', 'High-speed composites', 'Stability concerns']
-                },
-                {
-                    id: 7,
-                    title: 'Current Feedback Amplifiers (CFAs)',
-                    description: 'Transimpedance-based amplifiers for high speed',
-                    topics: ['CFA architecture', 'Gain-independent bandwidth', 'Feedback resistor selection', 'When to use CFAs']
-                },
-                {
-                    id: 8,
-                    title: 'Op-Amp Stability and Compensation',
-                    description: 'Phase margin, dominant pole, and compensation',
-                    topics: ['Loop gain analysis', 'Phase margin requirements', 'Compensation techniques', 'Capacitive loads']
-                },
-                {
-                    id: 9,
                     title: 'Power Supply Rejection Ratio (PSRR)',
                     description: 'Immunity to supply noise and ripple',
                     topics: ['PSRR definition', 'Frequency dependence', 'Design implications', 'Bypassing strategies']
                 },
                 {
-                    id: 10,
+                    id: 7,
+                    title: 'Op-Amp Stability and Compensation',
+                    description: 'Phase margin, dominant pole, and compensation',
+                    topics: ['Loop gain analysis', 'Phase margin requirements', 'Compensation techniques', 'Capacitive loads']
+                },
+                {
+                    id: 8,
+                    title: 'Op-Amp Input Bias Current Compensation',
+                    description: 'Matching resistors and compensation techniques',
+                    topics: ['Bias current effects', 'Matching technique', 'FET vs BJT inputs', 'Error analysis']
+                },
+                {
+                    id: 9,
                     title: 'Op-Amp Output Stage and Current Drive',
                     description: 'Output current capability and drive limitations',
                     topics: ['Output swing limits', 'Current limiting', 'Short-circuit protection', 'Boosting output current']
                 },
                 {
-                    id: 11,
+                    id: 10,
                     title: 'Fully Differential Amplifiers',
                     description: 'Differential I/O for ADC drivers and noise rejection',
                     topics: ['FDA architecture', 'Common-mode output', 'ADC driver design', 'Noise advantages']
                 },
                 {
-                    id: 12,
+                    id: 11,
                     title: 'Precision Rectifiers',
                     description: 'Ideal diode function with op-amps',
                     topics: ['Half-wave rectifier', 'Full-wave rectifier', 'Absolute value circuit', 'Recovery time']
                 },
                 {
-                    id: 13,
+                    id: 12,
                     title: 'Voltage References with Op-Amps',
                     description: 'Building stable voltage references',
                     topics: ['Reference buffering', 'Precision dividers', 'Temperature compensation', 'Noise filtering']
                 },
                 {
+                    id: 13,
+                    title: 'Composite Amplifiers',
+                    description: 'Combining op-amps for improved performance',
+                    topics: ['Gain × bandwidth extension', 'Precision composites', 'High-speed composites', 'Stability concerns']
+                },
+                {
                     id: 14,
+                    title: 'Current Feedback Amplifiers (CFAs)',
+                    description: 'Transimpedance-based amplifiers for high speed',
+                    topics: ['CFA architecture', 'Gain-independent bandwidth', 'Feedback resistor selection', 'When to use CFAs']
+                },
+                {
+                    id: 15,
                     title: 'Industry Op-Amp Selection Guide',
                     description: 'Choosing the right op-amp for your application',
                     topics: ['General purpose', 'Precision', 'High-speed', 'Low-power']
-                },
-                // Written for the learning path. It is the FIRST step there and
-                // the last entry here, because the catalogue orders by topic and
-                // the path orders by what has to be understood first.
-                {
-                    id: 15,
-                    title: 'The Ideal Amplifier',
-                    description: 'Gain, Zin, Zout, and why there are exactly four kinds of amplifier',
-                    topics: ['Four amplifier types', 'Source loading derivation',
-                             'Zin/Rs error rule', 'Real input stages: LM358 to LMP7721']
                 }
             ]
         },
-
-        // ========== MODULE 3: Advanced Applications ==========
+        // ========== MODULE 2: Advanced Applications ==========
         {
-            id: 3,
+            id: 2,
             title: 'Advanced Applications',
             description: 'Active filters, TIA, instrumentation amplifiers, noise',
             lessons: [
@@ -431,94 +198,298 @@ const CURRICULUM = {
                 }
             ]
         },
-
-        // ========== MODULE 4: Practical Skills ==========
+        // ========== MODULE 3: Feedback Theory & Stability ==========
         {
-            id: 4,
-            title: 'Practical Skills',
-            description: 'Oscilloscope, PCB layout, troubleshooting workflow',
+            id: 3,
+            title: 'Feedback Theory & Stability',
+            description: 'Rigorous treatment of feedback systems following Razavi and Agarwal methodology',
             lessons: [
                 {
                     id: 1,
-                    title: 'Oscilloscope Techniques',
-                    description: 'Probing, measurements, common mistakes',
-                    topics: ['Probe compensation', 'Bandwidth requirements', 'Ground lead length', 'Common errors']
+                    title: 'Feedback Fundamentals',
+                    description: 'Open/closed loop gain, desensitization, loop gain',
+                    topics: ['A/(1+Aβ) derivation', 'Sensitivity analysis', 'Gain-bandwidth product', 'Four effects of feedback']
                 },
                 {
                     id: 2,
-                    title: 'PCB Layout Awareness',
-                    description: 'Ground planes, bypass caps, analog/digital separation',
-                    topics: ['Single ground plane', 'Partition (not split)', 'Bypass cap placement', 'Trace routing']
+                    title: 'Feedback Topologies',
+                    description: 'Series-shunt, shunt-series, series-series, shunt-shunt',
+                    topics: ['Input/output impedance effects', 'Topology identification', 'Loading effects', 'Practical examples']
                 },
                 {
                     id: 3,
-                    title: 'Troubleshooting Workflow',
-                    description: 'Systematic debugging approach',
-                    topics: ['Power → Bias → Signal → Load', 'Common symptoms', 'Quick fix patterns', 'Isolation techniques']
+                    title: 'Stability Analysis',
+                    description: 'Bode plots, phase margin, gain margin',
+                    topics: ['Barkhausen criterion', 'Phase/gain margin', 'Pole/zero effects', 'Capacitive load stability']
                 },
                 {
                     id: 4,
-                    title: 'Soldering and Rework Techniques',
-                    description: 'Hand soldering, SMD rework, IPC standards',
-                    topics: ['Good solder joint', 'SMD rework', 'Common defects', 'IPC standards']
+                    title: 'Compensation Techniques',
+                    description: 'Dominant pole, Miller, lead-lag compensation',
+                    topics: ['Pole splitting', 'Miller capacitor sizing', 'Lead compensation', 'Nested Miller']
                 },
                 {
                     id: 5,
-                    title: 'Test Equipment Essentials',
-                    description: 'Multimeters, LCR meters, power supplies',
-                    topics: ['Core equipment', 'Measurement accuracy', 'Equipment calibration', 'Safety considerations']
+                    title: 'Two-Stage Amplifier Compensation',
+                    description: 'Miller compensation for multi-stage op-amps',
+                    topics: ['741-style analysis', 'GBW vs CC tradeoff', 'Right-half-plane zero', 'Nulling resistor']
                 },
                 {
                     id: 6,
-                    title: 'Signal Integrity Basics',
-                    description: 'Transmission lines, reflections, crosstalk',
-                    topics: ['Critical speed', 'Impedance matching', 'Termination', 'Eye diagrams']
+                    title: 'Stability with Reactive Loads',
+                    description: 'Capacitive and inductive load handling',
+                    topics: ['Isolation resistor', 'In-loop compensation', 'Snubber networks', 'Cable driving']
                 },
                 {
                     id: 7,
-                    title: 'Thermal Design and Heat Management',
-                    description: 'Thermal resistance, derating, cooling',
-                    topics: ['Thermal resistance network', 'Junction temperature', 'Heatsink selection', 'Forced air cooling']
+                    title: 'Power Supply Loop Stability',
+                    description: 'Type I, II, III compensators for switching converters',
+                    topics: ['Voltage-mode vs current-mode', 'Compensator design procedure', 'Optocoupler phase shift', 'Loop gain measurement']
                 },
                 {
                     id: 8,
-                    title: 'EMC/EMI Fundamentals',
-                    description: 'Emissions, immunity, and compliance',
-                    topics: ['EMI sources', 'EMC standards', 'Filtering techniques', 'Shielding']
+                    title: 'Nyquist Stability Criterion',
+                    description: 'Advanced stability analysis using Nyquist plots',
+                    topics: ['Encirclement count', 'Conditionally stable systems', 'Right-half-plane poles', 'Gain/phase margin from Nyquist']
                 },
                 {
                     id: 9,
-                    title: 'Prototyping Best Practices',
-                    description: 'Breadboard to PCB transitions',
-                    topics: ['Prototyping stages', 'Component selection', 'Test points', 'Design for debug']
+                    title: 'Root Locus Analysis',
+                    description: 'Tracking poles as loop gain varies',
+                    topics: ['Root locus rules', 'Breakaway points', 'Dominant pole design', 'Lead-lag placement']
                 },
                 {
                     id: 10,
-                    title: 'Debugging Analog Circuits',
-                    description: 'Systematic analog troubleshooting',
-                    topics: ['First rule', 'DC operating point', 'Signal tracing', 'Common failures']
-                },
-                {
-                    id: 11,
-                    title: 'Documentation and Schematics',
-                    description: 'Professional schematic and documentation practices',
-                    topics: ['Schematic best practices', 'BOM creation', 'Design notes', 'Revision control']
-                },
-                {
-                    id: 12,
-                    title: 'Design for Manufacturing (DFM)',
-                    description: 'Manufacturing-ready design practices',
-                    topics: ['DFM goal', 'Component placement', 'Panelization', 'Test coverage']
-                },
-                {
-                    id: 13,
-                    title: 'Environmental Testing and Reliability',
-                    description: 'Temperature, humidity, and vibration testing',
-                    topics: ['Environmental stresses', 'HALT/HASS', 'Reliability prediction', 'Failure analysis']
+                    title: 'Feedback Design Case Studies',
+                    description: 'Complete worked examples from Razavi and Art of Electronics',
+                    topics: ['Precision amplifier', 'High-speed buffer', 'Transimpedance amplifier', 'Power supply compensator']
                 }
             ]
         },
-
+        // ========== MODULE 4: Transistor Intuition (BJT) ==========
+        {
+            id: 4,
+            title: 'Transistor Intuition (BJT)',
+            description: 'Device-level understanding of bipolar junction transistors',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'BJT as Voltage-Controlled Current Source',
+                    description: 'Ebers-Moll model, gm, re, temperature effects',
+                    topics: ['IC vs VBE exponential curve', 'gm = IC/VT = 40×IC(mA)', 're = 25/IC(mA)', 'VBE drift: -2.1mV/°C']
+                },
+                {
+                    id: 2,
+                    title: 'BJT High-Frequency AC Model',
+                    description: 'Miller effect, fT, and hybrid-pi capacitances',
+                    topics: ['Cπ and Cμ', 'Miller multiplication', 'Gain-bandwidth product', 'fT vs IC curve']
+                },
+                {
+                    id: 3,
+                    title: 'DC Biasing Techniques',
+                    description: 'Fixed, voltage-divider, and emitter bias',
+                    topics: ['β-independent design', 'Stiffness rule', 'Thermal stability', 'Q-point calculation']
+                },
+                {
+                    id: 4,
+                    title: 'Common-Emitter Amplifier',
+                    description: 'Gain, biasing, input/output impedance',
+                    topics: ['G = -RC/(RE + re)', 'Voltage divider bias', 'Phase inversion', 'Clipping behavior']
+                },
+                {
+                    id: 5,
+                    title: 'Emitter Follower (Common-Collector)',
+                    description: 'Unity gain buffer with high input impedance',
+                    topics: ['Av ≈ 1', 'Zin = β(RE + re)', 'Zout = RS/β + re', 'Current gain']
+                },
+                {
+                    id: 6,
+                    title: 'Common-Base Amplifier',
+                    description: 'Low input impedance, high frequency performance',
+                    topics: ['Zin ≈ re', 'No Miller effect', 'Current buffer', 'Cascode lower device']
+                },
+                {
+                    id: 7,
+                    title: 'BJT as a Switch',
+                    description: 'Saturation, cutoff, and switching times',
+                    topics: ['Saturation conditions', 'Forced β', 'Storage time', 'Speed-up capacitor']
+                },
+                {
+                    id: 8,
+                    title: 'Cascode Amplifier',
+                    description: 'CE-CB cascade for high bandwidth and gain',
+                    topics: ['Miller elimination', 'Output impedance', 'Voltage gain', 'Folded cascode']
+                },
+                {
+                    id: 9,
+                    title: 'Differential Pair',
+                    description: 'How the diff pair creates op-amp front-end',
+                    topics: ['Transfer characteristic', 'Gdiff = RC/(2(RE + re))', 'CMRR with current source tail', 'Common-mode rejection']
+                },
+                {
+                    id: 10,
+                    title: 'Current Mirrors',
+                    description: 'Simple, Wilson, and cascode configurations',
+                    topics: ['Matched transistor principle', 'Output impedance comparison', 'Compliance range', 'Early effect']
+                },
+                {
+                    id: 11,
+                    title: 'BJT Active Loads',
+                    description: 'Current source loads for high gain',
+                    topics: ['Current source vs resistor', 'Gain = gm × ro', 'Output swing', 'Common-mode range']
+                },
+                {
+                    id: 12,
+                    title: 'Darlington and Sziklai Pairs',
+                    description: 'Compound transistors for high β',
+                    topics: ['β multiplication', 'VBE(sat) = 2VBE', 'Sziklai (complementary)', 'Speed vs gain']
+                },
+                {
+                    id: 13,
+                    title: 'BJT Frequency Response',
+                    description: 'fT, fβ, and high-frequency limitations',
+                    topics: ['Transition frequency', 'Miller effect', 'Hybrid-pi model', 'Bandwidth estimation']
+                },
+                {
+                    id: 14,
+                    title: 'BJT Amplifier Distortion',
+                    description: 'Nonlinearity, harmonic distortion, and intermodulation',
+                    topics: ['Exponential nonlinearity', 'THD analysis', 'Emitter degeneration', 'Feedback linearization']
+                },
+                {
+                    id: 15,
+                    title: 'BJT Noise Analysis',
+                    description: 'Shot noise, thermal noise, 1/f noise',
+                    topics: ['in² = 2qIC', 'Noise figure', 'Optimal collector current', 'Low-noise design']
+                },
+                {
+                    id: 16,
+                    title: 'Temperature Compensation Techniques',
+                    description: 'Bias stability and drift cancellation',
+                    topics: ['Diode compensation', 'PTAT currents', 'Matched pairs', 'Thermal tracking']
+                },
+                {
+                    id: 17,
+                    title: 'Multistage Amplifier Design',
+                    description: 'Cascading gain stages, coupling, and feedback',
+                    topics: ['DC coupling', 'Impedance matching', 'Overall gain', 'Feedback techniques']
+                },
+                {
+                    id: 18,
+                    title: 'BJT in Bandgap References',
+                    description: 'PTAT + CTAT for stable voltage reference',
+                    topics: ['ΔVBE generation', '1.2V reference', 'Temperature coefficient', 'Curvature correction']
+                },
+                {
+                    id: 19,
+                    title: 'BJT Current Limiters and Foldback Protection',
+                    description: 'Overcurrent protection circuits',
+                    topics: ['Simple current limit', 'Foldback characteristic', 'Safe operating area', 'Sense resistor']
+                },
+                {
+                    id: 20,
+                    title: 'BJT Oscillators',
+                    description: 'Colpitts, Hartley, and crystal oscillators',
+                    topics: ['Barkhausen criterion', 'Tank circuit', 'Start-up conditions', 'Amplitude limiting']
+                },
+                {
+                    id: 21,
+                    title: 'Emitter Follower Oscillation',
+                    description: 'Parasitic oscillation and why output looks inductive',
+                    topics: ['Inductive output impedance', 'Capacitive load instability', 'Base stopper resistor', 'Ferrite beads']
+                },
+                {
+                    id: 22,
+                    title: 'Wideband BJT Amplifiers',
+                    description: 'Design for maximum bandwidth',
+                    topics: ['Load capacitance reduction', 'Shunt peaking', 'Distributed amplifiers', 'Cherry-Hooper']
+                },
+                {
+                    id: 23,
+                    title: 'Low-Current BJT Operation',
+                    description: 'Micropower design and β degradation',
+                    topics: ['β vs IC at low currents', 'Leakage currents', 'fT reduction', 'Precision bias']
+                },
+                {
+                    id: 24,
+                    title: 'High-Current BJT Effects',
+                    description: 'Kirk effect, β droop, and quasi-saturation',
+                    topics: ['High-level injection', 'Base widening', 'Current crowding', 'fT degradation']
+                },
+                {
+                    id: 25,
+                    title: 'BJT SPICE Modeling',
+                    description: 'Gummel-Poon model parameters and simulation',
+                    topics: ['IS, BF, BR', 'Early voltage VA', 'Transit time TF', 'Capacitance parameters']
+                },
+                {
+                    id: 26,
+                    title: 'Translinear Circuits',
+                    description: 'Log-domain signal processing with BJTs',
+                    topics: ['Translinear principle', 'Analog multipliers', 'RMS-to-DC converters', 'Log amplifiers']
+                },
+                {
+                    id: 27,
+                    title: 'BJT Output Stages',
+                    description: 'Class A, B, AB push-pull designs',
+                    topics: ['Crossover distortion', 'Vbe multiplier bias', 'Thermal stability', 'Quasi-complementary']
+                },
+                {
+                    id: 28,
+                    title: 'BJT vs MOSFET Trade-offs',
+                    description: 'When to use BJT over MOSFET and vice versa',
+                    topics: ['gm per current', 'Input impedance', 'Noise performance', 'Matching']
+                },
+                {
+                    id: 29,
+                    title: 'High-Speed BJT Circuits',
+                    description: 'ECL logic and fast switching',
+                    topics: ['ECL gates', 'Non-saturating design', 'Current steering', 'Transmission line drivers']
+                },
+                {
+                    id: 30,
+                    title: 'BJT Bootstrapping Techniques',
+                    description: 'Increasing input impedance and swing',
+                    topics: ['Bootstrap capacitor', 'Constant current drive', 'Voltage swing extension', 'Stability considerations']
+                },
+                {
+                    id: 31,
+                    title: 'BJT in Feedback Amplifiers',
+                    description: 'Series-shunt, shunt-series feedback topologies',
+                    topics: ['Four feedback topologies', 'Gain desensitization', 'Bandwidth extension', 'Input/output impedance']
+                },
+                {
+                    id: 32,
+                    title: 'Precision BJT Matched Pairs',
+                    description: 'Matched transistors for precision analog',
+                    topics: ['VBE matching', 'Thermal coupling', 'MAT02/MAT03', 'Differential offset']
+                },
+                {
+                    id: 33,
+                    title: 'Power BJTs and Thermal Design',
+                    description: 'SOA, thermal resistance, and heatsinking',
+                    topics: ['Secondary breakdown', 'RθJC/RθJA', 'Thermal runaway', 'Derating curves']
+                },
+                {
+                    id: 34,
+                    title: 'Industry BJT Selection Guide',
+                    description: 'Choosing the right BJT for your application',
+                    topics: ['2N3904/2N3906', 'BC547/BC557', 'Power transistors', 'RF transistors']
+                },
+                {
+                    id: 35,
+                    title: 'BJT Design Case Studies',
+                    description: 'Real-world designs analyzed step by step',
+                    topics: ['20V 5ns amplifier', 'Audio power amp', 'Precision current source', 'RF LNA design']
+                },
+                {
+                    id: 36,
+                    title: 'Design: A Current Mirror from a Datasheet',
+                    description: 'An error budget against a real spec, and choosing the part that meets it',
+                    topics: ['VBE mismatch = dVBE/VT', 'Matched pairs: 2N3904 vs BC847BS vs MAT12', 'Emitter degeneration: money or headroom', 'Early effect and the cascode fix']
+                }
+            ]
+        },
         // ========== MODULE 5: FET/MOSFET Fundamentals ==========
         {
             id: 5,
@@ -533,33 +504,33 @@ const CURRICULUM = {
                 },
                 {
                     id: 2,
-                    title: 'MOSFET Switching',
-                    description: 'Regions of operation and switching behavior',
-                    topics: ['Cutoff/Triode/Saturation', 'RDS(on)', 'Miller effect', 'Switching loss intuition']
+                    title: 'MOSFET Small-Signal Model and gm',
+                    description: 'Where gm comes from, and why it grows only as the square root of current',
+                    topics: ['gm = sqrt(2k·ID) = 2ID/Vov', 'Square-root vs linear against the BJT', 'ro and intrinsic gain 2VA/Vov', 'Ciss/Coss/Crss to Cgs/Cgd']
                 },
                 {
                     id: 3,
-                    title: 'MOSFET Amplifiers',
-                    description: 'Common-source gain and biasing concepts',
-                    topics: ['Common-source', 'Source degeneration', 'gm·RD gain', 'Bias networks']
+                    title: 'The Common-Source Amplifier',
+                    description: 'The FET voltage amplifier, and biasing it so the gain equation stays true',
+                    topics: ['Av = -gm(RD||ro)', 'Source degeneration and -RD/RS', 'Worked 12 V design', 'Why fixed-VGS biasing fails on Vth spread']
                 },
                 {
                     id: 4,
-                    title: 'MOSFET Applications',
-                    description: 'Current sources, analog switches, and blocks',
-                    topics: ['Current source/sink', 'Transmission gate intuition', 'Body diode', 'Tradeoffs']
+                    title: 'What the Square Law Gets Wrong',
+                    description: 'Where the model breaks: subthreshold, velocity saturation, and real Vth spread',
+                    topics: ['Subthreshold exponential region', 'Velocity saturation and short channels', 'Channel-length modulation', 'Vth spread, matching and temperature']
                 },
                 {
                     id: 5,
-                    title: 'MOSFET as a Switch',
-                    description: 'Power switching concepts and losses',
-                    topics: ['Conduction vs switching loss', 'SOA intuition', 'Gate charge', 'Layout sensitivity']
+                    title: 'Body Effect & Back Gate',
+                    description: 'Threshold shift with VSB and gmb',
+                    topics: ['Vth(VSB)', 'gmb path', 'Source follower headroom', 'Body diode']
                 },
                 {
                     id: 6,
-                    title: 'Gate Drive Design',
-                    description: 'Qg, Rg, Miller, and driver sizing',
-                    topics: ['Qg/Vdrv/fsw power', 'Peak gate current', 'Ring/EMI control', 'Dedicated drivers']
+                    title: 'MOSFET Amplifiers',
+                    description: 'Common-source gain and biasing concepts',
+                    topics: ['Common-source', 'Source degeneration', 'gm·RD gain', 'Bias networks']
                 },
                 {
                     id: 7,
@@ -569,484 +540,105 @@ const CURRICULUM = {
                 },
                 {
                     id: 8,
-                    title: 'Body Effect & Back Gate',
-                    description: 'Threshold shift with VSB and gmb',
-                    topics: ['Vth(VSB)', 'gmb path', 'Source follower headroom', 'Body diode']
-                },
-                {
-                    id: 9,
-                    title: 'Power MOSFET Thermal Design',
-                    description: 'Loss estimates and junction temperature',
-                    topics: ['I^2R loss', 'Switching loss', 'RθJA/JC', 'Thermal margins']
-                },
-                {
-                    id: 10,
                     title: 'CMOS Inverter Fundamentals',
                     description: 'VTC, noise margins, and dynamic power',
                     topics: ['VTC shape', 'Switching point', 'Dynamic energy', 'Short-circuit current']
                 },
                 {
+                    id: 9,
+                    title: 'MOSFET as a Switch',
+                    description: 'Power switching concepts and losses',
+                    topics: ['Conduction vs switching loss', 'SOA intuition', 'Gate charge', 'Layout sensitivity']
+                },
+                {
+                    id: 10,
+                    title: 'MOSFET Switching',
+                    description: 'Regions of operation and switching behavior',
+                    topics: ['Cutoff/Triode/Saturation', 'RDS(on)', 'Miller effect', 'Switching loss intuition']
+                },
+                {
                     id: 11,
+                    title: 'Gate Drive Design',
+                    description: 'Qg, Rg, Miller, and driver sizing',
+                    topics: ['Qg/Vdrv/fsw power', 'Peak gate current', 'Ring/EMI control', 'Dedicated drivers']
+                },
+                {
+                    id: 12,
                     title: 'MOSFET Gate Drivers',
                     description: 'Driving gate charge fast enough to keep switching loss down',
                     topics: ['Gate charge (Qg) curve', 'Driver topologies', 'Gate resistor selection', 'Ringing and shoot-through']
                 },
                 {
-                    id: 12,
+                    id: 13,
                     title: 'Body Diode and Synchronous Rectification',
                     description: 'Intrinsic diode behavior and replacing diodes with FETs',
                     topics: ['Body diode structure', 'Reverse recovery', 'Sync rect loss savings', 'Dead-time conduction']
                 },
                 {
-                    id: 13,
+                    id: 14,
                     title: 'MOSFET Safe Operating Area',
                     description: 'SOA limits and why linear-mode operation is dangerous',
                     topics: ['SOA diagram regions', 'Thermal vs Rds(on) limits', 'Spirito effect', 'Hot-swap sizing']
                 },
                 {
-                    id: 14,
-                    title: 'MOSFET Selection for Power Applications',
-                    description: 'Picking a part from the datasheet numbers that matter',
-                    topics: ['Key selection parameters', 'Rds(on) vs Qg trade-off', 'Conduction + switching loss', 'Package choice']
-                },
-                {
                     id: 15,
-                    title: 'Wide Bandgap Semiconductors (GaN and SiC)',
-                    description: 'What GaN and SiC change versus silicon',
-                    topics: ['2DEG / HEMT structure', 'GaN device types', 'Gate voltage limits', 'SiC advantages']
+                    title: 'Power MOSFET Thermal Design',
+                    description: 'Loss estimates and junction temperature',
+                    topics: ['I^2R loss', 'Switching loss', 'RθJA/JC', 'Thermal margins']
                 },
                 {
                     id: 16,
-                    title: 'MOSFET Paralleling Techniques',
-                    description: 'Sharing current between devices, statically and dynamically',
-                    topics: ['Static sharing via Rds(on)', 'Dynamic mismatch', 'Kelvin source connection', 'Per-device gate resistors']
-                },
-                {
-                    id: 17,
-                    title: 'Avalanche Energy and MOSFET Ruggedness',
-                    description: 'Surviving inductive turn-off without a freewheel path',
-                    topics: ['Avalanche breakdown', 'E = 1/2 L I^2', 'EAS vs EAR ratings', 'Unclamped inductive switching']
-                },
-                {
-                    id: 18,
-                    title: 'Current Sensing Techniques with MOSFETs',
-                    description: 'Sense resistors versus Rds(on) sensing',
-                    topics: ['Sense resistor sizing', 'Burden voltage', 'Rds(on) tempco error', 'High-side vs low-side']
-                },
-                {
-                    id: 19,
                     title: 'Thermal Management for Power MOSFETs',
                     description: 'Thermal resistance networks and PCB heat spreading',
                     topics: ['Rth thermal-electrical analogy', 'Rtheta-JA vs JC', 'Copper pour and vias', 'Heatsink selection']
                 },
                 {
-                    id: 20,
-                    title: 'Industry MOSFET Selection Guide',
-                    description: 'A repeatable process for choosing a switch',
-                    topics: ['Figure of merit (Rds(on) x Qg)', 'Current derating', 'Logic level vs standard gate', '48 V system considerations']
+                    id: 17,
+                    title: 'MOSFET Paralleling Techniques',
+                    description: 'Sharing current between devices, statically and dynamically',
+                    topics: ['Static sharing via Rds(on)', 'Dynamic mismatch', 'Kelvin source connection', 'Per-device gate resistors']
                 },
-                // The analog half of this module. Everything above treats the
-                // MOSFET as a switch; these three treat it as an amplifier,
-                // which the catalogue previously covered in one lesson.
+                {
+                    id: 18,
+                    title: 'Avalanche Energy and MOSFET Ruggedness',
+                    description: 'Surviving inductive turn-off without a freewheel path',
+                    topics: ['Avalanche breakdown', 'E = 1/2 L I^2', 'EAS vs EAR ratings', 'Unclamped inductive switching']
+                },
+                {
+                    id: 19,
+                    title: 'Current Sensing Techniques with MOSFETs',
+                    description: 'Sense resistors versus Rds(on) sensing',
+                    topics: ['Sense resistor sizing', 'Burden voltage', 'Rds(on) tempco error', 'High-side vs low-side']
+                },
+                {
+                    id: 20,
+                    title: 'Wide Bandgap Semiconductors (GaN and SiC)',
+                    description: 'What GaN and SiC change versus silicon',
+                    topics: ['2DEG / HEMT structure', 'GaN device types', 'Gate voltage limits', 'SiC advantages']
+                },
                 {
                     id: 21,
-                    title: 'MOSFET Small-Signal Model and gm',
-                    description: 'Where gm comes from, and why it grows only as the square root of current',
-                    topics: ['gm = sqrt(2k·ID) = 2ID/Vov', 'Square-root vs linear against the BJT',
-                             'ro and intrinsic gain 2VA/Vov', 'Ciss/Coss/Crss to Cgs/Cgd']
+                    title: 'MOSFET Applications',
+                    description: 'Current sources, analog switches, and blocks',
+                    topics: ['Current source/sink', 'Transmission gate intuition', 'Body diode', 'Tradeoffs']
                 },
                 {
                     id: 22,
-                    title: 'The Common-Source Amplifier',
-                    description: 'The FET voltage amplifier, and biasing it so the gain equation stays true',
-                    topics: ['Av = -gm(RD||ro)', 'Source degeneration and -RD/RS',
-                             'Worked 12 V design', 'Why fixed-VGS biasing fails on Vth spread']
+                    title: 'MOSFET Selection for Power Applications',
+                    description: 'Picking a part from the datasheet numbers that matter',
+                    topics: ['Key selection parameters', 'Rds(on) vs Qg trade-off', 'Conduction + switching loss', 'Package choice']
                 },
                 {
                     id: 23,
-                    title: 'What the Square Law Gets Wrong',
-                    description: 'Where the model breaks: subthreshold, velocity saturation, and real Vth spread',
-                    topics: ['Subthreshold exponential region', 'Velocity saturation and short channels',
-                             'Channel-length modulation', 'Vth spread, matching and temperature']
+                    title: 'Industry MOSFET Selection Guide',
+                    description: 'A repeatable process for choosing a switch',
+                    topics: ['Figure of merit (Rds(on) x Qg)', 'Current derating', 'Logic level vs standard gate', '48 V system considerations']
                 }
             ]
         },
-
-        // ========== MODULE 6: Power Electronics ==========
+        // ========== MODULE 6: Output Stages & Complementary Circuits ==========
         {
             id: 6,
-            title: 'Power Electronics Applications',
-            description: 'MOSFET selection, buck converters, LDO, PMIC',
-            lessons: [
-                {
-                    id: 1,
-                    title: 'Power MOSFET Selection',
-                    description: 'RDS(on) vs Qg trade-off, loss calculation',
-                    topics: ['Conduction loss', 'Switching loss', 'Gate charge', 'SOA']
-                },
-                {
-                    id: 2,
-                    title: 'Buck Converter Basics',
-                    description: 'Vout = D×Vin, inductor current ripple',
-                    topics: ['Duty cycle control', 'CCM vs DCM', 'Output ripple', 'Inductor sizing']
-                },
-                {
-                    id: 3,
-                    title: 'LDO Regulator Design',
-                    description: 'Dropout, PSRR, noise, efficiency',
-                    topics: ['When to use LDO', 'Dropout voltage', 'PSRR vs frequency', 'Thermal limits']
-                },
-                {
-                    id: 4,
-                    title: 'PMIC Overview',
-                    description: 'Integrated power management for portable devices',
-                    topics: ['Multiple rails', 'Sequencing', 'Battery charging', 'Power path']
-                },
-                {
-                    id: 5,
-                    title: 'Buck-Boost and SEPIC Converters',
-                    description: 'Converters for overlapping input/output ranges',
-                    topics: ['Buck-boost topology', 'SEPIC advantages', 'Battery applications', 'Continuous conduction']
-                },
-                {
-                    id: 6,
-                    title: 'Synchronous Rectification',
-                    description: 'MOSFET-based rectification for efficiency',
-                    topics: ['Diode vs MOSFET', 'Dead time control', 'Body diode conduction', 'Efficiency improvement']
-                },
-                {
-                    id: 7,
-                    title: 'Control Loop Fundamentals',
-                    description: 'Voltage-mode and current-mode control',
-                    topics: ['Control objectives', 'Voltage-mode', 'Current-mode', 'Compensation']
-                },
-                {
-                    id: 8,
-                    title: 'Power Factor Correction (PFC)',
-                    description: 'AC input current shaping for compliance',
-                    topics: ['Power factor definition', 'Harmonic distortion', 'Active PFC', 'Standards compliance']
-                },
-                {
-                    id: 9,
-                    title: 'Soft Switching and Resonant Converters',
-                    description: 'ZVS and ZCS for high-frequency operation',
-                    topics: ['Hard switching losses', 'Zero voltage switching', 'Zero current switching', 'LLC resonant']
-                },
-                {
-                    id: 10,
-                    title: 'EMI/EMC in Power Converters',
-                    description: 'EMI sources and mitigation in switching supplies',
-                    topics: ['EMI emission types', 'Input filtering', 'Spread spectrum', 'Snubbers']
-                },
-                {
-                    id: 11,
-                    title: 'Thermal Design for Power Converters',
-                    description: 'Heat management in power electronics',
-                    topics: ['Heat sources', 'Thermal resistance', 'Heatsink selection', 'Thermal interface']
-                },
-                {
-                    id: 12,
-                    title: 'Power Sequencing and Hot-Swap',
-                    description: 'Controlled power-up and live insertion',
-                    topics: ['Sequence requirements', 'Hot-swap protection', 'Inrush limiting', 'Fault detection']
-                },
-                {
-                    id: 13,
-                    title: 'Battery Charging Systems',
-                    description: 'Li-Ion/LiPo charging profiles and safety',
-                    topics: ['Li-Ion characteristics', 'CC/CV charging', 'Battery protection', 'Charging ICs']
-                },
-                {
-                    id: 14,
-                    title: 'Digital Power Control and Multi-Phase VRMs',
-                    description: 'Modern power management for processors',
-                    topics: ['Multi-phase benefits', 'Digital control', 'Current sharing', 'VRM specifications']
-                }
-            ]
-        },
-
-        // ========== MODULE 7: Audio Applications ==========
-        {
-            id: 7,
-            title: 'Audio Applications',
-            description: 'Headphone amp, preamp, equalizer, Class D',
-            lessons: [
-                {
-                    id: 1,
-                    title: 'Headphone Amplifier Design',
-                    description: 'Output power, impedance matching, distortion',
-                    topics: ['Power calculation', 'Op-amp selection', 'Output coupling', 'Volume control']
-                },
-                {
-                    id: 2,
-                    title: 'Audio Preamplifier (Mic/Guitar)',
-                    description: 'Gain, input impedance, noise floor',
-                    topics: ['Electret bias', 'High-Z guitar input', 'Gain selection', 'RIAA equalization']
-                },
-                {
-                    id: 3,
-                    title: 'Graphic Equalizer (3-Band)',
-                    description: 'Bass/Mid/Treble control, shelving filters',
-                    topics: ['Center frequencies', 'Q factor', 'Boost/cut range', 'Topology']
-                },
-                {
-                    id: 4,
-                    title: 'Class D Amplifier Concepts',
-                    description: 'PWM modulation, efficiency, LC filter',
-                    topics: ['PWM generation', '90%+ efficiency', 'Output filter', 'EMI considerations']
-                },
-                {
-                    id: 5,
-                    title: 'RIAA Phono Preamplifier',
-                    description: 'Equalization for vinyl playback',
-                    topics: ['RIAA time constants', 'Cartridge types', 'Gain requirements', 'Noise optimization']
-                },
-                {
-                    id: 6,
-                    title: 'Audio Tone Control (Baxandall)',
-                    description: 'Classic bass/treble control circuit',
-                    topics: ['Baxandall features', 'Symmetrical boost/cut', 'Component selection', 'Active vs passive']
-                },
-                {
-                    id: 7,
-                    title: 'Active Crossovers for Speakers',
-                    description: 'Multi-way speaker frequency splitting',
-                    topics: ['Active vs passive', 'Crossover frequencies', 'Filter slopes', 'Phase alignment']
-                },
-                {
-                    id: 8,
-                    title: 'Class AB Power Amplifier Design',
-                    description: 'Discrete audio power amplifier design',
-                    topics: ['Amplifier classes', 'Bias design', 'Thermal stability', 'Protection circuits']
-                },
-                {
-                    id: 9,
-                    title: 'Audio DAC Interface and Filtering',
-                    description: 'DAC output stage and I/V conversion',
-                    topics: ['DAC specs', 'I/V conversion', 'Reconstruction filtering', 'Digital interface']
-                },
-                {
-                    id: 10,
-                    title: 'Volume Control and VCA Circuits',
-                    description: 'Analog volume control techniques',
-                    topics: ['Human hearing', 'Log potentiometers', 'VCA circuits', 'Remote volume control']
-                },
-                {
-                    id: 11,
-                    title: 'Audio Grounding and Shielding',
-                    description: 'Eliminating hum and noise in audio systems',
-                    topics: ['Noise sources', 'Ground loops', 'Star grounding', 'Cable shielding']
-                },
-                {
-                    id: 12,
-                    title: 'Balanced Audio Design',
-                    description: 'Differential signaling for noise rejection',
-                    topics: ['Balanced advantages', 'XLR interface', 'Instrumentation amplifiers', 'CMRR requirements']
-                },
-                {
-                    id: 13,
-                    title: 'Audio Dynamics Processing',
-                    description: 'Compressors, limiters, and gates',
-                    topics: ['Processor types', 'Attack/release', 'Ratio and threshold', 'Side-chain processing']
-                },
-                {
-                    id: 14,
-                    title: 'Audio Measurement and Test',
-                    description: 'THD, noise floor, and frequency response',
-                    topics: ['Key measurements', 'Test equipment', 'Measurement techniques', 'Standards']
-                }
-            ]
-        },
-
-        // ========== MODULE 8: Data Conversion ==========
-        {
-            id: 8,
-            title: 'Data Conversion Applications',
-            description: 'SAR driver, delta-sigma, DAC reconstruction, references',
-            lessons: [
-                {
-                    id: 1,
-                    title: 'SAR ADC Driver Design',
-                    description: 'RC filter, settling time, kickback',
-                    topics: ['tACQ ≥ k × R × C', 'Op-amp selection', 'Kickback absorption', 'Settling to 0.5 LSB']
-                },
-                {
-                    id: 2,
-                    title: 'Delta-Sigma ADC Intuition',
-                    description: 'Noise shaping, oversampling, decimation',
-                    topics: ['Oversampling ratio', 'Noise spectrum', 'Effective bits', 'Latency']
-                },
-                {
-                    id: 3,
-                    title: 'DAC Reconstruction Filter',
-                    description: 'Sinc rolloff, image rejection',
-                    topics: ['Zero-order hold', 'Nyquist images', 'Filter order', 'Oversampling DACs']
-                },
-                {
-                    id: 4,
-                    title: 'Voltage Reference Selection',
-                    description: 'Initial accuracy, tempco, noise',
-                    topics: ['Error budget', 'Temperature drift', 'Long-term stability', 'PSRR']
-                },
-                {
-                    id: 5,
-                    title: 'SAR ADC Architecture',
-                    description: 'Binary search conversion algorithm',
-                    topics: ['SAR characteristics', 'Binary search', 'Sample capacitor', 'Conversion timing']
-                },
-                {
-                    id: 6,
-                    title: 'Pipeline ADC Architecture',
-                    description: 'High-speed multi-stage conversion',
-                    topics: ['Pipeline characteristics', 'Stage residue', 'Digital error correction', 'Latency']
-                },
-                {
-                    id: 7,
-                    title: 'DAC Architectures',
-                    description: 'R-2R, current steering, and sigma-delta',
-                    topics: ['Common architectures', 'R-2R ladder', 'Current steering', 'Oversampling DACs']
-                },
-                {
-                    id: 8,
-                    title: 'Voltage References for Data Converters',
-                    description: 'Reference selection for ADC/DAC systems',
-                    topics: ['Reference types', 'Noise contribution', 'Temperature stability', 'Buffering']
-                },
-                {
-                    id: 9,
-                    title: 'Anti-Aliasing and Reconstruction Filters',
-                    description: 'Nyquist filtering for sampled systems',
-                    topics: ['Aliasing problem', 'Filter requirements', 'Oversampling benefits', 'Digital filtering']
-                },
-                {
-                    id: 10,
-                    title: 'Data Converter Specifications',
-                    description: 'Understanding ADC/DAC datasheets',
-                    topics: ['Static specifications', 'Dynamic specifications', 'DNL/INL', 'SNR/SFDR/ENOB']
-                },
-                {
-                    id: 11,
-                    title: 'ADC Driver Circuits',
-                    description: 'Op-amp selection and settling for ADC inputs',
-                    topics: ['Driver requirements', 'Settling time', 'Kickback absorption', 'Differential drivers']
-                },
-                {
-                    id: 12,
-                    title: 'DAC Output Circuits',
-                    description: 'I/V conversion and output filtering',
-                    topics: ['Output types', 'Transimpedance', 'Settling time', 'Glitch energy']
-                },
-                {
-                    id: 13,
-                    title: 'High-Speed Data Converter Considerations',
-                    description: 'Layout and clocking for MSPS converters',
-                    topics: ['Speed challenges', 'Clock jitter', 'PCB layout', 'Power supply design']
-                },
-                {
-                    id: 14,
-                    title: 'Data Converter Applications',
-                    description: 'Real-world ADC/DAC system design',
-                    topics: ['Precision applications', 'High-speed applications', 'Audio applications', 'Sensor interfaces']
-                }
-            ]
-        },
-
-        // ========== MODULE 9: Design Trade-offs ==========
-        {
-            id: 9,
-            title: 'Design Trade-offs Workshop',
-            description: 'Performance-Power-Cost triangle, component selection',
-            lessons: [
-                {
-                    id: 1,
-                    title: 'The Trade-off Triangle',
-                    description: 'Fundamental constraints in analog design',
-                    topics: ['Performance', 'Power', 'Cost', 'Can optimize any two']
-                },
-                {
-                    id: 2,
-                    title: 'Op-Amp Selection Decision Tree',
-                    description: 'Matching op-amp to application requirements',
-                    topics: ['Primary constraint', 'Family selection', 'Trade-off awareness', 'Real examples']
-                },
-                {
-                    id: 3,
-                    title: 'Component Selection for Precision',
-                    description: 'Resistor and capacitor tolerances, tempco',
-                    topics: ['Tolerance requirements', 'Tempco matching', 'Capacitor types', 'Cost vs precision']
-                },
-                {
-                    id: 4,
-                    title: 'Power Budget Optimization',
-                    description: 'Allocating power across subsystems',
-                    topics: ['System power budget', 'Sleep current', 'Duty cycle', 'Active vs idle']
-                },
-                {
-                    id: 5,
-                    title: 'Noise vs Bandwidth Trade-offs',
-                    description: 'Fundamental noise-bandwidth relationship',
-                    topics: ['Key relationships', 'Noise integration', 'Filtering trade-offs', 'Optimal bandwidth']
-                },
-                {
-                    id: 6,
-                    title: 'Size vs Performance Trade-offs',
-                    description: 'Component size impact on performance',
-                    topics: ['Size impacts', 'Parasitics', 'Thermal constraints', 'Miniaturization limits']
-                },
-                {
-                    id: 7,
-                    title: 'Stability vs Transient Response Trade-offs',
-                    description: 'Phase margin and response optimization',
-                    topics: ['Stability metrics', 'Transient response', 'Compensation trade-offs', 'Design criteria']
-                },
-                {
-                    id: 8,
-                    title: 'Analog vs Digital Implementation Trade-offs',
-                    description: 'When to use analog vs digital processing',
-                    topics: ['Analog advantages', 'Digital advantages', 'Hybrid systems', 'Cost considerations']
-                },
-                {
-                    id: 9,
-                    title: 'Resolution vs Speed Trade-offs',
-                    description: 'ADC/DAC resolution and sample rate balance',
-                    topics: ['Resolution factors', 'Speed factors', 'ADC architecture selection', 'System optimization']
-                },
-                {
-                    id: 10,
-                    title: 'Efficiency vs Linearity Trade-offs',
-                    description: 'Amplifier efficiency and distortion balance',
-                    topics: ['Efficiency metrics', 'Linearity metrics', 'Class selection', 'Predistortion']
-                },
-                {
-                    id: 11,
-                    title: 'EMI vs Performance Trade-offs',
-                    description: 'EMI mitigation impact on circuit performance',
-                    topics: ['EMI sources', 'Mitigation costs', 'Edge rate control', 'Shielding trade-offs']
-                },
-                {
-                    id: 12,
-                    title: 'Reliability vs Cost Trade-offs',
-                    description: 'Component derating and reliability investment',
-                    topics: ['Reliability factors', 'Derating strategies', 'Warranty costs', 'Design lifetime']
-                },
-                {
-                    id: 13,
-                    title: 'Thermal Management Trade-offs',
-                    description: 'Cooling solutions and their trade-offs',
-                    topics: ['Heat sources', 'Cooling methods', 'Cost vs performance', 'Size constraints']
-                },
-                {
-                    id: 14,
-                    title: 'Design Margin and Derating',
-                    description: 'Setting appropriate design margins',
-                    topics: ['Why derate', 'Derating guidelines', 'Application factors', 'Margin analysis']
-                }
-            ]
-        },
-
-        // ========== MODULE 10: Output Stages ==========
-        {
-            id: 10,
             title: 'Output Stages & Complementary Circuits',
             description: 'Push-pull, CMOS, open-drain, current sources',
             lessons: [
@@ -1136,10 +728,77 @@ const CURRICULUM = {
                 }
             ]
         },
-
-        // ========== MODULE 11: Oscillators & Timing ==========
+        // ========== MODULE 7: Advanced Analog Blocks ==========
         {
-            id: 11,
+            id: 7,
+            title: 'Advanced Analog Blocks',
+            description: 'PLL, bandgap references, precision techniques',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'Phase-Locked Loop (PLL) Basics',
+                    description: 'Block diagram, frequency synthesis',
+                    topics: ['fout = N × fref', 'Phase detector', 'Loop filter', 'Lock time']
+                },
+                {
+                    id: 2,
+                    title: 'Bandgap Voltage References',
+                    description: 'PTAT + CTAT combination',
+                    topics: ['VBE tempco', 'ΔVBE PTAT', '1.2V reference', 'Curvature compensation']
+                },
+                {
+                    id: 3,
+                    title: 'Precision Analog Techniques',
+                    description: 'Chopper, auto-zero, correlated double sampling',
+                    topics: ['Offset cancellation', 'Chopper ripple', 'Bandwidth limit', 'kT/C noise']
+                },
+                {
+                    id: 4,
+                    title: 'Log/Antilog Amplifiers',
+                    description: 'Logarithmic compression and expansion circuits',
+                    topics: ['BJT log conformity', 'Temperature compensation', 'Dynamic range compression', 'Multiplier/divider applications']
+                },
+                {
+                    id: 5,
+                    title: 'Sample and Hold Circuits',
+                    description: 'Acquisition time, droop rate, and aperture jitter',
+                    topics: ['Track/hold modes', 'Droop rate calculation', 'Aperture jitter', 'Feedthrough rejection']
+                },
+                {
+                    id: 6,
+                    title: 'Analog Multiplexers',
+                    description: 'Channel selection, on-resistance, charge injection',
+                    topics: ['Ron vs signal voltage', 'Break-before-make timing', 'Charge injection', 'Crosstalk']
+                },
+                {
+                    id: 7,
+                    title: 'Peak Detectors',
+                    description: 'Envelope detection and peak hold circuits',
+                    topics: ['Diode peak detector', 'Op-amp precision detector', 'Decay time constant', 'Reset mechanisms']
+                },
+                {
+                    id: 8,
+                    title: 'VCOs and VCFs',
+                    description: 'Voltage-controlled oscillators and filters',
+                    topics: ['VCO gain (Hz/V)', 'Linearity requirements', 'VCF tuning range', 'OTA-based implementations']
+                },
+                {
+                    id: 9,
+                    title: 'Charge Pumps',
+                    description: 'Voltage multiplication and inversion circuits',
+                    topics: ['Dickson charge pump', 'Voltage doubler/inverter', 'Output impedance', 'Ripple reduction']
+                },
+                {
+                    id: 10,
+                    title: 'Analog Computation Circuits',
+                    description: 'Multipliers, dividers, and RMS-to-DC converters',
+                    topics: ['Gilbert cell multiplier', 'Log-antilog divider', 'True RMS detection', 'Thermal RMS converters']
+                }
+            ]
+        },
+        // ========== MODULE 8: Oscillators & Timing Circuits ==========
+        {
+            id: 8,
             title: 'Oscillators & Timing Circuits',
             description: 'LC, RC, crystal oscillators, 555 timer, Schmitt triggers',
             lessons: [
@@ -1235,217 +894,187 @@ const CURRICULUM = {
                 }
             ]
         },
-
-        // ========== MODULE 12: Digital Interface ==========
+        // ========== MODULE 9: Practical Skills ==========
         {
-            id: 12,
-            title: 'Digital Interface Electrical Design',
-            description: 'Logic levels, level shifting, pull-ups, ESD',
+            id: 9,
+            title: 'Practical Skills',
+            description: 'Oscilloscope, PCB layout, troubleshooting workflow',
             lessons: [
                 {
                     id: 1,
-                    title: 'CMOS Logic Families & Voltage Levels',
-                    description: 'HC, HCT, LVC, threshold voltages',
-                    topics: ['VIH, VIL, VOH, VOL', 'CMOS vs TTL thresholds', '3.3V/5V compatibility', 'Noise margin']
+                    title: 'Oscilloscope Techniques',
+                    description: 'Probing, measurements, common mistakes',
+                    topics: ['Probe compensation', 'Bandwidth requirements', 'Ground lead length', 'Common errors']
                 },
                 {
                     id: 2,
-                    title: 'Level Shifting Techniques',
-                    description: '3.3V ↔ 5V conversion methods',
-                    topics: ['Resistor divider', 'MOSFET bidirectional', 'Dedicated ICs', 'HCT for step-up']
+                    title: 'PCB Layout Awareness',
+                    description: 'Ground planes, bypass caps, analog/digital separation',
+                    topics: ['Single ground plane', 'Partition (not split)', 'Bypass cap placement', 'Trace routing']
                 },
                 {
                     id: 3,
-                    title: 'Pull-Up/Pull-Down Resistor Sizing',
-                    description: 'Rise time, power consumption, I2C example',
-                    topics: ['tr ≈ 2.2×R×C', 'Current sink limit', 'Power = V²/R', 'Speed vs power']
+                    title: 'Troubleshooting Workflow',
+                    description: 'Systematic debugging approach',
+                    topics: ['Power → Bias → Signal → Load', 'Common symptoms', 'Quick fix patterns', 'Isolation techniques']
                 },
                 {
                     id: 4,
-                    title: 'ESD Protection & Input Clamping',
-                    description: 'Internal diodes, series resistors, TVS',
-                    topics: ['Clamp current limit', 'Series R sizing', 'ESD rating', 'Layout']
+                    title: 'Soldering and Rework Techniques',
+                    description: 'Hand soldering, SMD rework, IPC standards',
+                    topics: ['Good solder joint', 'SMD rework', 'Common defects', 'IPC standards']
                 },
                 {
                     id: 5,
-                    title: 'Input Protection Circuits',
-                    description: 'Clamping overvoltage and transients at a digital input',
-                    topics: ['Series R + clamp diodes', 'Bidirectional Zener clamp', 'RC filter + clamp', 'Clamp current budget']
+                    title: 'Test Equipment Essentials',
+                    description: 'Multimeters, LCR meters, power supplies',
+                    topics: ['Core equipment', 'Measurement accuracy', 'Equipment calibration', 'Safety considerations']
                 },
                 {
                     id: 6,
-                    title: 'Schmitt Trigger Inputs',
-                    description: 'Hysteresis for slow and noisy edges',
-                    topics: ['VT+ / VT- thresholds', 'Hysteresis transfer curve', 'Cleaning slow signals', 'RC relaxation oscillator']
+                    title: 'Signal Integrity Basics',
+                    description: 'Transmission lines, reflections, crosstalk',
+                    topics: ['Critical speed', 'Impedance matching', 'Termination', 'Eye diagrams']
                 },
                 {
                     id: 7,
-                    title: 'Bus Buffers and Drivers',
-                    description: 'Fan-out, direction control, and bus contention',
-                    topics: ['When a buffer is needed', 'Common buffer families', '74HC245 transceiver', 'Fan-out calculation']
+                    title: 'Thermal Design and Heat Management',
+                    description: 'Thermal resistance, derating, cooling',
+                    topics: ['Thermal resistance network', 'Junction temperature', 'Heatsink selection', 'Forced air cooling']
                 },
                 {
                     id: 8,
-                    title: 'Signal Termination',
-                    description: 'When a trace becomes a transmission line',
-                    topics: ['tr < 2 x tpd rule', 'Series vs parallel vs AC termination', 'Reflections and ringing', 'Impedance matching']
+                    title: 'EMC/EMI Fundamentals',
+                    description: 'Emissions, immunity, and compliance',
+                    topics: ['EMI sources', 'EMC standards', 'Filtering techniques', 'Shielding']
                 },
                 {
                     id: 9,
-                    title: 'Debouncing Techniques',
-                    description: 'Getting one clean edge out of a mechanical switch',
-                    topics: ['Bounce duration', 'RC + Schmitt debounce', 'Software sampling', 'SR latch debounce']
+                    title: 'Prototyping Best Practices',
+                    description: 'Breadboard to PCB transitions',
+                    topics: ['Prototyping stages', 'Component selection', 'Test points', 'Design for debug']
                 },
                 {
                     id: 10,
-                    title: 'Optocouplers and Isolation',
-                    description: 'Galvanic isolation for digital signals',
-                    topics: ['Why isolate', 'LED + phototransistor structure', 'CTR and drive current', 'Speed limits and alternatives']
+                    title: 'Debugging Analog Circuits',
+                    description: 'Systematic analog troubleshooting',
+                    topics: ['First rule', 'DC operating point', 'Signal tracing', 'Common failures']
+                },
+                {
+                    id: 11,
+                    title: 'Documentation and Schematics',
+                    description: 'Professional schematic and documentation practices',
+                    topics: ['Schematic best practices', 'BOM creation', 'Design notes', 'Revision control']
+                },
+                {
+                    id: 12,
+                    title: 'Design for Manufacturing (DFM)',
+                    description: 'Manufacturing-ready design practices',
+                    topics: ['DFM goal', 'Component placement', 'Panelization', 'Test coverage']
+                },
+                {
+                    id: 13,
+                    title: 'Environmental Testing and Reliability',
+                    description: 'Temperature, humidity, and vibration testing',
+                    topics: ['Environmental stresses', 'HALT/HASS', 'Reliability prediction', 'Failure analysis']
                 }
             ]
         },
-
-        // ========== MODULE 13: Communication Protocols ==========
+        // ========== MODULE 10: Design Trade-offs Workshop ==========
         {
-            id: 13,
-            title: 'Communication Protocols - Electrical Level',
-            description: 'I2C, SPI, UART, USB electrical design',
+            id: 10,
+            title: 'Design Trade-offs Workshop',
+            description: 'Performance-Power-Cost triangle, component selection',
             lessons: [
                 {
                     id: 1,
-                    title: 'I2C Electrical Design',
-                    description: 'Pull-up sizing, rise time, bus capacitance',
-                    topics: ['Standard/Fast/Fast+ Mode', 'Rp calculation', 'Multi-master', 'Repeaters']
+                    title: 'The Trade-off Triangle',
+                    description: 'Fundamental constraints in analog design',
+                    topics: ['Performance', 'Power', 'Cost', 'Can optimize any two']
                 },
                 {
                     id: 2,
-                    title: 'SPI Electrical Design',
-                    description: 'CPOL/CPHA modes, timing, termination',
-                    topics: ['Mode 0/1/2/3', 'Setup/hold time', 'Clock frequency limits', 'Series termination']
+                    title: 'Op-Amp Selection Decision Tree',
+                    description: 'Matching op-amp to application requirements',
+                    topics: ['Primary constraint', 'Family selection', 'Trade-off awareness', 'Real examples']
                 },
                 {
                     id: 3,
-                    title: 'UART / RS-232 Electrical Design',
-                    description: 'TTL vs RS-232 levels, MAX232',
-                    topics: ['Voltage levels', 'Inversion', 'Baud rate timing', 'Error sources']
+                    title: 'Component Selection for Precision',
+                    description: 'Resistor and capacitor tolerances, tempco',
+                    topics: ['Tolerance requirements', 'Tempco matching', 'Capacitor types', 'Cost vs precision']
                 },
                 {
                     id: 4,
-                    title: 'USB Electrical Fundamentals',
-                    description: 'D+/D- differential, speed detection',
-                    topics: ['Pull-up detection', 'Differential signaling', 'Impedance matching', 'ESD protection']
+                    title: 'Power Budget Optimization',
+                    description: 'Allocating power across subsystems',
+                    topics: ['System power budget', 'Sleep current', 'Duty cycle', 'Active vs idle']
                 },
                 {
                     id: 5,
-                    title: 'RS-485 Differential Signaling',
-                    description: 'Half-duplex multi-drop networks, termination, failsafe biasing',
-                    topics: ['Differential receivers', 'Termination networks', 'Failsafe biasing', 'Multi-drop topology']
+                    title: 'Noise vs Bandwidth Trade-offs',
+                    description: 'Fundamental noise-bandwidth relationship',
+                    topics: ['Key relationships', 'Noise integration', 'Filtering trade-offs', 'Optimal bandwidth']
                 },
                 {
                     id: 6,
-                    title: 'CAN Bus Physical Layer',
-                    description: 'Dominant/recessive states, transceiver design, fault tolerance',
-                    topics: ['CAN_H/CAN_L signals', 'Transceiver selection', 'Split termination', 'Fault protection']
+                    title: 'Size vs Performance Trade-offs',
+                    description: 'Component size impact on performance',
+                    topics: ['Size impacts', 'Parasitics', 'Thermal constraints', 'Miniaturization limits']
                 },
                 {
                     id: 7,
-                    title: 'I2C Repeaters and Buffers',
-                    description: 'Extending bus capacitance limits, level translation, hot-swap',
-                    topics: ['Bus capacitance limits', 'Bidirectional buffers', 'Level translation', 'Rise time acceleration']
+                    title: 'Stability vs Transient Response Trade-offs',
+                    description: 'Phase margin and response optimization',
+                    topics: ['Stability metrics', 'Transient response', 'Compensation trade-offs', 'Design criteria']
                 },
                 {
                     id: 8,
-                    title: 'SPI Daisy Chaining',
-                    description: 'Multi-device topologies, timing considerations, signal integrity',
-                    topics: ['Ring topology', 'Star topology', 'Cascaded vs parallel', 'Signal propagation delay']
+                    title: 'Analog vs Digital Implementation Trade-offs',
+                    description: 'When to use analog vs digital processing',
+                    topics: ['Analog advantages', 'Digital advantages', 'Hybrid systems', 'Cost considerations']
                 },
                 {
                     id: 9,
-                    title: 'LVDS High-Speed Signaling',
-                    description: 'Low-voltage differential signaling for high-speed data',
-                    topics: ['3.5mA current mode', '100Ω termination', 'Common-mode range', 'EMI advantages']
+                    title: 'Resolution vs Speed Trade-offs',
+                    description: 'ADC/DAC resolution and sample rate balance',
+                    topics: ['Resolution factors', 'Speed factors', 'ADC architecture selection', 'System optimization']
                 },
                 {
                     id: 10,
-                    title: 'Protocol Debug Techniques',
-                    description: 'Using oscilloscopes and analyzers for communication debugging',
-                    topics: ['I2C/SPI decoding', 'Eye diagram analysis', 'Protocol violations', 'Common failure modes']
+                    title: 'Efficiency vs Linearity Trade-offs',
+                    description: 'Amplifier efficiency and distortion balance',
+                    topics: ['Efficiency metrics', 'Linearity metrics', 'Class selection', 'Predistortion']
+                },
+                {
+                    id: 11,
+                    title: 'EMI vs Performance Trade-offs',
+                    description: 'EMI mitigation impact on circuit performance',
+                    topics: ['EMI sources', 'Mitigation costs', 'Edge rate control', 'Shielding trade-offs']
+                },
+                {
+                    id: 12,
+                    title: 'Reliability vs Cost Trade-offs',
+                    description: 'Component derating and reliability investment',
+                    topics: ['Reliability factors', 'Derating strategies', 'Warranty costs', 'Design lifetime']
+                },
+                {
+                    id: 13,
+                    title: 'Thermal Management Trade-offs',
+                    description: 'Cooling solutions and their trade-offs',
+                    topics: ['Heat sources', 'Cooling methods', 'Cost vs performance', 'Size constraints']
+                },
+                {
+                    id: 14,
+                    title: 'Design Margin and Derating',
+                    description: 'Setting appropriate design margins',
+                    topics: ['Why derate', 'Derating guidelines', 'Application factors', 'Margin analysis']
                 }
             ]
         },
-
-        // ========== MODULE 14: Advanced Analog Blocks ==========
+        // ========== MODULE 11: Practice Problems & Exercises ==========
         {
-            id: 14,
-            title: 'Advanced Analog Blocks',
-            description: 'PLL, bandgap references, precision techniques',
-            lessons: [
-                {
-                    id: 1,
-                    title: 'Phase-Locked Loop (PLL) Basics',
-                    description: 'Block diagram, frequency synthesis',
-                    topics: ['fout = N × fref', 'Phase detector', 'Loop filter', 'Lock time']
-                },
-                {
-                    id: 2,
-                    title: 'Bandgap Voltage References',
-                    description: 'PTAT + CTAT combination',
-                    topics: ['VBE tempco', 'ΔVBE PTAT', '1.2V reference', 'Curvature compensation']
-                },
-                {
-                    id: 3,
-                    title: 'Precision Analog Techniques',
-                    description: 'Chopper, auto-zero, correlated double sampling',
-                    topics: ['Offset cancellation', 'Chopper ripple', 'Bandwidth limit', 'kT/C noise']
-                },
-                {
-                    id: 4,
-                    title: 'Log/Antilog Amplifiers',
-                    description: 'Logarithmic compression and expansion circuits',
-                    topics: ['BJT log conformity', 'Temperature compensation', 'Dynamic range compression', 'Multiplier/divider applications']
-                },
-                {
-                    id: 5,
-                    title: 'Sample and Hold Circuits',
-                    description: 'Acquisition time, droop rate, and aperture jitter',
-                    topics: ['Track/hold modes', 'Droop rate calculation', 'Aperture jitter', 'Feedthrough rejection']
-                },
-                {
-                    id: 6,
-                    title: 'Analog Multiplexers',
-                    description: 'Channel selection, on-resistance, charge injection',
-                    topics: ['Ron vs signal voltage', 'Break-before-make timing', 'Charge injection', 'Crosstalk']
-                },
-                {
-                    id: 7,
-                    title: 'Peak Detectors',
-                    description: 'Envelope detection and peak hold circuits',
-                    topics: ['Diode peak detector', 'Op-amp precision detector', 'Decay time constant', 'Reset mechanisms']
-                },
-                {
-                    id: 8,
-                    title: 'VCOs and VCFs',
-                    description: 'Voltage-controlled oscillators and filters',
-                    topics: ['VCO gain (Hz/V)', 'Linearity requirements', 'VCF tuning range', 'OTA-based implementations']
-                },
-                {
-                    id: 9,
-                    title: 'Charge Pumps',
-                    description: 'Voltage multiplication and inversion circuits',
-                    topics: ['Dickson charge pump', 'Voltage doubler/inverter', 'Output impedance', 'Ripple reduction']
-                },
-                {
-                    id: 10,
-                    title: 'Analog Computation Circuits',
-                    description: 'Multipliers, dividers, and RMS-to-DC converters',
-                    topics: ['Gilbert cell multiplier', 'Log-antilog divider', 'True RMS detection', 'Thermal RMS converters']
-                }
-            ]
-        },
-
-        // ========== MODULE 15: Practice Problems ==========
-        {
-            id: 15,
+            id: 11,
             title: 'Practice Problems & Exercises',
             description: '10 problem sets with progressive difficulty',
             lessons: [
@@ -1511,148 +1140,101 @@ const CURRICULUM = {
                 }
             ]
         },
-
-        // ========== MODULE 16: Real-World Scenarios ==========
+        // ========== MODULE 12: Power Electronics Applications ==========
         {
-            id: 16,
-            title: 'Real-World Scenarios',
-            description: 'Complete application-focused design scenarios',
+            id: 12,
+            title: 'Power Electronics Applications',
+            description: 'MOSFET selection, buck converters, LDO, PMIC',
             lessons: [
                 {
                     id: 1,
-                    title: 'Multi-Rail Power Sequencing',
-                    description: 'FPGA/SoC requirements, RC delay, sequencer ICs',
-                    topics: ['Monotonic rise', 'Ramp rate', 'Tracking', 'Cascade enable']
+                    title: 'Power MOSFET Selection',
+                    description: 'RDS(on) vs Qg trade-off, loss calculation',
+                    topics: ['Conduction loss', 'Switching loss', 'Gate charge', 'SOA']
                 },
                 {
                     id: 2,
-                    title: 'Load Switches & Discharge Control',
-                    description: 'Quick output discharge, slew rate, inrush',
-                    topics: ['QOD feature', 'CT pin timing', 'Reverse blocking', 'Power state transitions']
+                    title: 'Buck Converter Basics',
+                    description: 'Vout = D×Vin, inductor current ripple',
+                    topics: ['Duty cycle control', 'CCM vs DCM', 'Output ripple', 'Inductor sizing']
                 },
                 {
                     id: 3,
-                    title: 'Supervisory & Reset Circuits',
-                    description: 'POR, brownout, watchdog timer',
-                    topics: ['Threshold voltage', 'Hysteresis', 'Reset delay', 'Supervisor IC selection']
+                    title: 'LDO Regulator Design',
+                    description: 'Dropout, PSRR, noise, efficiency',
+                    topics: ['When to use LDO', 'Dropout voltage', 'PSRR vs frequency', 'Thermal limits']
                 },
                 {
                     id: 4,
-                    title: 'Industrial Sensor Interface',
-                    description: 'Robust sensor conditioning for factory environments',
-                    topics: ['4-20mA loop', 'Isolation requirements', 'EMC protection', 'Long cable runs']
+                    title: 'PMIC Overview',
+                    description: 'Integrated power management for portable devices',
+                    topics: ['Multiple rails', 'Sequencing', 'Battery charging', 'Power path']
                 },
                 {
                     id: 5,
-                    title: 'Automotive Power System',
-                    description: 'Surviving load dump and cold crank conditions',
-                    topics: ['ISO 7637-2', 'Load dump protection', 'Cold crank', 'Wide input range']
+                    title: 'Buck-Boost and SEPIC Converters',
+                    description: 'Converters for overlapping input/output ranges',
+                    topics: ['Buck-boost topology', 'SEPIC advantages', 'Battery applications', 'Continuous conduction']
                 },
                 {
                     id: 6,
-                    title: 'Medical Instrumentation',
-                    description: 'Patient safety and precision measurement',
-                    topics: ['IEC 60601', 'Leakage current', 'Isolation barriers', 'Low-noise design']
+                    title: 'Synchronous Rectification',
+                    description: 'MOSFET-based rectification for efficiency',
+                    topics: ['Diode vs MOSFET', 'Dead time control', 'Body diode conduction', 'Efficiency improvement']
                 },
                 {
                     id: 7,
-                    title: 'IoT Edge Device',
-                    description: 'Battery-powered wireless sensor node design',
-                    topics: ['Power budget', 'Sleep modes', 'Wireless optimization', 'Energy harvesting']
+                    title: 'Control Loop Fundamentals',
+                    description: 'Voltage-mode and current-mode control',
+                    topics: ['Control objectives', 'Voltage-mode', 'Current-mode', 'Compensation']
                 },
                 {
                     id: 8,
-                    title: 'Audio Equipment Repair',
-                    description: 'Diagnosing and fixing common audio circuit faults',
-                    topics: ['Hum and noise', 'Distortion sources', 'DC offset', 'Bias problems']
+                    title: 'Power Factor Correction (PFC)',
+                    description: 'AC input current shaping for compliance',
+                    topics: ['Power factor definition', 'Harmonic distortion', 'Active PFC', 'Standards compliance']
                 },
                 {
                     id: 9,
-                    title: 'Power Supply Failure Analysis',
-                    description: 'Root cause analysis for power supply failures',
-                    topics: ['Component stress', 'Thermal failures', 'Capacitor aging', 'MOSFET failures']
+                    title: 'Soft Switching and Resonant Converters',
+                    description: 'ZVS and ZCS for high-frequency operation',
+                    topics: ['Hard switching losses', 'Zero voltage switching', 'Zero current switching', 'LLC resonant']
                 },
                 {
                     id: 10,
-                    title: 'RF Interference Investigation',
-                    description: 'Finding and fixing EMI/RFI problems in the field',
-                    topics: ['Spectrum analysis', 'Near-field probing', 'Shield effectiveness', 'Filter retrofit']
+                    title: 'EMI/EMC in Power Converters',
+                    description: 'EMI sources and mitigation in switching supplies',
+                    topics: ['EMI emission types', 'Input filtering', 'Spread spectrum', 'Snubbers']
+                },
+                {
+                    id: 11,
+                    title: 'Thermal Design for Power Converters',
+                    description: 'Heat management in power electronics',
+                    topics: ['Heat sources', 'Thermal resistance', 'Heatsink selection', 'Thermal interface']
+                },
+                {
+                    id: 12,
+                    title: 'Power Sequencing and Hot-Swap',
+                    description: 'Controlled power-up and live insertion',
+                    topics: ['Sequence requirements', 'Hot-swap protection', 'Inrush limiting', 'Fault detection']
+                },
+                {
+                    id: 13,
+                    title: 'Battery Charging Systems',
+                    description: 'Li-Ion/LiPo charging profiles and safety',
+                    topics: ['Li-Ion characteristics', 'CC/CV charging', 'Battery protection', 'Charging ICs']
+                },
+                {
+                    id: 14,
+                    title: 'Digital Power Control and Multi-Phase VRMs',
+                    description: 'Modern power management for processors',
+                    topics: ['Multi-phase benefits', 'Digital control', 'Current sharing', 'VRM specifications']
                 }
             ]
         },
-
-        // ========== MODULE 17: Troubleshooting & Debug ==========
+        // ========== MODULE 13: Power Supply Design ==========
         {
-            id: 17,
-            title: 'Troubleshooting & Debug',
-            description: 'Systematic debugging techniques for analog circuits',
-            lessons: [
-                {
-                    id: 1,
-                    title: 'Reverse Polarity Protection',
-                    description: 'Diode, P-FET, ideal diode controller',
-                    topics: ['Voltage drop comparison', 'P-FET circuit', 'Gate protection', 'Efficiency']
-                },
-                {
-                    id: 2,
-                    title: 'Overvoltage & Crowbar Protection',
-                    description: 'TVS selection, clamp vs crowbar',
-                    topics: ['VRWM, VBR, Vc specs', 'Unidirectional vs bidirectional', 'SCR crowbar', 'Layout']
-                },
-                {
-                    id: 3,
-                    title: 'Hot-Swap & Inrush Limiting',
-                    description: 'Soft-start, current limit, SOA timer',
-                    topics: ['Inrush control', 'Sense resistor', 'Power-good output', 'Backplane design']
-                },
-                {
-                    id: 4,
-                    title: 'Power Supply Debugging',
-                    description: 'Systematic approach to power supply problems',
-                    topics: ['No output diagnosis', 'Regulation problems', 'Ripple analysis', 'Efficiency issues']
-                },
-                {
-                    id: 5,
-                    title: 'Oscillation Problems',
-                    description: 'Finding and fixing unwanted oscillations',
-                    topics: ['Op-amp instability', 'Power supply oscillation', 'Parasitic oscillations', 'Snubber design']
-                },
-                {
-                    id: 6,
-                    title: 'Ground Loop Issues',
-                    description: 'Identifying and eliminating ground loops',
-                    topics: ['Ground loop symptoms', 'Star grounding', 'Isolation techniques', 'Differential signaling']
-                },
-                {
-                    id: 7,
-                    title: 'Thermal Problems',
-                    description: 'Diagnosing temperature-related failures',
-                    topics: ['Thermal runaway', 'Cold start issues', 'Parameter drift', 'Thermal imaging']
-                },
-                {
-                    id: 8,
-                    title: 'EMI/RFI Debugging',
-                    description: 'Finding sources of electromagnetic interference',
-                    topics: ['Near-field probing', 'Spectrum analysis', 'Common-mode currents', 'Shield grounding']
-                },
-                {
-                    id: 9,
-                    title: 'Signal Integrity Issues',
-                    description: 'High-speed signal quality problems',
-                    topics: ['Reflections', 'Crosstalk', 'Ground bounce', 'Rise time degradation']
-                },
-                {
-                    id: 10,
-                    title: 'Systematic Debug Methodology',
-                    description: 'Structured approach to finding root causes',
-                    topics: ['Divide and conquer', 'Substitution method', 'Stress testing', 'Documentation']
-                }
-            ]
-        },
-
-        // ========== MODULE 18: Power Supply Design ==========
-        {
-            id: 18,
+            id: 13,
             title: 'Power Supply Design',
             description: 'Complete power supply design techniques',
             lessons: [
@@ -1718,10 +1300,9 @@ const CURRICULUM = {
                 }
             ]
         },
-
-        // ========== MODULE 19: Battery Management ==========
+        // ========== MODULE 14: Battery Management ==========
         {
-            id: 19,
+            id: 14,
             title: 'Battery Management',
             description: 'Battery charging, protection, and monitoring',
             lessons: [
@@ -1787,10 +1368,193 @@ const CURRICULUM = {
                 }
             ]
         },
-
-        // ========== MODULE 20: Sensor Interface ==========
+        // ========== MODULE 15: Audio Applications ==========
         {
-            id: 20,
+            id: 15,
+            title: 'Audio Applications',
+            description: 'Headphone amp, preamp, equalizer, Class D',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'Headphone Amplifier Design',
+                    description: 'Output power, impedance matching, distortion',
+                    topics: ['Power calculation', 'Op-amp selection', 'Output coupling', 'Volume control']
+                },
+                {
+                    id: 2,
+                    title: 'Audio Preamplifier (Mic/Guitar)',
+                    description: 'Gain, input impedance, noise floor',
+                    topics: ['Electret bias', 'High-Z guitar input', 'Gain selection', 'RIAA equalization']
+                },
+                {
+                    id: 3,
+                    title: 'Graphic Equalizer (3-Band)',
+                    description: 'Bass/Mid/Treble control, shelving filters',
+                    topics: ['Center frequencies', 'Q factor', 'Boost/cut range', 'Topology']
+                },
+                {
+                    id: 4,
+                    title: 'Class D Amplifier Concepts',
+                    description: 'PWM modulation, efficiency, LC filter',
+                    topics: ['PWM generation', '90%+ efficiency', 'Output filter', 'EMI considerations']
+                },
+                {
+                    id: 5,
+                    title: 'RIAA Phono Preamplifier',
+                    description: 'Equalization for vinyl playback',
+                    topics: ['RIAA time constants', 'Cartridge types', 'Gain requirements', 'Noise optimization']
+                },
+                {
+                    id: 6,
+                    title: 'Audio Tone Control (Baxandall)',
+                    description: 'Classic bass/treble control circuit',
+                    topics: ['Baxandall features', 'Symmetrical boost/cut', 'Component selection', 'Active vs passive']
+                },
+                {
+                    id: 7,
+                    title: 'Active Crossovers for Speakers',
+                    description: 'Multi-way speaker frequency splitting',
+                    topics: ['Active vs passive', 'Crossover frequencies', 'Filter slopes', 'Phase alignment']
+                },
+                {
+                    id: 8,
+                    title: 'Class AB Power Amplifier Design',
+                    description: 'Discrete audio power amplifier design',
+                    topics: ['Amplifier classes', 'Bias design', 'Thermal stability', 'Protection circuits']
+                },
+                {
+                    id: 9,
+                    title: 'Audio DAC Interface and Filtering',
+                    description: 'DAC output stage and I/V conversion',
+                    topics: ['DAC specs', 'I/V conversion', 'Reconstruction filtering', 'Digital interface']
+                },
+                {
+                    id: 10,
+                    title: 'Volume Control and VCA Circuits',
+                    description: 'Analog volume control techniques',
+                    topics: ['Human hearing', 'Log potentiometers', 'VCA circuits', 'Remote volume control']
+                },
+                {
+                    id: 11,
+                    title: 'Audio Grounding and Shielding',
+                    description: 'Eliminating hum and noise in audio systems',
+                    topics: ['Noise sources', 'Ground loops', 'Star grounding', 'Cable shielding']
+                },
+                {
+                    id: 12,
+                    title: 'Balanced Audio Design',
+                    description: 'Differential signaling for noise rejection',
+                    topics: ['Balanced advantages', 'XLR interface', 'Instrumentation amplifiers', 'CMRR requirements']
+                },
+                {
+                    id: 13,
+                    title: 'Audio Dynamics Processing',
+                    description: 'Compressors, limiters, and gates',
+                    topics: ['Processor types', 'Attack/release', 'Ratio and threshold', 'Side-chain processing']
+                },
+                {
+                    id: 14,
+                    title: 'Audio Measurement and Test',
+                    description: 'THD, noise floor, and frequency response',
+                    topics: ['Key measurements', 'Test equipment', 'Measurement techniques', 'Standards']
+                }
+            ]
+        },
+        // ========== MODULE 16: Data Conversion Applications ==========
+        {
+            id: 16,
+            title: 'Data Conversion Applications',
+            description: 'SAR driver, delta-sigma, DAC reconstruction, references',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'SAR ADC Driver Design',
+                    description: 'RC filter, settling time, kickback',
+                    topics: ['tACQ ≥ k × R × C', 'Op-amp selection', 'Kickback absorption', 'Settling to 0.5 LSB']
+                },
+                {
+                    id: 2,
+                    title: 'Delta-Sigma ADC Intuition',
+                    description: 'Noise shaping, oversampling, decimation',
+                    topics: ['Oversampling ratio', 'Noise spectrum', 'Effective bits', 'Latency']
+                },
+                {
+                    id: 3,
+                    title: 'DAC Reconstruction Filter',
+                    description: 'Sinc rolloff, image rejection',
+                    topics: ['Zero-order hold', 'Nyquist images', 'Filter order', 'Oversampling DACs']
+                },
+                {
+                    id: 4,
+                    title: 'Voltage Reference Selection',
+                    description: 'Initial accuracy, tempco, noise',
+                    topics: ['Error budget', 'Temperature drift', 'Long-term stability', 'PSRR']
+                },
+                {
+                    id: 5,
+                    title: 'SAR ADC Architecture',
+                    description: 'Binary search conversion algorithm',
+                    topics: ['SAR characteristics', 'Binary search', 'Sample capacitor', 'Conversion timing']
+                },
+                {
+                    id: 6,
+                    title: 'Pipeline ADC Architecture',
+                    description: 'High-speed multi-stage conversion',
+                    topics: ['Pipeline characteristics', 'Stage residue', 'Digital error correction', 'Latency']
+                },
+                {
+                    id: 7,
+                    title: 'DAC Architectures',
+                    description: 'R-2R, current steering, and sigma-delta',
+                    topics: ['Common architectures', 'R-2R ladder', 'Current steering', 'Oversampling DACs']
+                },
+                {
+                    id: 8,
+                    title: 'Voltage References for Data Converters',
+                    description: 'Reference selection for ADC/DAC systems',
+                    topics: ['Reference types', 'Noise contribution', 'Temperature stability', 'Buffering']
+                },
+                {
+                    id: 9,
+                    title: 'Anti-Aliasing and Reconstruction Filters',
+                    description: 'Nyquist filtering for sampled systems',
+                    topics: ['Aliasing problem', 'Filter requirements', 'Oversampling benefits', 'Digital filtering']
+                },
+                {
+                    id: 10,
+                    title: 'Data Converter Specifications',
+                    description: 'Understanding ADC/DAC datasheets',
+                    topics: ['Static specifications', 'Dynamic specifications', 'DNL/INL', 'SNR/SFDR/ENOB']
+                },
+                {
+                    id: 11,
+                    title: 'ADC Driver Circuits',
+                    description: 'Op-amp selection and settling for ADC inputs',
+                    topics: ['Driver requirements', 'Settling time', 'Kickback absorption', 'Differential drivers']
+                },
+                {
+                    id: 12,
+                    title: 'DAC Output Circuits',
+                    description: 'I/V conversion and output filtering',
+                    topics: ['Output types', 'Transimpedance', 'Settling time', 'Glitch energy']
+                },
+                {
+                    id: 13,
+                    title: 'High-Speed Data Converter Considerations',
+                    description: 'Layout and clocking for MSPS converters',
+                    topics: ['Speed challenges', 'Clock jitter', 'PCB layout', 'Power supply design']
+                },
+                {
+                    id: 14,
+                    title: 'Data Converter Applications',
+                    description: 'Real-world ADC/DAC system design',
+                    topics: ['Precision applications', 'High-speed applications', 'Audio applications', 'Sensor interfaces']
+                }
+            ]
+        },
+        // ========== MODULE 17: Sensor Interface ==========
+        {
+            id: 17,
             title: 'Sensor Interface',
             description: 'Signal conditioning for various sensor types',
             lessons: [
@@ -1856,10 +1620,145 @@ const CURRICULUM = {
                 }
             ]
         },
-
-        // ========== MODULE 21: RF Analog ==========
+        // ========== MODULE 18: Digital Interface Electrical Design ==========
         {
-            id: 21,
+            id: 18,
+            title: 'Digital Interface Electrical Design',
+            description: 'Logic levels, level shifting, pull-ups, ESD',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'CMOS Logic Families & Voltage Levels',
+                    description: 'HC, HCT, LVC, threshold voltages',
+                    topics: ['VIH, VIL, VOH, VOL', 'CMOS vs TTL thresholds', '3.3V/5V compatibility', 'Noise margin']
+                },
+                {
+                    id: 2,
+                    title: 'Level Shifting Techniques',
+                    description: '3.3V ↔ 5V conversion methods',
+                    topics: ['Resistor divider', 'MOSFET bidirectional', 'Dedicated ICs', 'HCT for step-up']
+                },
+                {
+                    id: 3,
+                    title: 'Pull-Up/Pull-Down Resistor Sizing',
+                    description: 'Rise time, power consumption, I2C example',
+                    topics: ['tr ≈ 2.2×R×C', 'Current sink limit', 'Power = V²/R', 'Speed vs power']
+                },
+                {
+                    id: 4,
+                    title: 'ESD Protection & Input Clamping',
+                    description: 'Internal diodes, series resistors, TVS',
+                    topics: ['Clamp current limit', 'Series R sizing', 'ESD rating', 'Layout']
+                },
+                {
+                    id: 5,
+                    title: 'Input Protection Circuits',
+                    description: 'Clamping overvoltage and transients at a digital input',
+                    topics: ['Series R + clamp diodes', 'Bidirectional Zener clamp', 'RC filter + clamp', 'Clamp current budget']
+                },
+                {
+                    id: 6,
+                    title: 'Schmitt Trigger Inputs',
+                    description: 'Hysteresis for slow and noisy edges',
+                    topics: ['VT+ / VT- thresholds', 'Hysteresis transfer curve', 'Cleaning slow signals', 'RC relaxation oscillator']
+                },
+                {
+                    id: 7,
+                    title: 'Bus Buffers and Drivers',
+                    description: 'Fan-out, direction control, and bus contention',
+                    topics: ['When a buffer is needed', 'Common buffer families', '74HC245 transceiver', 'Fan-out calculation']
+                },
+                {
+                    id: 8,
+                    title: 'Signal Termination',
+                    description: 'When a trace becomes a transmission line',
+                    topics: ['tr < 2 x tpd rule', 'Series vs parallel vs AC termination', 'Reflections and ringing', 'Impedance matching']
+                },
+                {
+                    id: 9,
+                    title: 'Debouncing Techniques',
+                    description: 'Getting one clean edge out of a mechanical switch',
+                    topics: ['Bounce duration', 'RC + Schmitt debounce', 'Software sampling', 'SR latch debounce']
+                },
+                {
+                    id: 10,
+                    title: 'Optocouplers and Isolation',
+                    description: 'Galvanic isolation for digital signals',
+                    topics: ['Why isolate', 'LED + phototransistor structure', 'CTR and drive current', 'Speed limits and alternatives']
+                }
+            ]
+        },
+        // ========== MODULE 19: Communication Protocols - Electrical Level ==========
+        {
+            id: 19,
+            title: 'Communication Protocols - Electrical Level',
+            description: 'I2C, SPI, UART, USB electrical design',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'I2C Electrical Design',
+                    description: 'Pull-up sizing, rise time, bus capacitance',
+                    topics: ['Standard/Fast/Fast+ Mode', 'Rp calculation', 'Multi-master', 'Repeaters']
+                },
+                {
+                    id: 2,
+                    title: 'SPI Electrical Design',
+                    description: 'CPOL/CPHA modes, timing, termination',
+                    topics: ['Mode 0/1/2/3', 'Setup/hold time', 'Clock frequency limits', 'Series termination']
+                },
+                {
+                    id: 3,
+                    title: 'UART / RS-232 Electrical Design',
+                    description: 'TTL vs RS-232 levels, MAX232',
+                    topics: ['Voltage levels', 'Inversion', 'Baud rate timing', 'Error sources']
+                },
+                {
+                    id: 4,
+                    title: 'USB Electrical Fundamentals',
+                    description: 'D+/D- differential, speed detection',
+                    topics: ['Pull-up detection', 'Differential signaling', 'Impedance matching', 'ESD protection']
+                },
+                {
+                    id: 5,
+                    title: 'RS-485 Differential Signaling',
+                    description: 'Half-duplex multi-drop networks, termination, failsafe biasing',
+                    topics: ['Differential receivers', 'Termination networks', 'Failsafe biasing', 'Multi-drop topology']
+                },
+                {
+                    id: 6,
+                    title: 'CAN Bus Physical Layer',
+                    description: 'Dominant/recessive states, transceiver design, fault tolerance',
+                    topics: ['CAN_H/CAN_L signals', 'Transceiver selection', 'Split termination', 'Fault protection']
+                },
+                {
+                    id: 7,
+                    title: 'I2C Repeaters and Buffers',
+                    description: 'Extending bus capacitance limits, level translation, hot-swap',
+                    topics: ['Bus capacitance limits', 'Bidirectional buffers', 'Level translation', 'Rise time acceleration']
+                },
+                {
+                    id: 8,
+                    title: 'SPI Daisy Chaining',
+                    description: 'Multi-device topologies, timing considerations, signal integrity',
+                    topics: ['Ring topology', 'Star topology', 'Cascaded vs parallel', 'Signal propagation delay']
+                },
+                {
+                    id: 9,
+                    title: 'LVDS High-Speed Signaling',
+                    description: 'Low-voltage differential signaling for high-speed data',
+                    topics: ['3.5mA current mode', '100Ω termination', 'Common-mode range', 'EMI advantages']
+                },
+                {
+                    id: 10,
+                    title: 'Protocol Debug Techniques',
+                    description: 'Using oscilloscopes and analyzers for communication debugging',
+                    topics: ['I2C/SPI decoding', 'Eye diagram analysis', 'Protocol violations', 'Common failure modes']
+                }
+            ]
+        },
+        // ========== MODULE 20: RF Analog ==========
+        {
+            id: 20,
             title: 'RF Analog',
             description: 'Radio frequency analog circuit design',
             lessons: [
@@ -1925,10 +1824,9 @@ const CURRICULUM = {
                 }
             ]
         },
-
-        // ========== MODULE 22: EMI/EMC Design ==========
+        // ========== MODULE 21: EMI/EMC Design ==========
         {
-            id: 22,
+            id: 21,
             title: 'EMI/EMC Design',
             description: 'Electromagnetic compatibility and interference control',
             lessons: [
@@ -1994,10 +1892,145 @@ const CURRICULUM = {
                 }
             ]
         },
-
-        // ========== MODULE 23: Real-World System Design ==========
+        // ========== MODULE 22: Real-World Scenarios ==========
+        {
+            id: 22,
+            title: 'Real-World Scenarios',
+            description: 'Complete application-focused design scenarios',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'Multi-Rail Power Sequencing',
+                    description: 'FPGA/SoC requirements, RC delay, sequencer ICs',
+                    topics: ['Monotonic rise', 'Ramp rate', 'Tracking', 'Cascade enable']
+                },
+                {
+                    id: 2,
+                    title: 'Load Switches & Discharge Control',
+                    description: 'Quick output discharge, slew rate, inrush',
+                    topics: ['QOD feature', 'CT pin timing', 'Reverse blocking', 'Power state transitions']
+                },
+                {
+                    id: 3,
+                    title: 'Supervisory & Reset Circuits',
+                    description: 'POR, brownout, watchdog timer',
+                    topics: ['Threshold voltage', 'Hysteresis', 'Reset delay', 'Supervisor IC selection']
+                },
+                {
+                    id: 4,
+                    title: 'Industrial Sensor Interface',
+                    description: 'Robust sensor conditioning for factory environments',
+                    topics: ['4-20mA loop', 'Isolation requirements', 'EMC protection', 'Long cable runs']
+                },
+                {
+                    id: 5,
+                    title: 'Automotive Power System',
+                    description: 'Surviving load dump and cold crank conditions',
+                    topics: ['ISO 7637-2', 'Load dump protection', 'Cold crank', 'Wide input range']
+                },
+                {
+                    id: 6,
+                    title: 'Medical Instrumentation',
+                    description: 'Patient safety and precision measurement',
+                    topics: ['IEC 60601', 'Leakage current', 'Isolation barriers', 'Low-noise design']
+                },
+                {
+                    id: 7,
+                    title: 'IoT Edge Device',
+                    description: 'Battery-powered wireless sensor node design',
+                    topics: ['Power budget', 'Sleep modes', 'Wireless optimization', 'Energy harvesting']
+                },
+                {
+                    id: 8,
+                    title: 'Audio Equipment Repair',
+                    description: 'Diagnosing and fixing common audio circuit faults',
+                    topics: ['Hum and noise', 'Distortion sources', 'DC offset', 'Bias problems']
+                },
+                {
+                    id: 9,
+                    title: 'Power Supply Failure Analysis',
+                    description: 'Root cause analysis for power supply failures',
+                    topics: ['Component stress', 'Thermal failures', 'Capacitor aging', 'MOSFET failures']
+                },
+                {
+                    id: 10,
+                    title: 'RF Interference Investigation',
+                    description: 'Finding and fixing EMI/RFI problems in the field',
+                    topics: ['Spectrum analysis', 'Near-field probing', 'Shield effectiveness', 'Filter retrofit']
+                }
+            ]
+        },
+        // ========== MODULE 23: Troubleshooting & Debug ==========
         {
             id: 23,
+            title: 'Troubleshooting & Debug',
+            description: 'Systematic debugging techniques for analog circuits',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'Reverse Polarity Protection',
+                    description: 'Diode, P-FET, ideal diode controller',
+                    topics: ['Voltage drop comparison', 'P-FET circuit', 'Gate protection', 'Efficiency']
+                },
+                {
+                    id: 2,
+                    title: 'Overvoltage & Crowbar Protection',
+                    description: 'TVS selection, clamp vs crowbar',
+                    topics: ['VRWM, VBR, Vc specs', 'Unidirectional vs bidirectional', 'SCR crowbar', 'Layout']
+                },
+                {
+                    id: 3,
+                    title: 'Hot-Swap & Inrush Limiting',
+                    description: 'Soft-start, current limit, SOA timer',
+                    topics: ['Inrush control', 'Sense resistor', 'Power-good output', 'Backplane design']
+                },
+                {
+                    id: 4,
+                    title: 'Power Supply Debugging',
+                    description: 'Systematic approach to power supply problems',
+                    topics: ['No output diagnosis', 'Regulation problems', 'Ripple analysis', 'Efficiency issues']
+                },
+                {
+                    id: 5,
+                    title: 'Oscillation Problems',
+                    description: 'Finding and fixing unwanted oscillations',
+                    topics: ['Op-amp instability', 'Power supply oscillation', 'Parasitic oscillations', 'Snubber design']
+                },
+                {
+                    id: 6,
+                    title: 'Ground Loop Issues',
+                    description: 'Identifying and eliminating ground loops',
+                    topics: ['Ground loop symptoms', 'Star grounding', 'Isolation techniques', 'Differential signaling']
+                },
+                {
+                    id: 7,
+                    title: 'Thermal Problems',
+                    description: 'Diagnosing temperature-related failures',
+                    topics: ['Thermal runaway', 'Cold start issues', 'Parameter drift', 'Thermal imaging']
+                },
+                {
+                    id: 8,
+                    title: 'EMI/RFI Debugging',
+                    description: 'Finding sources of electromagnetic interference',
+                    topics: ['Near-field probing', 'Spectrum analysis', 'Common-mode currents', 'Shield grounding']
+                },
+                {
+                    id: 9,
+                    title: 'Signal Integrity Issues',
+                    description: 'High-speed signal quality problems',
+                    topics: ['Reflections', 'Crosstalk', 'Ground bounce', 'Rise time degradation']
+                },
+                {
+                    id: 10,
+                    title: 'Systematic Debug Methodology',
+                    description: 'Structured approach to finding root causes',
+                    topics: ['Divide and conquer', 'Substitution method', 'Stress testing', 'Documentation']
+                }
+            ]
+        },
+        // ========== MODULE 24: Real-World System Design ==========
+        {
+            id: 24,
             title: 'Real-World System Design',
             description: 'Complete practical designs for laptops, phones, and consumer electronics',
             lessons: [
@@ -2153,10 +2186,9 @@ const CURRICULUM = {
                 }
             ]
         },
-
-        // ========== MODULE 24: Complex Real-World Projects ==========
+        // ========== MODULE 25: Complex Real-World Projects ==========
         {
-            id: 24,
+            id: 25,
             title: 'Complex Real-World Projects',
             description: 'Complete system-level designs integrating multiple analog subsystems',
             lessons: [
@@ -2219,75 +2251,6 @@ const CURRICULUM = {
                     title: 'Power Supply with PFC',
                     description: 'Complete PFC power supply with LLC converter',
                     topics: ['Boost PFC stage', 'LLC resonant converter', 'Control loops', 'Efficiency optimization']
-                }
-            ]
-        },
-
-        // ========== MODULE 25: Feedback Theory & Stability (Razavi/Agarwal) ==========
-        {
-            id: 25,
-            title: 'Feedback Theory & Stability',
-            description: 'Rigorous treatment of feedback systems following Razavi and Agarwal methodology',
-            lessons: [
-                {
-                    id: 1,
-                    title: 'Feedback Fundamentals',
-                    description: 'Open/closed loop gain, desensitization, loop gain',
-                    topics: ['A/(1+Aβ) derivation', 'Sensitivity analysis', 'Gain-bandwidth product', 'Four effects of feedback']
-                },
-                {
-                    id: 2,
-                    title: 'Feedback Topologies',
-                    description: 'Series-shunt, shunt-series, series-series, shunt-shunt',
-                    topics: ['Input/output impedance effects', 'Topology identification', 'Loading effects', 'Practical examples']
-                },
-                {
-                    id: 3,
-                    title: 'Stability Analysis',
-                    description: 'Bode plots, phase margin, gain margin',
-                    topics: ['Barkhausen criterion', 'Phase/gain margin', 'Pole/zero effects', 'Capacitive load stability']
-                },
-                {
-                    id: 4,
-                    title: 'Compensation Techniques',
-                    description: 'Dominant pole, Miller, lead-lag compensation',
-                    topics: ['Pole splitting', 'Miller capacitor sizing', 'Lead compensation', 'Nested Miller']
-                },
-                {
-                    id: 5,
-                    title: 'Two-Stage Amplifier Compensation',
-                    description: 'Miller compensation for multi-stage op-amps',
-                    topics: ['741-style analysis', 'GBW vs CC tradeoff', 'Right-half-plane zero', 'Nulling resistor']
-                },
-                {
-                    id: 6,
-                    title: 'Stability with Reactive Loads',
-                    description: 'Capacitive and inductive load handling',
-                    topics: ['Isolation resistor', 'In-loop compensation', 'Snubber networks', 'Cable driving']
-                },
-                {
-                    id: 7,
-                    title: 'Power Supply Loop Stability',
-                    description: 'Type I, II, III compensators for switching converters',
-                    topics: ['Voltage-mode vs current-mode', 'Compensator design procedure', 'Optocoupler phase shift', 'Loop gain measurement']
-                },
-                {
-                    id: 8,
-                    title: 'Nyquist Stability Criterion',
-                    description: 'Advanced stability analysis using Nyquist plots',
-                    topics: ['Encirclement count', 'Conditionally stable systems', 'Right-half-plane poles', 'Gain/phase margin from Nyquist']
-                },
-                {
-                    id: 9,
-                    title: 'Root Locus Analysis',
-                    description: 'Tracking poles as loop gain varies',
-                    topics: ['Root locus rules', 'Breakaway points', 'Dominant pole design', 'Lead-lag placement']
-                },
-                {
-                    id: 10,
-                    title: 'Feedback Design Case Studies',
-                    description: 'Complete worked examples from Razavi and Art of Electronics',
-                    topics: ['Precision amplifier', 'High-speed buffer', 'Transimpedance amplifier', 'Power supply compensator']
                 }
             ]
         },
@@ -2774,13 +2737,13 @@ const Router = {
         let html = `
             <div class="card">
                 <h2>The learning path</h2>
-                <p>The sidebar groups lessons by topic, which is what you want when you already
-                know the subject and need to look something up. It is a poor order to learn in:
-                it opens with 35 lessons of transistor internals, and does not explain negative
-                feedback until module 25 &mdash; even though the op-amp rules in module 2 are
-                only true because of it.</p>
-                <p>This is the other view. One route through, foundation first, each step saying
-                what it earns you. ${complete} of ${total} steps complete.</p>
+                <p>One route through the course, foundation first: what an amplifier
+                <em>is</em>, then the ideal op-amp, then why feedback makes it true, and only
+                then the transistor &mdash; arriving as the answer to &ldquo;how was that
+                built&rdquo; rather than as a prerequisite. Each step says what it earns you.</p>
+                <p>The sidebar runs in this same order, so you can follow it there instead. This
+                page is where the reasoning lives. <strong>${complete} of ${total} steps
+                complete.</strong></p>
             </div>`;
 
         LEARNING_PATH.STAGES.forEach((stage, si) => {

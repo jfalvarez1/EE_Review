@@ -1,517 +1,648 @@
-<!-- Module 19, Lesson 8: Charging Profiles -->
+<!-- Module 19, Lesson 8: SPI Daisy Chaining -->
 <div class="lesson-content" data-module="19" data-lesson="8">
 
     <div class="card">
-        <h2>Battery Charging Profiles</h2>
-        <p>Different battery chemistries require specific charging algorithms for safety, longevity, and performance. Learn CC-CV charging, temperature compensation, and advanced charging techniques.</p>
+        <h2>SPI Daisy Chaining</h2>
+        <p>SPI daisy chaining reduces GPIO requirements by connecting multiple devices in series. Data shifts through each device sequentially, requiring careful timing and understanding of the shift register behavior.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">CC Phase</div>
-                <div class="v">Constant current to Vmax</div>
+                <div class="k">Single CS</div>
+                <div class="v">One chip select for all devices</div>
             </div>
             <div class="box">
-                <div class="k">CV Phase</div>
-                <div class="v">Constant voltage, I tapers</div>
+                <div class="k">Data Flow</div>
+                <div class="v">MOSI → D1 → D2 → ... → MISO</div>
             </div>
             <div class="box">
-                <div class="k">Termination</div>
-                <div class="v">I < C/10 typically</div>
+                <div class="k">Clock Cycles</div>
+                <div class="v">N devices × bits per device</div>
             </div>
             <div class="box">
-                <div class="k">Precharge</div>
-                <div class="v">Low I if deeply discharged</div>
+                <div class="k">Latency</div>
+                <div class="v">All data shifted before latch</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Li-ion Rule:</strong> Never exceed 4.2V per cell (4.35V for high-voltage types). Even 50mV overvoltage significantly reduces cycle life and increases safety risk.
+            <strong>Key Insight:</strong> In daisy chain mode, each device's DOUT connects to the next device's DIN. Data for the last device in the chain must be sent first, as it shifts through all preceding devices. The total transaction requires N × (bits per device) clock cycles.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: CC-CV Charging Simulator</h3>
+        <h3>Interactive: Daisy Chain Timing</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="chg-capacity">Cell Capacity (mAh)</label>
-                <input type="range" id="chg-capacity" min="500" max="5000" step="100" value="2000">
-                <span id="chg-capacity-val" class="mono">2000mAh</span>
+                <label for="spi-devices">Number of Devices</label>
+                <input type="range" id="spi-devices" min="2" max="8" step="1" value="4">
+                <span id="spi-devices-val" class="mono">4</span>
             </div>
             <div class="c3">
-                <label for="chg-crate">Charge Rate (C)</label>
-                <input type="range" id="chg-crate" min="0.2" max="2" step="0.1" value="1">
-                <span id="chg-crate-val" class="mono">1C</span>
+                <label for="spi-bits">Bits per Device</label>
+                <select id="spi-bits">
+                    <option value="8">8-bit</option>
+                    <option value="12">12-bit</option>
+                    <option value="16" selected>16-bit</option>
+                    <option value="24">24-bit</option>
+                </select>
             </div>
             <div class="c3">
-                <label for="chg-vmax">Max Voltage (V)</label>
-                <input type="range" id="chg-vmax" min="4.1" max="4.4" step="0.05" value="4.2">
-                <span id="chg-vmax-val" class="mono">4.20V</span>
+                <label for="spi-clock">SPI Clock (Hz)</label>
+                <input type="text" id="spi-clock" value="10M">
+            </div>
+            <div class="c3">
+                <label for="spi-mode">SPI Mode</label>
+                <select id="spi-mode">
+                    <option value="0" selected>Mode 0 (CPOL=0, CPHA=0)</option>
+                    <option value="1">Mode 1 (CPOL=0, CPHA=1)</option>
+                    <option value="2">Mode 2 (CPOL=1, CPHA=0)</option>
+                    <option value="3">Mode 3 (CPOL=1, CPHA=1)</option>
+                </select>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="chg-canvas" width="980" height="340"></canvas>
+            <canvas id="spi-canvas" width="980" height="350"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Charge Current</div>
-                <div class="v mono" id="chg-current">—</div>
+                <div class="k">Total Bits</div>
+                <div class="v mono" id="spi-totalbits">—</div>
             </div>
             <div class="box">
-                <div class="k">CC Time</div>
-                <div class="v mono" id="chg-cctime">—</div>
+                <div class="k">Transaction Time</div>
+                <div class="v mono" id="spi-time">—</div>
             </div>
             <div class="box">
-                <div class="k">Total Time</div>
-                <div class="v mono" id="chg-total">—</div>
+                <div class="k">Update Rate</div>
+                <div class="v mono" id="spi-rate">—</div>
             </div>
             <div class="box">
-                <div class="k">Cycle Life Impact</div>
-                <div class="v mono" id="chg-life">—</div>
+                <div class="k">GPIO Saved</div>
+                <div class="v mono" id="spi-gpio">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Charging Phases</h3>
+        <h3>Daisy Chain Topology</h3>
+        <div id="spi-daisy-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>Daisy Chain vs Individual CS</h3>
 
         <table class="table">
             <tr>
-                <th>Phase</th>
-                <th>Condition</th>
-                <th>Action</th>
-                <th>Duration</th>
+                <th>Aspect</th>
+                <th>Daisy Chain</th>
+                <th>Individual CS</th>
             </tr>
             <tr>
-                <td>Precharge</td>
-                <td>Vcell < 3.0V</td>
-                <td>Charge at C/10</td>
-                <td>Until Vcell > 3.0V</td>
+                <td>GPIO Pins</td>
+                <td>1 CS total</td>
+                <td>N CS pins needed</td>
             </tr>
             <tr>
-                <td>CC (Fast Charge)</td>
-                <td>3.0V < Vcell < 4.2V</td>
-                <td>Constant current (1C typical)</td>
-                <td>~1 hour to 80%</td>
+                <td>Update Speed</td>
+                <td>Slower (all data shifts)</td>
+                <td>Faster (selective update)</td>
             </tr>
             <tr>
-                <td>CV (Saturation)</td>
-                <td>Vcell = 4.2V</td>
-                <td>Constant voltage, I tapers</td>
-                <td>~1 hour for remaining 20%</td>
+                <td>Flexibility</td>
+                <td>Must update all devices</td>
+                <td>Update any device individually</td>
             </tr>
             <tr>
-                <td>Termination</td>
-                <td>I < C/10</td>
-                <td>Stop charging</td>
-                <td>Cell is full</td>
+                <td>Wiring</td>
+                <td>Series connection, cleaner</td>
+                <td>Star topology, more traces</td>
             </tr>
             <tr>
-                <td>Maintenance</td>
-                <td>After termination</td>
-                <td>Optional trickle or recharge</td>
-                <td>Continuous if enabled</td>
+                <td>Fault Tolerance</td>
+                <td>One failure breaks chain</td>
+                <td>Independent operation</td>
             </tr>
         </table>
+
+        <div class="warn">
+            <strong>Device Support:</strong> Not all SPI devices support daisy chaining. Check that the device has a DOUT or SDO pin that can be connected to the next device's DIN. Some devices only have SDO for read-back, not pass-through.
+        </div>
     </div>
 
     <div class="card">
-        <h3>Design Equations</h3>
-        <pre style="color:#4af; background:#111; padding:15px; border-radius:4px; font-size:11px;">
-Charge Current:
-    Icc = C-rate × Capacity
-    Example: 1C × 2000mAh = 2000mA = 2A
-
-CC Phase Time (to ~80%):
-    tcc ≈ 0.8 × Capacity / Icc
-    Example: 0.8 × 2000mAh / 2000mA = 0.8 hours
-
-CV Phase Time (for remaining ~20%):
-    tcv ≈ 0.5 to 1 hour (depends on termination)
-
-Total Charge Time:
-    ttotal = tcc + tcv ≈ 1.5-2 hours at 1C
-
-Temperature Compensation:
-    T < 10°C: Reduce Icc to C/2, Vmax to 4.1V
-    10-45°C: Normal charging
-    T > 45°C: Stop charging (safety)
-
-Voltage Accuracy Required:
-    ±0.5% of 4.2V = ±21mV
-    Use precision reference and feedback
-
-Cycle Life vs Charge Voltage:
-    4.20V: 100% capacity, 500 cycles
-    4.10V: 85% capacity, 1000 cycles
-    4.00V: 75% capacity, 2000 cycles
-        </pre>
+        <h3>Data Ordering</h3>
+        <canvas id="spi-dataflow-canvas" width="900" height="320"></canvas>
     </div>
 
     <div class="card">
-        <h3>Charger Block Diagram</h3>
-        <div id="chg-schematic"></div>
+        <h3>Common Applications</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">LED Drivers</div>
+                <div class="v">WS2811, TLC5940, MAX7219</div>
+            </div>
+            <div class="box">
+                <div class="k">DAC Arrays</div>
+                <div class="v">DAC8568, AD5668</div>
+            </div>
+            <div class="box">
+                <div class="k">Shift Registers</div>
+                <div class="v">74HC595, TPIC6B595</div>
+            </div>
+            <div class="box">
+                <div class="k">ADC Chains</div>
+                <div class="v">ADS8688, MAX1270</div>
+            </div>
+        </div>
     </div>
 
     <div class="card">
         <h3>SPICE Netlist</h3>
-        <div id="chg-spice"></div>
+        <div id="spice-container"></div>
     </div>
 
     <div class="card">
-        <h3>Design Checklist</h3>
-        <div id="chg-checklist"></div>
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
     </div>
 
     <div class="card">
         <h3>Practice Exercises</h3>
-        <div id="chg-exercises"></div>
+        <div id="exercise-container"></div>
     </div>
 
 </div>
 
 <script>
 (function() {
-    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
-
-    const canvas = document.getElementById('chg-canvas');
+    const canvas = document.getElementById('spi-canvas');
     const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const mL = 80, mR = 60, mT = 40, mB = 50;
+    const TEK = AD.TEK_COLORS;
 
     function update() {
-        const capacity = AD.num('chg-capacity') || 2000;
-        const cRate = AD.num('chg-crate') || 1;
-        const Vmax = AD.num('chg-vmax') || 4.2;
+        const devices = parseInt(document.getElementById('spi-devices').value);
+        const bits = parseInt(document.getElementById('spi-bits').value);
+        const clock = AD.parseValue(document.getElementById('spi-clock').value) || 10e6;
+        const mode = parseInt(document.getElementById('spi-mode').value);
 
-        document.getElementById('chg-capacity-val').textContent = capacity + 'mAh';
-        document.getElementById('chg-crate-val').textContent = cRate + 'C';
-        document.getElementById('chg-vmax-val').textContent = Vmax.toFixed(2) + 'V';
+        document.getElementById('spi-devices-val').textContent = devices;
 
-        const Icc = capacity * cRate / 1000; // Amps
-        const tCC = 0.8 / cRate; // Hours to 80%
-        const tCV = 0.7 / cRate; // Approximate CV time
-        const tTotal = tCC + tCV;
+        // Calculate totals
+        const totalBits = devices * bits;
+        const transactionTime = totalBits / clock;
+        const updateRate = clock / totalBits;
+        const gpioSaved = devices - 1; // vs individual CS
 
-        // Cycle life impact based on Vmax
-        let lifeImpact;
-        if (Vmax >= 4.35) lifeImpact = '~300 cycles (reduced)';
-        else if (Vmax >= 4.2) lifeImpact = '~500 cycles (normal)';
-        else if (Vmax >= 4.1) lifeImpact = '~1000 cycles (extended)';
-        else lifeImpact = '~2000 cycles (maximum life)';
+        document.getElementById('spi-totalbits').textContent = totalBits;
+        document.getElementById('spi-time').textContent = AD.fmtUnit(transactionTime, 's');
+        document.getElementById('spi-rate').textContent = AD.fmtUnit(updateRate, 'Hz');
+        document.getElementById('spi-gpio').textContent = gpioSaved + ' pins';
 
-        document.getElementById('chg-current').textContent = Icc.toFixed(2) + 'A';
-        document.getElementById('chg-cctime').textContent = (tCC * 60).toFixed(0) + ' min';
-        document.getElementById('chg-total').textContent = (tTotal * 60).toFixed(0) + ' min';
-        document.getElementById('chg-life').textContent = lifeImpact;
+        plotSPITiming(devices, bits, clock, mode);
+    }
 
-        // Draw charge profile
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, W, H);
+    function plotSPITiming(devices, bits, clock, mode) {
+        const w = canvas.width;
+        const h = canvas.height;
 
-        const plotW = W - mL - mR;
-        const plotH = H - mT - mB - 40;
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
 
-        ctx.strokeStyle = TEK.grid;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(mL, mT, plotW, plotH);
+        const margin = { left: 60, right: 20, top: 30, bottom: 30 };
+        const plotW = w - margin.left - margin.right;
+        const plotH = h - margin.top - margin.bottom;
 
-        // Time axis
-        const tMax = tTotal * 1.2;
-        ctx.fillStyle = '#888';
-        ctx.font = '9px monospace';
-        ctx.textAlign = 'center';
+        const totalBits = devices * bits;
+        const showBits = Math.min(totalBits, 24); // Show first 24 bits max
+        const tMax = showBits + 2;
 
-        for (let t = 0; t <= tMax; t += 0.5) {
-            const x = mL + (t / tMax) * plotW;
-            if (t % 0.5 === 0) {
-                ctx.beginPath();
-                ctx.moveTo(x, mT + plotH);
-                ctx.lineTo(x, mT + plotH + 5);
-                ctx.stroke();
-                ctx.fillText((t * 60).toFixed(0) + 'm', x, mT + plotH + 18);
+        // Draw 4 signals: CS, CLK, MOSI, MISO
+        const signals = ['CS', 'CLK', 'MOSI', 'MISO'];
+        const signalH = plotH / signals.length - 10;
+
+        const cpol = (mode >> 1) & 1;
+        const cpha = mode & 1;
+
+        signals.forEach((sig, idx) => {
+            const y0 = margin.top + idx * (signalH + 10);
+            const y1 = y0 + signalH;
+            const yMid = (y0 + y1) / 2;
+
+            // Signal label
+            ctx.fillStyle = '#9fb0c0';
+            ctx.font = '11px ui-sans-serif';
+            ctx.fillText(sig, 10, yMid + 4);
+
+            // Generate waveform
+            ctx.strokeStyle = TEK['ch' + (idx + 1)] || TEK.ch1;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            for (let t = 0; t <= tMax; t += 0.05) {
+                const x = margin.left + (t / tMax) * plotW;
+                let level = 0;
+
+                if (sig === 'CS') {
+                    // CS low during transaction
+                    level = (t > 0.5 && t < showBits + 0.5) ? 0 : 1;
+                } else if (sig === 'CLK') {
+                    // Clock with CPOL
+                    const inBit = Math.floor(t - 0.5);
+                    if (t > 0.5 && t < showBits + 0.5) {
+                        const phase = (t - 0.5) % 1;
+                        level = (phase < 0.5) ? (1 - cpol) : cpol;
+                    } else {
+                        level = cpol;
+                    }
+                } else if (sig === 'MOSI') {
+                    // Data pattern for daisy chain
+                    const bit = Math.floor(t - 0.5);
+                    if (t > 0.5 && bit < showBits) {
+                        // Alternate pattern per device
+                        const deviceIdx = Math.floor(bit / bits);
+                        const bitInDevice = bit % bits;
+                        // Simple pattern: high for MSB, alternating
+                        level = (bitInDevice % 2 === 0) ? 1 : 0;
+                    }
+                } else if (sig === 'MISO') {
+                    // Delayed by N devices
+                    const bit = Math.floor(t - 0.5 - devices);
+                    if (bit >= 0 && bit < showBits - devices) {
+                        const bitInDevice = bit % bits;
+                        level = (bitInDevice % 2 === 1) ? 1 : 0;
+                    }
+                }
+
+                const y = level ? y0 + 5 : y1 - 5;
+                if (t === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
             }
-        }
-        ctx.fillText('Time', mL + plotW/2, mT + plotH + 35);
+            ctx.stroke();
+        });
 
-        // Voltage axis (left)
-        ctx.textAlign = 'right';
-        for (let v = 3.0; v <= 4.4; v += 0.2) {
-            const y = mT + plotH - ((v - 3.0) / 1.4) * plotH;
-            ctx.fillStyle = '#888';
-            ctx.fillText(v.toFixed(1) + 'V', mL - 5, y + 4);
+        // Bit markers
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.font = '9px ui-sans-serif';
+        for (let b = 0; b < Math.min(showBits, 16); b++) {
+            const x = margin.left + ((b + 1) / tMax) * plotW;
+            ctx.fillText(b.toString(), x - 3, h - 10);
         }
-
-        // Current axis (right)
-        ctx.textAlign = 'left';
-        for (let i = 0; i <= Icc * 1.2; i += Icc / 4) {
-            const y = mT + plotH - (i / (Icc * 1.2)) * plotH;
-            ctx.fillStyle = '#888';
-            ctx.fillText(i.toFixed(1) + 'A', mL + plotW + 5, y + 4);
+        if (showBits > 16) {
+            ctx.fillText('...', margin.left + (17 / tMax) * plotW, h - 10);
         }
 
-        // Draw voltage curve
-        ctx.strokeStyle = TEK.ch1;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-
-        for (let i = 0; i <= plotW; i++) {
-            const t = (i / plotW) * tMax;
-            let V;
-
-            if (t < tCC) {
-                // CC phase - voltage rises exponentially toward Vmax
-                V = 3.0 + (Vmax - 3.0) * (1 - Math.exp(-3 * t / tCC));
-            } else {
-                // CV phase - voltage constant at Vmax
-                V = Vmax;
-            }
-
-            const x = mL + i;
-            const y = mT + plotH - ((V - 3.0) / 1.4) * plotH;
-
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+        // Device boundaries
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.setLineDash([3, 3]);
+        for (let d = 1; d < devices && d * bits < showBits; d++) {
+            const x = margin.left + ((d * bits + 0.5) / tMax) * plotW;
+            ctx.beginPath();
+            ctx.moveTo(x, margin.top);
+            ctx.lineTo(x, h - margin.bottom);
+            ctx.stroke();
         }
-        ctx.stroke();
-
-        // Draw current curve
-        ctx.strokeStyle = TEK.ch2;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-
-        for (let i = 0; i <= plotW; i++) {
-            const t = (i / plotW) * tMax;
-            let I;
-
-            if (t < tCC) {
-                // CC phase - current constant
-                I = Icc;
-            } else if (t < tTotal) {
-                // CV phase - current tapers exponentially
-                const cvTime = t - tCC;
-                I = Icc * Math.exp(-3 * cvTime / tCV);
-            } else {
-                I = 0;
-            }
-
-            const x = mL + i;
-            const y = mT + plotH - (I / (Icc * 1.2)) * plotH;
-
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        // Phase markers
-        const ccEndX = mL + (tCC / tMax) * plotW;
-        const cvEndX = mL + (tTotal / tMax) * plotW;
-
-        ctx.strokeStyle = '#666';
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(ccEndX, mT);
-        ctx.lineTo(ccEndX, mT + plotH);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cvEndX, mT);
-        ctx.lineTo(cvEndX, mT + plotH);
-        ctx.stroke();
         ctx.setLineDash([]);
 
-        // Phase labels
-        ctx.fillStyle = '#4af';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('CC Phase', mL + ccEndX / 2, mT + 15);
-        ctx.fillText('CV Phase', (ccEndX + cvEndX) / 2, mT + 15);
-        ctx.fillText('Done', cvEndX + 30, mT + 15);
-
-        // Legend
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillText('Voltage', mL + 50, mT + plotH - 10);
-        ctx.fillStyle = TEK.ch2;
-        ctx.fillText('Current', mL + 120, mT + plotH - 10);
-
-        // SOC indicator
-        ctx.fillStyle = '#222';
-        ctx.fillRect(mL + plotW + 30, mT, 100, plotH);
-        ctx.strokeStyle = '#444';
-        ctx.strokeRect(mL + plotW + 30, mT, 100, plotH);
-
-        ctx.fillStyle = '#4af';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('SOC', mL + plotW + 80, mT - 5);
-
-        // SOC bar
-        const socCC = 80; // 80% at end of CC
-        const socCV = 100; // 100% at end of CV
-
-        ctx.fillStyle = '#4f4';
-        ctx.fillRect(mL + plotW + 40, mT + plotH - (socCC / 100) * plotH, 80, (socCC / 100) * plotH);
-
-        ctx.fillStyle = '#fa4';
-        const cvHeight = ((socCV - socCC) / 100) * plotH;
-        ctx.fillRect(mL + plotW + 40, mT + plotH - (socCC / 100) * plotH - cvHeight, 80, cvHeight);
-
-        ctx.fillStyle = '#fff';
-        ctx.fillText('CC: 80%', mL + plotW + 80, mT + plotH - 60);
-        ctx.fillText('CV: 20%', mL + plotW + 80, mT + 30);
+        // Title
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '12px ui-sans-serif';
+        ctx.fillText(`SPI Daisy Chain: ${devices} devices × ${bits} bits = ${devices * bits} total clocks`, margin.left, 20);
     }
 
-    ['chg-capacity', 'chg-crate', 'chg-vmax'].forEach(id => {
+    // Event listeners
+    ['spi-devices', 'spi-clock'].forEach(id => {
         document.getElementById(id).addEventListener('input', update);
     });
-
-    // Block diagram
-    function drawSchematic() {
-        const container = document.getElementById('chg-schematic');
-        const svg = new SchematicSVG(700, 200);
-
-        svg.text(50, 25, 'Li-ion Charger Block Diagram:', {fontSize: 12, fill: '#4af'});
-
-        // Input
-        svg.text(30, 90, 'Vin', {fontSize: 10});
-        svg.wire([[50, 80], [100, 80]]);
-
-        // Power stage
-        svg.rect(100, 55, 80, 60, {fill: 'none', stroke: '#888'});
-        svg.text(140, 80, 'Power', {fontSize: 9});
-        svg.text(140, 95, 'Stage', {fontSize: 9});
-
-        svg.wire([[180, 80], [250, 80]]);
-
-        // Current sense
-        svg.resistor(270, 80, {horizontal: true});
-        svg.text(270, 65, 'Rs', {fontSize: 9});
-        svg.wire([[290, 80], [350, 80]]);
-
-        // Battery
-        svg.rect(350, 55, 50, 60, {fill: 'none', stroke: '#888'});
-        svg.text(375, 85, 'Cell', {fontSize: 9});
-
-        // Control IC
-        svg.rect(100, 130, 200, 50, {fill: 'none', stroke: '#888'});
-        svg.text(200, 155, 'Charger Control IC', {fontSize: 10});
-
-        // Feedback paths
-        svg.wire([[140, 115], [140, 130]]);
-        svg.text(145, 125, 'Gate', {fontSize: 8});
-
-        svg.wire([[280, 80], [280, 100], [250, 100], [250, 130]]);
-        svg.text(255, 110, 'Isense', {fontSize: 8});
-
-        svg.wire([[375, 115], [375, 150], [300, 150]]);
-        svg.text(330, 145, 'Vbat', {fontSize: 8});
-
-        // Temp sense
-        svg.wire([[375, 55], [375, 40], [200, 40], [200, 130]]);
-        svg.text(250, 35, 'NTC (Temp)', {fontSize: 8});
-
-        // Status
-        svg.wire([[300, 155], [300, 185]]);
-        svg.text(320, 190, 'Status LEDs', {fontSize: 8});
-
-        // Notes
-        svg.text(450, 70, 'CC-CV Profile:', {fontSize: 10, fill: '#4af'});
-        svg.text(450, 90, '1. Precharge if V<3.0V', {fontSize: 9, fill: '#888'});
-        svg.text(450, 105, '2. CC until V=4.2V', {fontSize: 9, fill: '#888'});
-        svg.text(450, 120, '3. CV until I<C/10', {fontSize: 9, fill: '#888'});
-        svg.text(450, 135, '4. Terminate', {fontSize: 9, fill: '#888'});
-
-        container.innerHTML = svg.render();
-    }
-
-    // SPICE
-    function initSpice() {
-        new SpiceNetlistWidget('chg-spice', {
-            title: 'CC-CV Charger Simulation',
-            netlist: `* CC-CV Battery Charger
-* 2A max, 4.2V max
-
-* Input supply
-Vin in 0 DC 5
-
-* Current limit (2A)
-.param Icc=2
-.param Vmax=4.2
-
-* Charger model (ideal CC-CV)
-Bcharge bat 0 I=min(Icc, (Vmax-V(bat))*10)
-
-* Battery model (simplified)
-* Capacitor represents charge storage
-Cbat bat 0 10000 IC=3.0  ; Large C for slow charge
-
-* Internal resistance
-Rbat_int bat bat_term 0.05
-
-* Voltage measurement
-.measure tran Vbat_final FIND V(bat) AT=7200
-
-* Simulation for 2 hours
-.tran 1 7200
-
-.probe V(bat) I(Bcharge)
-.end
-
-* This simplified model shows:
-* - Initial CC phase with constant 2A
-* - Transition to CV as voltage approaches 4.2V
-* - Current taper in CV phase
-* - Final voltage of 4.2V`
-        });
-    }
-
-    // Checklist
-    function initChecklist() {
-        new ChecklistWidget('chg-checklist', {
-            title: 'Charger Design Checklist',
-            items: [
-                'Set CC current for target charge time',
-                'Set CV voltage precisely (±1%)',
-                'Implement precharge for deeply discharged cells',
-                'Set termination current (typically C/10)',
-                'Add temperature monitoring and limits',
-                'Implement charge timeout safety',
-                'Verify thermal design for power stage',
-                'Test full charge cycle',
-                'Verify termination and restart behavior',
-                'Check behavior with depleted cell'
-            ]
-        });
-    }
-
-    // Exercises
-    function initExercises() {
-        new ExerciseWidget('chg-exercises', {
-            exercises: [
-                {
-                    question: '3000mAh cell, 0.5C charge rate. What current and approximate CC time?',
-                    answer: '1.5A, ~96 min',
-                    solution: 'I = 0.5C × 3000mAh = 1500mA = 1.5A. CC time ≈ 0.8/0.5C = 1.6 hours = 96 min to reach 80%.'
-                },
-                {
-                    question: 'Charger CV voltage is 4.25V instead of 4.20V. Impact?',
-                    answer: 'Reduced cycle life',
-                    solution: '50mV overvoltage increases stress on cathode. Cycle life may drop from 500 to 300 cycles. Also increases thermal runaway risk. Must maintain ±1% accuracy.'
-                },
-                {
-                    question: 'Cell temperature is 5°C. What charging adjustments needed?',
-                    answer: 'Reduce current and voltage',
-                    solution: 'At low temperature, Li-ion has higher internal resistance and lithium plating risk. Reduce charge current to C/3 or less, and may reduce Vmax to 4.1V. Some chargers disable charging below 0°C.'
-                }
-            ]
-        });
-    }
+    ['spi-bits', 'spi-mode'].forEach(id => {
+        document.getElementById(id).addEventListener('change', update);
+    });
 
     update();
-    drawSchematic();
-    initSpice();
-    initChecklist();
-    initExercises();
+
+    // ==================== SPI DATA FLOW CANVAS ====================
+    (function() {
+        const canvas = document.getElementById('spi-dataflow-canvas');
+        if (!canvas || typeof AD === 'undefined') return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const TEK = AD.TEK_COLORS;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Title
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 12px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Daisy Chain Data Flow (4 devices, 8-bit each)', 20, 20);
+
+        // Master sends label
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('Master sends:', 30, 50);
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.fillText('[D4_data][D3_data][D2_data][D1_data]', 130, 50);
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('← First in MOSI, last to reach D4', 400, 50);
+
+        // After 8 clocks section
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('After 8 clocks:', 30, 85);
+
+        const devices8 = [
+            { x: 150, name: 'Device1', data: '[D2_data]' },
+            { x: 300, name: 'Device2', data: '[D3_data]' },
+            { x: 450, name: 'Device3', data: '[D4_data]' },
+            { x: 600, name: 'Device4', data: '[D1_data*]' }
+        ];
+
+        devices8.forEach((dev, i) => {
+            ctx.fillStyle = 'rgba(30,41,59,0.9)';
+            ctx.strokeStyle = TEK.ch1;
+            ctx.lineWidth = 2;
+            AD.roundRect(ctx, dev.x, 95, 100, 45, 6);
+            ctx.fill(); ctx.stroke();
+
+            ctx.fillStyle = '#e6edf3';
+            ctx.font = 'bold 10px ui-sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(dev.name, dev.x + 50, 112);
+            ctx.fillStyle = TEK.ch1;
+            ctx.font = '9px ui-monospace, monospace';
+            ctx.fillText(dev.data, dev.x + 50, 130);
+
+            // Arrow to next device
+            if (i < devices8.length - 1) {
+                ctx.strokeStyle = TEK.ch4;
+                ctx.lineWidth = 2;
+                AD.drawArrow(ctx, dev.x + 100, 118, devices8[i+1].x, 118, { headSize: 6 });
+            }
+        });
+
+        // MISO arrow
+        ctx.strokeStyle = TEK.ch4;
+        AD.drawArrow(ctx, 700, 118, 750, 118, { headSize: 6 });
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '9px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('MISO', 755, 122);
+        ctx.fillText('(shifted out)', 755, 135);
+
+        // After 32 clocks section
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = '11px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('After 32 clocks (complete):', 30, 170);
+
+        const devices32 = [
+            { x: 150, name: 'Device1', data: '[D1_data]' },
+            { x: 300, name: 'Device2', data: '[D2_data]' },
+            { x: 450, name: 'Device3', data: '[D3_data]' },
+            { x: 600, name: 'Device4', data: '[D4_data]' }
+        ];
+
+        devices32.forEach(dev => {
+            ctx.fillStyle = 'rgba(30,41,59,0.9)';
+            ctx.strokeStyle = TEK.ch4;
+            ctx.lineWidth = 2;
+            AD.roundRect(ctx, dev.x, 180, 100, 45, 6);
+            ctx.fill(); ctx.stroke();
+
+            ctx.fillStyle = '#e6edf3';
+            ctx.font = 'bold 10px ui-sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(dev.name, dev.x + 50, 197);
+            ctx.fillStyle = TEK.ch4;
+            ctx.font = '9px ui-monospace, monospace';
+            ctx.fillText(dev.data, dev.x + 50, 215);
+        });
+
+        // CS rises label
+        ctx.fillStyle = TEK.ch3;
+        ctx.font = '11px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('CS rises → All devices latch simultaneously', 750, 205);
+
+        // Data Order Rule box
+        ctx.fillStyle = 'rgba(30,41,59,0.8)';
+        ctx.strokeStyle = TEK.ch5;
+        ctx.lineWidth = 2;
+        AD.roundRect(ctx, 150, 250, 450, 55, 6);
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = TEK.ch5;
+        ctx.font = 'bold 11px ui-sans-serif';
+        ctx.fillText('Data Order Rule:', 170, 275);
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('Send data for LAST device FIRST!', 300, 275);
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('Device N data → Device N-1 data → ... → D1', 170, 295);
+    })();
+
+    // Daisy chain schematic
+    (function() {
+        const container = document.getElementById('spi-daisy-schematic');
+        if (!container) return;
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '750');
+        svg.setAttribute('height', '180');
+        svg.setAttribute('viewBox', '0 0 750 180');
+        svg.innerHTML = `
+            <style>
+                .wire { stroke: #e6edf3; stroke-width: 1.5; fill: none; }
+                .mosi { stroke: #34d399; stroke-width: 2; fill: none; }
+                .miso { stroke: #fbbf24; stroke-width: 2; fill: none; }
+                .clk { stroke: #6ee7ff; stroke-width: 1.5; fill: none; }
+                .cs { stroke: #f472b6; stroke-width: 1.5; fill: none; }
+                .box { stroke: #6ee7ff; stroke-width: 1.5; fill: rgba(30,41,59,0.8); }
+                .lbl { fill: #e6edf3; font: 11px ui-sans-serif; }
+                .lblsm { fill: #9fb0c0; font: 9px ui-sans-serif; }
+            </style>
+
+            <!-- MCU -->
+            <rect x="20" y="50" width="70" height="80" class="box"/>
+            <text x="35" y="95" class="lbl">MCU</text>
+            <text x="92" y="70" class="lblsm">MOSI</text>
+            <text x="92" y="90" class="lblsm">CLK</text>
+            <text x="92" y="110" class="lblsm">CS</text>
+            <text x="92" y="130" class="lblsm">MISO</text>
+
+            <!-- MOSI line (green) -->
+            <line x1="90" y1="65" x2="160" y2="65" class="mosi"/>
+            <line x1="160" y1="65" x2="160" y2="80" class="mosi"/>
+
+            <!-- Device 1 -->
+            <rect x="140" y="80" width="80" height="70" class="box"/>
+            <text x="157" y="120" class="lbl">Device 1</text>
+            <text x="145" y="95" class="lblsm">DIN</text>
+            <text x="195" y="95" class="lblsm">DOUT</text>
+
+            <!-- Chain to Device 2 -->
+            <line x1="220" y1="90" x2="280" y2="90" class="mosi"/>
+
+            <!-- Device 2 -->
+            <rect x="280" y="80" width="80" height="70" class="box"/>
+            <text x="297" y="120" class="lbl">Device 2</text>
+
+            <!-- Chain to Device 3 -->
+            <line x1="360" y1="90" x2="420" y2="90" class="mosi"/>
+
+            <!-- Device 3 -->
+            <rect x="420" y="80" width="80" height="70" class="box"/>
+            <text x="437" y="120" class="lbl">Device 3</text>
+
+            <!-- Chain to Device N -->
+            <text x="515" y="95" class="lbl">...</text>
+
+            <!-- Device N -->
+            <rect x="550" y="80" width="80" height="70" class="box"/>
+            <text x="567" y="120" class="lbl">Device N</text>
+
+            <!-- MISO return (yellow) -->
+            <line x1="630" y1="90" x2="680" y2="90" class="miso"/>
+            <line x1="680" y1="90" x2="680" y2="125" class="miso"/>
+            <line x1="680" y1="125" x2="90" y2="125" class="miso"/>
+
+            <!-- CLK bus (cyan) -->
+            <line x1="90" y1="85" x2="130" y2="85" class="clk"/>
+            <line x1="130" y1="85" x2="130" y2="160" class="clk"/>
+            <line x1="130" y1="160" x2="640" y2="160" class="clk"/>
+            <line x1="180" y1="150" x2="180" y2="160" class="clk"/>
+            <line x1="320" y1="150" x2="320" y2="160" class="clk"/>
+            <line x1="460" y1="150" x2="460" y2="160" class="clk"/>
+            <line x1="590" y1="150" x2="590" y2="160" class="clk"/>
+
+            <!-- CS bus (pink) -->
+            <line x1="90" y1="105" x2="120" y2="105" class="cs"/>
+            <line x1="120" y1="105" x2="120" y2="170" class="cs"/>
+            <line x1="120" y1="170" x2="650" y2="170" class="cs"/>
+            <line x1="180" y1="150" x2="180" y2="170" class="cs" stroke-dasharray="3,2"/>
+            <line x1="320" y1="150" x2="320" y2="170" class="cs" stroke-dasharray="3,2"/>
+            <line x1="460" y1="150" x2="460" y2="170" class="cs" stroke-dasharray="3,2"/>
+            <line x1="590" y1="150" x2="590" y2="170" class="cs" stroke-dasharray="3,2"/>
+
+            <!-- Legend -->
+            <text x="20" y="25" class="lblsm" fill="#34d399">● MOSI/DIN chain</text>
+            <text x="150" y="25" class="lblsm" fill="#fbbf24">● MISO return</text>
+            <text x="260" y="25" class="lblsm" fill="#6ee7ff">● CLK (shared)</text>
+            <text x="370" y="25" class="lblsm" fill="#f472b6">● CS (shared)</text>
+        `;
+        container.appendChild(svg);
+    })();
+
+    // SPICE Netlist
+    new SpiceNetlistWidget('spice-container', {
+        title: 'SPI Daisy Chain Shift Register Model',
+        netlist: `* SPI Daisy Chain - 4 x 8-bit Shift Registers
+* Models data propagation through chain
+
+* Clock generator (10 MHz)
+VCLK clk 0 PULSE(0 3.3 50n 5n 5n 45n 100n)
+
+* Chip select (active low during transaction)
+VCS cs 0 PULSE(3.3 0 0 5n 5n 3.2u 10u)
+
+* MOSI data (example: 0xA5)
+VMOSI mosi 0 PULSE(0 3.3 100n 5n 5n 95n 200n)
+
+* Simplified shift register model
+* Each device delays data by 8 clock cycles
+
+.SUBCKT SHIFTREG DIN DOUT CLK CS VCC GND
+* 8-stage shift register delay
+* In reality, this would be 8 D flip-flops
+BDELAY DOUT 0 V=DELAY(V(DIN), 800n)
+.ENDS
+
+* Daisy chain of 4 devices
+X1 mosi d1out clk cs vcc 0 SHIFTREG
+X2 d1out d2out clk cs vcc 0 SHIFTREG
+X3 d2out d3out clk cs vcc 0 SHIFTREG
+X4 d3out miso clk cs vcc 0 SHIFTREG
+
+VCC vcc 0 DC 3.3
+
+.TRAN 10n 5u
+
+.PROBE V(clk) V(cs) V(mosi) V(d1out) V(d2out) V(d3out) V(miso)
+.END
+
+* Observe data shifting through the chain with 8-bit delay per device`
+    });
+
+    // Checklist
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm13l8',
+        items: [
+            'Verify device supports daisy chain (has DOUT)',
+            'Calculate total bits: N devices × bits per device',
+            'Send data for LAST device FIRST',
+            'All devices share same CS and CLK',
+            'Account for propagation delay through chain',
+            'Consider individual CS if selective update needed',
+            'Check max clock frequency for all devices',
+            'Handle MISO readback with correct offset'
+        ]
+    });
+
+    // Exercises
+    const exercises = [
+        {
+            id: 'M13L8-1',
+            type: 'numeric',
+            question: 'A daisy chain has 8 devices, each with 16-bit registers. How many clock cycles are needed for a complete update?',
+            hint: 'Total = N devices × bits per device',
+            expected: 128,
+            tolerance: 0.01,
+            unit: 'clocks',
+            solution: '8 devices × 16 bits = 128 clock cycles',
+            explanation: 'All data must shift through the entire chain before CS rises to latch.'
+        },
+        {
+            id: 'M13L8-2',
+            type: 'choice',
+            question: 'In which order should data be sent for a 4-device daisy chain?',
+            choices: [
+                { text: 'Device 1 first, Device 4 last', correct: false, explanation: 'This order would put Device 1 data in Device 4 position.' },
+                { text: 'Device 4 first, Device 1 last', correct: true, explanation: 'Correct! Data shifts through the chain, so the first data sent ends up in the last device.' },
+                { text: 'Any order, devices are addressed', correct: false, explanation: 'Daisy chains don\'t use addressing; position depends on transmission order.' },
+                { text: 'Parallel transmission, order doesn\'t matter', correct: false, explanation: 'Daisy chain is serial; data shifts sequentially through all devices.' }
+            ]
+        },
+        {
+            id: 'M13L8-3',
+            type: 'numeric',
+            question: 'At 20 MHz SPI clock, how long (in microseconds) does it take to update a chain of 6 devices with 24-bit registers?',
+            hint: 'Time = total bits / clock frequency',
+            expected: 7.2,
+            tolerance: 0.05,
+            unit: 'µs',
+            solution: 'Total bits = 6 × 24 = 144. Time = 144 / 20MHz = 7.2µs',
+            explanation: 'This limits the maximum update rate to about 139 kHz.'
+        }
+    ];
+
+    const container = document.getElementById('exercise-container');
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-${i}`, ex);
+    });
 })();
 </script>

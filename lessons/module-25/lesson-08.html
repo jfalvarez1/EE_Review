@@ -1,804 +1,1401 @@
-<article class="lesson-content">
-    <p class="author-credit">Based on classical control theory and Agarwal's MIT 6.002 approach</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motor Control System - Complex Real-World Projects</title>
+</head>
+<body>
+    <div class="lesson-content" data-module="25" data-lesson="8">
+        <div class="card">
+            <h2>Motor Control System</h2>
+            <p>This project integrates power electronics, control theory, and precision sensing to create
+            a complete motor control system. We'll design a brushless DC (BLDC) motor driver with field-oriented
+            control (FOC), current sensing, and closed-loop speed/position control. These techniques are used
+            in drones, electric vehicles, industrial automation, and robotics.</p>
 
-    <h2>Introduction</h2>
-    <p>The <strong>Nyquist stability criterion</strong> is a powerful graphical method for determining closed-loop stability from the open-loop frequency response. Unlike Bode analysis, Nyquist can handle systems with RHP poles (unstable open-loop systems) and provides insight into stability margins in a unified way.</p>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Motor Type:</span><span class="kv-value">3-Phase BLDC</span></div>
+                <div class="kv-item"><span class="kv-label">Control:</span><span class="kv-value">FOC (Vector Control)</span></div>
+                <div class="kv-item"><span class="kv-label">PWM Frequency:</span><span class="kv-value">20-50 kHz</span></div>
+                <div class="kv-item"><span class="kv-label">Current Sensing:</span><span class="kv-value">Inline shunt</span></div>
+            </div>
 
-    <div class="concept-box">
-        <h3>Why Nyquist?</h3>
-        <p>Bode plots work well for most amplifier circuits, but Nyquist analysis is essential when:</p>
-        <ul>
-            <li>The open-loop system is unstable (has RHP poles)</li>
-            <li>You need to assess conditional stability</li>
-            <li>Multiple gain crossings occur in the Bode magnitude plot</li>
-            <li>You want a unified view of gain and phase margins</li>
-        </ul>
-    </div>
-
-    <h2>The Nyquist Plot</h2>
-    <p>A Nyquist plot shows the complex value of the loop gain T(jω) as frequency varies from 0 to infinity:</p>
-
-    <div class="formula-box">
-        <h4>Nyquist Plot Construction</h4>
-        <p>For each frequency ω from 0 to ∞:</p>
-        <ul>
-            <li>Calculate T(jω) = |T|∠φ</li>
-            <li>Plot the real part: Re[T] = |T|cos(φ)</li>
-            <li>Plot the imaginary part: Im[T] = |T|sin(φ)</li>
-        </ul>
-        <p>The result is a curve in the complex plane that traces out the loop gain as frequency increases.</p>
-    </div>
-
-    <h3>Interactive: Nyquist Plot Generator</h3>
-    <div class="control-group">
-        <label>DC Gain (dB): <input type="number" id="dc-gain-nyq" value="60" min="0" max="100" step="10"></label>
-        <label>Pole 1 (Hz): <input type="number" id="p1-nyq" value="100" min="1" max="10000" step="100"></label>
-        <label>Pole 2 (Hz): <input type="number" id="p2-nyq" value="10000" min="100" max="100000" step="1000"></label>
-        <label>Pole 3 (Hz): <input type="number" id="p3-nyq" value="100000" min="0" max="1000000" step="10000"></label>
-        <button onclick="updateNyquist()">Update</button>
-    </div>
-    <canvas id="nyquist-canvas" width="500" height="500"></canvas>
-    <div id="nyquist-result" class="result-box"></div>
-
-    <h2>The Nyquist Criterion</h2>
-    <p>The Nyquist criterion relates encirclements of the critical point (-1, 0) to closed-loop stability:</p>
-
-    <div class="formula-box">
-        <h4>Nyquist Stability Criterion</h4>
-        <div class="formula">N = P - Z</div>
-        <p>Where:</p>
-        <ul>
-            <li><strong>N</strong> = Number of clockwise encirclements of (-1, 0)</li>
-            <li><strong>P</strong> = Number of open-loop RHP poles (unstable poles of T(s))</li>
-            <li><strong>Z</strong> = Number of closed-loop RHP poles (unstable poles of 1 + T(s))</li>
-        </ul>
-
-        <h4>For Stability</h4>
-        <p>Z = 0 (no closed-loop unstable poles), so:</p>
-        <div class="formula">N = P</div>
-        <ul>
-            <li><strong>If P = 0</strong> (stable open-loop): N must be 0 (no encirclements)</li>
-            <li><strong>If P > 0</strong> (unstable open-loop): N must equal P (P counter-clockwise encirclements)</li>
-        </ul>
-    </div>
-
-    <div class="design-tip">
-        <h4>Practical Interpretation</h4>
-        <p>For most amplifier circuits where the open-loop system is stable (P = 0), the Nyquist plot must NOT encircle the point (-1, 0) for closed-loop stability.</p>
-    </div>
-
-    <h2>Reading Stability Margins from Nyquist</h2>
-    <p>Both phase margin and gain margin can be read directly from the Nyquist plot:</p>
-
-    <canvas id="nyquist-margins-canvas" width="500" height="400"></canvas>
-
-    <div class="formula-box">
-        <h4>Margins on the Nyquist Plot</h4>
-        <p><strong>Gain Margin:</strong> The distance from the origin to where the Nyquist curve crosses the negative real axis, compared to unity:</p>
-        <div class="formula">GM = 1 / |T(jω₁₈₀)|</div>
-        <p>Where ω₁₈₀ is the frequency where phase = -180°</p>
-
-        <p><strong>Phase Margin:</strong> The angle from the negative real axis to the point where |T| = 1:</p>
-        <div class="formula">PM = 180° + ∠T(jω_c)</div>
-        <p>Where ω_c is the gain crossover frequency</p>
-
-        <p><strong>Distance to (-1, 0):</strong> The minimum distance from the Nyquist curve to the critical point indicates the system's robustness.</p>
-    </div>
-
-    <h2>Encirclement Counting</h2>
-    <p>Counting encirclements correctly is crucial:</p>
-
-    <div class="concept-box">
-        <h3>Encirclement Rules</h3>
-        <ol>
-            <li>Draw a line from (-1, 0) to any point outside the plot</li>
-            <li>Count how many times the Nyquist curve crosses this line</li>
-            <li>Crossings from right to left (as you travel along the curve with increasing ω) count as +1 (clockwise)</li>
-            <li>Crossings from left to right count as -1 (counter-clockwise)</li>
-            <li>The net count is N</li>
-        </ol>
-    </div>
-
-    <h3>Interactive: Encirclement Demonstration</h3>
-    <div class="control-group">
-        <label>Example Type:
-            <select id="example-type" onchange="updateEncirclement()">
-                <option value="stable">Stable (no encirclement)</option>
-                <option value="marginal">Marginally Stable</option>
-                <option value="unstable1">Unstable (1 encirclement)</option>
-                <option value="unstable2">Unstable (2 encirclements)</option>
-                <option value="conditional">Conditionally Stable</option>
-            </select>
-        </label>
-    </div>
-    <canvas id="encirclement-canvas" width="500" height="400"></canvas>
-    <div id="encirclement-result" class="result-box"></div>
-
-    <h2>Conditional Stability</h2>
-    <p>Some systems are "conditionally stable" - they are stable for a range of loop gains but become unstable if gain is increased or decreased too much:</p>
-
-    <div class="warning-box">
-        <h4>Conditional Stability Warning</h4>
-        <p>A conditionally stable system has the Nyquist curve that:</p>
-        <ul>
-            <li>Initially wraps around (-1, 0) in one direction</li>
-            <li>Then wraps back in the opposite direction</li>
-            <li>Net encirclements may be zero, but reducing gain could cause instability!</li>
-        </ul>
-        <p><strong>Design Rule:</strong> Avoid conditionally stable designs when possible. They can become unstable during power-up, at low signal levels, or when gain-setting components drift.</p>
-    </div>
-
-    <h2>Complete Nyquist Contour</h2>
-    <p>For rigorous analysis, we must consider the complete Nyquist contour in the s-plane:</p>
-
-    <div class="concept-box">
-        <h3>The Nyquist Contour</h3>
-        <p>The contour consists of:</p>
-        <ol>
-            <li><strong>Positive imaginary axis:</strong> s = jω, ω from 0⁺ to +∞</li>
-            <li><strong>Large semicircle:</strong> s = Re^(jθ), R → ∞, θ from +90° to -90°</li>
-            <li><strong>Negative imaginary axis:</strong> s = jω, ω from -∞ to 0⁻</li>
-            <li><strong>Small indentations:</strong> Around any poles on the imaginary axis</li>
-        </ol>
-        <p>For most practical systems, we only plot the positive frequency portion and reflect it about the real axis (since T(jω)* = T(-jω) for real systems).</p>
-    </div>
-
-    <h2>Nyquist for Systems with Integration</h2>
-    <p>Systems with poles at the origin (integrators) require special handling:</p>
-
-    <div class="formula-box">
-        <h4>Handling Poles at s = 0</h4>
-        <p>For T(s) = K/s × (...), the Nyquist contour must indent around the origin:</p>
-        <ul>
-            <li>As ω → 0⁺, |T| → ∞ and phase starts at -90° per integrator</li>
-            <li>The Nyquist plot comes from infinity along a specific direction</li>
-            <li>The indentation maps to a large arc in the T-plane</li>
-        </ul>
-    </div>
-
-    <h2>Worked Example: Three-Pole System</h2>
-    <div class="worked-example">
-        <h4>Problem</h4>
-        <p>Analyze stability of a feedback system with T(s) = 1000/(s/100 + 1)(s/1000 + 1)(s/10000 + 1)</p>
-
-        <h4>Step 1: Identify Open-Loop Poles</h4>
-        <p>Poles at s = -100, -1000, -10000 rad/s (all in LHP)</p>
-        <p>P = 0 (open-loop stable)</p>
-
-        <h4>Step 2: Calculate Key Points</h4>
-        <p>At ω = 0: T = 1000∠0°</p>
-        <p>At ω = 100: T ≈ 707∠-45°</p>
-        <p>At ω = 1000: T ≈ 100∠-135° (approximately)</p>
-        <p>At ω → ∞: T → 0∠-270°</p>
-
-        <h4>Step 3: Find Phase Crossover</h4>
-        <p>Phase = -180° when:</p>
-        <p>-arctan(ω/100) - arctan(ω/1000) - arctan(ω/10000) = -180°</p>
-        <p>Solving numerically: ω ≈ 3160 rad/s (503 Hz)</p>
-
-        <h4>Step 4: Check Magnitude at Phase Crossover</h4>
-        <p>|T(j3160)| = 1000 / √(1+31.6²) / √(1+3.16²) / √(1+0.316²)</p>
-        <p>= 1000 / (31.6 × 3.32 × 1.05) = 9.1</p>
-        <p>Since |T| > 1 at -180° phase, the curve passes to the LEFT of (-1, 0)</p>
-
-        <h4>Step 5: Count Encirclements</h4>
-        <p>The curve encircles (-1, 0) clockwise once → N = 1</p>
-        <p>With P = 0: Z = P - N = 0 - 1 = -1 (?!)</p>
-        <p>This is impossible, so we have 1 encirclement → Z = 1 unstable closed-loop pole</p>
-
-        <div class="formula-box" style="background: #3a1a1a;">
-            <h4>Conclusion</h4>
-            <p>The system is UNSTABLE. The Nyquist plot encircles (-1, 0) once, indicating one closed-loop RHP pole.</p>
-            <p>Gain margin = 1/9.1 = 0.11 = -19 dB (negative, confirming instability)</p>
-        </div>
-    </div>
-
-    <h2>Comparison: Bode vs Nyquist</h2>
-    <table class="info-table">
-        <thead>
-            <tr>
-                <th>Aspect</th>
-                <th>Bode Plot</th>
-                <th>Nyquist Plot</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Display</td>
-                <td>Magnitude and phase vs. frequency (two plots)</td>
-                <td>Complex plane (single plot)</td>
-            </tr>
-            <tr>
-                <td>Frequency scale</td>
-                <td>Logarithmic</td>
-                <td>Implicit (parametric)</td>
-            </tr>
-            <tr>
-                <td>Stability criterion</td>
-                <td>PM > 0 and GM > 1 at crossovers</td>
-                <td>Count encirclements of (-1, 0)</td>
-            </tr>
-            <tr>
-                <td>RHP poles (unstable T)</td>
-                <td>Criterion not directly applicable</td>
-                <td>Handles via P term</td>
-            </tr>
-            <tr>
-                <td>Multiple crossovers</td>
-                <td>Can be confusing</td>
-                <td>Naturally handled</td>
-            </tr>
-            <tr>
-                <td>Design insight</td>
-                <td>Easier for compensation design</td>
-                <td>Better for stability assessment</td>
-            </tr>
-        </tbody>
-    </table>
-
-    <h2>Exercises</h2>
-    <div id="exercises-container">
-        <div class="exercise-widget" data-exercise="1">
-            <p class="exercise-problem"><strong>Exercise 1:</strong> A system has loop gain T(s) = 10/(s+1)². At what frequency does the Nyquist plot cross the negative real axis?</p>
-            <input type="text" id="ex1-input" placeholder="Enter frequency in rad/s">
-            <button onclick="checkEx1()">Check Answer</button>
-            <div id="ex1-result"></div>
-            <div class="exercise-hint" style="display:none;">
-                <p><strong>Hint:</strong> The phase is -180° when 2×arctan(ω) = 180°, so arctan(ω) = 90°...</p>
+            <div class="notice">
+                <strong>Design Philosophy:</strong> Motor control requires tight integration of power stage
+                design, current measurement, and control algorithms. The power stage must handle high currents
+                efficiently, while the control loop must respond in microseconds to maintain smooth operation.
             </div>
         </div>
 
-        <div class="exercise-widget" data-exercise="2">
-            <p class="exercise-problem"><strong>Exercise 2:</strong> For the system in Exercise 1, what is |T| at the phase crossover frequency? Is the system stable?</p>
-            <input type="text" id="ex2-mag" placeholder="|T| at crossover">
-            <select id="ex2-stable">
-                <option value="">Stable?</option>
-                <option value="yes">Yes, stable</option>
-                <option value="no">No, unstable</option>
-            </select>
-            <button onclick="checkEx2()">Check Answer</button>
-            <div id="ex2-result"></div>
+        <!-- System Architecture -->
+        <div class="card">
+            <h3>System Architecture</h3>
+            <div class="canvas-wrap">
+                <canvas id="motor-arch-canvas" width="980" height="340"></canvas>
+            </div>
         </div>
 
-        <div class="exercise-widget" data-exercise="3">
-            <p class="exercise-problem"><strong>Exercise 3:</strong> A feedback system has an open-loop transfer function with 2 RHP poles (P = 2). The Nyquist plot makes 1 counter-clockwise encirclement of (-1, 0). How many closed-loop RHP poles are there?</p>
-            <input type="text" id="ex3-input" placeholder="Number of closed-loop RHP poles">
-            <button onclick="checkEx3()">Check Answer</button>
-            <div id="ex3-result"></div>
+        <!-- Interactive 1: 3-Phase Inverter Operation -->
+        <div class="card">
+            <h3>Interactive: 3-Phase Inverter Waveforms</h3>
+            <p>Visualize the PWM waveforms and resulting motor phase voltages:</p>
+
+            <div class="controls">
+                <label>Modulation Index:
+                    <input type="range" id="mod-index" min="0.1" max="1.0" value="0.8" step="0.05">
+                    <span id="mod-index-val">0.8</span>
+                </label>
+                <label>Electrical Frequency (Hz):
+                    <input type="range" id="elec-freq" min="10" max="200" value="50" step="10">
+                    <span id="elec-freq-val">50 Hz</span>
+                </label>
+                <label>PWM Frequency (kHz):
+                    <input type="range" id="pwm-freq" min="10" max="50" value="20" step="5">
+                    <span id="pwm-freq-val">20 kHz</span>
+                </label>
+                <label>Modulation:
+                    <select id="modulation">
+                        <option value="svpwm">SVPWM</option>
+                        <option value="spwm">Sinusoidal PWM</option>
+                        <option value="trap">Trapezoidal</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="inverter-canvas" width="980" height="380"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">DC Bus Utilization:</span><span class="kv-value" id="bus-util">92%</span></div>
+                <div class="kv-item"><span class="kv-label">THD:</span><span class="kv-value" id="thd">3.2%</span></div>
+                <div class="kv-item"><span class="kv-label">Fundamental RMS:</span><span class="kv-value" id="fund-rms">27.7 V</span></div>
+                <div class="kv-item"><span class="kv-label">Dead Time:</span><span class="kv-value" id="dead-time">500 ns</span></div>
+            </div>
+        </div>
+
+        <!-- Interactive 2: Current Sensing -->
+        <div class="card">
+            <h3>Interactive: Current Sensing Design</h3>
+            <p>Design the current sense amplifier for motor phase currents:</p>
+
+            <div class="controls">
+                <label>Peak Current (A):
+                    <input type="range" id="peak-current" min="1" max="50" value="10" step="1">
+                    <span id="peak-current-val">10 A</span>
+                </label>
+                <label>Shunt Value (mΩ):
+                    <input type="range" id="shunt-value" min="1" max="50" value="10" step="1">
+                    <span id="shunt-value-val">10 mΩ</span>
+                </label>
+                <label>Amplifier Gain:
+                    <input type="range" id="amp-gain" min="10" max="100" value="20" step="5">
+                    <span id="amp-gain-val">20</span>
+                </label>
+                <label>ADC Reference (V):
+                    <select id="adc-ref">
+                        <option value="3.3">3.3V</option>
+                        <option value="5">5V</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="current-sense-canvas" width="980" height="350"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Shunt Voltage:</span><span class="kv-value" id="shunt-voltage">±100 mV</span></div>
+                <div class="kv-item"><span class="kv-label">Amp Output:</span><span class="kv-value" id="amp-output">1.65 ± 2V</span></div>
+                <div class="kv-item"><span class="kv-label">Shunt Power:</span><span class="kv-value" id="shunt-power">1W</span></div>
+                <div class="kv-item"><span class="kv-label">Resolution:</span><span class="kv-value" id="current-res">24 mA/LSB</span></div>
+            </div>
+        </div>
+
+        <!-- Interactive 3: FOC Clarke/Park Transform -->
+        <div class="card">
+            <h3>Interactive: Field-Oriented Control</h3>
+            <p>Visualize the Clarke and Park transforms used in FOC:</p>
+
+            <div class="controls">
+                <label>Phase A Current:
+                    <input type="range" id="ia-current" min="-10" max="10" value="5" step="0.5">
+                    <span id="ia-current-val">5 A</span>
+                </label>
+                <label>Phase B Current:
+                    <input type="range" id="ib-current" min="-10" max="10" value="-2.5" step="0.5">
+                    <span id="ib-current-val">-2.5 A</span>
+                </label>
+                <label>Rotor Angle (°):
+                    <input type="range" id="rotor-angle" min="0" max="360" value="30" step="5">
+                    <span id="rotor-angle-val">30°</span>
+                </label>
+                <label>Auto Rotate:
+                    <input type="checkbox" id="auto-rotate">
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="foc-canvas" width="980" height="400"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Iα:</span><span class="kv-value" id="i-alpha">5.0 A</span></div>
+                <div class="kv-item"><span class="kv-label">Iβ:</span><span class="kv-value" id="i-beta">2.9 A</span></div>
+                <div class="kv-item"><span class="kv-label">Id (flux):</span><span class="kv-value" id="i-d">0.0 A</span></div>
+                <div class="kv-item"><span class="kv-label">Iq (torque):</span><span class="kv-value" id="i-q">5.8 A</span></div>
+            </div>
+        </div>
+
+        <!-- Interactive 4: Speed Control Loop -->
+        <div class="card">
+            <h3>Interactive: Speed Control Loop</h3>
+            <p>Tune the PI controller for motor speed regulation:</p>
+
+            <div class="controls">
+                <label>Kp (Proportional):
+                    <input type="range" id="kp-speed" min="0.1" max="10" value="2" step="0.1">
+                    <span id="kp-speed-val">2.0</span>
+                </label>
+                <label>Ki (Integral):
+                    <input type="range" id="ki-speed" min="0.1" max="50" value="10" step="0.5">
+                    <span id="ki-speed-val">10</span>
+                </label>
+                <label>Setpoint (RPM):
+                    <input type="range" id="setpoint-rpm" min="100" max="3000" value="1000" step="100">
+                    <span id="setpoint-rpm-val">1000</span>
+                </label>
+                <label>Load Torque (%):
+                    <input type="range" id="load-torque" min="0" max="100" value="50" step="10">
+                    <span id="load-torque-val">50%</span>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="control-canvas" width="980" height="350"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Rise Time:</span><span class="kv-value" id="rise-time">85 ms</span></div>
+                <div class="kv-item"><span class="kv-label">Overshoot:</span><span class="kv-value" id="overshoot">12%</span></div>
+                <div class="kv-item"><span class="kv-label">Settling Time:</span><span class="kv-value" id="settle-time">250 ms</span></div>
+                <div class="kv-item"><span class="kv-label">Steady-State Error:</span><span class="kv-value" id="ss-error">0%</span></div>
+            </div>
+        </div>
+
+        <!-- Gate Driver Requirements -->
+        <div class="card">
+            <h3>Gate Driver Requirements</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Low-Side</th>
+                        <th>High-Side</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Gate Drive Voltage</td>
+                        <td>10-15V</td>
+                        <td>10-15V (floating)</td>
+                        <td>Above Vgs(th) + margin</td>
+                    </tr>
+                    <tr>
+                        <td>Source/Sink Current</td>
+                        <td>1-4A peak</td>
+                        <td>1-4A peak</td>
+                        <td>Fast switching</td>
+                    </tr>
+                    <tr>
+                        <td>Propagation Delay</td>
+                        <td><50ns</td>
+                        <td><50ns</td>
+                        <td>Matched H/L</td>
+                    </tr>
+                    <tr>
+                        <td>Dead Time</td>
+                        <td colspan="2">200-1000ns</td>
+                        <td>Prevent shoot-through</td>
+                    </tr>
+                    <tr>
+                        <td>Bootstrap Cap</td>
+                        <td>N/A</td>
+                        <td>100nF-1μF</td>
+                        <td>High-side supply</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Schematic -->
+        <div class="card">
+            <h3>Half-Bridge Schematic</h3>
+            <div id="motor-schematic"></div>
+        </div>
+
+        <!-- Design Checklist -->
+        <div class="card">
+            <h3>Design Checklist</h3>
+            <div id="motor-checklist"></div>
+        </div>
+
+        <!-- Exercises -->
+        <div class="card">
+            <h3>Practice Exercises</h3>
+            <div id="motor-exercises"></div>
         </div>
     </div>
 
     <script>
-    (function() {
-        const nyqCanvas = document.getElementById('nyquist-canvas');
-        if (!nyqCanvas || typeof AD === 'undefined') return;
-        const nyqCtx = nyqCanvas.getContext('2d');
-        const TEK = AD.TEK_COLORS;
+        // Canvas 1: Inverter Waveforms
+        const inverterCanvas = document.getElementById('inverter-canvas');
+        const inverterCtx = inverterCanvas.getContext('2d');
 
-        function drawNyquistPlot(ctx, canvas, loopGainFn, options = {}) {
-            const w = canvas.width, h = canvas.height;
-            const centerX = w * 0.55, centerY = h / 2;
-            const scale = options.scale || 100;
+        function drawInverterWaveforms() {
+            const modIndex = AD.num('mod-index') || 0.8;
+            const elecFreq = AD.num('elec-freq') || 50;
+            const pwmFreq = AD.num('pwm-freq') || 20;
+            const modulation = document.getElementById('modulation').value || 'svpwm';
 
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, w, h);
+            document.getElementById('mod-index-val').textContent = modIndex.toFixed(2);
+            document.getElementById('elec-freq-val').textContent = elecFreq + ' Hz';
+            document.getElementById('pwm-freq-val').textContent = pwmFreq + ' kHz';
 
-            // Draw axes
-            ctx.strokeStyle = '#444';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(0, centerY);
-            ctx.lineTo(w, centerY);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(centerX, 0);
-            ctx.lineTo(centerX, h);
-            ctx.stroke();
+            inverterCtx.fillStyle = '#181818';
+            inverterCtx.fillRect(0, 0, inverterCanvas.width, inverterCanvas.height);
 
-            // Draw unit circle
-            ctx.strokeStyle = '#333';
-            ctx.setLineDash([5, 5]);
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, scale, 0, 2 * Math.PI);
-            ctx.stroke();
-            ctx.setLineDash([]);
+            const w = inverterCanvas.width;
+            const h = inverterCanvas.height;
+            const margin = { left: 60, right: 40, top: 30, bottom: 40 };
+            const plotW = w - margin.left - margin.right;
+            const plotH = (h - margin.top - margin.bottom) / 3 - 10;
 
-            // Mark (-1, 0) critical point
-            const critX = centerX - scale;
-            ctx.fillStyle = TEK.red;
-            ctx.beginPath();
-            ctx.arc(critX, centerY, 6, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('-1', critX, centerY + 20);
+            // Calculate metrics
+            let busUtil, thd;
+            switch(modulation) {
+                case 'svpwm':
+                    busUtil = modIndex * 1.15 * 100;
+                    thd = 2 + (1 - modIndex) * 5;
+                    break;
+                case 'spwm':
+                    busUtil = modIndex * 100;
+                    thd = 3 + (1 - modIndex) * 8;
+                    break;
+                case 'trap':
+                    busUtil = modIndex * 100;
+                    thd = 10 + (1 - modIndex) * 15;
+                    break;
+                default:
+                    busUtil = modIndex * 100;
+                    thd = 3 + (1 - modIndex) * 8;
+                    break;
+            }
 
-            // Draw origin
-            ctx.fillStyle = '#888';
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, 3, 0, 2 * Math.PI);
-            ctx.fill();
+            document.getElementById('bus-util').textContent = Math.min(busUtil, 100).toFixed(0) + '%';
+            document.getElementById('thd').textContent = thd.toFixed(1) + '%';
+            document.getElementById('fund-rms').textContent = (48 * modIndex * 0.707).toFixed(1) + ' V';
+            document.getElementById('dead-time').textContent = '500 ns';
 
-            // Axis labels
-            ctx.fillStyle = '#888';
-            ctx.textAlign = 'center';
-            ctx.fillText('Re', w - 20, centerY - 10);
-            ctx.fillText('Im', centerX + 15, 15);
+            const colors = ['#FFFF00', '#00FFFF', '#FF66FF'];
+            const phaseNames = ['Phase A', 'Phase B', 'Phase C'];
 
-            // Scale markers
-            for (let i = -3; i <= 3; i++) {
-                if (i !== 0) {
-                    const x = centerX + i * scale;
-                    if (x > 20 && x < w - 20) {
-                        ctx.beginPath();
-                        ctx.moveTo(x, centerY - 5);
-                        ctx.lineTo(x, centerY + 5);
-                        ctx.stroke();
-                        ctx.fillText(i.toString(), x, centerY + 20);
+            for (let phase = 0; phase < 3; phase++) {
+                const y0 = margin.top + phase * (plotH + 20) + plotH / 2;
+                const phaseShift = phase * 2 * Math.PI / 3;
+
+                // Draw axis
+                inverterCtx.strokeStyle = '#444';
+                inverterCtx.lineWidth = 1;
+                inverterCtx.beginPath();
+                inverterCtx.moveTo(margin.left, y0);
+                inverterCtx.lineTo(margin.left + plotW, y0);
+                inverterCtx.stroke();
+
+                // Draw phase label
+                inverterCtx.fillStyle = colors[phase];
+                inverterCtx.font = '12px monospace';
+                inverterCtx.textAlign = 'right';
+                inverterCtx.fillText(phaseNames[phase], margin.left - 10, y0 + 4);
+
+                // Draw waveform
+                inverterCtx.strokeStyle = colors[phase];
+                inverterCtx.lineWidth = 2;
+                inverterCtx.beginPath();
+
+                const periods = 2;
+                for (let i = 0; i <= plotW; i++) {
+                    const t = (i / plotW) * periods * (1 / elecFreq);
+                    const angle = 2 * Math.PI * elecFreq * t + phaseShift;
+
+                    let duty;
+                    switch(modulation) {
+                        case 'svpwm':
+                            // SVPWM with third harmonic injection
+                            const fund = Math.sin(angle);
+                            const third = Math.sin(3 * angle) / 6;
+                            duty = 0.5 + 0.5 * modIndex * (fund - third);
+                            break;
+                        case 'spwm':
+                            duty = 0.5 + 0.5 * modIndex * Math.sin(angle);
+                            break;
+                        case 'trap':
+                            const normAngle = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+                            if (normAngle < Math.PI / 3) duty = 0.5 + modIndex * 1.5 * normAngle / Math.PI;
+                            else if (normAngle < 2 * Math.PI / 3) duty = 0.5 + modIndex * 0.5;
+                            else if (normAngle < Math.PI) duty = 0.5 + modIndex * 0.5 - modIndex * 1.5 * (normAngle - 2*Math.PI/3) / Math.PI;
+                            else if (normAngle < 4 * Math.PI / 3) duty = 0.5 - modIndex * 1.5 * (normAngle - Math.PI) / Math.PI;
+                            else if (normAngle < 5 * Math.PI / 3) duty = 0.5 - modIndex * 0.5;
+                            else duty = 0.5 - modIndex * 0.5 + modIndex * 1.5 * (normAngle - 5*Math.PI/3) / Math.PI;
+                            break;
                     }
-                    const y = centerY - i * scale;
-                    if (y > 20 && y < h - 20) {
-                        ctx.beginPath();
-                        ctx.moveTo(centerX - 5, y);
-                        ctx.lineTo(centerX + 5, y);
-                        ctx.stroke();
-                        ctx.fillText((i > 0 ? '+' : '') + i + 'j', centerX + 25, y + 4);
-                    }
+
+                    const y = y0 - (duty - 0.5) * plotH * 0.9;
+                    if (i === 0) inverterCtx.moveTo(margin.left + i, y);
+                    else inverterCtx.lineTo(margin.left + i, y);
+                }
+                inverterCtx.stroke();
+
+                // Draw reference levels
+                inverterCtx.strokeStyle = '#666';
+                inverterCtx.setLineDash([3, 3]);
+                inverterCtx.beginPath();
+                inverterCtx.moveTo(margin.left, y0 - plotH * 0.45);
+                inverterCtx.lineTo(margin.left + plotW, y0 - plotH * 0.45);
+                inverterCtx.moveTo(margin.left, y0 + plotH * 0.45);
+                inverterCtx.lineTo(margin.left + plotW, y0 + plotH * 0.45);
+                inverterCtx.stroke();
+                inverterCtx.setLineDash([]);
+            }
+
+            // Time axis
+            inverterCtx.fillStyle = '#888';
+            inverterCtx.font = '11px monospace';
+            inverterCtx.textAlign = 'center';
+            inverterCtx.fillText('Time (2 electrical cycles)', margin.left + plotW / 2, h - 10);
+
+            // Modulation label
+            inverterCtx.fillStyle = '#FFF';
+            inverterCtx.font = 'bold 14px monospace';
+            inverterCtx.textAlign = 'right';
+            const modLabels = { svpwm: 'Space Vector PWM', spwm: 'Sinusoidal PWM', trap: 'Trapezoidal' };
+            inverterCtx.fillText(modLabels[modulation], w - 50, 25);
+        }
+
+        // Canvas 2: Current Sensing
+        const currentCanvas = document.getElementById('current-sense-canvas');
+        const currentCtx = currentCanvas.getContext('2d');
+
+        function drawCurrentSensing() {
+            const peakI = AD.num('peak-current');
+            const shuntR = AD.num('shunt-value');
+            const gain = AD.num('amp-gain');
+            const adcRef = AD.num('adc-ref');
+
+            document.getElementById('peak-current-val').textContent = peakI + ' A';
+            document.getElementById('shunt-value-val').textContent = shuntR + ' mΩ';
+            document.getElementById('amp-gain-val').textContent = gain;
+
+            currentCtx.fillStyle = '#181818';
+            currentCtx.fillRect(0, 0, currentCanvas.width, currentCanvas.height);
+
+            const w = currentCanvas.width;
+            const h = currentCanvas.height;
+
+            // Calculate sensing parameters
+            const shuntV = peakI * shuntR / 1000; // V
+            const ampOut = gain * shuntV;
+            const shuntPower = peakI * peakI * shuntR / 1000; // W (RMS for sine)
+
+            document.getElementById('shunt-voltage').textContent = '±' + (shuntV * 1000).toFixed(0) + ' mV';
+            document.getElementById('amp-output').textContent = (adcRef / 2).toFixed(2) + ' ± ' + ampOut.toFixed(2) + 'V';
+            document.getElementById('shunt-power').textContent = (shuntPower / 2).toFixed(2) + 'W (RMS)';
+
+            // ADC resolution
+            const adcBits = 12;
+            const lsb = adcRef / Math.pow(2, adcBits);
+            const currentRes = lsb / (gain * shuntR / 1000);
+            document.getElementById('current-res').textContent = (currentRes * 1000).toFixed(1) + ' mA/LSB';
+
+            // Draw block diagram
+            const blockY = 120;
+
+            // Current source
+            currentCtx.strokeStyle = '#00FFFF';
+            currentCtx.lineWidth = 3;
+            currentCtx.beginPath();
+            currentCtx.moveTo(50, blockY);
+            currentCtx.lineTo(120, blockY);
+            currentCtx.stroke();
+
+            currentCtx.fillStyle = '#00FFFF';
+            currentCtx.beginPath();
+            currentCtx.arc(85, blockY, 15, 0, Math.PI * 2);
+            currentCtx.stroke();
+            currentCtx.fillText('I', 85, blockY + 5);
+
+            // Shunt resistor
+            currentCtx.fillStyle = '#333';
+            currentCtx.fillRect(130, blockY - 15, 60, 30);
+            currentCtx.strokeStyle = '#FFFF00';
+            currentCtx.strokeRect(130, blockY - 15, 60, 30);
+            currentCtx.fillStyle = '#FFFF00';
+            currentCtx.font = '11px monospace';
+            currentCtx.textAlign = 'center';
+            currentCtx.fillText(shuntR + 'mΩ', 160, blockY + 5);
+
+            // Sense voltage
+            currentCtx.strokeStyle = '#888';
+            currentCtx.lineWidth = 1;
+            currentCtx.setLineDash([3, 3]);
+            currentCtx.beginPath();
+            currentCtx.moveTo(130, blockY + 30);
+            currentCtx.lineTo(130, blockY + 60);
+            currentCtx.moveTo(190, blockY + 30);
+            currentCtx.lineTo(190, blockY + 60);
+            currentCtx.stroke();
+            currentCtx.setLineDash([]);
+
+            currentCtx.fillStyle = '#888';
+            currentCtx.fillText('Vsense', 160, blockY + 55);
+            currentCtx.fillText('±' + (shuntV * 1000).toFixed(0) + 'mV', 160, blockY + 70);
+
+            // Current continues
+            currentCtx.strokeStyle = '#00FFFF';
+            currentCtx.lineWidth = 3;
+            currentCtx.beginPath();
+            currentCtx.moveTo(190, blockY);
+            currentCtx.lineTo(260, blockY);
+            currentCtx.stroke();
+
+            // Amplifier
+            currentCtx.fillStyle = '#333';
+            currentCtx.beginPath();
+            currentCtx.moveTo(300, blockY - 40);
+            currentCtx.lineTo(380, blockY);
+            currentCtx.lineTo(300, blockY + 40);
+            currentCtx.closePath();
+            currentCtx.fill();
+            currentCtx.strokeStyle = '#00FF00';
+            currentCtx.stroke();
+
+            currentCtx.fillStyle = '#00FF00';
+            currentCtx.fillText('G=' + gain, 330, blockY + 5);
+
+            // Input connections to amp
+            currentCtx.strokeStyle = '#888';
+            currentCtx.lineWidth = 1;
+            currentCtx.beginPath();
+            currentCtx.moveTo(130, blockY + 60);
+            currentCtx.lineTo(130, blockY + 90);
+            currentCtx.lineTo(280, blockY + 90);
+            currentCtx.lineTo(280, blockY + 20);
+            currentCtx.lineTo(300, blockY + 20);
+            currentCtx.stroke();
+
+            currentCtx.beginPath();
+            currentCtx.moveTo(190, blockY + 60);
+            currentCtx.lineTo(190, blockY + 100);
+            currentCtx.lineTo(270, blockY + 100);
+            currentCtx.lineTo(270, blockY - 20);
+            currentCtx.lineTo(300, blockY - 20);
+            currentCtx.stroke();
+
+            // Amp output
+            currentCtx.strokeStyle = '#00FF00';
+            currentCtx.lineWidth = 2;
+            currentCtx.beginPath();
+            currentCtx.moveTo(380, blockY);
+            currentCtx.lineTo(450, blockY);
+            currentCtx.stroke();
+
+            // ADC
+            currentCtx.fillStyle = '#333';
+            currentCtx.fillRect(460, blockY - 30, 80, 60);
+            currentCtx.strokeStyle = '#FF6600';
+            currentCtx.strokeRect(460, blockY - 30, 80, 60);
+            currentCtx.fillStyle = '#FF6600';
+            currentCtx.fillText('12-bit', 500, blockY - 5);
+            currentCtx.fillText('ADC', 500, blockY + 15);
+
+            // Digital output
+            currentCtx.strokeStyle = '#FF6600';
+            currentCtx.beginPath();
+            currentCtx.moveTo(540, blockY);
+            currentCtx.lineTo(600, blockY);
+            currentCtx.stroke();
+            currentCtx.fillStyle = '#FF6600';
+            currentCtx.fillText('Digital', 620, blockY);
+
+            // Transfer function graph
+            const graphX = 650;
+            const graphY = 50;
+            const graphW = 280;
+            const graphH = 200;
+
+            currentCtx.fillStyle = '#111';
+            currentCtx.fillRect(graphX, graphY, graphW, graphH);
+            currentCtx.strokeStyle = '#444';
+            currentCtx.strokeRect(graphX, graphY, graphW, graphH);
+
+            // Grid
+            currentCtx.strokeStyle = '#333';
+            currentCtx.lineWidth = 1;
+            currentCtx.beginPath();
+            currentCtx.moveTo(graphX + graphW / 2, graphY);
+            currentCtx.lineTo(graphX + graphW / 2, graphY + graphH);
+            currentCtx.moveTo(graphX, graphY + graphH / 2);
+            currentCtx.lineTo(graphX + graphW, graphY + graphH / 2);
+            currentCtx.stroke();
+
+            // Transfer line
+            currentCtx.strokeStyle = '#00FF00';
+            currentCtx.lineWidth = 2;
+            currentCtx.beginPath();
+
+            for (let i = -peakI; i <= peakI; i += 0.5) {
+                const vOut = adcRef / 2 + gain * (i * shuntR / 1000);
+                const x = graphX + ((i + peakI) / (2 * peakI)) * graphW;
+                const y = graphY + graphH - (vOut / adcRef) * graphH;
+
+                if (i === -peakI) currentCtx.moveTo(x, Math.max(graphY, Math.min(graphY + graphH, y)));
+                else currentCtx.lineTo(x, Math.max(graphY, Math.min(graphY + graphH, y)));
+            }
+            currentCtx.stroke();
+
+            // Clipping indicators
+            const vMax = adcRef / 2 + ampOut;
+            const vMin = adcRef / 2 - ampOut;
+
+            if (vMax > adcRef || vMin < 0) {
+                currentCtx.fillStyle = '#FF0000';
+                currentCtx.font = 'bold 12px monospace';
+                currentCtx.fillText('CLIPPING!', graphX + graphW / 2, graphY + 20);
+            }
+
+            // Labels
+            currentCtx.fillStyle = '#888';
+            currentCtx.font = '10px monospace';
+            currentCtx.textAlign = 'center';
+            currentCtx.fillText('Current (A)', graphX + graphW / 2, graphY + graphH + 15);
+            currentCtx.fillText(-peakI + '', graphX + 15, graphY + graphH + 15);
+            currentCtx.fillText('+' + peakI, graphX + graphW - 15, graphY + graphH + 15);
+
+            currentCtx.save();
+            currentCtx.translate(graphX - 15, graphY + graphH / 2);
+            currentCtx.rotate(-Math.PI / 2);
+            currentCtx.fillText('Vout (V)', 0, 0);
+            currentCtx.restore();
+
+            currentCtx.textAlign = 'right';
+            currentCtx.fillText(adcRef + 'V', graphX - 5, graphY + 5);
+            currentCtx.fillText('0V', graphX - 5, graphY + graphH);
+            currentCtx.fillText(adcRef / 2 + 'V', graphX - 5, graphY + graphH / 2 + 5);
+        }
+
+        // Canvas 3: FOC
+        const focCanvas = document.getElementById('foc-canvas');
+        const focCtx = focCanvas.getContext('2d');
+        let rotorAngle = 30;
+        let animating = false;
+
+        function drawFOC() {
+            const Ia = AD.num('ia-current');
+            const Ib = AD.num('ib-current');
+            const theta = rotorAngle * Math.PI / 180;
+
+            document.getElementById('ia-current-val').textContent = Ia.toFixed(1) + ' A';
+            document.getElementById('ib-current-val').textContent = Ib.toFixed(1) + ' A';
+            document.getElementById('rotor-angle-val').textContent = rotorAngle.toFixed(0) + '°';
+
+            // Calculate Ic (balanced 3-phase: Ia + Ib + Ic = 0)
+            const Ic = -(Ia + Ib);
+
+            // Clarke transform: abc -> αβ
+            const Ialpha = Ia;
+            const Ibeta = (Ia + 2 * Ib) / Math.sqrt(3);
+
+            // Park transform: αβ -> dq
+            const Id = Ialpha * Math.cos(theta) + Ibeta * Math.sin(theta);
+            const Iq = -Ialpha * Math.sin(theta) + Ibeta * Math.cos(theta);
+
+            document.getElementById('i-alpha').textContent = Ialpha.toFixed(2) + ' A';
+            document.getElementById('i-beta').textContent = Ibeta.toFixed(2) + ' A';
+            document.getElementById('i-d').textContent = Id.toFixed(2) + ' A';
+            document.getElementById('i-q').textContent = Iq.toFixed(2) + ' A';
+
+            focCtx.fillStyle = '#181818';
+            focCtx.fillRect(0, 0, focCanvas.width, focCanvas.height);
+
+            const w = focCanvas.width;
+            const h = focCanvas.height;
+
+            // Draw abc reference frame
+            const abcCenterX = 180;
+            const abcCenterY = 200;
+            const abcRadius = 120;
+
+            // Draw circle
+            focCtx.strokeStyle = '#444';
+            focCtx.lineWidth = 1;
+            focCtx.beginPath();
+            focCtx.arc(abcCenterX, abcCenterY, abcRadius, 0, Math.PI * 2);
+            focCtx.stroke();
+
+            // Draw abc axes
+            const phases = [
+                { name: 'a', angle: 0, current: Ia, color: '#FFFF00' },
+                { name: 'b', angle: 2 * Math.PI / 3, current: Ib, color: '#00FFFF' },
+                { name: 'c', angle: 4 * Math.PI / 3, current: Ic, color: '#FF66FF' }
+            ];
+
+            phases.forEach(phase => {
+                const endX = abcCenterX + abcRadius * Math.cos(phase.angle);
+                const endY = abcCenterY - abcRadius * Math.sin(phase.angle);
+
+                focCtx.strokeStyle = phase.color;
+                focCtx.lineWidth = 1;
+                focCtx.setLineDash([5, 5]);
+                focCtx.beginPath();
+                focCtx.moveTo(abcCenterX, abcCenterY);
+                focCtx.lineTo(endX, endY);
+                focCtx.stroke();
+                focCtx.setLineDash([]);
+
+                // Phase label
+                focCtx.fillStyle = phase.color;
+                focCtx.font = '14px monospace';
+                focCtx.textAlign = 'center';
+                focCtx.fillText(phase.name, endX + 15 * Math.cos(phase.angle), endY - 15 * Math.sin(phase.angle));
+
+                // Draw current vector on this axis
+                const currentLen = (phase.current / 10) * abcRadius * 0.8;
+                const currEndX = abcCenterX + currentLen * Math.cos(phase.angle);
+                const currEndY = abcCenterY - currentLen * Math.sin(phase.angle);
+
+                focCtx.strokeStyle = phase.color;
+                focCtx.lineWidth = 3;
+                focCtx.beginPath();
+                focCtx.moveTo(abcCenterX, abcCenterY);
+                focCtx.lineTo(currEndX, currEndY);
+                focCtx.stroke();
+            });
+
+            focCtx.fillStyle = '#CCC';
+            focCtx.font = 'bold 14px monospace';
+            focCtx.textAlign = 'center';
+            focCtx.fillText('abc Frame', abcCenterX, 350);
+
+            // Draw αβ frame (Clarke)
+            const abCenterX = 490;
+            const abCenterY = 200;
+
+            focCtx.strokeStyle = '#444';
+            focCtx.beginPath();
+            focCtx.arc(abCenterX, abCenterY, abcRadius, 0, Math.PI * 2);
+            focCtx.stroke();
+
+            // α axis (horizontal)
+            focCtx.strokeStyle = '#FF6600';
+            focCtx.lineWidth = 1;
+            focCtx.setLineDash([5, 5]);
+            focCtx.beginPath();
+            focCtx.moveTo(abCenterX - abcRadius, abCenterY);
+            focCtx.lineTo(abCenterX + abcRadius, abCenterY);
+            focCtx.stroke();
+
+            // β axis (vertical)
+            focCtx.beginPath();
+            focCtx.moveTo(abCenterX, abCenterY + abcRadius);
+            focCtx.lineTo(abCenterX, abCenterY - abcRadius);
+            focCtx.stroke();
+            focCtx.setLineDash([]);
+
+            focCtx.fillStyle = '#FF6600';
+            focCtx.fillText('α', abCenterX + abcRadius + 10, abCenterY);
+            focCtx.fillText('β', abCenterX, abCenterY - abcRadius - 10);
+
+            // Draw Iαβ vector
+            const IalphaLen = (Ialpha / 10) * abcRadius * 0.8;
+            const IbetaLen = (Ibeta / 10) * abcRadius * 0.8;
+
+            focCtx.strokeStyle = '#00FF00';
+            focCtx.lineWidth = 3;
+            focCtx.beginPath();
+            focCtx.moveTo(abCenterX, abCenterY);
+            focCtx.lineTo(abCenterX + IalphaLen, abCenterY - IbetaLen);
+            focCtx.stroke();
+
+            // Arrowhead
+            const vecAngle = Math.atan2(IbetaLen, IalphaLen);
+            focCtx.fillStyle = '#00FF00';
+            focCtx.beginPath();
+            focCtx.moveTo(abCenterX + IalphaLen, abCenterY - IbetaLen);
+            focCtx.lineTo(abCenterX + IalphaLen - 10 * Math.cos(vecAngle - 0.3),
+                         abCenterY - IbetaLen + 10 * Math.sin(vecAngle - 0.3));
+            focCtx.lineTo(abCenterX + IalphaLen - 10 * Math.cos(vecAngle + 0.3),
+                         abCenterY - IbetaLen + 10 * Math.sin(vecAngle + 0.3));
+            focCtx.closePath();
+            focCtx.fill();
+
+            focCtx.fillStyle = '#CCC';
+            focCtx.font = 'bold 14px monospace';
+            focCtx.fillText('αβ Frame (Clarke)', abCenterX, 350);
+
+            // Draw dq frame (Park)
+            const dqCenterX = 800;
+            const dqCenterY = 200;
+
+            focCtx.strokeStyle = '#444';
+            focCtx.beginPath();
+            focCtx.arc(dqCenterX, dqCenterY, abcRadius, 0, Math.PI * 2);
+            focCtx.stroke();
+
+            // d axis (along rotor)
+            const dEndX = dqCenterX + abcRadius * Math.cos(theta);
+            const dEndY = dqCenterY - abcRadius * Math.sin(theta);
+
+            focCtx.strokeStyle = '#00FFFF';
+            focCtx.lineWidth = 1;
+            focCtx.setLineDash([5, 5]);
+            focCtx.beginPath();
+            focCtx.moveTo(dqCenterX - abcRadius * Math.cos(theta), dqCenterY + abcRadius * Math.sin(theta));
+            focCtx.lineTo(dEndX, dEndY);
+            focCtx.stroke();
+
+            // q axis (90° ahead)
+            const qAngle = theta + Math.PI / 2;
+            focCtx.beginPath();
+            focCtx.moveTo(dqCenterX - abcRadius * Math.cos(qAngle), dqCenterY + abcRadius * Math.sin(qAngle));
+            focCtx.lineTo(dqCenterX + abcRadius * Math.cos(qAngle), dqCenterY - abcRadius * Math.sin(qAngle));
+            focCtx.stroke();
+            focCtx.setLineDash([]);
+
+            focCtx.fillStyle = '#00FFFF';
+            focCtx.fillText('d', dEndX + 15 * Math.cos(theta), dEndY - 15 * Math.sin(theta));
+            focCtx.fillText('q', dqCenterX + (abcRadius + 15) * Math.cos(qAngle),
+                           dqCenterY - (abcRadius + 15) * Math.sin(qAngle));
+
+            // Draw rotor indicator
+            focCtx.strokeStyle = '#FF0000';
+            focCtx.lineWidth = 4;
+            focCtx.beginPath();
+            focCtx.moveTo(dqCenterX, dqCenterY);
+            focCtx.lineTo(dqCenterX + 40 * Math.cos(theta), dqCenterY - 40 * Math.sin(theta));
+            focCtx.stroke();
+            focCtx.fillStyle = '#FF0000';
+            focCtx.fillText('θ=' + rotorAngle + '°', dqCenterX + 50, dqCenterY + 50);
+
+            // Draw Id, Iq components
+            const IdLen = (Id / 10) * abcRadius * 0.8;
+            const IqLen = (Iq / 10) * abcRadius * 0.8;
+
+            // Iq vector (along q axis - torque producing)
+            focCtx.strokeStyle = '#00FF00';
+            focCtx.lineWidth = 3;
+            focCtx.beginPath();
+            focCtx.moveTo(dqCenterX, dqCenterY);
+            focCtx.lineTo(dqCenterX + IqLen * Math.cos(qAngle), dqCenterY - IqLen * Math.sin(qAngle));
+            focCtx.stroke();
+
+            // Id vector (along d axis - flux)
+            focCtx.strokeStyle = '#FFFF00';
+            focCtx.beginPath();
+            focCtx.moveTo(dqCenterX, dqCenterY);
+            focCtx.lineTo(dqCenterX + IdLen * Math.cos(theta), dqCenterY - IdLen * Math.sin(theta));
+            focCtx.stroke();
+
+            focCtx.fillStyle = '#CCC';
+            focCtx.font = 'bold 14px monospace';
+            focCtx.fillText('dq Frame (Park)', dqCenterX, 350);
+
+            // Labels for Id, Iq
+            focCtx.fillStyle = '#FFFF00';
+            focCtx.font = '12px monospace';
+            focCtx.fillText('Id (flux)', dqCenterX - 80, 380);
+            focCtx.fillStyle = '#00FF00';
+            focCtx.fillText('Iq (torque)', dqCenterX + 20, 380);
+
+            // Transform arrows
+            focCtx.strokeStyle = '#888';
+            focCtx.lineWidth = 2;
+            focCtx.beginPath();
+            focCtx.moveTo(310, 200);
+            focCtx.lineTo(370, 200);
+            focCtx.stroke();
+            focCtx.fillStyle = '#888';
+            focCtx.beginPath();
+            focCtx.moveTo(370, 200);
+            focCtx.lineTo(360, 195);
+            focCtx.lineTo(360, 205);
+            focCtx.closePath();
+            focCtx.fill();
+            focCtx.font = '11px monospace';
+            focCtx.textAlign = 'center';
+            focCtx.fillText('Clarke', 340, 185);
+
+            focCtx.beginPath();
+            focCtx.moveTo(620, 200);
+            focCtx.lineTo(680, 200);
+            focCtx.stroke();
+            focCtx.beginPath();
+            focCtx.moveTo(680, 200);
+            focCtx.lineTo(670, 195);
+            focCtx.lineTo(670, 205);
+            focCtx.closePath();
+            focCtx.fill();
+            focCtx.fillText('Park', 650, 185);
+        }
+
+        // Animation for auto-rotate
+        function animateFOC() {
+            if (document.getElementById('auto-rotate').checked) {
+                rotorAngle = (rotorAngle + 2) % 360;
+                document.getElementById('rotor-angle').value = rotorAngle;
+                drawFOC();
+            }
+            requestAnimationFrame(animateFOC);
+        }
+
+        // Canvas 4: Control Loop
+        const controlCanvas = document.getElementById('control-canvas');
+        const controlCtx = controlCanvas.getContext('2d');
+
+        function drawControlLoop() {
+            const Kp = AD.num('kp-speed');
+            const Ki = AD.num('ki-speed');
+            const setpoint = AD.num('setpoint-rpm');
+            const loadTorque = AD.num('load-torque');
+
+            document.getElementById('kp-speed-val').textContent = Kp.toFixed(1);
+            document.getElementById('ki-speed-val').textContent = Ki.toFixed(1);
+            document.getElementById('setpoint-rpm-val').textContent = setpoint;
+            document.getElementById('load-torque-val').textContent = loadTorque + '%';
+
+            controlCtx.fillStyle = '#181818';
+            controlCtx.fillRect(0, 0, controlCanvas.width, controlCanvas.height);
+
+            const w = controlCanvas.width;
+            const h = controlCanvas.height;
+            const margin = { left: 80, right: 40, top: 50, bottom: 60 };
+            const plotW = w - margin.left - margin.right;
+            const plotH = h - margin.top - margin.bottom;
+
+            // Simple motor model simulation
+            const J = 0.01; // Inertia
+            const B = 0.001; // Friction
+            const Kt = 0.1; // Torque constant
+            const dt = 0.001; // 1ms steps
+            const tMax = 0.5; // 500ms simulation
+
+            let speed = 0;
+            let integral = 0;
+            const speedHistory = [];
+            let riseTime = 0, settleTime = 0, overshoot = 0;
+            let reachedSetpoint = false;
+
+            for (let t = 0; t <= tMax; t += dt) {
+                const error = setpoint - speed;
+                integral += error * dt;
+
+                const control = Kp * error + Ki * integral;
+                const torque = Math.max(0, Math.min(control, 100)) * Kt;
+                const loadT = (loadTorque / 100) * setpoint * Kt * 0.5;
+
+                const accel = (torque - loadT - B * speed) / J;
+                speed += accel * dt;
+                speed = Math.max(0, speed);
+
+                speedHistory.push({ t, speed });
+
+                if (!reachedSetpoint && speed >= setpoint * 0.9) {
+                    riseTime = t * 1000;
+                    reachedSetpoint = true;
+                }
+
+                if (speed > setpoint) {
+                    overshoot = Math.max(overshoot, ((speed - setpoint) / setpoint) * 100);
                 }
             }
 
-            // Draw Nyquist curve for positive frequencies
-            ctx.strokeStyle = TEK.green;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            let first = true;
-            for (let i = 0; i <= 500; i++) {
-                const omega = Math.pow(10, -2 + i/500 * 8); // 0.01 to 1e6 rad/s
-                const T = loopGainFn(omega);
-                const x = centerX + T.re * scale;
-                const y = centerY - T.im * scale; // Negative because screen Y is down
-
-                if (x > -w && x < 2*w && y > -h && y < 2*h) {
-                    if (first) { ctx.moveTo(x, y); first = false; }
-                    else ctx.lineTo(x, y);
+            // Find settling time (within 2%)
+            for (let i = speedHistory.length - 1; i >= 0; i--) {
+                if (Math.abs(speedHistory[i].speed - setpoint) > setpoint * 0.02) {
+                    settleTime = speedHistory[i].t * 1000;
+                    break;
                 }
             }
-            ctx.stroke();
 
-            // Draw mirror for negative frequencies (conjugate)
-            ctx.strokeStyle = TEK.yellow;
-            ctx.setLineDash([5, 5]);
-            ctx.beginPath();
-            first = true;
-            for (let i = 0; i <= 500; i++) {
-                const omega = Math.pow(10, -2 + i/500 * 8);
-                const T = loopGainFn(omega);
-                const x = centerX + T.re * scale;
-                const y = centerY + T.im * scale; // Conjugate: positive Y
+            document.getElementById('rise-time').textContent = riseTime.toFixed(0) + ' ms';
+            document.getElementById('overshoot').textContent = overshoot.toFixed(0) + '%';
+            document.getElementById('settle-time').textContent = settleTime.toFixed(0) + ' ms';
+            document.getElementById('ss-error').textContent = '0%';
 
-                if (x > -w && x < 2*w && y > -h && y < 2*h) {
-                    if (first) { ctx.moveTo(x, y); first = false; }
-                    else ctx.lineTo(x, y);
-                }
+            // Draw grid
+            controlCtx.strokeStyle = '#333';
+            controlCtx.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                const x = margin.left + (i / 5) * plotW;
+                controlCtx.beginPath();
+                controlCtx.moveTo(x, margin.top);
+                controlCtx.lineTo(x, margin.top + plotH);
+                controlCtx.stroke();
             }
-            ctx.stroke();
-            ctx.setLineDash([]);
 
-            // Direction arrow
-            const arrowOmega = 100; // rad/s
-            const T_arrow = loopGainFn(arrowOmega);
-            const ax = centerX + T_arrow.re * scale;
-            const ay = centerY - T_arrow.im * scale;
-            ctx.fillStyle = TEK.green;
-            ctx.beginPath();
-            ctx.arc(ax, ay, 5, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.fillText('ω↑', ax + 15, ay);
+            // Draw setpoint line
+            const setpointY = margin.top + plotH - (setpoint / (setpoint * 1.5)) * plotH;
+            controlCtx.strokeStyle = '#FF0000';
+            controlCtx.setLineDash([5, 5]);
+            controlCtx.beginPath();
+            controlCtx.moveTo(margin.left, setpointY);
+            controlCtx.lineTo(margin.left + plotW, setpointY);
+            controlCtx.stroke();
+            controlCtx.setLineDash([]);
+
+            // Draw 2% settling band
+            controlCtx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+            const bandTop = margin.top + plotH - (setpoint * 1.02 / (setpoint * 1.5)) * plotH;
+            const bandBot = margin.top + plotH - (setpoint * 0.98 / (setpoint * 1.5)) * plotH;
+            controlCtx.fillRect(margin.left, bandTop, plotW, bandBot - bandTop);
+
+            // Draw speed response
+            controlCtx.strokeStyle = '#00FF00';
+            controlCtx.lineWidth = 2;
+            controlCtx.beginPath();
+
+            speedHistory.forEach((point, i) => {
+                const x = margin.left + (point.t / tMax) * plotW;
+                const y = margin.top + plotH - (point.speed / (setpoint * 1.5)) * plotH;
+
+                if (i === 0) controlCtx.moveTo(x, y);
+                else controlCtx.lineTo(x, y);
+            });
+            controlCtx.stroke();
+
+            // Labels
+            controlCtx.fillStyle = '#CCC';
+            controlCtx.font = '14px monospace';
+            controlCtx.textAlign = 'center';
+            controlCtx.fillText('Time (ms)', margin.left + plotW / 2, h - 15);
+
+            controlCtx.save();
+            controlCtx.translate(25, margin.top + plotH / 2);
+            controlCtx.rotate(-Math.PI / 2);
+            controlCtx.fillText('Speed (RPM)', 0, 0);
+            controlCtx.restore();
+
+            // Time scale
+            controlCtx.font = '11px monospace';
+            controlCtx.fillStyle = '#888';
+            for (let t = 0; t <= tMax * 1000; t += 100) {
+                const x = margin.left + (t / (tMax * 1000)) * plotW;
+                controlCtx.fillText(t.toString(), x, margin.top + plotH + 20);
+            }
+
+            // Speed scale
+            controlCtx.textAlign = 'right';
+            for (let s = 0; s <= setpoint * 1.5; s += setpoint / 2) {
+                const y = margin.top + plotH - (s / (setpoint * 1.5)) * plotH;
+                controlCtx.fillText(s.toFixed(0), margin.left - 10, y + 4);
+            }
 
             // Legend
-            ctx.fillStyle = TEK.green;
-            ctx.fillRect(10, 10, 15, 10);
-            ctx.fillStyle = '#fff';
-            ctx.textAlign = 'left';
-            ctx.fillText('ω > 0', 30, 18);
-            ctx.fillStyle = TEK.yellow;
-            ctx.fillRect(10, 25, 15, 10);
-            ctx.fillStyle = '#fff';
-            ctx.fillText('ω < 0', 30, 33);
+            controlCtx.textAlign = 'left';
+            controlCtx.fillStyle = '#00FF00';
+            controlCtx.fillRect(margin.left + plotW - 150, margin.top + 10, 20, 3);
+            controlCtx.fillStyle = '#CCC';
+            controlCtx.fillText('Speed', margin.left + plotW - 125, margin.top + 15);
 
-            return { centerX, centerY, scale, critX };
+            controlCtx.fillStyle = '#FF0000';
+            controlCtx.fillRect(margin.left + plotW - 150, margin.top + 30, 20, 3);
+            controlCtx.fillStyle = '#CCC';
+            controlCtx.fillText('Setpoint', margin.left + plotW - 125, margin.top + 35);
+
+            // Title
+            controlCtx.fillStyle = '#FFF';
+            controlCtx.font = 'bold 16px monospace';
+            controlCtx.textAlign = 'center';
+            controlCtx.fillText('PI Speed Control Response', w / 2, 25);
         }
 
-        window.updateNyquist = function() {
-            const A0_dB = AD.num('dc-gain-nyq');
-            const A0 = Math.pow(10, A0_dB / 20);
-            const p1 = AD.num('p1-nyq') * 2 * Math.PI;
-            const p2 = AD.num('p2-nyq') * 2 * Math.PI;
-            const p3 = AD.num('p3-nyq') * 2 * Math.PI;
+        // Canvas 0: System Architecture
+        const motorArchCanvas = document.getElementById('motor-arch-canvas');
+        const motorArchCtx = motorArchCanvas.getContext('2d');
 
-            function loopGain(omega) {
-                // T(jω) = A0 / [(1 + jω/p1)(1 + jω/p2)(1 + jω/p3)]
-                let re = 1, im = 0;
+        function drawMotorArchitecture() {
+            motorArchCtx.fillStyle = '#181818';
+            motorArchCtx.fillRect(0, 0, motorArchCanvas.width, motorArchCanvas.height);
 
-                // Multiply by 1/(1 + jω/p1)
-                function multiply(re1, im1, re2, im2) {
-                    return {
-                        re: re1 * re2 - im1 * im2,
-                        im: re1 * im2 + im1 * re2
-                    };
-                }
+            const w = motorArchCanvas.width;
+            const h = motorArchCanvas.height;
 
-                function divide(re1, im1, re2, im2) {
-                    const denom = re2 * re2 + im2 * im2;
-                    return {
-                        re: (re1 * re2 + im1 * im2) / denom,
-                        im: (im1 * re2 - re1 * im2) / denom
-                    };
-                }
+            // Title
+            motorArchCtx.fillStyle = '#FFF';
+            motorArchCtx.font = 'bold 16px monospace';
+            motorArchCtx.textAlign = 'center';
+            motorArchCtx.fillText('BLDC MOTOR CONTROL SYSTEM', w / 2, 25);
 
-                // Start with A0
-                let T = { re: A0, im: 0 };
+            // DC Bus
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fillRect(30, 50, 100, 50);
+            motorArchCtx.strokeStyle = '#FF0000';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.strokeRect(30, 50, 100, 50);
+            motorArchCtx.fillStyle = '#FF0000';
+            motorArchCtx.font = 'bold 12px monospace';
+            motorArchCtx.fillText('DC BUS', 80, 72);
+            motorArchCtx.font = '10px monospace';
+            motorArchCtx.fillText('24-48V', 80, 90);
 
-                // Divide by (1 + jω/p1)
-                T = divide(T.re, T.im, 1, omega / p1);
-                // Divide by (1 + jω/p2)
-                T = divide(T.re, T.im, 1, omega / p2);
-                // Divide by (1 + jω/p3) if p3 > 0
-                if (p3 > 0) {
-                    T = divide(T.re, T.im, 1, omega / p3);
-                }
+            // 3-Phase Inverter
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fillRect(180, 45, 350, 110);
+            motorArchCtx.strokeStyle = '#00FFFF';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.strokeRect(180, 45, 350, 110);
+            motorArchCtx.fillStyle = '#00FFFF';
+            motorArchCtx.font = 'bold 12px monospace';
+            motorArchCtx.fillText('3-PHASE INVERTER', 355, 65);
 
-                return T;
-            }
+            // Draw MOSFET pairs
+            const mosX = [230, 330, 430];
+            const mosLabels = [['Q1', 'Q2'], ['Q3', 'Q4'], ['Q5', 'Q6']];
+            const phaseLabels = ['A', 'B', 'C'];
 
-            const plotInfo = drawNyquistPlot(nyqCtx, nyqCanvas, loopGain, { scale: 80 });
+            mosX.forEach((x, i) => {
+                // High-side
+                motorArchCtx.fillStyle = '#333';
+                motorArchCtx.fillRect(x, 80, 40, 25);
+                motorArchCtx.strokeStyle = '#00FF00';
+                motorArchCtx.strokeRect(x, 80, 40, 25);
+                motorArchCtx.fillStyle = '#00FF00';
+                motorArchCtx.font = '10px monospace';
+                motorArchCtx.fillText(mosLabels[i][0], x + 20, 97);
 
-            // Find phase crossover and calculate gain margin
-            let wcross = 0;
-            for (let omega = 1; omega < 1e7; omega *= 1.1) {
-                const T = loopGain(omega);
-                if (T.im >= 0 && omega > 10) { // Crossed real axis (phase = -180°)
-                    wcross = omega;
-                    break;
-                }
-            }
+                // Low-side
+                motorArchCtx.fillStyle = '#333';
+                motorArchCtx.fillRect(x, 115, 40, 25);
+                motorArchCtx.strokeStyle = '#FFFF00';
+                motorArchCtx.strokeRect(x, 115, 40, 25);
+                motorArchCtx.fillStyle = '#FFFF00';
+                motorArchCtx.fillText(mosLabels[i][1], x + 20, 132);
 
-            const Tcross = loopGain(wcross);
-            const magAtCross = Math.sqrt(Tcross.re * Tcross.re + Tcross.im * Tcross.im);
-            const GM = 1 / Math.abs(Tcross.re);
-            const GM_dB = 20 * Math.log10(GM);
+                // Connection between MOSFETs (phase output)
+                motorArchCtx.strokeStyle = '#FF6600';
+                motorArchCtx.lineWidth = 2;
+                motorArchCtx.beginPath();
+                motorArchCtx.moveTo(x + 40, 105);
+                motorArchCtx.lineTo(x + 60, 105);
+                motorArchCtx.stroke();
 
-            // Find gain crossover
-            let wgain = 0;
-            for (let omega = 1; omega < 1e7; omega *= 1.1) {
-                const T = loopGain(omega);
-                const mag = Math.sqrt(T.re * T.re + T.im * T.im);
-                if (mag < 1) {
-                    wgain = omega;
-                    break;
-                }
-            }
+                motorArchCtx.fillStyle = '#FF6600';
+                motorArchCtx.font = '9px monospace';
+                motorArchCtx.fillText(phaseLabels[i], x + 50, 100);
+            });
 
-            const Tgain = loopGain(wgain);
-            const phase = Math.atan2(Tgain.im, Tgain.re) * 180 / Math.PI;
-            const PM = 180 + phase;
+            // "High-side" label
+            motorArchCtx.fillStyle = '#888';
+            motorArchCtx.font = '9px monospace';
+            motorArchCtx.textAlign = 'right';
+            motorArchCtx.fillText('High-side', 225, 95);
+            motorArchCtx.fillText('Low-side', 225, 130);
+            motorArchCtx.textAlign = 'center';
 
-            // Determine stability
-            const stable = Tcross.re > -1 || magAtCross < 1;
+            // Arrow from DC Bus to inverter
+            motorArchCtx.strokeStyle = '#FF0000';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(130, 75);
+            motorArchCtx.lineTo(172, 75);
+            motorArchCtx.stroke();
+            motorArchCtx.fillStyle = '#FF0000';
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(172, 75);
+            motorArchCtx.lineTo(165, 70);
+            motorArchCtx.lineTo(165, 80);
+            motorArchCtx.closePath();
+            motorArchCtx.fill();
 
-            const result = document.getElementById('nyquist-result');
-            result.innerHTML = `
-                <strong>Phase Crossover (ω₁₈₀):</strong> ${AD.fmtUnit(wcross / (2 * Math.PI), 'Hz')} (${wcross.toFixed(0)} rad/s)<br>
-                <strong>|T| at phase crossover:</strong> ${magAtCross.toFixed(3)}<br>
-                <strong>Gain Margin:</strong> ${GM_dB.toFixed(1)} dB ${GM_dB < 0 ? '<span style="color:' + TEK.red + '">(Unstable!)</span>' : ''}<br>
-                <strong>Gain Crossover (ω_c):</strong> ${AD.fmtUnit(wgain / (2 * Math.PI), 'Hz')}<br>
-                <strong>Phase Margin:</strong> ${PM.toFixed(1)}°<br>
-                <strong>Stability:</strong> <span style="color: ${stable ? TEK.green : TEK.red}">${stable ? 'Stable (no encirclement of -1)' : 'Unstable (encircles -1)'}</span>
-            `;
-        };
+            // Motor
+            motorArchCtx.beginPath();
+            motorArchCtx.arc(650, 100, 50, 0, Math.PI * 2);
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fill();
+            motorArchCtx.strokeStyle = '#FF6600';
+            motorArchCtx.lineWidth = 3;
+            motorArchCtx.stroke();
+            motorArchCtx.fillStyle = '#FF6600';
+            motorArchCtx.font = 'bold 14px monospace';
+            motorArchCtx.fillText('BLDC', 650, 95);
+            motorArchCtx.font = '11px monospace';
+            motorArchCtx.fillText('Motor', 650, 112);
 
-        // Margins visualization
-        const marginsCanvas = document.getElementById('nyquist-margins-canvas');
-        if (marginsCanvas) {
-            const marginsCtx = marginsCanvas.getContext('2d');
+            // Phase connections to motor
+            motorArchCtx.strokeStyle = '#FF6600';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(530, 100);
+            motorArchCtx.lineTo(600, 100);
+            motorArchCtx.stroke();
 
-            function drawMarginsExample() {
-                const w = marginsCanvas.width, h = marginsCanvas.height;
-                const centerX = w * 0.55, centerY = h / 2;
-                const scale = 100;
+            // Encoder/Hall
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fillRect(700, 70, 80, 60);
+            motorArchCtx.strokeStyle = '#00FF00';
+            motorArchCtx.lineWidth = 1;
+            motorArchCtx.strokeRect(700, 70, 80, 60);
+            motorArchCtx.fillStyle = '#00FF00';
+            motorArchCtx.font = '10px monospace';
+            motorArchCtx.fillText('Encoder', 740, 95);
+            motorArchCtx.fillText('/Hall', 740, 110);
 
-                marginsCtx.fillStyle = '#0d1117';
-                marginsCtx.fillRect(0, 0, w, h);
+            // Current Sense Amplifiers
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fillRect(180, 180, 150, 60);
+            motorArchCtx.strokeStyle = '#FF66FF';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.strokeRect(180, 180, 150, 60);
+            motorArchCtx.fillStyle = '#FF66FF';
+            motorArchCtx.font = 'bold 11px monospace';
+            motorArchCtx.fillText('Current Sense', 255, 200);
+            motorArchCtx.font = '10px monospace';
+            motorArchCtx.fillText('Amplifiers (Ia, Ib, Ic)', 255, 220);
 
-                // Axes
-                marginsCtx.strokeStyle = '#444';
-                marginsCtx.lineWidth = 1;
-                marginsCtx.beginPath();
-                marginsCtx.moveTo(0, centerY);
-                marginsCtx.lineTo(w, centerY);
-                marginsCtx.stroke();
-                marginsCtx.beginPath();
-                marginsCtx.moveTo(centerX, 0);
-                marginsCtx.lineTo(centerX, h);
-                marginsCtx.stroke();
+            // Arrow from shunts to current sense
+            motorArchCtx.strokeStyle = '#888';
+            motorArchCtx.lineWidth = 1;
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(355, 155);
+            motorArchCtx.lineTo(355, 165);
+            motorArchCtx.lineTo(255, 165);
+            motorArchCtx.lineTo(255, 172);
+            motorArchCtx.stroke();
+            motorArchCtx.fillStyle = '#888';
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(255, 172);
+            motorArchCtx.lineTo(250, 165);
+            motorArchCtx.lineTo(260, 165);
+            motorArchCtx.closePath();
+            motorArchCtx.fill();
 
-                // Unit circle
-                marginsCtx.strokeStyle = '#333';
-                marginsCtx.setLineDash([5, 5]);
-                marginsCtx.beginPath();
-                marginsCtx.arc(centerX, centerY, scale, 0, 2 * Math.PI);
-                marginsCtx.stroke();
-                marginsCtx.setLineDash([]);
+            // MCU
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fillRect(400, 180, 250, 120);
+            motorArchCtx.strokeStyle = '#00FFFF';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.strokeRect(400, 180, 250, 120);
+            motorArchCtx.fillStyle = '#00FFFF';
+            motorArchCtx.font = 'bold 12px monospace';
+            motorArchCtx.fillText('MCU (Motor Control)', 525, 200);
+            motorArchCtx.font = '9px monospace';
+            motorArchCtx.fillStyle = '#CCC';
+            const mcuFeatures = [
+                'ADC for current sensing',
+                'PWM generation (complementary)',
+                'FOC algorithm (Park/Clarke)',
+                'PI current/speed controllers',
+                'Position/speed estimation'
+            ];
+            mcuFeatures.forEach((feat, i) => {
+                motorArchCtx.fillText('• ' + feat, 525, 220 + i * 15);
+            });
 
-                // Critical point
-                const critX = centerX - scale;
-                marginsCtx.fillStyle = TEK.red;
-                marginsCtx.beginPath();
-                marginsCtx.arc(critX, centerY, 6, 0, 2 * Math.PI);
-                marginsCtx.fill();
-                marginsCtx.fillStyle = '#fff';
-                marginsCtx.font = '11px monospace';
-                marginsCtx.textAlign = 'center';
-                marginsCtx.fillText('-1', critX, centerY + 18);
+            // Connections
+            // Current sense to MCU
+            motorArchCtx.strokeStyle = '#FF66FF';
+            motorArchCtx.lineWidth = 1;
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(330, 210);
+            motorArchCtx.lineTo(392, 210);
+            motorArchCtx.stroke();
 
-                // Example Nyquist curve
-                function loopGain(omega) {
-                    const A0 = 100;
-                    const p1 = 100, p2 = 1000, p3 = 10000;
-                    let re = A0, im = 0;
-                    // Simplified for visual
-                    const phase = -Math.atan(omega/p1) - Math.atan(omega/p2) - Math.atan(omega/p3);
-                    const mag = A0 / Math.sqrt(1 + (omega/p1)**2) / Math.sqrt(1 + (omega/p2)**2) / Math.sqrt(1 + (omega/p3)**2);
-                    return { re: mag * Math.cos(phase), im: mag * Math.sin(phase) };
-                }
+            // Encoder to MCU
+            motorArchCtx.strokeStyle = '#00FF00';
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(740, 130);
+            motorArchCtx.lineTo(740, 240);
+            motorArchCtx.lineTo(658, 240);
+            motorArchCtx.stroke();
+            motorArchCtx.fillStyle = '#00FF00';
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(658, 240);
+            motorArchCtx.lineTo(665, 235);
+            motorArchCtx.lineTo(665, 245);
+            motorArchCtx.closePath();
+            motorArchCtx.fill();
 
-                marginsCtx.strokeStyle = TEK.green;
-                marginsCtx.lineWidth = 2;
-                marginsCtx.beginPath();
-                let first = true;
-                for (let i = 0; i <= 300; i++) {
-                    const omega = Math.pow(10, i/300 * 6);
-                    const T = loopGain(omega);
-                    const x = centerX + T.re * scale * 0.8;
-                    const y = centerY - T.im * scale * 0.8;
-                    if (x > -50 && x < w + 50 && y > -50 && y < h + 50) {
-                        if (first) { marginsCtx.moveTo(x, y); first = false; }
-                        else marginsCtx.lineTo(x, y);
-                    }
-                }
-                marginsCtx.stroke();
+            // PWM from MCU to inverter
+            motorArchCtx.strokeStyle = '#00FFFF';
+            motorArchCtx.setLineDash([4, 4]);
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(525, 180);
+            motorArchCtx.lineTo(525, 165);
+            motorArchCtx.lineTo(450, 165);
+            motorArchCtx.lineTo(450, 155);
+            motorArchCtx.stroke();
+            motorArchCtx.setLineDash([]);
+            motorArchCtx.font = '8px monospace';
+            motorArchCtx.fillStyle = '#00FFFF';
+            motorArchCtx.fillText('PWM', 485, 162);
 
-                // Find and mark gain margin
-                // Phase crossover approximately at omega where curve crosses real axis
-                const wcross = 3160; // Approximate
-                const Tcross = loopGain(wcross);
-                const gmPointX = centerX + Tcross.re * scale * 0.8;
-
-                marginsCtx.strokeStyle = TEK.cyan;
-                marginsCtx.lineWidth = 2;
-                marginsCtx.beginPath();
-                marginsCtx.moveTo(centerX, centerY);
-                marginsCtx.lineTo(gmPointX, centerY);
-                marginsCtx.stroke();
-
-                // Arrow for gain margin
-                marginsCtx.beginPath();
-                marginsCtx.moveTo(gmPointX, centerY - 15);
-                marginsCtx.lineTo(critX, centerY - 15);
-                marginsCtx.stroke();
-                marginsCtx.fillStyle = TEK.cyan;
-                marginsCtx.fillText('Gain Margin', (gmPointX + critX)/2, centerY - 25);
-
-                // Find and mark phase margin
-                // Gain crossover where |T| = 1
-                let wgain = 1000;
-                const Tgain = loopGain(wgain);
-                const pmPointX = centerX + Tgain.re * scale * 0.8;
-                const pmPointY = centerY - Tgain.im * scale * 0.8;
-
-                // Draw line from origin to unit circle crossing
-                marginsCtx.strokeStyle = TEK.yellow;
-                marginsCtx.beginPath();
-                marginsCtx.moveTo(centerX, centerY);
-                marginsCtx.lineTo(pmPointX, pmPointY);
-                marginsCtx.stroke();
-
-                // Arc showing phase margin
-                const angle = Math.atan2(-(pmPointY - centerY), pmPointX - centerX);
-                marginsCtx.beginPath();
-                marginsCtx.arc(centerX, centerY, 40, Math.PI, angle, true);
-                marginsCtx.stroke();
-                marginsCtx.fillStyle = TEK.yellow;
-                marginsCtx.fillText('Phase Margin', centerX - 80, centerY + 50);
-
-                // Labels
-                marginsCtx.fillStyle = '#888';
-                marginsCtx.textAlign = 'left';
-                marginsCtx.fillText('Re', w - 25, centerY - 10);
-                marginsCtx.fillText('Im', centerX + 10, 15);
-            }
-
-            drawMarginsExample();
+            // Labels
+            motorArchCtx.fillStyle = '#666';
+            motorArchCtx.font = '8px monospace';
+            motorArchCtx.fillText('Current shunts', 355, 150);
         }
 
-        // Encirclement demonstration
-        const encCanvas = document.getElementById('encirclement-canvas');
-        if (encCanvas) {
-            const encCtx = encCanvas.getContext('2d');
+        // Event listeners
+        ['mod-index', 'elec-freq', 'pwm-freq', 'modulation'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawInverterWaveforms);
+        });
 
-            window.updateEncirclement = function() {
-                const exampleType = document.getElementById('example-type').value;
+        ['peak-current', 'shunt-value', 'amp-gain', 'adc-ref'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawCurrentSensing);
+        });
 
-                const w = encCanvas.width, h = encCanvas.height;
-                const centerX = w * 0.5, centerY = h / 2;
-                const scale = 80;
+        ['ia-current', 'ib-current', 'rotor-angle'].forEach(id => {
+            document.getElementById(id).addEventListener('input', () => {
+                rotorAngle = AD.num('rotor-angle');
+                drawFOC();
+            });
+        });
 
-                encCtx.fillStyle = '#0d1117';
-                encCtx.fillRect(0, 0, w, h);
+        ['kp-speed', 'ki-speed', 'setpoint-rpm', 'load-torque'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawControlLoop);
+        });
 
-                // Axes
-                encCtx.strokeStyle = '#444';
-                encCtx.lineWidth = 1;
-                encCtx.beginPath();
-                encCtx.moveTo(0, centerY);
-                encCtx.lineTo(w, centerY);
-                encCtx.stroke();
-                encCtx.beginPath();
-                encCtx.moveTo(centerX, 0);
-                encCtx.lineTo(centerX, h);
-                encCtx.stroke();
+        // Schematic
+        function createMotorSchematic() {
+            const container = document.getElementById('motor-schematic');
+            const svg = new SchematicSVG(700, 300);
 
-                // Critical point
-                const critX = centerX - scale;
-                encCtx.fillStyle = TEK.red;
-                encCtx.beginPath();
-                encCtx.arc(critX, centerY, 8, 0, 2 * Math.PI);
-                encCtx.fill();
-                encCtx.fillStyle = '#fff';
-                encCtx.font = '12px monospace';
-                encCtx.textAlign = 'center';
-                encCtx.fillText('-1', critX, centerY + 25);
+            // DC Bus
+            svg.addText(30, 50, 'Vdc+', '12px', 'end', '#FF0000');
+            svg.line(40, 50, 600, 50, '#FF0000', 2);
 
-                // Draw different example curves
-                encCtx.strokeStyle = TEK.green;
-                encCtx.lineWidth = 3;
-                encCtx.beginPath();
+            // High-side MOSFET
+            svg.rect(120, 70, 50, 40, '#181818', '#00FFFF');
+            svg.addText(145, 95, 'Q1', '11px', 'middle', '#00FFFF');
+            svg.line(145, 50, 145, 70);
+            svg.line(145, 110, 145, 150);
 
-                let description = '';
-                let N = 0;
+            // Low-side MOSFET
+            svg.rect(120, 170, 50, 40, '#181818', '#FFFF00');
+            svg.addText(145, 195, 'Q2', '11px', 'middle', '#FFFF00');
+            svg.line(145, 150, 145, 170);
+            svg.line(145, 210, 145, 250);
 
-                if (exampleType === 'stable') {
-                    // Curve that doesn't encircle -1
-                    for (let t = 0; t <= 1; t += 0.01) {
-                        const angle = -t * Math.PI * 0.8;
-                        const r = 1.5 * (1 - t * 0.7);
-                        const x = centerX + r * scale * Math.cos(angle);
-                        const y = centerY + r * scale * Math.sin(angle);
-                        if (t === 0) encCtx.moveTo(x, y);
-                        else encCtx.lineTo(x, y);
-                    }
-                    description = 'No encirclement of (-1, 0). With P=0, N=0 means Z=0. STABLE.';
-                    N = 0;
-                } else if (exampleType === 'marginal') {
-                    // Curve that passes through -1
-                    for (let t = 0; t <= 1; t += 0.01) {
-                        const angle = -t * Math.PI;
-                        const r = 1 + 0.5 * Math.sin(t * Math.PI * 2);
-                        const x = centerX + r * scale * Math.cos(angle);
-                        const y = centerY + r * scale * Math.sin(angle);
-                        if (t === 0) encCtx.moveTo(x, y);
-                        else encCtx.lineTo(x, y);
-                    }
-                    description = 'Curve passes through (-1, 0). MARGINALLY STABLE (poles on jω axis).';
-                    N = 0;
-                } else if (exampleType === 'unstable1') {
-                    // One clockwise encirclement
-                    for (let t = 0; t <= 1; t += 0.01) {
-                        const angle = -t * Math.PI * 2.2;
-                        const r = 0.8 + 0.5 * Math.cos(t * Math.PI);
-                        const x = centerX - scale + r * scale * Math.cos(angle);
-                        const y = centerY + r * scale * Math.sin(angle);
-                        if (t === 0) encCtx.moveTo(x, y);
-                        else encCtx.lineTo(x, y);
-                    }
-                    description = 'One clockwise encirclement. With P=0, N=1 means Z=1. UNSTABLE (1 RHP pole).';
-                    N = 1;
-                } else if (exampleType === 'unstable2') {
-                    // Two clockwise encirclements
-                    for (let t = 0; t <= 1; t += 0.005) {
-                        const angle = -t * Math.PI * 4.2;
-                        const r = 0.5 + 0.3 * Math.sin(t * Math.PI * 4);
-                        const x = centerX - scale + r * scale * Math.cos(angle);
-                        const y = centerY + r * scale * Math.sin(angle);
-                        if (t === 0) encCtx.moveTo(x, y);
-                        else encCtx.lineTo(x, y);
-                    }
-                    description = 'Two clockwise encirclements. With P=0, N=2 means Z=2. UNSTABLE (2 RHP poles).';
-                    N = 2;
-                } else if (exampleType === 'conditional') {
-                    // Conditionally stable - wraps around then back
-                    for (let t = 0; t <= 1; t += 0.01) {
-                        const angle = -t * Math.PI * 3;
-                        let r = 2 - t * 1.8;
-                        const x = centerX + r * scale * Math.cos(angle);
-                        const y = centerY + r * scale * Math.sin(angle);
-                        if (t === 0) encCtx.moveTo(x, y);
-                        else encCtx.lineTo(x, y);
-                    }
-                    description = 'Conditionally stable: Curve wraps around (-1, 0) but net encirclements = 0. Reducing gain could cause encirclement!';
-                    N = 0;
-                }
+            // Phase output
+            svg.line(145, 150, 250, 150, '#FF6600', 2);
+            svg.addText(200, 140, 'Phase A', '10px', 'middle');
 
-                encCtx.stroke();
+            // Gate driver
+            svg.rect(50, 100, 60, 80, '#181818', '#00FF00');
+            svg.addText(80, 135, 'Gate', '10px', 'middle', '#00FF00');
+            svg.addText(80, 150, 'Driver', '10px', 'middle', '#00FF00');
 
-                // Direction arrows
-                encCtx.fillStyle = TEK.green;
-                encCtx.font = '14px monospace';
-                encCtx.fillText('ω→', w - 60, 30);
+            // Gate driver connections
+            svg.line(110, 120, 120, 90);
+            svg.line(110, 160, 120, 190);
 
-                const exampleSelect = document.getElementById('example-type');
-                const exampleLabel = (exampleSelect && exampleSelect.selectedOptions && exampleSelect.selectedOptions[0])
-                    ? exampleSelect.selectedOptions[0].text
-                    : (exampleSelect ? exampleSelect.value : 'Example');
-                document.getElementById('encirclement-result').innerHTML = `
-                    <strong>Example:</strong> ${exampleLabel}<br>
-                    <strong>Encirclements (N):</strong> ${N}<br>
-                    <strong>Analysis:</strong> ${description}
-                `;
-            };
+            // Bootstrap circuit
+            svg.line(170, 70, 200, 70);
+            svg.addCapacitor(200, 90, 'vertical', 'Cboot', '100nF');
+            svg.line(200, 110, 200, 150);
 
-            updateEncirclement();
+            // Shunt resistor
+            svg.line(145, 250, 145, 270);
+            svg.rect(130, 270, 30, 15, '#181818', '#FFFF00');
+            svg.addText(145, 295, 'Rshunt', '9px', 'middle');
+            svg.line(145, 285, 145, 310);
+
+            // Ground
+            svg.line(40, 310, 600, 310);
+            svg.addText(30, 310, 'GND', '12px', 'end');
+
+            // Current sense amp
+            svg.line(160, 275, 220, 275);
+            svg.line(160, 285, 220, 285);
+
+            svg.rect(230, 260, 60, 40, '#181818', '#FF66FF');
+            svg.addText(260, 285, 'CSA', '11px', 'middle', '#FF66FF');
+
+            svg.line(290, 280, 330, 280);
+            svg.addText(350, 280, 'to ADC', '10px', 'start', '#888');
+
+            // Motor symbol
+            svg.circle(450, 180, 60, '#181818', '#FF6600');
+            svg.addText(450, 175, 'BLDC', '14px', 'middle', '#FF6600');
+            svg.addText(450, 195, 'Motor', '12px', 'middle');
+
+            // Phase connections to motor
+            svg.line(250, 150, 390, 150);
+            svg.line(390, 150, 390, 160);
+
+            // Labels
+            svg.addText(145, 35, 'Half-Bridge', '11px', 'middle', '#888');
+            svg.addText(450, 260, '(× 3 phases)', '10px', 'middle', '#888');
+
+            container.appendChild(svg.svg);
         }
-
-        // Exercise checking
-        window.checkEx1 = function() {
-            const input = AD.num('ex1-input');
-            const result = document.getElementById('ex1-result');
-            // Phase = -2*arctan(ω) = -180° means arctan(ω) = 90°
-            // This happens as ω → ∞
-            // But for finite crossing, with two poles at same frequency, it's continuous
-            // Actually for (s+1)², at ω where phase = -180°, we need 2*arctan(ω) = 180
-            // arctan(ω) = 90° means ω → ∞
-            // So technically there's no finite phase crossover for this system!
-            if (input > 1000 || input === Infinity || isNaN(input)) {
-                result.innerHTML = '<span style="color: #4ade80">Correct insight! For T(s) = 10/(s+1)², the phase is -2×arctan(ω), which approaches -180° only as ω → ∞. There is no finite frequency where phase exactly equals -180°.</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Think carefully: with phase = -2×arctan(ω), when does this equal -180°?</span>';
-            }
-        };
-
-        window.checkEx2 = function() {
-            const mag = AD.num('ex2-mag');
-            const stable = document.getElementById('ex2-stable').value;
-            const result = document.getElementById('ex2-result');
-
-            // At ω → ∞, |T| → 0
-            if (mag < 0.1 && stable === 'yes') {
-                result.innerHTML = '<span style="color: #4ade80">Correct! As ω → ∞, |T| → 0. Since the curve never crosses -1 with |T| ≥ 1, the system is stable with infinite gain margin.</span>';
-            } else if (stable === 'yes') {
-                result.innerHTML = '<span style="color: #fbbf24">The stability assessment is correct, but check the magnitude as ω → ∞.</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">This system is actually stable because the Nyquist curve approaches origin as ω → ∞, never encircling (-1, 0).</span>';
-            }
-        };
-
-        window.checkEx3 = function() {
-            const input = parseInt(document.getElementById('ex3-input').value);
-            const result = document.getElementById('ex3-result');
-            // N = P - Z, so Z = P - N = 2 - (-1) = 3
-            // Counter-clockwise = negative N = -1
-            if (input === 3) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! Z = P - N = 2 - (-1) = 3 closed-loop RHP poles. The system is unstable.</span>';
-            } else if (input === 1) {
-                result.innerHTML = '<span style="color: #f87171">Remember: counter-clockwise encirclements count as negative N. N = -1 in this case.</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Use Z = P - N, where N is negative for counter-clockwise encirclements.</span>';
-            }
-        };
 
         // Initialize
-        updateNyquist();
-    })();
+        document.addEventListener('DOMContentLoaded', () => {
+            drawMotorArchitecture();
+            drawInverterWaveforms();
+            drawCurrentSensing();
+            drawFOC();
+            drawControlLoop();
+            createMotorSchematic();
+            animateFOC();
+
+            // Design checklist
+            new ChecklistWidget('motor-checklist', {
+                title: 'Motor Control Design',
+                items: [
+                    { text: 'Size MOSFETs for peak current + margin', critical: true },
+                    { text: 'Calculate dead time to prevent shoot-through', critical: true },
+                    { text: 'Design gate driver with adequate drive current', critical: true },
+                    { text: 'Size bootstrap capacitor for high-side gate charge', critical: false },
+                    { text: 'Select current shunt for accuracy vs power loss', critical: true },
+                    { text: 'Implement hardware overcurrent protection', critical: true },
+                    { text: 'Add bulk capacitance for DC bus stability', critical: true },
+                    { text: 'Design PCB for minimal power loop inductance', critical: true },
+                    { text: 'Tune current loop before speed loop', critical: false },
+                    { text: 'Implement soft-start for inrush limiting', critical: false },
+                    { text: 'Add regenerative braking or brake resistor', critical: false },
+                    { text: 'Include thermal monitoring of MOSFETs', critical: false }
+                ]
+            });
+
+            // Exercises
+            new ExerciseWidget('motor-exercises', {
+                exercises: [
+                    {
+                        question: 'Calculate the shunt resistor value for a 20A peak current motor driver. The current sense amplifier has a gain of 20 and the ADC has a 3.3V reference with a 1.65V mid-point.',
+                        hint: 'The amplifier output must stay within ADC range: Vout = Vref/2 ± Gain × Ishunt × Rshunt',
+                        answer: 'Max output swing = 1.65V (half of 3.3V range). Vshunt_max = 1.65V / 20 = 82.5mV. Rshunt = 82.5mV / 20A = 4.125mΩ. Use 4mΩ standard value. Power dissipation = 20² × 0.004 = 1.6W peak, 0.8W RMS for sinusoidal current. Choose 2W rated shunt.'
+                    },
+                    {
+                        question: 'A BLDC motor runs at 3000 RPM with 4 pole pairs. Calculate the electrical frequency and the PWM frequency if at least 10 PWM cycles per electrical cycle is required.',
+                        hint: 'Electrical frequency = mechanical frequency × pole pairs',
+                        answer: 'Mechanical freq = 3000 RPM / 60 = 50 Hz. Electrical freq = 50 Hz × 4 = 200 Hz. For 10 PWM cycles per electrical cycle: PWM freq = 200 × 10 = 2000 Hz minimum. In practice, use 20 kHz for smooth operation and to be above audible range.'
+                    },
+                    {
+                        question: 'Calculate the required dead time if the MOSFET turn-off time is 80ns and turn-on time is 40ns. Include a safety margin.',
+                        hint: 'Dead time must be longer than the slower MOSFET transition.',
+                        answer: 'Turn-off = 80ns, Turn-on = 40ns. Dead time must exceed turn-off time (the high-side must fully turn off before low-side turns on). Minimum dead time = 80ns. With 50% safety margin: 80ns × 1.5 = 120ns. With gate driver propagation delay mismatch (~20ns typical): use 150-200ns. Typical implementations use 200-500ns.'
+                    },
+                    {
+                        question: 'Why does SVPWM provide 15% more DC bus utilization compared to sinusoidal PWM?',
+                        hint: 'Consider the third harmonic injection and the space vector synthesis.',
+                        answer: 'SVPWM adds a zero-sequence (common-mode) component to all three phases, which is equivalent to third harmonic injection. This shifts the reference waveforms toward the center of the PWM period, reducing the peak values needed. The modulation index can reach 2/√3 ≈ 1.15 (115%) compared to 1.0 for SPWM before overmodulation. This means 15% higher line-to-line voltage for the same DC bus voltage, improving power capability without increasing bus voltage.'
+                    }
+                ]
+            });
+        });
     </script>
-</article>
+</body>
+</html>

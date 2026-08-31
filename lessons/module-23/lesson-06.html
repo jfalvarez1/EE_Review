@@ -1,709 +1,608 @@
-<!-- Module 23, Lesson 6: BLDC Motor Driver Design -->
+<!-- Module 23, Lesson 6: Ground Loop Issues -->
 <div class="lesson-content" data-module="23" data-lesson="6">
 
     <div class="card">
-        <h2>BLDC Motor Driver Design</h2>
-        <p>Brushless DC (BLDC) motors power everything from drone propellers to electric vehicles. This lesson covers the complete motor driver design including gate drive, current sensing, and control algorithms.</p>
+        <h2>Debugging Ground Loop Issues</h2>
+        <p>Ground loops create mysterious noise, hum, and measurement errors. Learn to identify and eliminate ground loop problems in audio, instrumentation, and mixed-signal systems.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">50/60Hz Hum</div>
+                <div class="v">Classic ground loop symptom</div>
+            </div>
+            <div class="box">
+                <div class="k">Common Impedance</div>
+                <div class="v">Shared return path coupling</div>
+            </div>
+            <div class="box">
+                <div class="k">Magnetic Pickup</div>
+                <div class="v">Loop area couples H-field</div>
+            </div>
+            <div class="box">
+                <div class="k">Solution</div>
+                <div class="v">Single-point or isolation</div>
+            </div>
+        </div>
 
         <div class="notice">
-            <strong>Industry Reference:</strong> Based on <a href="https://www.ti.com/lit/an/slva488c/slva488c.pdf" target="_blank">TI DRV8301 Application Guide</a>, <a href="https://www.analog.com/en/resources/technical-articles/power-stage-design-for-bldc-motor-drive.html" target="_blank">Analog Devices BLDC Drive Power Stage</a>, and <a href="https://www.infineon.com/cms/en/applications/solutions/motor-control/bldc-motor-control/" target="_blank">Infineon Motor Control Solutions</a>.
+            <strong>The Rule:</strong> Current flows in loops. If two circuits share any part of their return path, they're coupled. The fix is either to break the loop (isolation) or ensure the shared path has zero impedance (proper grounding).
         </div>
     </div>
 
     <div class="card">
-        <h3>Three-Phase Inverter Architecture</h3>
+        <h3>Interactive: Ground Loop Simulator</h3>
 
-        <div class="system-diagram" style="background:#1a1f2e;padding:20px;border-radius:8px;overflow-x:auto;">
-            <svg viewBox="0 0 700 520" style="width:100%;max-width:700px;height:auto;">
-                <defs>
-                    <marker id="arrow-bldc" viewBox="0 0 5 4" refX="5" refY="2" markerWidth="5" markerHeight="4" orient="auto">
-                        <path d="M 0 0 L 5 2 L 0 4 z" fill="#fbbf24"/>
-                    </marker>
-                </defs>
+        <div class="controls">
+            <div class="c3">
+                <label for="gl-rgnd">Ground Resistance (mΩ)</label>
+                <input type="range" id="gl-rgnd" min="1" max="500" step="1" value="100">
+                <span id="gl-rgnd-val" class="mono">100mΩ</span>
+            </div>
+            <div class="c3">
+                <label for="gl-inoise">Noise Current (mA)</label>
+                <input type="range" id="gl-inoise" min="1" max="1000" step="10" value="100">
+                <span id="gl-inoise-val" class="mono">100mA</span>
+            </div>
+            <div class="c3">
+                <label for="gl-gain">Signal Gain</label>
+                <input type="range" id="gl-gain" min="1" max="1000" step="10" value="100">
+                <span id="gl-gain-val" class="mono">100</span>
+            </div>
+        </div>
 
-                <!-- Title -->
-                <text x="350" y="20" fill="#e6edf3" font-size="14" font-weight="bold" text-anchor="middle">BLDC MOTOR DRIVER SYSTEM</text>
-
-                <!-- DC Bus -->
-                <rect x="20" y="40" width="100" height="30" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="70" y="60" fill="#6ee7ff" font-size="11" text-anchor="middle">DC BUS 12-48V</text>
-
-                <!-- Bulk Caps -->
-                <rect x="140" y="40" width="80" height="30" rx="4" fill="#2d2d4a" stroke="#9fb0c0" stroke-width="1"/>
-                <text x="180" y="58" fill="#9fb0c0" font-size="10" text-anchor="middle">Bulk Caps</text>
-                <text x="180" y="68" fill="#9fb0c0" font-size="8" text-anchor="middle">100-1000µF</text>
-
-                <line x1="120" y1="55" x2="140" y2="55" stroke="#e6edf3" stroke-width="1.5"/>
-
-                <!-- Power bus line -->
-                <line x1="70" y1="70" x2="70" y2="85" stroke="#e6edf3" stroke-width="2"/>
-                <line x1="70" y1="85" x2="550" y2="85" stroke="#e6edf3" stroke-width="2"/>
-
-                <!-- Three phase legs -->
-                <!-- Phase U -->
-                <line x1="150" y1="85" x2="150" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
-                <rect x="120" y="100" width="60" height="40" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="150" y="118" fill="#6ee7ff" font-size="10" text-anchor="middle">Q1 High</text>
-                <text x="150" y="132" fill="#9fb0c0" font-size="9" text-anchor="middle">MOSFET</text>
-
-                <line x1="150" y1="140" x2="150" y2="155" stroke="#e6edf3" stroke-width="1.5"/>
-                <circle cx="150" cy="155" r="4" fill="#fbbf24"/>
-                <text x="165" y="158" fill="#fbbf24" font-size="10">U</text>
-                <line x1="150" y1="155" x2="150" y2="170" stroke="#e6edf3" stroke-width="1.5"/>
-
-                <rect x="120" y="170" width="60" height="40" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="150" y="188" fill="#6ee7ff" font-size="10" text-anchor="middle">Q2 Low</text>
-                <text x="150" y="202" fill="#9fb0c0" font-size="9" text-anchor="middle">MOSFET</text>
-
-                <!-- Phase V -->
-                <line x1="300" y1="85" x2="300" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
-                <rect x="270" y="100" width="60" height="40" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="300" y="118" fill="#6ee7ff" font-size="10" text-anchor="middle">Q3 High</text>
-                <text x="300" y="132" fill="#9fb0c0" font-size="9" text-anchor="middle">MOSFET</text>
-
-                <line x1="300" y1="140" x2="300" y2="155" stroke="#e6edf3" stroke-width="1.5"/>
-                <circle cx="300" cy="155" r="4" fill="#fbbf24"/>
-                <text x="315" y="158" fill="#fbbf24" font-size="10">V</text>
-                <line x1="300" y1="155" x2="300" y2="170" stroke="#e6edf3" stroke-width="1.5"/>
-
-                <rect x="270" y="170" width="60" height="40" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="300" y="188" fill="#6ee7ff" font-size="10" text-anchor="middle">Q4 Low</text>
-                <text x="300" y="202" fill="#9fb0c0" font-size="9" text-anchor="middle">MOSFET</text>
-
-                <!-- Phase W -->
-                <line x1="450" y1="85" x2="450" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
-                <rect x="420" y="100" width="60" height="40" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="450" y="118" fill="#6ee7ff" font-size="10" text-anchor="middle">Q5 High</text>
-                <text x="450" y="132" fill="#9fb0c0" font-size="9" text-anchor="middle">MOSFET</text>
-
-                <line x1="450" y1="140" x2="450" y2="155" stroke="#e6edf3" stroke-width="1.5"/>
-                <circle cx="450" cy="155" r="4" fill="#fbbf24"/>
-                <text x="465" y="158" fill="#fbbf24" font-size="10">W</text>
-                <line x1="450" y1="155" x2="450" y2="170" stroke="#e6edf3" stroke-width="1.5"/>
-
-                <rect x="420" y="170" width="60" height="40" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="450" y="188" fill="#6ee7ff" font-size="10" text-anchor="middle">Q6 Low</text>
-                <text x="450" y="202" fill="#9fb0c0" font-size="9" text-anchor="middle">MOSFET</text>
-
-                <!-- Motor outputs to motor symbol -->
-                <path d="M 154 155 L 200 155 L 200 250" stroke="#fbbf24" stroke-width="1.5" fill="none" marker-end="url(#arrow-bldc)"/>
-                <path d="M 300 159 L 300 250" stroke="#fbbf24" stroke-width="1.5" fill="none" marker-end="url(#arrow-bldc)"/>
-                <path d="M 446 155 L 400 155 L 400 250" stroke="#fbbf24" stroke-width="1.5" fill="none" marker-end="url(#arrow-bldc)"/>
-
-                <!-- Motor symbol -->
-                <circle cx="300" cy="280" r="30" fill="none" stroke="#34d399" stroke-width="2"/>
-                <text x="300" y="285" fill="#34d399" font-size="14" text-anchor="middle" font-weight="bold">M</text>
-                <text x="300" y="325" fill="#9fb0c0" font-size="10" text-anchor="middle">3Φ BLDC</text>
-
-                <!-- Ground bus and Rsense -->
-                <line x1="150" y1="210" x2="150" y2="230" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="300" y1="210" x2="300" y2="230" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="450" y1="210" x2="450" y2="230" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="150" y1="230" x2="450" y2="230" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="300" y1="230" x2="300" y2="245" stroke="#e6edf3" stroke-width="1.5"/>
-
-                <!-- Rsense -->
-                <rect x="285" y="345" width="30" height="20" rx="2" fill="#2d2d4a" stroke="#ff6b6b" stroke-width="1.5"/>
-                <text x="300" y="360" fill="#ff6b6b" font-size="9" text-anchor="middle">Rsense</text>
-                <text x="350" y="360" fill="#9fb0c0" font-size="9">1-10mΩ</text>
-                <line x1="300" y1="335" x2="300" y2="345" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="300" y1="365" x2="300" y2="380" stroke="#e6edf3" stroke-width="1.5"/>
-
-                <!-- GND symbol -->
-                <line x1="285" y1="380" x2="315" y2="380" stroke="#9fb0c0" stroke-width="2"/>
-                <line x1="290" y1="385" x2="310" y2="385" stroke="#9fb0c0" stroke-width="1.5"/>
-                <line x1="295" y1="390" x2="305" y2="390" stroke="#9fb0c0" stroke-width="1"/>
-
-                <!-- Annotation labels -->
-                <text x="540" y="120" fill="#34d399" font-size="9">← High-Side MOSFETs</text>
-                <text x="555" y="132" fill="#9fb0c0" font-size="8">Bootstrap Drive</text>
-                <text x="540" y="190" fill="#34d399" font-size="9">← Low-Side MOSFETs</text>
-                <text x="555" y="202" fill="#9fb0c0" font-size="8">Direct Drive</text>
-
-                <!-- Gate Driver IC Block -->
-                <rect x="50" y="400" width="600" height="55" rx="6" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                <text x="350" y="418" fill="#6ee7ff" font-size="12" text-anchor="middle" font-weight="bold">GATE DRIVER IC</text>
-                <text x="120" y="438" fill="#9fb0c0" font-size="9">PWM_UH→HO_U</text>
-                <text x="250" y="438" fill="#9fb0c0" font-size="9">PWM_VH→HO_V</text>
-                <text x="380" y="438" fill="#9fb0c0" font-size="9">PWM_WH→HO_W</text>
-                <text x="520" y="438" fill="#ff6b6b" font-size="9">OCP/OTP/UVLO</text>
-
-                <!-- MCU Block -->
-                <rect x="50" y="465" width="600" height="50" rx="6" fill="#2d4a3e" stroke="#34d399" stroke-width="1.5"/>
-                <text x="350" y="483" fill="#34d399" font-size="12" text-anchor="middle" font-weight="bold">MCU / MOTOR CONTROLLER</text>
-                <text x="130" y="503" fill="#9fb0c0" font-size="9">Hall/Encoder</text>
-                <text x="280" y="503" fill="#9fb0c0" font-size="9">FOC Algorithm</text>
-                <text x="430" y="503" fill="#9fb0c0" font-size="9">SVPWM Generation</text>
-                <text x="580" y="503" fill="#9fb0c0" font-size="9">Current PI</text>
-
-                <!-- Connection arrows -->
-                <path d="M 300 395 L 300 400" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-bldc)"/>
-                <path d="M 300 455 L 300 465" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-bldc)"/>
-            </svg>
+        <div class="canvas-wrap">
+            <canvas id="gl-canvas" width="980" height="320"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Gate Driver ICs</div>
-                <div class="v">DRV8301, IR2110, FD6288, L6234</div>
+                <div class="k">Ground Noise</div>
+                <div class="v mono" id="gl-vnoise">—</div>
             </div>
             <div class="box">
-                <div class="k">Integrated Solutions</div>
-                <div class="v">DRV8302/8303, TMC6100, MP6540</div>
+                <div class="k">At Output</div>
+                <div class="v mono" id="gl-vout">—</div>
+            </div>
+            <div class="box">
+                <div class="k">SNR Impact</div>
+                <div class="v mono" id="gl-snr">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Status</div>
+                <div class="v mono" id="gl-status">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Section 1: MOSFET Selection</h3>
-
-        <p>The power stage MOSFETs must handle the motor current and voltage with acceptable losses:</p>
+        <h3>Ground Loop Scenarios</h3>
 
         <table class="table">
             <tr>
-                <th>Parameter</th>
-                <th>Selection Criteria</th>
-                <th>Typical Range</th>
+                <th>Scenario</th>
+                <th>Cause</th>
+                <th>Symptom</th>
+                <th>Fix</th>
             </tr>
             <tr>
-                <td>V<sub>DS</sub> Rating</td>
-                <td>&gt;1.5× DC bus voltage</td>
-                <td>30V for 12V, 100V for 48V</td>
+                <td>Audio hum</td>
+                <td>AC mains ground difference</td>
+                <td>50/60Hz + harmonics</td>
+                <td>Balanced connections, DI box</td>
             </tr>
             <tr>
-                <td>I<sub>D</sub> Rating</td>
-                <td>&gt;2× peak motor current</td>
-                <td>10-100A continuous</td>
+                <td>Scope measurement error</td>
+                <td>Ground lead loop area</td>
+                <td>Ringing, HF noise</td>
+                <td>Ground spring, short lead</td>
             </tr>
             <tr>
-                <td>R<sub>DS(on)</sub></td>
-                <td>Low for efficiency</td>
-                <td>1-20 mΩ</td>
+                <td>ADC noise floor</td>
+                <td>Digital return current</td>
+                <td>Code-dependent noise</td>
+                <td>Star ground, separate returns</td>
             </tr>
             <tr>
-                <td>Q<sub>g</sub></td>
-                <td>Low for fast switching</td>
-                <td>10-100 nC</td>
+                <td>Motor drive interference</td>
+                <td>High dI/dt in ground</td>
+                <td>Bursts sync to PWM</td>
+                <td>Separate power ground</td>
             </tr>
             <tr>
-                <td>Package</td>
-                <td>Good thermal path</td>
-                <td>TO-220, DPAK, PowerPAK</td>
+                <td>Multi-chassis hum</td>
+                <td>Safety ground differences</td>
+                <td>60Hz when connected</td>
+                <td>Isolation, balanced I/O</td>
             </tr>
         </table>
-
-        <div class="subsection">
-            <h4>Interactive: MOSFET Loss Calculator</h4>
-
-            <div class="controls">
-                <div class="c3">
-                    <label for="bldc-vbus">Bus Voltage (V)</label>
-                    <input type="range" id="bldc-vbus" min="12" max="72" step="1" value="24">
-                    <span id="bldc-vbus-val" class="mono">24V</span>
-                </div>
-                <div class="c3">
-                    <label for="bldc-irms">Motor Current RMS (A)</label>
-                    <input type="range" id="bldc-irms" min="1" max="50" step="1" value="10">
-                    <span id="bldc-irms-val" class="mono">10A</span>
-                </div>
-                <div class="c3">
-                    <label for="bldc-rdson">R<sub>DS(on)</sub> (mΩ)</label>
-                    <input type="range" id="bldc-rdson" min="1" max="50" step="1" value="10">
-                    <span id="bldc-rdson-val" class="mono">10mΩ</span>
-                </div>
-                <div class="c3">
-                    <label for="bldc-fsw">PWM Frequency (kHz)</label>
-                    <input type="range" id="bldc-fsw" min="10" max="100" step="5" value="20">
-                    <span id="bldc-fsw-val" class="mono">20kHz</span>
-                </div>
-                <div class="c3">
-                    <label for="bldc-tsw">Switching Time (ns)</label>
-                    <input type="range" id="bldc-tsw" min="20" max="200" step="10" value="50">
-                    <span id="bldc-tsw-val" class="mono">50ns</span>
-                </div>
-            </div>
-
-            <div class="kv">
-                <div class="box">
-                    <div class="k">Conduction Loss (per FET)</div>
-                    <div class="v mono" id="bldc-pcond">--</div>
-                </div>
-                <div class="box">
-                    <div class="k">Switching Loss (per FET)</div>
-                    <div class="v mono" id="bldc-psw">--</div>
-                </div>
-                <div class="box">
-                    <div class="k">Total Loss (6 FETs)</div>
-                    <div class="v mono" id="bldc-ptotal">--</div>
-                </div>
-                <div class="box">
-                    <div class="k">Efficiency</div>
-                    <div class="v mono" id="bldc-eff">--</div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <div class="card">
-        <h3>Section 2: Gate Drive Design</h3>
-
-        <p>The gate driver must provide sufficient current to switch the MOSFETs quickly while managing dead time to prevent shoot-through:</p>
-
-        <div class="subsection">
-            <h4>Bootstrap vs. Isolated Gate Drive</h4>
-
-            <table class="table">
-                <tr>
-                    <th>Topology</th>
-                    <th>Advantages</th>
-                    <th>Disadvantages</th>
-                    <th>Use Case</th>
-                </tr>
-                <tr>
-                    <td>Bootstrap</td>
-                    <td>Simple, low cost, integrated</td>
-                    <td>100% duty cycle limit, refresh needed</td>
-                    <td>Motor drives, general inverters</td>
-                </tr>
-                <tr>
-                    <td>Charge Pump</td>
-                    <td>100% duty cycle capable</td>
-                    <td>Limited current, more complex</td>
-                    <td>DC-DC, always-on switches</td>
-                </tr>
-                <tr>
-                    <td>Isolated (transformer)</td>
-                    <td>Full isolation, 100% duty</td>
-                    <td>Expensive, larger, more parts</td>
-                    <td>High-voltage, safety critical</td>
-                </tr>
-            </table>
-
-            <div class="warn">
-                <strong>Dead Time Requirement:</strong> A dead time of 50-500ns between high-side turn-off and low-side turn-on (and vice versa) prevents shoot-through current. Too much dead time increases distortion; too little risks destruction.
-            </div>
-        </div>
-
-        <div class="subsection">
-            <h4>Bootstrap Circuit Design</h4>
-
-            <div class="system-diagram" style="background:#1a1f2e;padding:15px;border-radius:8px;overflow-x:auto;">
-                <svg viewBox="0 0 550 340" style="width:100%;max-width:550px;height:auto;">
-                    <defs>
-                        <marker id="arrow-boot" viewBox="0 0 5 4" refX="5" refY="2" markerWidth="5" markerHeight="4" orient="auto">
-                            <path d="M 0 0 L 5 2 L 0 4 z" fill="#fbbf24"/>
-                        </marker>
-                    </defs>
-
-                    <!-- Title -->
-                    <text x="275" y="20" fill="#34d399" font-size="13" font-weight="bold" text-anchor="middle">BOOTSTRAP HIGH-SIDE DRIVE</text>
-
-                    <!-- VCC Supply -->
-                    <rect x="20" y="40" width="80" height="28" rx="4" fill="#2d4a3e" stroke="#34d399" stroke-width="1.5"/>
-                    <text x="60" y="58" fill="#34d399" font-size="11" text-anchor="middle">VCC 12-15V</text>
-
-                    <!-- VCC line down to diode -->
-                    <line x1="100" y1="54" x2="130" y2="54" stroke="#e6edf3" stroke-width="1.5"/>
-                    <line x1="130" y1="54" x2="130" y2="75" stroke="#e6edf3" stroke-width="1.5"/>
-
-                    <!-- Bootstrap Diode (D_boot) -->
-                    <polygon points="120,75 140,75 130,95" fill="none" stroke="#6ee7ff" stroke-width="1.5"/>
-                    <line x1="120" y1="95" x2="140" y2="95" stroke="#6ee7ff" stroke-width="1.5"/>
-                    <text x="155" y="88" fill="#9fb0c0" font-size="9">D_boot</text>
-                    <text x="155" y="100" fill="#9fb0c0" font-size="8">(Schottky)</text>
-
-                    <!-- Line down from diode -->
-                    <line x1="130" y1="95" x2="130" y2="120" stroke="#e6edf3" stroke-width="1.5"/>
-
-                    <!-- Bootstrap Capacitor (C_boot) -->
-                    <line x1="130" y1="120" x2="200" y2="120" stroke="#e6edf3" stroke-width="1.5"/>
-                    <line x1="200" y1="110" x2="200" y2="130" stroke="#6ee7ff" stroke-width="2"/>
-                    <line x1="210" y1="110" x2="210" y2="130" stroke="#6ee7ff" stroke-width="2"/>
-                    <text x="205" y="150" fill="#9fb0c0" font-size="9" text-anchor="middle">C_boot</text>
-                    <text x="205" y="162" fill="#9fb0c0" font-size="8" text-anchor="middle">0.1-10µF</text>
-
-                    <!-- VB label -->
-                    <line x1="210" y1="120" x2="280" y2="120" stroke="#e6edf3" stroke-width="1.5"/>
-                    <circle cx="280" cy="120" r="3" fill="#34d399"/>
-                    <text x="290" y="124" fill="#34d399" font-size="10">VB</text>
-
-                    <!-- Gate Driver IC Block -->
-                    <rect x="60" y="180" width="160" height="100" rx="6" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                    <text x="140" y="200" fill="#6ee7ff" font-size="11" text-anchor="middle" font-weight="bold">Gate Driver IC</text>
-
-                    <!-- Connect VB to driver -->
-                    <line x1="280" y1="120" x2="280" y2="195" stroke="#e6edf3" stroke-width="1.5"/>
-                    <line x1="220" y1="195" x2="280" y2="195" stroke="#e6edf3" stroke-width="1.5"/>
-
-                    <!-- HO output -->
-                    <text x="75" y="225" fill="#9fb0c0" font-size="9">HO</text>
-                    <line x1="220" y1="220" x2="290" y2="220" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-boot)"/>
-
-                    <!-- Gate resistor -->
-                    <rect x="300" y="214" width="35" height="12" rx="2" fill="#2d2d4a" stroke="#6ee7ff" stroke-width="1"/>
-                    <text x="317" y="223" fill="#6ee7ff" font-size="8" text-anchor="middle">Rg</text>
-
-                    <!-- To MOSFET Gate -->
-                    <line x1="335" y1="220" x2="400" y2="220" stroke="#fbbf24" stroke-width="1.5"/>
-                    <text x="420" y="224" fill="#fbbf24" font-size="9">→ Gate (High)</text>
-
-                    <!-- HS connection -->
-                    <text x="75" y="245" fill="#9fb0c0" font-size="9">HS</text>
-                    <line x1="220" y1="240" x2="340" y2="240" stroke="#e6edf3" stroke-width="1.5"/>
-                    <line x1="340" y1="120" x2="340" y2="240" stroke="#e6edf3" stroke-width="1.5"/>
-                    <circle cx="340" cy="120" r="3" fill="#e6edf3"/>
-
-                    <!-- LO output -->
-                    <text x="75" y="265" fill="#9fb0c0" font-size="9">LO</text>
-                    <line x1="220" y1="260" x2="290" y2="260" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-boot)"/>
-                    <rect x="300" y="254" width="35" height="12" rx="2" fill="#2d2d4a" stroke="#6ee7ff" stroke-width="1"/>
-                    <text x="317" y="263" fill="#6ee7ff" font-size="8" text-anchor="middle">Rg</text>
-                    <line x1="335" y1="260" x2="400" y2="260" stroke="#fbbf24" stroke-width="1.5"/>
-                    <text x="420" y="264" fill="#fbbf24" font-size="9">→ Gate (Low)</text>
-
-                    <!-- Phase output label -->
-                    <line x1="340" y1="240" x2="400" y2="240" stroke="#fbbf24" stroke-width="1.5"/>
-                    <text x="420" y="244" fill="#fbbf24" font-size="9">→ Phase Out</text>
-
-                    <!-- Sizing formula -->
-                    <rect x="20" y="300" width="510" height="30" rx="4" fill="#2d2d4a" stroke="#9fb0c0" stroke-width="1"/>
-                    <text x="270" y="318" fill="#9fb0c0" font-size="10" text-anchor="middle">C_boot &gt; (Qg + I_qbs/f_sw) / (VCC - VF - VGS_min)   •   Typical: 0.1µF small FETs, 1-10µF large FETs</text>
-                </svg>
-            </div>
-        </div>
+        <h3>Ground Loop Illustration</h3>
+        <div id="gl-schematic"></div>
     </div>
 
     <div class="card">
-        <h3>Section 3: Current Sensing</h3>
-
-        <p>Accurate current sensing is essential for torque control and overcurrent protection:</p>
-
-        <div class="subsection">
-            <h4>Current Sensing Methods</h4>
-
-            <table class="table">
-                <tr>
-                    <th>Method</th>
-                    <th>Location</th>
-                    <th>Accuracy</th>
-                    <th>Cost</th>
-                    <th>Notes</th>
-                </tr>
-                <tr>
-                    <td>DC Bus Shunt</td>
-                    <td>Single shunt, bus return</td>
-                    <td>Medium</td>
-                    <td>Low</td>
-                    <td>Requires reconstruction</td>
-                </tr>
-                <tr>
-                    <td>Three Shunts</td>
-                    <td>Each low-side leg</td>
-                    <td>High</td>
-                    <td>Medium</td>
-                    <td>Most accurate for FOC</td>
-                </tr>
-                <tr>
-                    <td>In-Line Shunts</td>
-                    <td>Phase outputs</td>
-                    <td>Highest</td>
-                    <td>High</td>
-                    <td>Best for high-performance</td>
-                </tr>
-                <tr>
-                    <td>FET R<sub>DS(on)</sub></td>
-                    <td>Low-side FETs</td>
-                    <td>Low</td>
-                    <td>Free</td>
-                    <td>Temperature dependent</td>
-                </tr>
-            </table>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Section 4: Control Algorithms</h3>
-
-        <div class="subsection">
-            <h4>Six-Step Commutation (Trapezoidal)</h4>
-
-            <p>Simple control using Hall sensors or back-EMF sensing. One phase is always off, one sourcing, one sinking.</p>
-
-            <table class="table">
-                <tr>
-                    <th>Step</th>
-                    <th>Phase U</th>
-                    <th>Phase V</th>
-                    <th>Phase W</th>
-                    <th>Hall State (CBA)</th>
-                </tr>
-                <tr><td>1</td><td>+</td><td>-</td><td>Z</td><td>101</td></tr>
-                <tr><td>2</td><td>+</td><td>Z</td><td>-</td><td>100</td></tr>
-                <tr><td>3</td><td>Z</td><td>+</td><td>-</td><td>110</td></tr>
-                <tr><td>4</td><td>-</td><td>+</td><td>Z</td><td>010</td></tr>
-                <tr><td>5</td><td>-</td><td>Z</td><td>+</td><td>011</td></tr>
-                <tr><td>6</td><td>Z</td><td>-</td><td>+</td><td>001</td></tr>
-            </table>
-
-            <p><strong>+</strong> = PWM high, <strong>-</strong> = PWM low (or low-side on), <strong>Z</strong> = both off (floating)</p>
-        </div>
-
-        <div class="subsection">
-            <h4>Field-Oriented Control (FOC)</h4>
-
-            <p>Advanced control treating the motor as a DC machine in a rotating reference frame. Provides smooth torque and efficiency at all speeds.</p>
-
-            <div class="system-diagram" style="background:#1a1f2e;padding:15px;border-radius:8px;overflow-x:auto;">
-                <svg viewBox="0 0 650 350" style="width:100%;max-width:650px;height:auto;">
-                    <defs>
-                        <marker id="arrow-foc" viewBox="0 0 5 4" refX="5" refY="2" markerWidth="5" markerHeight="4" orient="auto">
-                            <path d="M 0 0 L 5 2 L 0 4 z" fill="#fbbf24"/>
-                        </marker>
-                    </defs>
-
-                    <!-- Title -->
-                    <text x="325" y="20" fill="#6ee7ff" font-size="13" font-weight="bold" text-anchor="middle">FOC CONTROL BLOCK DIAGRAM</text>
-
-                    <!-- Speed Command input -->
-                    <text x="20" y="60" fill="#34d399" font-size="10">Speed Cmd</text>
-                    <line x1="75" y1="55" x2="110" y2="55" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-foc)"/>
-
-                    <!-- Speed PI Block -->
-                    <rect x="115" y="42" width="70" height="28" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                    <text x="150" y="60" fill="#6ee7ff" font-size="10" text-anchor="middle">Speed PI</text>
-
-                    <!-- Iq* -->
-                    <line x1="185" y1="55" x2="220" y2="55" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-foc)"/>
-                    <text x="200" y="48" fill="#9fb0c0" font-size="9">Iq*</text>
-
-                    <!-- Current PI for Iq -->
-                    <rect x="225" y="42" width="75" height="28" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                    <text x="262" y="60" fill="#6ee7ff" font-size="10" text-anchor="middle">Current PI</text>
-
-                    <!-- Vq output -->
-                    <line x1="300" y1="55" x2="360" y2="55" stroke="#fbbf24" stroke-width="1.5"/>
-                    <text x="330" y="48" fill="#9fb0c0" font-size="9">Vq</text>
-                    <line x1="360" y1="55" x2="360" y2="100" stroke="#fbbf24" stroke-width="1.5"/>
-
-                    <!-- Id* = 0 -->
-                    <text x="180" y="100" fill="#34d399" font-size="10">Id* = 0</text>
-                    <line x1="210" y1="95" x2="255" y2="95" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-foc)"/>
-
-                    <!-- Current PI for Id -->
-                    <rect x="260" y="82" width="75" height="28" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                    <text x="297" y="100" fill="#6ee7ff" font-size="10" text-anchor="middle">Current PI</text>
-
-                    <!-- Vd output -->
-                    <line x1="335" y1="95" x2="360" y2="95" stroke="#fbbf24" stroke-width="1.5"/>
-                    <text x="345" y="88" fill="#9fb0c0" font-size="9">Vd</text>
-                    <circle cx="360" cy="95" r="3" fill="#fbbf24"/>
-                    <line x1="360" y1="100" x2="360" y2="130" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-foc)"/>
-
-                    <!-- Inverse Park Transform -->
-                    <rect x="320" y="135" width="85" height="40" rx="4" fill="#2d4a3e" stroke="#34d399" stroke-width="1.5"/>
-                    <text x="362" y="152" fill="#34d399" font-size="9" text-anchor="middle">Inverse</text>
-                    <text x="362" y="166" fill="#34d399" font-size="9" text-anchor="middle">Park Transform</text>
-
-                    <!-- Vα, Vβ output -->
-                    <line x1="405" y1="155" x2="460" y2="155" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-foc)"/>
-                    <text x="430" y="148" fill="#9fb0c0" font-size="9">Vα, Vβ</text>
-
-                    <!-- SVPWM Generator -->
-                    <rect x="465" y="135" width="80" height="40" rx="4" fill="#2d4a3e" stroke="#34d399" stroke-width="1.5"/>
-                    <text x="505" y="152" fill="#34d399" font-size="9" text-anchor="middle">SVPWM</text>
-                    <text x="505" y="166" fill="#34d399" font-size="9" text-anchor="middle">Generator</text>
-
-                    <!-- PWM U,V,W output -->
-                    <line x1="545" y1="155" x2="590" y2="155" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-foc)"/>
-                    <text x="605" y="160" fill="#fbbf24" font-size="10">PWM</text>
-                    <text x="605" y="175" fill="#fbbf24" font-size="10">U,V,W</text>
-
-                    <!-- Feedback path -->
-                    <!-- Current inputs -->
-                    <text x="20" y="260" fill="#34d399" font-size="10">Ia, Ib, Ic</text>
-                    <line x1="75" y1="255" x2="120" y2="255" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-foc)"/>
-
-                    <!-- Clarke Transform -->
-                    <rect x="125" y="240" width="65" height="32" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                    <text x="157" y="260" fill="#6ee7ff" font-size="10" text-anchor="middle">Clarke</text>
-
-                    <line x1="190" y1="255" x2="235" y2="255" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-foc)"/>
-
-                    <!-- Park Transform -->
-                    <rect x="240" y="240" width="65" height="32" rx="4" fill="#1e3a5f" stroke="#6ee7ff" stroke-width="1.5"/>
-                    <text x="272" y="260" fill="#6ee7ff" font-size="10" text-anchor="middle">Park</text>
-
-                    <!-- Feedback to PI controllers -->
-                    <line x1="305" y1="255" x2="380" y2="255" stroke="#fbbf24" stroke-width="1.5"/>
-                    <text x="340" y="248" fill="#9fb0c0" font-size="9">Id, Iq</text>
-                    <line x1="380" y1="255" x2="380" y2="95" stroke="#fbbf24" stroke-width="1.5"/>
-                    <line x1="335" y1="95" x2="375" y2="95" stroke="#9fb0c0" stroke-width="1" stroke-dasharray="3,2"/>
-                    <line x1="380" y1="55" x2="300" y2="55" stroke="#9fb0c0" stroke-width="1" stroke-dasharray="3,2"/>
-
-                    <!-- Theta input to Park -->
-                    <line x1="272" y1="272" x2="272" y2="295" stroke="#e6edf3" stroke-width="1.5"/>
-                    <text x="290" y="288" fill="#9fb0c0" font-size="9">θ (rotor angle)</text>
-
-                    <!-- Encoder / Sensorless -->
-                    <rect x="210" y="300" width="130" height="28" rx="4" fill="#2d2d4a" stroke="#9fb0c0" stroke-width="1"/>
-                    <text x="275" y="318" fill="#9fb0c0" font-size="9" text-anchor="middle">Encoder / Hall / Sensorless</text>
-
-                    <!-- Connect to theta -->
-                    <line x1="272" y1="295" x2="272" y2="300" stroke="#e6edf3" stroke-width="1.5" marker-end="url(#arrow-foc)"/>
-                </svg>
-            </div>
-        </div>
+        <h3>Grounding Strategies</h3>
+        <canvas id="grounding-strategies-canvas" width="900" height="340"></canvas>
     </div>
 
     <div class="card">
         <h3>SPICE Netlist</h3>
-        <div id="spice-container"></div>
+        <div id="gl-spice"></div>
     </div>
 
     <div class="card">
-        <h3>Verification Checklist</h3>
-        <div id="checklist-container"></div>
+        <h3>Debug Checklist</h3>
+        <div id="gl-checklist"></div>
     </div>
 
     <div class="card">
         <h3>Practice Exercises</h3>
-        <div id="exercise-container"></div>
+        <div id="gl-exercises"></div>
     </div>
 
 </div>
 
 <script>
 (function() {
-    // BLDC Loss Calculator
-    function updateBLDC() {
-        const vbus = AD.num('bldc-vbus');
-        const irms = AD.num('bldc-irms');
-        const rdson = AD.num('bldc-rdson') / 1000;
-        const fsw = AD.num('bldc-fsw') * 1000;
-        const tsw = AD.num('bldc-tsw') * 1e-9;
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
 
-        document.getElementById('bldc-vbus-val').textContent = vbus + 'V';
-        document.getElementById('bldc-irms-val').textContent = irms + 'A';
-        document.getElementById('bldc-rdson-val').textContent = (rdson * 1000).toFixed(0) + 'mΩ';
-        document.getElementById('bldc-fsw-val').textContent = (fsw / 1000) + 'kHz';
-        document.getElementById('bldc-tsw-val').textContent = (tsw * 1e9).toFixed(0) + 'ns';
+    const canvas = document.getElementById('gl-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
 
-        // Conduction loss per FET (each FET conducts ~1/3 of time in 3-phase)
-        const dutyCycle = 0.5; // Average duty cycle
-        const pcond = irms * irms * rdson * dutyCycle / 3;
+    function update() {
+        const Rgnd = AD.num('gl-rgnd') || 100;
+        const Inoise = AD.num('gl-inoise') || 100;
+        const gain = AD.num('gl-gain') || 100;
 
-        // Switching loss per FET
-        const psw = 0.5 * vbus * irms * (2 * tsw) * fsw;
+        document.getElementById('gl-rgnd-val').textContent = Rgnd + 'mΩ';
+        document.getElementById('gl-inoise-val').textContent = Inoise + 'mA';
+        document.getElementById('gl-gain-val').textContent = gain;
 
-        // Total for 6 FETs
-        const ptotal = (pcond + psw) * 6;
+        const Vnoise = Rgnd * Inoise / 1000; // mV
+        const Vout = Vnoise * gain; // mV at output
+        const snrLoss = 20 * Math.log10(1000 / Vnoise); // Assuming 1V signal
 
-        // Output power (approximate)
-        const pout = vbus * irms * 0.866 * 0.5; // 3-phase power approx
-        const eff = pout / (pout + ptotal) * 100;
+        let status, statusColor;
+        if (Vnoise < 0.1) {
+            status = 'OK - Negligible noise';
+            statusColor = '#4f4';
+        } else if (Vnoise < 1) {
+            status = 'MARGINAL - Visible on scope';
+            statusColor = '#fa4';
+        } else {
+            status = 'PROBLEM - Significant coupling';
+            statusColor = '#f44';
+        }
 
-        document.getElementById('bldc-pcond').textContent = (pcond * 1000).toFixed(1) + ' mW';
-        document.getElementById('bldc-psw').textContent = (psw * 1000).toFixed(1) + ' mW';
-        document.getElementById('bldc-ptotal').textContent = ptotal.toFixed(2) + ' W';
-        document.getElementById('bldc-eff').textContent = eff.toFixed(1) + '%';
+        document.getElementById('gl-vnoise').textContent = Vnoise.toFixed(2) + 'mV';
+        document.getElementById('gl-vout').textContent = Vout.toFixed(0) + 'mV';
+        document.getElementById('gl-snr').textContent = snrLoss.toFixed(0) + 'dB limit';
+        document.getElementById('gl-status').innerHTML = '<span style="color:' + statusColor + '">' + status + '</span>';
+
+        // Draw ground loop diagram
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        // Draw circuit blocks
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 2;
+
+        // Sensitive analog circuit
+        ctx.strokeRect(150, 80, 120, 80);
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Analog', 210, 115);
+        ctx.fillText('Circuit', 210, 135);
+
+        // Noisy digital/power circuit
+        ctx.strokeRect(500, 80, 120, 80);
+        ctx.fillText('Digital/', 560, 115);
+        ctx.fillText('Power', 560, 135);
+
+        // Ground symbol at each
+        ctx.fillStyle = '#4af';
+        ctx.fillText('GND', 210, 180);
+        ctx.fillText('GND', 560, 180);
+
+        // Shared ground path
+        ctx.strokeStyle = Vnoise < 1 ? TEK.ch4 : TEK.ch1;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(210, 160);
+        ctx.lineTo(210, 220);
+        ctx.lineTo(560, 220);
+        ctx.lineTo(560, 160);
+        ctx.stroke();
+
+        // Ground impedance
+        ctx.fillStyle = '#f44';
+        ctx.font = '11px monospace';
+        ctx.fillText('Rgnd = ' + Rgnd + 'mΩ', 385, 210);
+
+        // Noise current arrow
+        ctx.strokeStyle = TEK.ch3;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(500, 220);
+        ctx.lineTo(270, 220);
+        ctx.stroke();
+        // Arrow head
+        ctx.beginPath();
+        ctx.moveTo(280, 215);
+        ctx.lineTo(270, 220);
+        ctx.lineTo(280, 225);
+        ctx.stroke();
+        ctx.fillStyle = TEK.ch3;
+        ctx.fillText('Inoise = ' + Inoise + 'mA', 385, 245);
+
+        // Voltage across ground
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('Vnoise = ' + Vnoise.toFixed(2) + 'mV', 385, 265);
+
+        // Signal path
+        ctx.strokeStyle = '#4af';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(50, 120);
+        ctx.lineTo(150, 120);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(270, 120);
+        ctx.lineTo(350, 120);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'left';
+        ctx.fillText('Signal', 60, 110);
+        ctx.fillText('to ADC', 280, 110);
+
+        // Output noise
+        ctx.fillStyle = statusColor;
+        ctx.font = '14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Output: ±' + (Vout/1000).toFixed(3) + 'V noise', W/2, 50);
+
+        // Fix suggestion
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.fillText('Fix: Star ground, separate returns, or isolation', W/2, H - 20);
     }
 
-    ['bldc-vbus', 'bldc-irms', 'bldc-rdson', 'bldc-fsw', 'bldc-tsw'].forEach(id => {
-        document.getElementById(id).addEventListener('input', updateBLDC);
+    ['gl-rgnd', 'gl-inoise', 'gl-gain'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
     });
-    updateBLDC();
 
-    // SPICE netlist
-    if (typeof SpiceNetlistWidget !== 'undefined') {
-        new SpiceNetlistWidget('spice-container', {
-            title: 'BLDC Three-Phase Inverter',
-            netlist: `* BLDC Motor Driver - Three Phase Inverter
-* Simplified model for one phase leg
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('gl-schematic');
+        const svg = new SchematicSVG(600, 240);
 
-.param VDC=24 RL=1 LL=1m fsw=20k
+        // Two-ground scenario
+        svg.text(50, 30, 'Ground Loop Problem:', {fontSize: 12, fill: '#f44'});
 
-* DC Bus
-VDC vdc 0 DC {VDC}
-Cbus vdc 0 100u
+        // Chassis 1
+        svg.rect(50, 60, 100, 60, {fill: 'none', stroke: '#888'});
+        svg.text(100, 95, 'Device A', {fontSize: 10});
 
-* High-side MOSFET (simplified switch)
-.model NFET NMOS (VTO=2 KP=100 RD=5m)
-M1 vdc gate1 phase phase NFET W=10m L=1u
-M2 phase gate2 0 0 NFET W=10m L=1u
+        // Chassis 2
+        svg.rect(250, 60, 100, 60, {fill: 'none', stroke: '#888'});
+        svg.text(300, 95, 'Device B', {fontSize: 10});
 
-* Gate drives (complementary PWM)
-Vg1 gate1 phase PULSE(0 10 0 10n 10n {0.5/fsw} {1/fsw})
-Vg2 gate2 0 PULSE(0 10 {0.5/fsw+100n} 10n 10n {0.5/fsw-100n} {1/fsw})
+        // Signal cable
+        svg.wire([[150, 80], [250, 80]]);
+        svg.text(200, 70, 'Signal', {fontSize: 9});
 
-* Motor phase (RL load)
-Lm phase vout {LL}
-Rm vout 0 {RL}
+        // Ground through cable
+        svg.wire([[150, 100], [250, 100]]);
+        svg.text(200, 115, 'Shield/Gnd', {fontSize: 9});
 
-.tran 1n 200u
+        // Safety grounds
+        svg.wire([[100, 120], [100, 160]]);
+        svg.wire([[300, 120], [300, 160]]);
 
-.probe V(phase) V(vout) I(Lm)
+        // AC mains ground with impedance
+        svg.wire([[100, 160], [200, 160]]);
+        svg.resistor(200, 160, {horizontal: true});
+        svg.text(200, 175, 'Rgnd', {fontSize: 9, fill: '#f44'});
+        svg.wire([[220, 160], [300, 160]]);
+
+        // Loop indication
+        svg.text(200, 195, '↺ Ground Loop!', {fontSize: 11, fill: '#f44'});
+
+        // Fix: Star ground
+        svg.text(400, 30, 'Fix: Star Ground', {fontSize: 12, fill: '#4af'});
+
+        svg.rect(400, 60, 80, 40, {fill: 'none', stroke: '#888'});
+        svg.text(440, 85, 'Analog', {fontSize: 9});
+
+        svg.rect(500, 60, 80, 40, {fill: 'none', stroke: '#888'});
+        svg.text(540, 85, 'Digital', {fontSize: 9});
+
+        // Star point
+        svg.wire([[440, 100], [440, 140]]);
+        svg.wire([[540, 100], [540, 140]]);
+        svg.wire([[440, 140], [490, 160]]);
+        svg.wire([[540, 140], [490, 160]]);
+        svg.text(490, 180, '★', {fontSize: 16, fill: '#4af'});
+        svg.text(490, 200, 'Star Point', {fontSize: 9});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('gl-spice', {
+            title: 'Ground Loop Coupling',
+            netlist: `* Ground Loop Coupling Simulation
+* Shows how ground impedance couples noise
+
+* Clean analog signal
+Vsig sig 0 SIN(0 1 1k)
+
+* Analog amplifier
+* Input referenced to local ground
+Rin sig amp_in 10k
+Xamp amp_in gnd_local out opamp
+.subckt opamp inp inn out
+Egain out 0 inp inn 100
+.ends
+
+* Ground impedance
+Rgnd gnd_local 0 0.1  ; 100mΩ
+
+* Noise source (digital/power)
+* Couples through ground impedance
+Inoise 0 gnd_local SIN(0 0.1 60)  ; 100mA of 60Hz
+
+* Output measurement
+Rload out 0 10k
+
+* Ground noise = Inoise × Rgnd = 100mA × 0.1Ω = 10mV
+* This appears in series with input!
+
+.tran 0.1m 50m
+.probe V(out) V(sig) V(gnd_local)
 .end`
         });
     }
 
     // Checklist
-    if (typeof ChecklistWidget !== 'undefined') {
-        new ChecklistWidget('checklist-container', {
-            lessonKey: 'm23l6',
+    function initChecklist() {
+        new ChecklistWidget('gl-checklist', {
+            title: 'Ground Loop Debug Checklist',
             items: [
-                'Understand three-phase inverter topology',
-                'Calculate MOSFET conduction and switching losses',
-                'Know bootstrap capacitor sizing requirements',
-                'Understand dead time and shoot-through prevention',
-                'Know current sensing methods for motor control',
-                'Understand six-step commutation sequence',
-                'Know FOC block diagram and transforms'
+                'Identify all ground connections',
+                'Trace high-current return paths',
+                'Measure voltage between grounds',
+                'Check for multiple chassis connections',
+                'Verify star ground implementation',
+                'Use differential/balanced signals',
+                'Add isolation where needed',
+                'Use ground spring for scope probing',
+                'Separate analog and digital grounds'
             ]
         });
     }
 
     // Exercises
-    const container = document.getElementById('exercise-container');
-    if (typeof ExerciseWidget !== 'undefined') {
-        const exercises = [
-            {
-                id: 'M23-6-L1',
-                type: 'numeric',
-                question: 'Calculate conduction loss in a MOSFET with RDS(on)=10mΩ carrying 15A RMS at 50% duty cycle.',
-                hint: 'P = I²R × duty cycle',
-                expected: 1.125,
-                tolerance: 0.05,
-                unit: 'W'
-            },
-            {
-                id: 'M23-6-L2',
-                type: 'choice',
-                question: 'Why is dead time necessary between high and low-side gate signals?',
-                choices: [
-                    { text: 'To reduce EMI emissions', correct: false },
-                    { text: 'To prevent shoot-through current from VDC to GND', correct: true },
-                    { text: 'To improve motor efficiency', correct: false },
-                    { text: 'To reduce acoustic noise', correct: false }
-                ]
-            },
-            {
-                id: 'M23-6-L3',
-                type: 'choice',
-                question: 'Which control method provides the smoothest torque at low speeds?',
-                choices: [
-                    { text: 'Six-step trapezoidal commutation', correct: false },
-                    { text: 'Field-Oriented Control (FOC)', correct: true },
-                    { text: 'Simple PWM duty cycle control', correct: false },
-                    { text: 'Bang-bang control', correct: false }
-                ]
-            }
-        ];
-        exercises.forEach((ex, i) => {
-            const div = document.createElement('div');
-            div.id = `ex-m23l6-${i}`;
-            container.appendChild(div);
-            new ExerciseWidget(`ex-m23l6-${i}`, ex);
+    function initExercises() {
+        new ExerciseWidget('gl-exercises', {
+            exercises: [
+                {
+                    question: 'Ground impedance is 50mΩ. Motor draws 2A at 1kHz PWM. What ground noise?',
+                    answer: '100mV',
+                    solution: 'V = I × R = 2A × 50mΩ = 100mV. This 100mV appears at 1kHz and harmonics.'
+                },
+                {
+                    question: 'Hum is 10mV at 60Hz on a ground wire 10m long (2mΩ/m). What current is flowing?',
+                    answer: '500mA',
+                    solution: 'R = 10m × 2mΩ/m = 20mΩ. I = V/R = 10mV/20mΩ = 500mA'
+                },
+                {
+                    question: 'Audio cable shield grounds at both ends, 5m apart. AC ground difference is 500mV. What current flows?',
+                    answer: '~50mA (assuming 10Ω shield)',
+                    solution: 'Shield resistance ≈ 2Ω/m × 5m = 10Ω. I = 500mV/10Ω = 50mA. This causes magnetic field and hum.'
+                }
+            ]
         });
     }
+
+    // ==================== GROUNDING STRATEGIES CANVAS ====================
+    function drawGroundingStrategies() {
+        const canvas = document.getElementById('grounding-strategies-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+
+        // Background
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        const colW = 290;
+        const startY = 30;
+
+        // Helper to draw rounded rect
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        // Column 1: Star Ground
+        const col1X = 10;
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        roundRect(col1X, startY, colW, 300, 8);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('STAR GROUND', col1X + colW/2, startY + 25);
+
+        // Draw star ground diagram
+        const starCX = col1X + colW/2;
+        const starCY = startY + 100;
+        ctx.fillStyle = '#FFFF00';
+        ctx.beginPath();
+        ctx.arc(starCX, starCY, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.font = '16px monospace';
+        ctx.fillText('★', starCX, starCY + 5);
+
+        // Branches from star
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        const branches = [
+            {label: 'Analog', angle: -2.5},
+            {label: 'Digital', angle: -1.8},
+            {label: 'Power', angle: -1.1},
+            {label: 'Signal', angle: -0.4}
+        ];
+        branches.forEach(b => {
+            const x2 = starCX + Math.cos(b.angle) * 60;
+            const y2 = starCY + Math.sin(b.angle) * 35;
+            ctx.beginPath();
+            ctx.moveTo(starCX, starCY);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = '9px monospace';
+            ctx.fillText(b.label, x2 + (x2 > starCX ? 5 : -30), y2);
+        });
+
+        // Pros/Cons
+        ctx.fillStyle = '#4f4';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('+ Prevents ground loops', col1X + 15, startY + 180);
+        ctx.fillText('+ Clean analog ground', col1X + 15, startY + 195);
+        ctx.fillText('+ Predictable currents', col1X + 15, startY + 210);
+
+        ctx.fillStyle = '#f44';
+        ctx.fillText('- Complex wiring', col1X + 15, startY + 235);
+        ctx.fillText('- Higher inductance', col1X + 15, startY + 250);
+        ctx.fillText('- Not for high freq', col1X + 15, startY + 265);
+
+        // Column 2: Ground Plane
+        const col2X = 310;
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        roundRect(col2X, startY, colW, 300, 8);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('GROUND PLANE', col2X + colW/2, startY + 25);
+
+        // Draw ground plane
+        ctx.fillStyle = '#224466';
+        ctx.fillRect(col2X + 30, startY + 50, colW - 60, 80);
+        ctx.strokeStyle = '#4af';
+        ctx.strokeRect(col2X + 30, startY + 50, colW - 60, 80);
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.fillText('Solid Copper Pour', col2X + colW/2, startY + 95);
+
+        // Via connections
+        for (let i = 0; i < 5; i++) {
+            ctx.fillStyle = '#888';
+            ctx.beginPath();
+            ctx.arc(col2X + 60 + i * 45, startY + 70, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('Vias to GND', col2X + colW/2, startY + 145);
+
+        // Pros/Cons
+        ctx.fillStyle = '#4f4';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('+ Low impedance', col2X + 15, startY + 180);
+        ctx.fillText('+ Good for RF/HF', col2X + 15, startY + 195);
+        ctx.fillText('+ EMI shielding', col2X + 15, startY + 210);
+
+        ctx.fillStyle = '#f44';
+        ctx.fillText('- Can create loops', col2X + 15, startY + 235);
+        ctx.fillText('- Needs careful splits', col2X + 15, startY + 250);
+        ctx.fillText('- Uses PCB layer', col2X + 15, startY + 265);
+
+        // Column 3: Isolation
+        const col3X = 610;
+        ctx.strokeStyle = TEK.ch3;
+        ctx.lineWidth = 2;
+        roundRect(col3X, startY, colW, 300, 8);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch3;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('ISOLATION', col3X + colW/2, startY + 25);
+
+        // Isolation methods list
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        const isoMethods = [
+            '◆ Transformers',
+            '◆ Optocouplers',
+            '◆ Isolated DC-DC',
+            '◆ Differential signaling'
+        ];
+        isoMethods.forEach((m, i) => {
+            ctx.fillText(m, col3X + 20, startY + 60 + i * 18);
+        });
+
+        // Draw isolation barrier
+        ctx.strokeStyle = '#f0f';
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+        ctx.moveTo(col3X + colW/2, startY + 125);
+        ctx.lineTo(col3X + colW/2, startY + 155);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Galvanic Barrier', col3X + colW/2, startY + 145);
+
+        // Pros/Cons
+        ctx.fillStyle = '#4f4';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('+ Breaks all loops', col3X + 15, startY + 180);
+        ctx.fillText('+ Safety isolation', col3X + 15, startY + 195);
+        ctx.fillText('+ No shared ground', col3X + 15, startY + 210);
+
+        ctx.fillStyle = '#f44';
+        ctx.fillText('- Cost and complexity', col3X + 15, startY + 235);
+        ctx.fillText('- Bandwidth limits', col3X + 15, startY + 250);
+        ctx.fillText('- Needs isolated power', col3X + 15, startY + 265);
+    }
+
+    update();
+    drawSchematic();
+    drawGroundingStrategies();
+    initSpice();
+    initChecklist();
+    initExercises();
 })();
 </script>

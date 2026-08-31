@@ -1,726 +1,826 @@
-<!-- Module 19, Lesson 5: Fuel Gauge Algorithms -->
+<!-- Module 19, Lesson 5: RS-485 Differential Signaling -->
 <div class="lesson-content" data-module="19" data-lesson="5">
 
     <div class="card">
-        <h2>Fuel Gauge Algorithms</h2>
-        <p>Accurate state-of-charge (SOC) estimation is essential for battery-powered devices. Learn voltage-based, coulomb counting, and advanced fuel gauge algorithms used in modern BMS systems.</p>
+        <h2>RS-485 Differential Signaling</h2>
+        <p>RS-485 is a robust differential signaling standard designed for long-distance, multi-drop communication in noisy industrial environments. Its differential architecture provides excellent common-mode noise rejection.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Voltage-Based</div>
-                <div class="v">Simple, less accurate</div>
+                <div class="k">Voltage Range</div>
+                <div class="v">-7V to +12V</div>
             </div>
             <div class="box">
-                <div class="k">Coulomb Counting</div>
-                <div class="v">Integrates current</div>
+                <div class="k">Differential</div>
+                <div class="v">V<sub>A</sub> - V<sub>B</sub> ≥ ±200mV</div>
             </div>
             <div class="box">
-                <div class="k">Impedance Track</div>
-                <div class="v">Models battery aging</div>
+                <div class="k">Max Nodes</div>
+                <div class="v">32 unit loads (standard)</div>
             </div>
             <div class="box">
-                <div class="k">Model-Based</div>
-                <div class="v">Kalman filter, ML</div>
+                <div class="k">Max Length</div>
+                <div class="v">1200m at 100kbps</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Challenge:</strong> Battery capacity changes with temperature, age, and load current. A good fuel gauge must account for all these factors to provide accurate remaining runtime estimates.
+            <strong>Key Insight:</strong> RS-485 uses differential signaling where the data is encoded as the voltage difference between two wires (A and B). Common-mode noise affects both wires equally and cancels out at the receiver, enabling reliable communication in electrically noisy environments.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: SOC Estimation Methods</h3>
+        <h3>Interactive: RS-485 Bus Analysis</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="fg-method">Estimation Method</label>
-                <select id="fg-method">
-                    <option value="voltage">Voltage-Based (OCV)</option>
-                    <option value="coulomb">Coulomb Counting</option>
-                    <option value="combined">Combined Method</option>
+                <label for="rs485-cable">Cable Length (m)</label>
+                <input type="text" id="rs485-cable" value="100">
+            </div>
+            <div class="c3">
+                <label for="rs485-baud">Baud Rate (bps)</label>
+                <input type="text" id="rs485-baud" value="115200">
+            </div>
+            <div class="c3">
+                <label for="rs485-nodes">Number of Nodes</label>
+                <input type="range" id="rs485-nodes" min="2" max="32" step="1" value="8">
+                <span id="rs485-nodes-val" class="mono">8</span>
+            </div>
+            <div class="c3">
+                <label for="rs485-term">Termination</label>
+                <select id="rs485-term">
+                    <option value="none">None</option>
+                    <option value="parallel" selected>Parallel 120Ω</option>
+                    <option value="rc">RC (120Ω + 100nF)</option>
                 </select>
-            </div>
-            <div class="c3">
-                <label for="fg-current">Load Current (A)</label>
-                <input type="range" id="fg-current" min="0.1" max="5" step="0.1" value="1">
-                <span id="fg-current-val" class="mono">1.0A</span>
-            </div>
-            <div class="c3">
-                <label for="fg-temp">Temperature (°C)</label>
-                <input type="range" id="fg-temp" min="-20" max="60" step="5" value="25">
-                <span id="fg-temp-val" class="mono">25°C</span>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="fg-canvas" width="980" height="340"></canvas>
+            <canvas id="rs485-canvas" width="980" height="350"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Voltage SOC</div>
-                <div class="v mono" id="fg-vsoc">—</div>
+                <div class="k">Max Baud Rate</div>
+                <div class="v mono" id="rs485-maxbaud">—</div>
             </div>
             <div class="box">
-                <div class="k">Coulomb SOC</div>
-                <div class="v mono" id="fg-csoc">—</div>
+                <div class="k">Propagation Delay</div>
+                <div class="v mono" id="rs485-delay">—</div>
             </div>
             <div class="box">
-                <div class="k">Actual SOC</div>
-                <div class="v mono" id="fg-actual">—</div>
+                <div class="k">Bit Time</div>
+                <div class="v mono" id="rs485-bittime">—</div>
             </div>
             <div class="box">
-                <div class="k">Error</div>
-                <div class="v mono" id="fg-error">—</div>
+                <div class="k">Bus Status</div>
+                <div class="v mono" id="rs485-status">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Algorithm Comparison</h3>
+        <h3>RS-485 Bus Topology</h3>
+        <div id="rs485-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>Electrical Specifications</h3>
 
         <table class="table">
             <tr>
-                <th>Method</th>
-                <th>Accuracy</th>
-                <th>Drift</th>
-                <th>Complexity</th>
-                <th>Best Use</th>
+                <th>Parameter</th>
+                <th>Min</th>
+                <th>Typ</th>
+                <th>Max</th>
+                <th>Notes</th>
             </tr>
             <tr>
-                <td>Voltage (OCV)</td>
-                <td>±10-15%</td>
-                <td>None</td>
-                <td>Low</td>
-                <td>Standby, light loads</td>
+                <td>V<sub>OD</sub> (Driver Output)</td>
+                <td>1.5V</td>
+                <td>2.5V</td>
+                <td>5V</td>
+                <td>Open-circuit differential</td>
             </tr>
             <tr>
-                <td>Coulomb Counting</td>
-                <td>±2-5%</td>
-                <td>Accumulates</td>
-                <td>Medium</td>
-                <td>Known capacity</td>
+                <td>V<sub>ID</sub> (Receiver Input)</td>
+                <td>-7V</td>
+                <td>—</td>
+                <td>+12V</td>
+                <td>Common-mode range</td>
             </tr>
             <tr>
-                <td>Impedance Track</td>
-                <td>±1-3%</td>
-                <td>Self-correcting</td>
-                <td>High</td>
-                <td>Aging batteries</td>
+                <td>Receiver Threshold</td>
+                <td>—</td>
+                <td>±200mV</td>
+                <td>—</td>
+                <td>Differential sensitivity</td>
             </tr>
             <tr>
-                <td>Extended Kalman</td>
-                <td>±1-2%</td>
-                <td>Minimal</td>
-                <td>Very High</td>
-                <td>Critical applications</td>
+                <td>Driver Output Current</td>
+                <td>—</td>
+                <td>—</td>
+                <td>250mA</td>
+                <td>Short-circuit protected</td>
             </tr>
             <tr>
-                <td>ML/Neural Net</td>
-                <td>±1%</td>
-                <td>Minimal</td>
-                <td>Extreme</td>
-                <td>Research, EVs</td>
+                <td>Receiver Input Impedance</td>
+                <td>12kΩ</td>
+                <td>—</td>
+                <td>—</td>
+                <td>1 unit load</td>
             </tr>
         </table>
+
+        <div class="warn">
+            <strong>Ground Potential Difference:</strong> RS-485 allows up to ±7V ground potential difference between nodes. Always connect signal ground between nodes to provide a common reference, even though the differential signaling rejects common-mode noise.
+        </div>
     </div>
 
     <div class="card">
-        <h3>Algorithm Details</h3>
-        <canvas id="fg-algorithms-canvas" width="900" height="500" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;margin:0 auto;"></canvas>
+        <h3>Termination and Biasing</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Line Termination</div>
+                <div class="v">120Ω at each end (matches Z<sub>0</sub>)</div>
+            </div>
+            <div class="box">
+                <div class="k">Fail-Safe Bias</div>
+                <div class="v">Weak pull-up on A, pull-down on B</div>
+            </div>
+            <div class="box">
+                <div class="k">Idle State</div>
+                <div class="v">A > B (logic high / mark)</div>
+            </div>
+            <div class="box">
+                <div class="k">RC Termination</div>
+                <div class="v">Reduces DC power, AC terminates</div>
+            </div>
+        </div>
+
+        <canvas id="termination-canvas" width="800" height="320" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
     </div>
 
     <div class="card">
-        <h3>Fuel Gauge Block Diagram</h3>
-        <div id="fg-schematic"></div>
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
     </div>
 
     <div class="card">
-        <h3>Implementation Code</h3>
-        <div id="fg-spice"></div>
-    </div>
-
-    <div class="card">
-        <h3>Design Checklist</h3>
-        <div id="fg-checklist"></div>
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
     </div>
 
     <div class="card">
         <h3>Practice Exercises</h3>
-        <div id="fg-exercises"></div>
+        <div id="exercise-container"></div>
     </div>
 
 </div>
 
 <script>
+// ==================== TERMINATION OPTIONS CANVAS ====================
 (function() {
-    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
-
-    const canvas = document.getElementById('fg-canvas');
+    const canvas = document.getElementById('termination-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
-    const mL = 80, mR = 40, mT = 40, mB = 60;
+    const TEK = AD.TEK_COLORS;
 
-    // Li-ion OCV curve (voltage vs SOC)
-    function ocvFromSoc(soc) {
-        // Typical Li-ion curve (3.0V empty, 4.2V full)
-        if (soc <= 0) return 3.0;
-        if (soc >= 100) return 4.2;
-        // Polynomial approximation
-        const x = soc / 100;
-        return 3.0 + 1.2 * (0.2 * x + 0.8 * Math.pow(x, 0.5));
-    }
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
 
-    function socFromOcv(voltage) {
-        // Inverse lookup (simplified)
-        if (voltage <= 3.0) return 0;
-        if (voltage >= 4.2) return 100;
-        // Binary search would be better, but linear approximation works
-        for (let soc = 0; soc <= 100; soc++) {
-            if (ocvFromSoc(soc) >= voltage) return soc;
-        }
-        return 100;
-    }
+    // Title
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Termination Options', W/2, 22);
 
-    // Simulation state
-    let simTime = 0;
-    let coulombAh = 3.0; // Ah remaining (3Ah battery)
-    let actualSoc = 100;
-    const Qmax = 3.0; // 3Ah capacity
+    // Three termination types
+    const options = [
+        { name: 'Parallel Termination', subtitle: '(Standard)', x: 50, color: TEK.ch1 },
+        { name: 'RC Termination', subtitle: '(Low Power)', x: 290, color: TEK.ch2 },
+        { name: 'Fail-Safe Biasing', subtitle: '(Prevents floating)', x: 560, color: TEK.ch3 }
+    ];
 
-    function update() {
-        const method = document.getElementById('fg-method').value;
-        const current = AD.num('fg-current') || 1;
-        const temp = AD.num('fg-temp') || 25;
+    const boxW = 210, boxH = 200;
+    const startY = 45;
 
-        document.getElementById('fg-current-val').textContent = current.toFixed(1) + 'A';
-        document.getElementById('fg-temp-val').textContent = temp + '°C';
+    options.forEach((opt, i) => {
+        const x = opt.x;
+        const y = startY;
 
-        // Temperature derating
-        const tempFactor = 1 - 0.01 * Math.abs(25 - temp);
-        const effectiveQmax = Qmax * tempFactor;
+        // Box
+        AD.roundRect(ctx, x, y, boxW, boxH, 6, { fill: '#1a2332', stroke: opt.color, lineWidth: 2 });
 
-        // Actual SOC (simulation)
-        actualSoc = (coulombAh / effectiveQmax) * 100;
-        actualSoc = Math.max(0, Math.min(100, actualSoc));
-
-        // Battery terminal voltage (OCV - IR drop)
-        const R_internal = 0.05 + 0.02 * (1 - actualSoc / 100); // Increases at low SOC
-        const Vocv = ocvFromSoc(actualSoc);
-        const Vterm = Vocv - current * R_internal;
-
-        // SOC estimates by different methods
-        const socVoltage = socFromOcv(Vterm); // Voltage-based (uses terminal, not OCV!)
-        const socCoulomb = (coulombAh / Qmax) * 100; // Coulomb counting (ignores temp)
-
-        let socEstimate;
-        if (method === 'voltage') {
-            socEstimate = socVoltage;
-        } else if (method === 'coulomb') {
-            socEstimate = socCoulomb;
-        } else {
-            // Combined: weight based on current
-            const alpha = Math.exp(-current); // Low current → trust voltage
-            socEstimate = alpha * socVoltage + (1 - alpha) * socCoulomb;
-        }
-
-        const error = socEstimate - actualSoc;
-
-        document.getElementById('fg-vsoc').textContent = socVoltage.toFixed(1) + '%';
-        document.getElementById('fg-csoc').textContent = socCoulomb.toFixed(1) + '%';
-        document.getElementById('fg-actual').textContent = actualSoc.toFixed(1) + '%';
-        document.getElementById('fg-error').textContent = (error > 0 ? '+' : '') + error.toFixed(1) + '%';
-
-        // Draw visualization
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, W, H);
-
-        // Left: OCV curve
-        const plotW = 350, plotH = 220;
-        const plotX = mL, plotY = mT;
-
-        ctx.strokeStyle = TEK.grid;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(plotX, plotY, plotW, plotH);
-
-        ctx.fillStyle = '#fff';
-        ctx.font = '11px monospace';
+        // Title
+        ctx.fillStyle = opt.color;
+        ctx.font = 'bold 11px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('OCV vs SOC Curve', plotX + plotW/2, plotY - 8);
-
-        // Draw OCV curve
-        ctx.strokeStyle = TEK.ch4;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-
-        for (let soc = 0; soc <= 100; soc++) {
-            const v = ocvFromSoc(soc);
-            const x = plotX + (soc / 100) * plotW;
-            const y = plotY + plotH - ((v - 3.0) / 1.4) * plotH;
-
-            if (soc === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        // Mark actual point
-        const actualX = plotX + (actualSoc / 100) * plotW;
-        const actualY = plotY + plotH - ((Vocv - 3.0) / 1.4) * plotH;
-
-        ctx.fillStyle = '#4f4';
-        ctx.beginPath();
-        ctx.arc(actualX, actualY, 6, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Mark terminal voltage point (shows error source)
-        const termY = plotY + plotH - ((Vterm - 3.0) / 1.4) * plotH;
-        ctx.fillStyle = '#f44';
-        ctx.beginPath();
-        ctx.arc(actualX, termY, 6, 0, Math.PI * 2);
-        ctx.fill();
-
-        // IR drop indicator
-        ctx.strokeStyle = '#f44';
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.moveTo(actualX, actualY);
-        ctx.lineTo(actualX, termY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        ctx.fillStyle = '#f44';
-        ctx.font = '9px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('IR drop: ' + (Vocv - Vterm).toFixed(2) + 'V', actualX + 10, (actualY + termY) / 2);
-
-        // Axis labels
+        ctx.fillText(opt.name, x + boxW/2, y + 22);
         ctx.fillStyle = '#888';
         ctx.font = '9px monospace';
-        ctx.textAlign = 'center';
-
-        for (let soc = 0; soc <= 100; soc += 25) {
-            const x = plotX + (soc / 100) * plotW;
-            ctx.fillText(soc + '%', x, plotY + plotH + 15);
-        }
-        ctx.fillText('SOC', plotX + plotW/2, plotY + plotH + 35);
-
-        ctx.textAlign = 'right';
-        for (let v = 3.0; v <= 4.2; v += 0.4) {
-            const y = plotY + plotH - ((v - 3.0) / 1.4) * plotH;
-            ctx.fillText(v.toFixed(1) + 'V', plotX - 5, y + 4);
-        }
-
-        // Right: SOC comparison bar chart
-        const barX = 500, barY = mT;
-        const barW = 80, barH = 200;
-
-        ctx.fillStyle = '#222';
-        ctx.fillRect(barX, barY, 400, plotH);
-        ctx.strokeStyle = '#444';
-        ctx.strokeRect(barX, barY, 400, plotH);
-
-        ctx.fillStyle = '#fff';
-        ctx.font = '11px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('SOC Estimates Comparison', barX + 200, barY - 8);
-
-        // Draw bars
-        const bars = [
-            {label: 'Actual', value: actualSoc, color: '#4f4'},
-            {label: 'Voltage', value: socVoltage, color: TEK.ch1},
-            {label: 'Coulomb', value: socCoulomb, color: TEK.ch2},
-            {label: 'Combined', value: socEstimate, color: TEK.ch3}
-        ];
-
-        bars.forEach((bar, idx) => {
-            const x = barX + 30 + idx * 95;
-            const h = (bar.value / 100) * (barH - 20);
-
-            ctx.fillStyle = '#444';
-            ctx.fillRect(x, barY + 20, barW, barH - 20);
-
-            ctx.fillStyle = bar.color;
-            ctx.fillRect(x, barY + barH - h, barW, h);
-
-            ctx.fillStyle = '#fff';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(bar.label, x + barW/2, barY + barH + 15);
-            ctx.fillText(bar.value.toFixed(1) + '%', x + barW/2, barY + barH - h - 5);
-        });
-
-        // Legend
-        ctx.fillStyle = '#4f4';
-        ctx.fillText('● OCV', barX + 50, barY + barH + 45);
-        ctx.fillStyle = '#f44';
-        ctx.fillText('● Vterm', barX + 150, barY + barH + 45);
-
-        // Status message
-        ctx.fillStyle = '#888';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'left';
-
-        let message;
-        if (method === 'voltage') {
-            message = 'Voltage method: IR drop causes ' + Math.abs(socVoltage - actualSoc).toFixed(0) + '% underestimate under load';
-        } else if (method === 'coulomb') {
-            if (temp !== 25) {
-                message = 'Coulomb counting: Temperature affects capacity, ' + Math.abs(socCoulomb - actualSoc).toFixed(0) + '% error';
-            } else {
-                message = 'Coulomb counting: Accurate when Qmax is known and temperature = 25°C';
-            }
-        } else {
-            message = 'Combined: Blends methods, error = ' + Math.abs(error).toFixed(1) + '%';
-        }
-        ctx.fillText(message, mL, H - 15);
-    }
-
-    ['fg-method', 'fg-current', 'fg-temp'].forEach(id => {
-        const el = document.getElementById(id);
-        el.addEventListener('input', update);
-        el.addEventListener('change', update);
+        ctx.fillText(opt.subtitle, x + boxW/2, y + 36);
     });
 
-    // Block diagram
-    function drawSchematic() {
-        const container = document.getElementById('fg-schematic');
-        const svg = new SchematicSVG(700, 200);
+    // === Parallel Termination Drawing ===
+    const p1 = { x: 50, y: startY };
+    const centerX1 = p1.x + boxW/2;
 
-        svg.text(50, 25, 'Fuel Gauge IC Block Diagram:', {fontSize: 12, fill: '#4af'});
+    // A and B lines
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(centerX1 - 50, p1.y + 90);
+    ctx.lineTo(centerX1 + 50, p1.y + 90);
+    ctx.stroke();
 
-        // Battery
-        svg.rect(30, 60, 60, 80, {fill: 'none', stroke: '#888'});
-        svg.text(60, 100, 'Battery', {fontSize: 9});
+    ctx.strokeStyle = '#34d399';
+    ctx.beginPath();
+    ctx.moveTo(centerX1 - 50, p1.y + 130);
+    ctx.lineTo(centerX1 + 50, p1.y + 130);
+    ctx.stroke();
 
-        // Current sense
-        svg.wire([[90, 80], [140, 80]]);
-        svg.resistor(160, 80, {horizontal: true});
-        svg.text(160, 65, 'Rsense', {fontSize: 9});
-        svg.wire([[180, 80], [220, 80]]);
+    // Resistor symbol connecting A to B
+    ctx.strokeStyle = opt => opt.color;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    // Vertical connecting lines
+    ctx.beginPath();
+    ctx.moveTo(centerX1 - 20, p1.y + 90);
+    ctx.lineTo(centerX1 - 20, p1.y + 70);
+    ctx.lineTo(centerX1 + 20, p1.y + 70);
+    ctx.lineTo(centerX1 + 20, p1.y + 90);
+    ctx.stroke();
 
-        // Fuel gauge IC
-        svg.rect(220, 50, 200, 120, {fill: 'none', stroke: '#888'});
-        svg.text(320, 70, 'Fuel Gauge IC', {fontSize: 11});
+    // Resistor box
+    AD.roundRect(ctx, centerX1 - 25, p1.y + 55, 50, 18, 2, { fill: '#2a3a52', stroke: TEK.ch1, lineWidth: 1 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('120Ω', centerX1, p1.y + 67);
 
-        // Internal blocks
-        svg.rect(235, 85, 60, 30, {fill: 'none', stroke: '#666'});
-        svg.text(265, 105, 'ADC', {fontSize: 9});
+    // Labels
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('A', p1.x + 10, p1.y + 93);
+    ctx.fillStyle = '#34d399';
+    ctx.fillText('B', p1.x + 10, p1.y + 133);
 
-        svg.rect(235, 125, 60, 30, {fill: 'none', stroke: '#666'});
-        svg.text(265, 145, 'Temp', {fontSize: 9});
+    // Description
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Best signal integrity', centerX1, p1.y + 160);
+    ctx.fillStyle = '#f87171';
+    ctx.fillText('25-40mA DC idle current', centerX1, p1.y + 175);
 
-        svg.rect(310, 85, 90, 30, {fill: 'none', stroke: '#666'});
-        svg.text(355, 105, 'Algorithm', {fontSize: 9});
+    // === RC Termination Drawing ===
+    const p2 = { x: 290, y: startY };
+    const centerX2 = p2.x + boxW/2;
 
-        svg.rect(310, 125, 90, 30, {fill: 'none', stroke: '#666'});
-        svg.text(355, 145, 'Registers', {fontSize: 9});
+    // A and B lines
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(centerX2 - 50, p2.y + 90);
+    ctx.lineTo(centerX2 + 50, p2.y + 90);
+    ctx.stroke();
 
-        // Connections
-        svg.wire([[220, 80], [235, 100]]);
-        svg.wire([[295, 100], [310, 100]]);
-        svg.wire([[355, 115], [355, 125]]);
+    ctx.strokeStyle = '#34d399';
+    ctx.beginPath();
+    ctx.moveTo(centerX2 - 50, p2.y + 130);
+    ctx.lineTo(centerX2 + 50, p2.y + 130);
+    ctx.stroke();
 
-        // I2C output
-        svg.wire([[420, 100], [480, 100]]);
-        svg.wire([[420, 130], [480, 130]]);
-        svg.text(500, 100, 'SCL', {fontSize: 9});
-        svg.text(500, 130, 'SDA', {fontSize: 9});
-        svg.text(500, 155, 'To MCU', {fontSize: 9, fill: '#888'});
+    // RC network
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    // Top branch with resistor
+    ctx.beginPath();
+    ctx.moveTo(centerX2 - 30, p2.y + 90);
+    ctx.lineTo(centerX2 - 30, p2.y + 60);
+    ctx.stroke();
 
-        // Temp sensor connection
-        svg.wire([[90, 140], [235, 140]]);
-        svg.text(120, 155, 'NTC', {fontSize: 9});
+    AD.roundRect(ctx, centerX2 - 50, p2.y + 52, 40, 16, 2, { fill: '#2a3a52', stroke: TEK.ch2, lineWidth: 1 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px monospace';
+    ctx.fillText('120Ω', centerX2 - 30, p2.y + 63);
 
-        // Ground
-        svg.wire([[90, 140], [90, 160]]);
-        svg.ground(90, 160);
+    // Center branch with capacitor
+    ctx.strokeStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(centerX2, p2.y + 90);
+    ctx.lineTo(centerX2, p2.y + 100);
+    ctx.stroke();
 
-        container.innerHTML = svg.render();
-    }
+    // Capacitor symbol
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(centerX2 - 10, p2.y + 100);
+    ctx.lineTo(centerX2 + 10, p2.y + 100);
+    ctx.moveTo(centerX2 - 10, p2.y + 106);
+    ctx.lineTo(centerX2 + 10, p2.y + 106);
+    ctx.stroke();
 
-    // Code example
-    function initSpice() {
-        new SpiceNetlistWidget('fg-spice', {
-            title: 'Coulomb Counting Algorithm (Pseudocode)',
-            netlist: `* Coulomb Counting Fuel Gauge Implementation
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(centerX2, p2.y + 106);
+    ctx.lineTo(centerX2, p2.y + 130);
+    ctx.stroke();
 
-// Configuration
-#define RSENSE      0.010    // 10mΩ sense resistor
-#define QMAX_mAh    3000     // 3Ah capacity
-#define ADC_RATE_Hz 10       // 10 samples/sec
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('100nF', centerX2 + 12, p2.y + 105);
 
-// State variables
-float soc_percent = 100.0;   // Start fully charged
-float coulombs_remaining;    // In mAh
+    // Connect top to bottom
+    ctx.strokeStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(centerX2 - 30, p2.y + 52);
+    ctx.lineTo(centerX2 - 30, p2.y + 45);
+    ctx.lineTo(centerX2 + 30, p2.y + 45);
+    ctx.lineTo(centerX2 + 30, p2.y + 130);
+    ctx.stroke();
 
-// Initialize
-void fuel_gauge_init() {
-    coulombs_remaining = QMAX_mAh;
-    soc_percent = 100.0;
-}
+    // Labels
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('A', p2.x + 10, p2.y + 93);
+    ctx.fillStyle = '#34d399';
+    ctx.fillText('B', p2.x + 10, p2.y + 133);
 
-// Called every ADC sample
-void fuel_gauge_update(float v_sense) {
-    // Calculate current (mA)
-    float current_mA = (v_sense / RSENSE) * 1000;
+    // Description
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('AC termination only', centerX2, p2.y + 160);
+    ctx.fillStyle = TEK.ch4;
+    ctx.fillText('Saves DC power, slight ringing', centerX2, p2.y + 175);
 
-    // Integrate (mAh per sample)
-    float delta_mAh = current_mA / (3600 * ADC_RATE_Hz);
+    // === Fail-Safe Biasing Drawing ===
+    const p3 = { x: 560, y: startY };
+    const centerX3 = p3.x + boxW/2;
 
-    // Update remaining capacity
-    // Positive current = discharge
-    coulombs_remaining -= delta_mAh;
+    // Vcc at top
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Vcc', centerX3 - 30, p3.y + 52);
 
-    // Clamp to valid range
-    if (coulombs_remaining < 0) coulombs_remaining = 0;
-    if (coulombs_remaining > QMAX_mAh)
-        coulombs_remaining = QMAX_mAh;
+    // Pull-up resistor for A
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(centerX3 - 30, p3.y + 55);
+    ctx.lineTo(centerX3 - 30, p3.y + 70);
+    ctx.stroke();
 
-    // Calculate SOC percentage
-    soc_percent = (coulombs_remaining / QMAX_mAh) * 100;
-}
+    AD.roundRect(ctx, centerX3 - 50, p3.y + 70, 40, 16, 2, { fill: '#2a3a52', stroke: TEK.ch3, lineWidth: 1 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px monospace';
+    ctx.fillText('560Ω', centerX3 - 30, p3.y + 81);
 
-// Sync to OCV when at rest
-void fuel_gauge_sync_ocv(float v_battery) {
-    if (is_at_rest()) {  // No load for > 30 minutes
-        float soc_from_ocv = ocv_to_soc(v_battery);
+    ctx.strokeStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(centerX3 - 30, p3.y + 86);
+    ctx.lineTo(centerX3 - 30, p3.y + 100);
+    ctx.stroke();
 
-        // Blend with coulomb counting
-        soc_percent = 0.8*soc_from_ocv + 0.2*soc_percent;
-        coulombs_remaining = (soc_percent/100) * QMAX_mAh;
-    }
-}
+    // A line
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(centerX3 - 60, p3.y + 100);
+    ctx.lineTo(centerX3 + 40, p3.y + 100);
+    ctx.stroke();
 
-// Compensate for temperature
-float get_effective_capacity(float temp_C) {
-    // Capacity reduces at low temp
-    float factor = 1.0 - 0.01 * abs(25 - temp_C);
-    return QMAX_mAh * factor;
-}`
-        });
-    }
+    // B line
+    ctx.strokeStyle = '#34d399';
+    ctx.beginPath();
+    ctx.moveTo(centerX3 - 60, p3.y + 130);
+    ctx.lineTo(centerX3 + 40, p3.y + 130);
+    ctx.stroke();
 
-    // Checklist
-    function initChecklist() {
-        new ChecklistWidget('fg-checklist', {
-            title: 'Fuel Gauge Design Checklist',
-            items: [
-                'Select appropriate algorithm for accuracy needs',
-                'Size current sense resistor for resolution',
-                'Characterize battery OCV curve',
-                'Implement temperature compensation',
-                'Calibrate at full charge (100% sync)',
-                'Calibrate at empty (0% sync)',
-                'Handle edge cases (long rest, high current)',
-                'Test accuracy over charge/discharge cycles',
-                'Verify aging compensation if needed',
-                'Implement remaining runtime calculation'
-            ]
-        });
-    }
+    // Pull-down resistor for B
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(centerX3 + 20, p3.y + 130);
+    ctx.lineTo(centerX3 + 20, p3.y + 145);
+    ctx.stroke();
 
-    // Exercises
-    function initExercises() {
-        new ExerciseWidget('fg-exercises', {
-            exercises: [
-                {
-                    question: '3Ah battery, 500mA load, SOC=50%. How long until empty?',
-                    answer: '3 hours',
-                    solution: 'Remaining = 3Ah × 50% = 1.5Ah. Time = 1.5Ah / 0.5A = 3 hours.'
-                },
-                {
-                    question: 'Coulomb counter shows 80% but voltage shows 60%. Which is likely correct after 2A discharge for 1 hour?',
-                    answer: 'Coulomb (voltage wrong due to IR drop)',
-                    solution: 'Under 2A load, IR drop can be 100-200mV, making voltage appear lower. Coulomb counting is more accurate under load. OCV method only works at rest.'
-                },
-                {
-                    question: 'Battery capacity at -10°C is 80% of 25°C. SOC reads 50% at 25°C calibration. True SOC at -10°C?',
-                    answer: '~40%',
-                    solution: 'At -10°C, available capacity is 80% of rated. If measured as 50% of 25°C capacity, actual usable = 50% × 0.8 = 40% of -10°C capacity. Temperature compensation needed!'
-                }
-            ]
-        });
-    }
+    AD.roundRect(ctx, centerX3, p3.y + 145, 40, 16, 2, { fill: '#2a3a52', stroke: TEK.ch3, lineWidth: 1 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px monospace';
+    ctx.fillText('560Ω', centerX3 + 20, p3.y + 156);
 
-    update();
-    drawSchematic();
-    initSpice();
-    initChecklist();
-    initExercises();
+    ctx.strokeStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(centerX3 + 20, p3.y + 161);
+    ctx.lineTo(centerX3 + 20, p3.y + 175);
+    ctx.stroke();
 
-    // Algorithm Details Canvas
-    (function() {
-        const canvas = document.getElementById('fg-algorithms-canvas');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
+    // GND symbol
+    ctx.fillStyle = '#6b7280';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('GND', centerX3 + 20, p3.y + 188);
 
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, W, H);
+    // Labels
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('A', p3.x + 10, p3.y + 103);
+    ctx.fillStyle = '#34d399';
+    ctx.fillText('B', p3.x + 10, p3.y + 133);
 
-        const colW = 210, colGap = 15;
-        const startX = 20, startY = 20;
+    // Annotations
+    ctx.fillStyle = '#888';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Pull A high', centerX3 - 5, p3.y + 78);
+    ctx.fillText('Pull B low', centerX3 + 45, p3.y + 153);
 
-        function drawAlgorithmBox(x, y, w, h, title, formula, issues, color) {
-            // Box background
-            ctx.fillStyle = '#1a2332';
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            AD.roundRect(ctx, x, y, w, h, 6, { fill: '#1a2332', stroke: color, lineWidth: 2 });
+    // Footer note
+    AD.roundRect(ctx, 30, H - 55, W - 60, 40, 4, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Note:', 45, H - 35);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('Use parallel termination for best signal integrity. Add fail-safe biasing to ensure defined bus state when idle.', 80, H - 35);
 
-            // Title
-            ctx.fillStyle = color;
-            ctx.font = 'bold 12px ui-sans-serif, system-ui, sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText(title, x + 10, y + 20);
+})();
 
-            // Formula
-            ctx.fillStyle = '#4af';
-            ctx.font = '10px monospace';
-            let yPos = y + 40;
-            formula.forEach(line => {
-                ctx.fillText(line, x + 10, yPos);
-                yPos += 14;
-            });
+(function() {
+    const canvas = document.getElementById('rs485-canvas');
+    const ctx = canvas.getContext('2d');
+    const TEK = AD.TEK_COLORS;
 
-            // Issues header
-            if (issues.length > 0) {
-                yPos += 8;
-                ctx.fillStyle = '#888';
-                ctx.font = '9px ui-sans-serif';
-                ctx.fillText('Issues:', x + 10, yPos);
-                yPos += 12;
+    function update() {
+        const cableLength = AD.parseValue(document.getElementById('rs485-cable').value) || 100;
+        const baudRate = AD.parseValue(document.getElementById('rs485-baud').value) || 115200;
+        const nodes = parseInt(document.getElementById('rs485-nodes').value);
+        const termination = document.getElementById('rs485-term').value;
 
-                // Issue items with tree-style bullets
-                ctx.fillStyle = '#ccc';
-                ctx.font = '9px ui-sans-serif';
-                issues.forEach((issue, i) => {
-                    const bullet = i === issues.length - 1 ? '└' : '├';
-                    ctx.fillStyle = '#666';
-                    ctx.fillText(bullet + '─', x + 12, yPos);
-                    ctx.fillStyle = '#ccc';
-                    ctx.fillText(issue, x + 28, yPos);
-                    yPos += 13;
-                });
-            }
+        document.getElementById('rs485-nodes-val').textContent = nodes;
+
+        // RS-485 max baud rate decreases with cable length
+        // Rule of thumb: baud_rate × cable_length ≤ 10^8
+        const maxBaud = Math.min(10e6, 1e8 / cableLength);
+
+        // Propagation delay: ~5ns/m for twisted pair
+        const propDelay = cableLength * 5e-9;
+
+        // Bit time
+        const bitTime = 1 / baudRate;
+
+        // Check if configuration is valid
+        let status = 'OK';
+        let statusColor = 'var(--ok)';
+
+        if (baudRate > maxBaud) {
+            status = 'Baud too high';
+            statusColor = 'var(--bad)';
+        } else if (nodes > 32) {
+            status = 'Too many nodes';
+            statusColor = 'var(--bad)';
+        } else if (propDelay > bitTime * 0.5) {
+            status = 'Delay too long';
+            statusColor = 'var(--warn)';
         }
 
-        // Column 1: Voltage-Based
-        drawAlgorithmBox(startX, startY, colW, 130,
-            'Voltage-Based (OCV)',
-            ['SOC = f(Vocv)', '(from lookup table)'],
-            ['Must be at rest (no load)', 'IR drop masks true OCV', 'Flat curve mid-range'],
-            TEK.ch1
-        );
+        document.getElementById('rs485-maxbaud').textContent = AD.fmtUnit(maxBaud, 'bps');
+        document.getElementById('rs485-delay').textContent = AD.fmtUnit(propDelay, 's');
+        document.getElementById('rs485-bittime').textContent = AD.fmtUnit(bitTime, 's');
+        document.getElementById('rs485-status').textContent = status;
+        document.getElementById('rs485-status').style.color = statusColor;
 
-        // Column 2: Coulomb Counting
-        drawAlgorithmBox(startX + colW + colGap, startY, colW, 150,
-            'Coulomb Counting',
-            ['SOC(t) = SOC(0) +', '  (1/Qmax) × ∫I(t)dt', '', 'SOC += (I×Δt)/Qmax'],
-            ['Needs accurate sensing', 'Drift from offset', 'Qmax changes w/ age'],
-            TEK.ch2
-        );
+        plotRS485Waveforms(baudRate, cableLength, termination);
+    }
 
-        // Column 3: Combined
-        drawAlgorithmBox(startX + 2*(colW + colGap), startY, colW, 150,
-            'Combined (Adaptive)',
-            ['SOC = α×SOC_v +', '  (1-α)×SOC_coulomb', '', 'α depends on:'],
-            ['Load current level', 'Rest time duration', 'Voltage stability'],
-            TEK.ch3
-        );
+    function plotRS485Waveforms(baudRate, cableLength, termination) {
+        const w = canvas.width;
+        const h = canvas.height;
+        const bitTime = 1 / baudRate;
+        const propDelay = cableLength * 5e-9;
 
-        // Column 4: Temperature Comp
-        drawAlgorithmBox(startX + 3*(colW + colGap), startY, colW, 130,
-            'Temperature Comp',
-            ['Qmax(T) = Qmax(25°C) ×', '  [1 - 0.01×(25-T)]', '', 'Low temp → less capacity'],
-            ['Must adjust SOC calc'],
-            TEK.ch5 || '#FF6600'
-        );
+        // Time axis: 10 bit times
+        const tMax = bitTime * 10;
 
-        // Bottom section: Impedance Tracking (wider box)
-        const bottomY = 190;
-        AD.roundRect(ctx, startX, bottomY, W - 40, 130, 6, { fill: '#1a2332', stroke: TEK.ch4, lineWidth: 2 });
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: tMax * 1e6,
+            yMin: -4,
+            yMax: 6,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 'µs',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 10
+        });
 
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = 'bold 12px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('Impedance Tracking (Advanced)', startX + 15, bottomY + 25);
+        // Generate RS-485 data pattern: 0xA5 = 10100101
+        const pattern = [1, 0, 1, 0, 0, 1, 0, 1];
 
-        // Draw as flow diagram
-        const boxW = 180, boxH = 50;
-        const boxes = [
-            { x: 40, label: 'Measure\nInternal R' },
-            { x: 250, label: 'R increases\nwith age/low SOC' },
-            { x: 460, label: 'Update Qmax\nbased on impedance' },
-            { x: 670, label: 'Self-corrects\nover cycles' }
-        ];
+        // Line A waveform (inverted logic: high = 1, low = 0)
+        const tDataA = [];
+        const vDataA = [];
 
-        boxes.forEach((box, i) => {
-            const bx = box.x, by = bottomY + 50;
-            ctx.fillStyle = '#0d1a0d';
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 1;
-            AD.roundRect(ctx, bx, by, boxW, boxH, 4, { fill: '#0d1a0d', stroke: TEK.ch4, lineWidth: 1 });
+        // Line B waveform (complement of A)
+        const tDataB = [];
+        const vDataB = [];
 
-            ctx.fillStyle = '#fff';
-            ctx.font = '10px ui-sans-serif';
-            ctx.textAlign = 'center';
-            const lines = box.label.split('\n');
-            lines.forEach((line, j) => {
-                ctx.fillText(line, bx + boxW/2, by + 22 + j * 14);
-            });
+        const N = 500;
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * tMax;
+            const bitIndex = Math.floor(t / bitTime) % pattern.length;
+            const inBit = (t % bitTime) / bitTime;
 
-            // Arrow to next box
-            if (i < boxes.length - 1) {
-                const nextX = boxes[i + 1].x;
-                ctx.strokeStyle = TEK.ch4;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(bx + boxW + 5, by + boxH/2);
-                ctx.lineTo(nextX - 5, by + boxH/2);
-                ctx.stroke();
-                // Arrowhead
-                ctx.beginPath();
-                ctx.moveTo(nextX - 5, by + boxH/2);
-                ctx.lineTo(nextX - 12, by + boxH/2 - 5);
-                ctx.lineTo(nextX - 12, by + boxH/2 + 5);
-                ctx.closePath();
-                ctx.fillStyle = TEK.ch4;
-                ctx.fill();
+            // Apply rise/fall time (~10ns for fast drivers)
+            const riseTime = 10e-9;
+            let transition = 1;
+            if (inBit * bitTime < riseTime) {
+                transition = inBit * bitTime / riseTime;
             }
+
+            // Calculate A and B levels
+            const bit = pattern[bitIndex];
+            let vA, vB;
+
+            if (bit === 1) {
+                vA = 3.5; // A high
+                vB = 1.5; // B low
+            } else {
+                vA = 1.5; // A low
+                vB = 3.5; // B high
+            }
+
+            // Add some ringing if no termination
+            let ringing = 0;
+            if (termination === 'none' && inBit > 0.1 && inBit < 0.4) {
+                ringing = 0.5 * Math.sin(inBit * 50) * Math.exp(-inBit * 20);
+            }
+
+            tDataA.push(t * 1e6);
+            vDataA.push(vA + ringing);
+            tDataB.push(t * 1e6);
+            vDataB.push(vB - ringing);
+        }
+
+        // Plot Line A (cyan)
+        AD.plotData(ctx, axes, tDataA, vDataA, {
+            color: TEK.ch1,
+            lineWidth: 2,
+            label: 'Line A'
         });
 
-        // Summary section at bottom
-        const summaryY = 340;
-        AD.roundRect(ctx, startX, summaryY, W - 40, 140, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
-
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 11px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('Algorithm Selection Guide:', startX + 15, summaryY + 22);
-
-        const guideItems = [
-            { method: 'Voltage-Based', use: 'Standby, light loads, initial calibration', accuracy: '±10-15%', color: TEK.ch1 },
-            { method: 'Coulomb Counting', use: 'Known capacity, active use', accuracy: '±2-5%', color: TEK.ch2 },
-            { method: 'Combined', use: 'General purpose, best balance', accuracy: '±2-3%', color: TEK.ch3 },
-            { method: 'Impedance Track', use: 'Aging batteries, long-term accuracy', accuracy: '±1-2%', color: TEK.ch4 }
-        ];
-
-        let gy = summaryY + 45;
-        guideItems.forEach(item => {
-            ctx.fillStyle = item.color;
-            ctx.font = 'bold 10px ui-sans-serif';
-            ctx.fillText(item.method + ':', startX + 20, gy);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px ui-sans-serif';
-            ctx.fillText(item.use, startX + 150, gy);
-
-            ctx.fillStyle = '#888';
-            ctx.fillText('(' + item.accuracy + ')', startX + 520, gy);
-            gy += 22;
+        // Plot Line B (magenta)
+        AD.plotData(ctx, axes, tDataB, vDataB, {
+            color: TEK.ch2,
+            lineWidth: 2,
+            label: 'Line B'
         });
+
+        // Draw differential threshold lines
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+
+        // +200mV threshold (relative to center at 2.5V)
+        const th1 = axes.toCanvas(0, 2.7);
+        const th2 = axes.toCanvas(0, 2.3);
+        ctx.beginPath();
+        ctx.moveTo(axes.left, th1.y);
+        ctx.lineTo(axes.left + axes.width, th1.y);
+        ctx.moveTo(axes.left, th2.y);
+        ctx.lineTo(axes.left + axes.width, th2.y);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('+200mV', axes.left + axes.width + 5, th1.y);
+        ctx.fillText('-200mV', axes.left + axes.width + 5, th2.y);
+        ctx.restore();
+
+        // Legend
+        ctx.save();
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('● Line A', axes.left + 10, axes.top + 20);
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('● Line B', axes.left + 80, axes.top + 20);
+        ctx.fillStyle = TEK.text;
+        ctx.fillText('Pattern: 0xA5 (10100101)', axes.left + 150, axes.top + 20);
+        ctx.restore();
+    }
+
+    // Event listeners
+    ['rs485-cable', 'rs485-baud', 'rs485-nodes'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+    document.getElementById('rs485-term').addEventListener('change', update);
+
+    update();
+
+    // RS-485 Bus Schematic using inline SVG
+    (function() {
+        const container = document.getElementById('rs485-schematic');
+        if (!container) return;
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '700');
+        svg.setAttribute('height', '220');
+        svg.setAttribute('viewBox', '0 0 700 220');
+        svg.innerHTML = `
+            <style>
+                .wire { stroke: #e6edf3; stroke-width: 1.5; fill: none; }
+                .wireA { stroke: #fbbf24; stroke-width: 2; fill: none; }
+                .wireB { stroke: #34d399; stroke-width: 2; fill: none; }
+                .comp { stroke: #6ee7ff; stroke-width: 1.5; fill: none; }
+                .box { stroke: #6ee7ff; stroke-width: 1.5; fill: rgba(30,41,59,0.8); }
+                .lbl { fill: #e6edf3; font: 11px ui-sans-serif; }
+                .lblsm { fill: #9fb0c0; font: 9px ui-sans-serif; }
+            </style>
+
+            <!-- Termination resistor left -->
+            <rect x="30" y="70" width="12" height="35" class="comp"/>
+            <text x="20" y="95" class="lblsm">120Ω</text>
+
+            <!-- Bus lines A and B -->
+            <line x1="42" y1="75" x2="660" y2="75" class="wireA"/>
+            <line x1="42" y1="100" x2="660" y2="100" class="wireB"/>
+            <text x="650" y="68" class="lblsm">A (+)</text>
+            <text x="650" y="115" class="lblsm">B (-)</text>
+
+            <!-- Termination resistor right -->
+            <rect x="660" y="70" width="12" height="35" class="comp"/>
+            <text x="675" y="95" class="lblsm">120Ω</text>
+
+            <!-- Node 1: Master -->
+            <rect x="80" y="130" width="80" height="60" class="box"/>
+            <text x="95" y="165" class="lbl">Master</text>
+            <text x="90" y="180" class="lblsm">Transceiver</text>
+            <line x1="100" y1="130" x2="100" y2="75" class="wire"/>
+            <line x1="140" y1="130" x2="140" y2="100" class="wire"/>
+            <circle cx="100" cy="75" r="3" fill="#fbbf24"/>
+            <circle cx="140" cy="100" r="3" fill="#34d399"/>
+
+            <!-- Node 2 -->
+            <rect x="220" y="130" width="80" height="60" class="box"/>
+            <text x="235" y="165" class="lbl">Slave 1</text>
+            <line x1="240" y1="130" x2="240" y2="75" class="wire"/>
+            <line x1="280" y1="130" x2="280" y2="100" class="wire"/>
+            <circle cx="240" cy="75" r="3" fill="#fbbf24"/>
+            <circle cx="280" cy="100" r="3" fill="#34d399"/>
+
+            <!-- Node 3 -->
+            <rect x="360" y="130" width="80" height="60" class="box"/>
+            <text x="375" y="165" class="lbl">Slave 2</text>
+            <line x1="380" y1="130" x2="380" y2="75" class="wire"/>
+            <line x1="420" y1="130" x2="420" y2="100" class="wire"/>
+            <circle cx="380" cy="75" r="3" fill="#fbbf24"/>
+            <circle cx="420" cy="100" r="3" fill="#34d399"/>
+
+            <!-- Node N -->
+            <text x="480" y="160" class="lbl">. . .</text>
+
+            <rect x="530" y="130" width="80" height="60" class="box"/>
+            <text x="545" y="165" class="lbl">Slave N</text>
+            <line x1="550" y1="130" x2="550" y2="75" class="wire"/>
+            <line x1="590" y1="130" x2="590" y2="100" class="wire"/>
+            <circle cx="550" cy="75" r="3" fill="#fbbf24"/>
+            <circle cx="590" cy="100" r="3" fill="#34d399"/>
+
+            <!-- Ground line -->
+            <line x1="80" y1="200" x2="620" y2="200" class="wire" stroke-dasharray="5,3"/>
+            <text x="630" y="205" class="lblsm">GND</text>
+
+            <!-- Ground connections -->
+            <line x1="120" y1="190" x2="120" y2="200" class="wire"/>
+            <line x1="260" y1="190" x2="260" y2="200" class="wire"/>
+            <line x1="400" y1="190" x2="400" y2="200" class="wire"/>
+            <line x1="570" y1="190" x2="570" y2="200" class="wire"/>
+
+            <!-- Labels -->
+            <text x="30" y="40" class="lbl">RS-485 Multi-Drop Bus (up to 32 nodes, 1200m)</text>
+            <text x="30" y="55" class="lblsm">Twisted pair cable, 120Ω characteristic impedance</text>
+        `;
+        container.appendChild(svg);
     })();
+
+    // SPICE Netlist
+    new SpiceNetlistWidget('spice-container', {
+        title: 'RS-485 Transceiver Simulation',
+        netlist: `* RS-485 Differential Signaling
+* Master transmitter, 100m cable, slave receiver
+
+.SUBCKT RS485_TX IN DE A B GND VCC
+* Simplified RS-485 driver model
+RTXA A net1 10
+RTXB B net2 10
+ETXA net1 GND VALUE={IF(V(DE)>2.5, IF(V(IN)>2.5, 3.5, 1.5), 2.5)}
+ETXB net2 GND VALUE={IF(V(DE)>2.5, IF(V(IN)>2.5, 1.5, 3.5), 2.5)}
+.ENDS
+
+.SUBCKT RS485_RX A B RE OUT GND VCC
+* Simplified RS-485 receiver model
+ERXOUT OUT GND VALUE={IF(V(RE)<2.5, IF((V(A)-V(B))>0.2, 5, 0), 5)}
+RIN A B 12k
+.ENDS
+
+* Master transmitter
+VCC vcc 0 DC 5
+VIN txdata 0 PULSE(0 5 0 10n 10n 4.34u 8.68u)
+VDE de 0 DC 5
+XTX txdata de lineA_tx lineB_tx 0 vcc RS485_TX
+
+* Transmission line (100m twisted pair, Z0=120 ohm)
+T1 lineA_tx 0 lineA_rx 0 Z0=120 TD=500n
+T2 lineB_tx 0 lineB_rx 0 Z0=120 TD=500n
+
+* Termination
+RT lineA_rx lineB_rx 120
+
+* Slave receiver
+VRE re 0 DC 0
+XRX lineA_rx lineB_rx re rxout 0 vcc RS485_RX
+
+.TRAN 0.1u 50u
+
+.PROBE V(txdata) V(lineA_tx) V(lineB_tx) V(lineA_rx) V(lineB_rx) V(rxout)
+.END
+
+* Observe differential signaling and propagation delay`
+    });
+
+    // Checklist
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm13l5',
+        items: [
+            'Understand differential signaling: data = VA - VB',
+            'Know receiver threshold: ±200mV differential',
+            'Calculate max baud rate for cable length',
+            'Size termination resistors to match Z0 (120Ω)',
+            'Add fail-safe biasing for idle bus state',
+            'Connect signal ground between all nodes',
+            'Limit to 32 unit loads (standard drivers)',
+            'Use twisted pair cable for noise immunity'
+        ]
+    });
+
+    // Exercises
+    const exercises = [
+        {
+            id: 'M13L5-1',
+            type: 'numeric',
+            question: 'An RS-485 bus has 500m of cable. Using the rule baud × length ≤ 10⁸, what is the maximum baud rate in kbps?',
+            hint: 'Divide 10⁸ by the cable length in meters',
+            expected: 200,
+            tolerance: 0.05,
+            unit: 'kbps',
+            solution: 'Max baud = 10⁸ / 500m = 200,000 bps = 200 kbps',
+            explanation: 'The baud rate × cable length product is limited by signal propagation and rise time constraints.'
+        },
+        {
+            id: 'M13L5-2',
+            type: 'choice',
+            question: 'What happens if you don\'t terminate an RS-485 bus properly?',
+            choices: [
+                { text: 'The bus works fine', correct: false, explanation: 'Unterminated buses have reflections that corrupt data.' },
+                { text: 'Signal reflections cause data errors', correct: true, explanation: 'Correct! Impedance mismatch causes reflections that can flip bits, especially at high speeds.' },
+                { text: 'The driver overheats', correct: false, explanation: 'The driver current is determined by termination, but missing termination doesn\'t cause overheating.' },
+                { text: 'Only the last node receives data', correct: false, explanation: 'All nodes receive the signal, but it may be corrupted by reflections.' }
+            ]
+        },
+        {
+            id: 'M13L5-3',
+            type: 'numeric',
+            question: 'Calculate the propagation delay for a 200m RS-485 cable (assume 5ns/m propagation velocity).',
+            hint: 'Delay = length × propagation velocity',
+            expected: 1000,
+            tolerance: 0.05,
+            unit: 'ns',
+            solution: 'Delay = 200m × 5ns/m = 1000ns = 1µs',
+            explanation: 'This delay must be considered for half-duplex turn-around timing and high-speed applications.'
+        }
+    ];
+
+    const container = document.getElementById('exercise-container');
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-${i}`, ex);
+    });
 })();
 </script>

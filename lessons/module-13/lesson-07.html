@@ -1,699 +1,558 @@
-<!-- Module 13, Lesson 7: I2C Repeaters and Buffers -->
+<!-- Module 13, Lesson 7: Power Supply Filtering -->
 <div class="lesson-content" data-module="13" data-lesson="7">
 
     <div class="card">
-        <h2>I2C Repeaters and Buffers</h2>
-        <p>When I2C buses become long, heavily loaded, or need isolation between voltage domains, repeaters and buffers solve capacitance, level-shifting, and hot-swap challenges while maintaining bidirectional communication.</p>
+        <h2>Power Supply Filtering</h2>
+        <p>Switching power supplies generate high-frequency noise that can disrupt sensitive circuits. Learn to design effective input and output filters for clean power delivery.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Bus Buffer</div>
-                <div class="v">Isolates capacitance, bidirectional</div>
+                <div class="k">Input Filter</div>
+                <div class="v">Blocks conducted EMI</div>
             </div>
             <div class="box">
-                <div class="k">Repeater</div>
-                <div class="v">Restores signal edges</div>
+                <div class="k">Output Filter</div>
+                <div class="v">Reduces ripple/noise</div>
             </div>
             <div class="box">
-                <div class="k">Level Shifter</div>
-                <div class="v">3.3V ↔ 5V translation</div>
+                <div class="k">LC Filter</div>
+                <div class="v">-40dB/decade rolloff</div>
             </div>
             <div class="box">
-                <div class="k">Switch/Mux</div>
-                <div class="v">Route to multiple buses</div>
+                <div class="k">ESR</div>
+                <div class="v">Limits high-freq filtering</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> I2C's bidirectional open-drain nature makes buffering challenging—both sides can drive the bus low at any time. Specialized I2C buffer ICs detect the driving side and pass the signal through while blocking reverse flow, preventing bus contention.
+            <strong>Design Rule:</strong> Filter corner frequency should be at least 10× below switching frequency for effective attenuation. Watch for filter resonance causing instability!
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: I2C Bus Capacitance Budget</h3>
+        <h3>Interactive: Filter Design Calculator</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="i2c-rp">Pull-Up R (Ω)</label>
-                <input type="text" id="i2c-rp" value="2.2k">
+                <label for="filt-fsw">Switching Freq (kHz)</label>
+                <input type="range" id="filt-fsw" min="50" max="2000" step="50" value="500">
+                <span id="filt-fsw-val" class="mono">500kHz</span>
             </div>
             <div class="c3">
-                <label for="i2c-cbus">Bus Capacitance (F)</label>
-                <input type="text" id="i2c-cbus" value="200p">
+                <label for="filt-L">Filter Inductance (µH)</label>
+                <input type="range" id="filt-L" min="0.1" max="100" step="0.1" value="10">
+                <span id="filt-L-val" class="mono">10µH</span>
             </div>
             <div class="c3">
-                <label for="i2c-vcc">V<sub>CC</sub> (V)</label>
-                <select id="i2c-vcc">
-                    <option value="3.3" selected>3.3V</option>
-                    <option value="5">5V</option>
-                </select>
+                <label for="filt-C">Filter Capacitance (µF)</label>
+                <input type="range" id="filt-C" min="1" max="1000" step="1" value="100">
+                <span id="filt-C-val" class="mono">100µF</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="filt-esr">Cap ESR (mΩ)</label>
+                <input type="range" id="filt-esr" min="1" max="500" step="1" value="50">
+                <span id="filt-esr-val" class="mono">50mΩ</span>
             </div>
             <div class="c3">
-                <label for="i2c-mode">Speed Mode</label>
-                <select id="i2c-mode">
-                    <option value="100000">Standard (100 kHz)</option>
-                    <option value="400000" selected>Fast (400 kHz)</option>
-                    <option value="1000000">Fast+ (1 MHz)</option>
-                </select>
+                <label for="filt-dcr">Inductor DCR (mΩ)</label>
+                <input type="range" id="filt-dcr" min="1" max="200" step="1" value="20">
+                <span id="filt-dcr-val" class="mono">20mΩ</span>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="i2c-canvas" width="980" height="320"></canvas>
+            <canvas id="filt-canvas" width="980" height="340"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Rise Time (t<sub>r</sub>)</div>
-                <div class="v mono" id="i2c-trise">—</div>
+                <div class="k">Corner Freq</div>
+                <div class="v mono" id="filt-fc">—</div>
             </div>
             <div class="box">
-                <div class="k">Max t<sub>r</sub></div>
-                <div class="v mono" id="i2c-maxtr">—</div>
+                <div class="k">Atten @ fsw</div>
+                <div class="v mono" id="filt-atten">—</div>
             </div>
             <div class="box">
-                <div class="k">Timing Margin</div>
-                <div class="v mono" id="i2c-margin">—</div>
+                <div class="k">Q Factor</div>
+                <div class="v mono" id="filt-q">—</div>
             </div>
             <div class="box">
-                <div class="k">Recommendation</div>
-                <div class="v mono" id="i2c-recommend">—</div>
+                <div class="k">ESR Zero</div>
+                <div class="v mono" id="filt-zero">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Buffer/Repeater Solutions</h3>
-        <div id="i2c-buffer-schematic"></div>
-    </div>
-
-    <div class="card">
-        <h3>When to Use Each Solution</h3>
+        <h3>Filter Types Comparison</h3>
 
         <table class="table">
             <tr>
-                <th>Problem</th>
-                <th>Solution</th>
-                <th>Example ICs</th>
-                <th>Notes</th>
+                <th>Filter Type</th>
+                <th>Attenuation</th>
+                <th>Components</th>
+                <th>Best For</th>
             </tr>
             <tr>
-                <td>High capacitance (>400pF)</td>
-                <td>Bus Buffer</td>
-                <td>PCA9600, LTC4311</td>
-                <td>Splits bus capacitance</td>
+                <td>RC (1st order)</td>
+                <td>-20dB/decade</td>
+                <td>R, C</td>
+                <td>Low current, simple</td>
             </tr>
             <tr>
-                <td>Level translation</td>
-                <td>Level Shifter</td>
-                <td>PCA9306, TXS0102</td>
-                <td>Bidirectional voltage translation</td>
+                <td>LC (2nd order)</td>
+                <td>-40dB/decade</td>
+                <td>L, C</td>
+                <td>Main output filter</td>
             </tr>
             <tr>
-                <td>Hot-swap / fault isolation</td>
-                <td>Hot-Swap Buffer</td>
-                <td>PCA9511, LTC4300</td>
-                <td>Precharges bus capacitance</td>
+                <td>π filter (CLC)</td>
+                <td>-60dB/decade</td>
+                <td>2C, L</td>
+                <td>High attenuation</td>
             </tr>
             <tr>
-                <td>Multiple bus segments</td>
-                <td>I2C Switch/Mux</td>
-                <td>PCA9548, TCA9548</td>
-                <td>1:8 or other topologies</td>
+                <td>Ferrite + Cap</td>
+                <td>Varies with freq</td>
+                <td>Ferrite, C</td>
+                <td>EMI, high frequency</td>
             </tr>
             <tr>
-                <td>Slow rise times</td>
-                <td>Active Terminator</td>
-                <td>LTC4311</td>
-                <td>Accelerates rising edge</td>
+                <td>Common-mode choke</td>
+                <td>CM rejection</td>
+                <td>Coupled L, C</td>
+                <td>Conducted EMI</td>
             </tr>
         </table>
-
-        <div class="warn">
-            <strong>Address Conflicts:</strong> I2C switches/muxes can solve address conflicts by putting identical devices on separate bus segments. Only enable one segment at a time to avoid contention.
-        </div>
     </div>
 
     <div class="card">
-        <h3>I2C Buffer Operation</h3>
-        <canvas id="i2c-buffer-operation-canvas" width="900" height="340"></canvas>
+        <h3>Filter Design Equations</h3>
+        <pre style="color:#4af; background:#111; padding:15px; border-radius:4px; font-size:11px;">
+LC Filter Corner Frequency:
+    fc = 1 / (2π × √(L × C))
+
+Filter Attenuation at fsw:
+    Atten(dB) = 40 × log10(fsw / fc)  ; Above resonance
+
+Quality Factor:
+    Q = (1/R) × √(L/C)
+    R = DCR + ESR
+
+    Q > 1: Peaking at resonance (can cause instability!)
+    Q = 0.707: Critically damped (Butterworth)
+    Q < 0.5: Overdamped (slow response)
+
+ESR Zero Frequency:
+    fz = 1 / (2π × ESR × C)
+
+    This limits high-freq attenuation!
+
+Damping Resistor:
+    For Q = 1: Rd = √(L/C)
+
+Capacitor Current (ripple):
+    Ic_rms = Vripple / (ESR × √2)
+
+Output Ripple:
+    Vripple ≈ IL_ripple × ESR  ; If ESR dominates
+    Vripple ≈ IL_ripple / (8 × fsw × C)  ; If C dominates
+        </pre>
     </div>
 
     <div class="card">
-        <h3>Level Shifter Circuit</h3>
-        <div id="i2c-level-shift-schematic"></div>
+        <h3>Filter Schematic</h3>
+        <div id="filt-schematic"></div>
     </div>
 
     <div class="card">
         <h3>SPICE Netlist</h3>
-        <div id="spice-container"></div>
+        <div id="filt-spice"></div>
     </div>
 
     <div class="card">
-        <h3>Verification Checklist</h3>
-        <div id="checklist-container"></div>
+        <h3>Design Checklist</h3>
+        <div id="filt-checklist"></div>
     </div>
 
     <div class="card">
         <h3>Practice Exercises</h3>
-        <div id="exercise-container"></div>
+        <div id="filt-exercises"></div>
     </div>
 
 </div>
 
 <script>
 (function() {
-    const canvas = document.getElementById('i2c-canvas');
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('filt-canvas');
     const ctx = canvas.getContext('2d');
-    const TEK = AD.TEK_COLORS;
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 60, mT = 40, mB = 50;
 
     function update() {
-        const rp = AD.parseValue(document.getElementById('i2c-rp').value) || 2200;
-        const cbus = AD.parseValue(document.getElementById('i2c-cbus').value) || 200e-12;
-        const vcc = AD.num('i2c-vcc');
-        const mode = parseInt(document.getElementById('i2c-mode').value);
+        const fsw = AD.num('filt-fsw') * 1000 || 500000;
+        const L = AD.num('filt-L') * 1e-6 || 10e-6;
+        const C = AD.num('filt-C') * 1e-6 || 100e-6;
+        const ESR = AD.num('filt-esr') / 1000 || 0.05;
+        const DCR = AD.num('filt-dcr') / 1000 || 0.02;
 
-        // Rise time: tr ≈ 2.2 × R × C (10% to 90%)
-        const trise = 2.2 * rp * cbus;
+        document.getElementById('filt-fsw-val').textContent = (fsw/1000).toFixed(0) + 'kHz';
+        document.getElementById('filt-L-val').textContent = (L*1e6).toFixed(1) + 'µH';
+        document.getElementById('filt-C-val').textContent = (C*1e6).toFixed(0) + 'µF';
+        document.getElementById('filt-esr-val').textContent = (ESR*1000).toFixed(0) + 'mΩ';
+        document.getElementById('filt-dcr-val').textContent = (DCR*1000).toFixed(0) + 'mΩ';
 
-        // Max rise time by mode
-        const maxTr = {
-            100000: 1000e-9,   // Standard mode: 1000ns
-            400000: 300e-9,    // Fast mode: 300ns
-            1000000: 120e-9    // Fast+ mode: 120ns
-        }[mode];
+        // Calculations
+        const fc = 1 / (2 * Math.PI * Math.sqrt(L * C));
+        const fz = 1 / (2 * Math.PI * ESR * C);
+        const R_total = DCR + ESR;
+        const Q = (1 / R_total) * Math.sqrt(L / C);
 
-        // Timing margin
-        const margin = (maxTr - trise) / maxTr * 100;
-
-        // Recommendation
-        let recommend = 'OK - No buffer needed';
-        let recommendColor = 'var(--ok)';
-
-        if (trise > maxTr) {
-            recommend = 'Add buffer or reduce R';
-            recommendColor = 'var(--bad)';
-        } else if (margin < 20) {
-            recommend = 'Consider buffer for margin';
-            recommendColor = 'var(--warn)';
-        } else if (cbus > 400e-12) {
-            recommend = 'Near spec limit';
-            recommendColor = 'var(--warn)';
-        }
-
-        document.getElementById('i2c-trise').textContent = AD.fmtUnit(trise, 's');
-        document.getElementById('i2c-maxtr').textContent = AD.fmtUnit(maxTr, 's');
-        document.getElementById('i2c-margin').textContent = margin.toFixed(0) + '%';
-        document.getElementById('i2c-margin').style.color = margin > 20 ? 'var(--ok)' : (margin > 0 ? 'var(--warn)' : 'var(--bad)');
-        document.getElementById('i2c-recommend').textContent = recommend;
-        document.getElementById('i2c-recommend').style.color = recommendColor;
-
-        plotI2CWaveforms(rp, cbus, vcc, trise, maxTr);
-    }
-
-    function plotI2CWaveforms(rp, cbus, vcc, trise, maxTr) {
-        const w = canvas.width;
-        const h = canvas.height;
-
-        // Time for 4 rise times
-        const tMax = Math.max(trise * 8, maxTr * 4);
-
-        const axes = AD.drawAxes(ctx, w, h, {
-            xMin: 0,
-            xMax: tMax * 1e9,
-            yMin: -0.2,
-            yMax: vcc + 0.3,
-            xLabel: 'Time',
-            yLabel: 'Voltage',
-            xUnit: 'ns',
-            yUnit: 'V',
-            xDivs: 10,
-            yDivs: 8
-        });
-
-        // Generate SDA waveform with RC charging
-        const N = 400;
-        const tData = [];
-        const vData = [];
-        const vIdealData = [];
-
-        const pulseWidth = tMax / 4;
-
-        for (let i = 0; i < N; i++) {
-            const t = (i / N) * tMax;
-            const phase = t % (pulseWidth * 2);
-
-            let v, vIdeal;
-            if (phase < pulseWidth) {
-                // Low period (driven low)
-                v = 0;
-                vIdeal = 0;
+        // Attenuation at fsw
+        let atten_dB;
+        if (fsw > fc) {
+            if (fsw > fz) {
+                // Above ESR zero - only -20dB/decade
+                atten_dB = 40 * Math.log10(fz / fc) + 20 * Math.log10(fsw / fz);
             } else {
-                // Rising period (RC charge)
-                const tInRise = phase - pulseWidth;
-                const tau = rp * cbus;
-                v = vcc * (1 - Math.exp(-tInRise / tau));
-                // Ideal (fast buffer) rise
-                const tauIdeal = (rp / 3) * (cbus / 3);
-                vIdeal = vcc * (1 - Math.exp(-tInRise / tauIdeal));
+                atten_dB = 40 * Math.log10(fsw / fc);
             }
-
-            tData.push(t * 1e9);
-            vData.push(v);
-            vIdealData.push(Math.min(vIdeal, vcc));
+        } else {
+            atten_dB = 0;
         }
 
-        // Plot actual RC waveform
-        AD.plotData(ctx, axes, tData, vData, {
-            color: TEK.ch1,
-            lineWidth: 2
-        });
+        document.getElementById('filt-fc').textContent = AD.formatValue(fc, 'Hz');
+        document.getElementById('filt-atten').textContent = atten_dB.toFixed(1) + 'dB';
+        document.getElementById('filt-q').textContent = Q.toFixed(2);
+        document.getElementById('filt-zero').textContent = AD.formatValue(fz, 'Hz');
 
-        // Plot buffered (faster) waveform
-        AD.plotData(ctx, axes, tData, vIdealData, {
-            color: TEK.ch2,
-            lineWidth: 2
-        });
-
-        // Draw threshold lines
-        ctx.save();
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 1;
-
-        // VIH threshold (0.7 × VCC)
-        const vih = vcc * 0.7;
-        const vihPt = axes.toCanvas(0, vih);
-        ctx.beginPath();
-        ctx.moveTo(axes.left, vihPt.y);
-        ctx.lineTo(axes.left + axes.width, vihPt.y);
-        ctx.stroke();
-
-        // VIL threshold (0.3 × VCC)
-        const vil = vcc * 0.3;
-        const vilPt = axes.toCanvas(0, vil);
-        ctx.beginPath();
-        ctx.moveTo(axes.left, vilPt.y);
-        ctx.lineTo(axes.left + axes.width, vilPt.y);
-        ctx.stroke();
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('VIH = 0.7×VCC', axes.left + 5, vihPt.y - 5);
-        ctx.fillText('VIL = 0.3×VCC', axes.left + 5, vilPt.y + 12);
-        ctx.restore();
-
-        // Legend
-        ctx.save();
-        ctx.font = '11px ui-sans-serif';
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillText('● Without buffer', axes.left + 10, axes.top + 20);
-        ctx.fillStyle = TEK.ch2;
-        ctx.fillText('● With buffer (3× faster)', axes.left + 140, axes.top + 20);
-        ctx.restore();
-    }
-
-    // Event listeners
-    ['i2c-rp', 'i2c-cbus'].forEach(id => {
-        document.getElementById(id).addEventListener('input', update);
-    });
-    ['i2c-vcc', 'i2c-mode'].forEach(id => {
-        document.getElementById(id).addEventListener('change', update);
-    });
-
-    update();
-
-    // ==================== I2C BUFFER OPERATION CANVAS ====================
-    (function() {
-        const canvas = document.getElementById('i2c-buffer-operation-canvas');
-        if (!canvas || typeof AD === 'undefined') return;
-        const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
-        const TEK = AD.TEK_COLORS;
-
-        ctx.fillStyle = '#0d1117';
+        // Draw Bode plot
+        ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, W, H);
 
-        // Title
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = 'bold 12px ui-sans-serif';
-        ctx.fillText('I2C Bus Buffer Block Diagram', 20, 25);
+        const plotW = W - mL - mR;
+        const plotH = H - mT - mB;
 
-        // Central buffer box
-        ctx.fillStyle = 'rgba(30,41,59,0.9)';
-        ctx.strokeStyle = TEK.ch2;
-        ctx.lineWidth = 2;
-        AD.roundRect(ctx, 300, 60, 200, 120, 8);
-        ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
 
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = 'bold 12px ui-sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Current Source Logic', 400, 90);
+        // Frequency axis (log scale: 100Hz to 10MHz)
+        const fMin = 100, fMax = 10e6;
+        const decades = Math.log10(fMax / fMin);
 
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('• Senses which side is pulling low', 400, 115);
-        ctx.fillText('• Passes signal through', 400, 130);
-        ctx.fillText('• Blocks reverse latch', 400, 145);
+        // Magnitude axis (-80dB to +20dB)
+        const magMin = -80, magMax = 20;
 
-        // Direction Detection label
-        ctx.fillStyle = TEK.ch3;
-        ctx.font = '11px ui-sans-serif';
-        ctx.fillText('Direction Detection', 400, 50);
-        ctx.strokeStyle = TEK.ch3;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(400, 55);
-        ctx.lineTo(400, 60);
-        ctx.stroke();
+        // Grid lines
+        ctx.strokeStyle = '#333';
+        ctx.setLineDash([2, 2]);
 
-        // Side A labels and arrows
-        ctx.fillStyle = TEK.ch1;
-        ctx.font = 'bold 11px ui-sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText('Side A', 120, 105);
+        // Vertical grid (frequency)
+        for (let d = 0; d <= decades; d++) {
+            const f = fMin * Math.pow(10, d);
+            const x = mL + (d / decades) * plotW;
+            ctx.beginPath();
+            ctx.moveTo(x, mT);
+            ctx.lineTo(x, mT + plotH);
+            ctx.stroke();
+        }
 
-        ctx.textAlign = 'center';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillStyle = '#9fb0c0';
-        ctx.fillText('SDA_A', 180, 85);
-        ctx.fillText('SCL_A', 180, 150);
-
-        // Side A lines with arrows
-        ctx.strokeStyle = TEK.ch1;
-        ctx.lineWidth = 2;
-        AD.drawArrow(ctx, 140, 100, 295, 100, { headSize: 8 });
-        AD.drawArrow(ctx, 140, 145, 295, 145, { headSize: 8 });
-
-        // Side B labels and arrows
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = 'bold 11px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('Side B', 680, 105);
-
-        ctx.fillStyle = '#9fb0c0';
-        ctx.font = '10px ui-sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('SDA_B', 620, 85);
-        ctx.fillText('SCL_B', 620, 150);
-
-        // Side B lines with arrows
-        ctx.strokeStyle = TEK.ch4;
-        AD.drawArrow(ctx, 660, 100, 505, 100, { headSize: 8 });
-        AD.drawArrow(ctx, 660, 145, 505, 145, { headSize: 8 });
-
-        // Bidirectional indicators
-        ctx.strokeStyle = TEK.ch2;
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(250, 100); ctx.lineTo(210, 100);
-        ctx.moveTo(550, 100); ctx.lineTo(590, 100);
-        ctx.stroke();
+        // Horizontal grid (magnitude)
+        for (let m = magMin; m <= magMax; m += 20) {
+            const y = mT + ((magMax - m) / (magMax - magMin)) * plotH;
+            ctx.beginPath();
+            ctx.moveTo(mL, y);
+            ctx.lineTo(mL + plotW, y);
+            ctx.stroke();
+        }
         ctx.setLineDash([]);
 
-        // Operation steps
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = 'bold 11px ui-sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('Operation:', 50, 210);
+        // Axis labels
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
 
-        const steps = [
-            { num: '1.', text: 'Side A pulls SDA low → Buffer detects current flow' },
-            { num: '2.', text: 'Buffer drives Side B SDA low (pass-through)' },
-            { num: '3.', text: 'When A releases, buffer allows both sides to rise' },
-            { num: '4.', text: 'If B pulls low first, it drives A low instead' }
-        ];
-
-        ctx.font = '11px ui-sans-serif';
-        steps.forEach((step, i) => {
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillText(step.num, 70, 230 + i * 18);
-            ctx.fillStyle = '#e6edf3';
-            ctx.fillText(step.text, 90, 230 + i * 18);
+        // Frequency labels
+        const freqLabels = ['100', '1k', '10k', '100k', '1M', '10M'];
+        freqLabels.forEach((label, i) => {
+            const x = mL + (i / (freqLabels.length - 1)) * plotW;
+            ctx.fillText(label, x, mT + plotH + 15);
         });
+        ctx.fillText('Frequency (Hz)', mL + plotW/2, mT + plotH + 35);
 
-        // Key Benefit box
-        ctx.fillStyle = 'rgba(30,41,59,0.8)';
-        ctx.strokeStyle = TEK.ch4;
+        // Magnitude labels
+        ctx.textAlign = 'right';
+        for (let m = magMin; m <= magMax; m += 20) {
+            const y = mT + ((magMax - m) / (magMax - magMin)) * plotH;
+            ctx.fillText(m + 'dB', mL - 5, y + 4);
+        }
+
+        // Draw filter response
+        ctx.strokeStyle = TEK.ch1;
         ctx.lineWidth = 2;
-        AD.roundRect(ctx, 500, 200, 350, 90, 6);
-        ctx.fill(); ctx.stroke();
+        ctx.beginPath();
 
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = 'bold 11px ui-sans-serif';
-        ctx.fillText('Key Benefit: Capacitance is isolated!', 520, 225);
+        for (let i = 0; i <= plotW; i++) {
+            const logF = (i / plotW) * decades;
+            const f = fMin * Math.pow(10, logF);
 
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '11px ui-monospace, monospace';
-        ctx.fillText('C_total on each side = C_local only', 520, 250);
-        ctx.fillText('Not C_sideA + C_sideB', 520, 270);
-    })();
+            // Calculate transfer function magnitude
+            const w = 2 * Math.PI * f;
+            const wc = 2 * Math.PI * fc;
+            const wz = 2 * Math.PI * fz;
 
-    // I2C Buffer schematic
-    (function() {
-        const container = document.getElementById('i2c-buffer-schematic');
-        if (!container) return;
+            // H(s) = 1 / (1 + s/wz) / (1 + s/(Q*wc) + (s/wc)²)
+            // Simplified: at low freq = 0dB, at high freq = -40dB/dec until ESR zero
+            let mag_dB;
 
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('width', '700');
-        svg.setAttribute('height', '180');
-        svg.setAttribute('viewBox', '0 0 700 180');
-        svg.innerHTML = `
-            <style>
-                .wire { stroke: #e6edf3; stroke-width: 1.5; fill: none; }
-                .comp { stroke: #6ee7ff; stroke-width: 1.5; fill: none; }
-                .box { stroke: #6ee7ff; stroke-width: 1.5; fill: rgba(30,41,59,0.8); }
-                .lbl { fill: #e6edf3; font: 11px ui-sans-serif; }
-                .lblsm { fill: #9fb0c0; font: 9px ui-sans-serif; }
-            </style>
+            if (f < fc * 0.1) {
+                mag_dB = 0;
+            } else if (f < fc) {
+                // Approaching resonance
+                const ratio = f / fc;
+                mag_dB = 20 * Math.log10(1 / Math.sqrt((1 - ratio*ratio)**2 + (ratio/Q)**2));
+            } else if (f < fz) {
+                // Between fc and fz: -40dB/decade
+                mag_dB = 20 * Math.log10(Q) - 40 * Math.log10(f / fc);
+            } else {
+                // Above ESR zero: -20dB/decade
+                mag_dB = 20 * Math.log10(Q) - 40 * Math.log10(fz / fc) - 20 * Math.log10(f / fz);
+            }
 
-            <!-- Side A -->
-            <text x="30" y="25" class="lbl">Side A (3.3V)</text>
+            // Clamp
+            mag_dB = Math.max(magMin, Math.min(magMax, mag_dB));
 
-            <!-- VCC A pull-ups -->
-            <line x1="80" y1="50" x2="80" y2="35" class="wire"/>
-            <text x="60" y="32" class="lblsm">3.3V</text>
-            <rect x="74" y="50" width="12" height="25" class="comp"/>
-            <text x="65" y="85" class="lblsm">2.2k</text>
-            <line x1="80" y1="75" x2="80" y2="100" class="wire"/>
+            const y = mT + ((magMax - mag_dB) / (magMax - magMin)) * plotH;
 
-            <line x1="140" y1="50" x2="140" y2="35" class="wire"/>
-            <rect x="134" y="50" width="12" height="25" class="comp"/>
-            <text x="125" y="85" class="lblsm">2.2k</text>
-            <line x1="140" y1="75" x2="140" y2="120" class="wire"/>
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
+        }
+        ctx.stroke();
 
-            <!-- SDA and SCL labels -->
-            <text x="85" y="105" class="lblsm">SDA</text>
-            <text x="145" y="125" class="lblsm">SCL</text>
+        // Mark key frequencies
+        // Corner frequency
+        const fcX = mL + (Math.log10(fc / fMin) / decades) * plotW;
+        if (fcX > mL && fcX < mL + plotW) {
+            ctx.strokeStyle = '#4af';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(fcX, mT);
+            ctx.lineTo(fcX, mT + plotH);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#4af';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('fc', fcX, mT - 5);
+        }
 
-            <!-- Buffer IC -->
-            <rect x="250" y="70" width="120" height="80" class="box"/>
-            <text x="275" y="115" class="lbl">I2C Buffer</text>
-            <text x="275" y="130" class="lblsm">PCA9600</text>
+        // ESR zero
+        const fzX = mL + (Math.log10(fz / fMin) / decades) * plotW;
+        if (fzX > mL && fzX < mL + plotW) {
+            ctx.strokeStyle = '#f44';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(fzX, mT);
+            ctx.lineTo(fzX, mT + plotH);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#f44';
+            ctx.fillText('fz (ESR)', fzX, mT - 5);
+        }
 
-            <!-- Connections to buffer -->
-            <line x1="80" y1="100" x2="250" y2="100" class="wire"/>
-            <line x1="140" y1="120" x2="250" y2="120" class="wire"/>
-            <circle cx="80" cy="100" r="3" fill="#6ee7ff"/>
-            <circle cx="140" cy="120" r="3" fill="#6ee7ff"/>
+        // Switching frequency
+        const fswX = mL + (Math.log10(fsw / fMin) / decades) * plotW;
+        if (fswX > mL && fswX < mL + plotW) {
+            ctx.strokeStyle = '#fa4';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(fswX, mT);
+            ctx.lineTo(fswX, mT + plotH);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#fa4';
+            ctx.fillText('fsw', fswX, mT + plotH + 25);
+        }
 
-            <!-- Side B connections -->
-            <line x1="370" y1="100" x2="550" y2="100" class="wire"/>
-            <line x1="370" y1="120" x2="610" y2="120" class="wire"/>
-            <circle cx="550" cy="100" r="3" fill="#6ee7ff"/>
-            <circle cx="610" cy="120" r="3" fill="#6ee7ff"/>
+        // Legend
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('LC Filter Bode Plot', mL + 10, mT + 20);
 
-            <!-- VCC B pull-ups -->
-            <line x1="550" y1="50" x2="550" y2="35" class="wire"/>
-            <text x="535" y="32" class="lblsm">5V</text>
-            <rect x="544" y="50" width="12" height="25" class="comp"/>
-            <text x="535" y="85" class="lblsm">4.7k</text>
-            <line x1="550" y1="75" x2="550" y2="100" class="wire"/>
+        // Q warning
+        if (Q > 2) {
+            ctx.fillStyle = '#f44';
+            ctx.fillText('⚠ High Q (' + Q.toFixed(1) + ') - Add damping!', mL + 10, mT + 40);
+        }
+    }
 
-            <line x1="610" y1="50" x2="610" y2="35" class="wire"/>
-            <rect x="604" y="50" width="12" height="25" class="comp"/>
-            <text x="595" y="85" class="lblsm">4.7k</text>
-            <line x1="610" y1="75" x2="610" y2="120" class="wire"/>
-
-            <!-- Side B labels -->
-            <text x="500" y="25" class="lbl">Side B (5V)</text>
-            <text x="555" y="105" class="lblsm">SDA</text>
-            <text x="615" y="125" class="lblsm">SCL</text>
-
-            <!-- Capacitance annotations -->
-            <text x="100" y="160" class="lblsm">C = 100pF</text>
-            <text x="470" y="160" class="lblsm">C = 300pF</text>
-            <text x="260" y="165" class="lblsm">Isolated! Each side sees only its local C</text>
-        `;
-        container.appendChild(svg);
-    })();
-
-    // Level shifter schematic (MOSFET-based)
-    (function() {
-        const container = document.getElementById('i2c-level-shift-schematic');
-        if (!container) return;
-
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('width', '500');
-        svg.setAttribute('height', '200');
-        svg.setAttribute('viewBox', '0 0 500 200');
-        svg.innerHTML = `
-            <style>
-                .wire { stroke: #e6edf3; stroke-width: 1.5; fill: none; }
-                .comp { stroke: #6ee7ff; stroke-width: 1.5; fill: none; }
-                .lbl { fill: #e6edf3; font: 11px ui-sans-serif; }
-                .lblsm { fill: #9fb0c0; font: 9px ui-sans-serif; }
-            </style>
-
-            <!-- Title -->
-            <text x="150" y="20" class="lbl">MOSFET Bidirectional Level Shifter</text>
-
-            <!-- 3.3V side -->
-            <text x="50" y="45" class="lblsm">3.3V</text>
-            <line x1="80" y1="50" x2="80" y2="65" class="wire"/>
-            <rect x="74" y="65" width="12" height="25" class="comp"/>
-            <text x="90" y="80" class="lblsm">10k</text>
-            <line x1="80" y1="90" x2="80" y2="120" class="wire"/>
-            <circle cx="80" cy="120" r="3" fill="#6ee7ff"/>
-            <text x="60" y="145" class="lblsm">SDA_3V3</text>
-
-            <!-- NMOS symbol -->
-            <line x1="80" y1="120" x2="180" y2="120" class="wire"/>
-            <line x1="180" y1="100" x2="180" y2="140" class="comp" stroke-width="2"/>
-            <line x1="195" y1="105" x2="195" y2="115" class="wire"/>
-            <line x1="195" y1="125" x2="195" y2="135" class="wire"/>
-            <line x1="195" y1="115" x2="220" y2="115" class="wire"/>
-            <line x1="195" y1="125" x2="220" y2="125" class="wire"/>
-            <line x1="220" y1="115" x2="220" y2="125" class="wire"/>
-            <line x1="220" y1="120" x2="280" y2="120" class="wire"/>
-            <text x="185" y="165" class="lblsm">BSS138</text>
-
-            <!-- Gate connection to 3.3V -->
-            <line x1="180" y1="120" x2="160" y2="120" class="wire"/>
-            <line x1="160" y1="120" x2="160" y2="50" class="wire"/>
-            <line x1="160" y1="50" x2="80" y2="50" class="wire"/>
-            <text x="130" y="45" class="lblsm">Gate = VCC_L</text>
-
-            <!-- 5V side -->
-            <text x="330" y="45" class="lblsm">5V</text>
-            <line x1="320" y1="50" x2="320" y2="65" class="wire"/>
-            <rect x="314" y="65" width="12" height="25" class="comp"/>
-            <text x="330" y="80" class="lblsm">10k</text>
-            <line x1="320" y1="90" x2="320" y2="120" class="wire"/>
-            <circle cx="320" cy="120" r="3" fill="#6ee7ff"/>
-            <line x1="280" y1="120" x2="320" y2="120" class="wire"/>
-            <text x="340" y="125" class="lblsm">SDA_5V</text>
-
-            <!-- Operation description -->
-            <text x="50" y="185" class="lblsm">When either side pulls low, MOSFET conducts and pulls the other side low</text>
-        `;
-        container.appendChild(svg);
-    })();
-
-    // SPICE Netlist
-    new SpiceNetlistWidget('spice-container', {
-        title: 'I2C Bus Buffer Model',
-        netlist: `* I2C Bus Buffer Effect on Rise Time
-* Compares buffered vs unbuffered bus
-
-* Pull-up resistors (unbuffered bus)
-VCC1 vcc1 0 DC 3.3
-RP1 vcc1 sda_unbuf 2.2k
-
-* Bus capacitance (unbuffered - 400pF total)
-CBUS sda_unbuf 0 400p
-
-* Driver (open-drain)
-M1 sda_unbuf gate 0 0 NMOS W=10u L=1u
-VGATE gate 0 PULSE(3.3 0 0 10n 10n 2u 4u)
-
-* Buffered bus - Side A
-VCC2 vcc2 0 DC 3.3
-RP2A vcc2 sda_a 2.2k
-CA sda_a 0 100p
-
-* Buffered bus - Side B (isolated capacitance)
-RP2B vcc2 sda_b 2.2k
-CB sda_b 0 300p
-
-* Ideal buffer model (just shows effect)
-* In reality, buffer IC has internal logic
-EBUF sda_b 0 sda_a 0 1
-
-* Driver on buffered side A
-M2 sda_a gate 0 0 NMOS W=10u L=1u
-
-.MODEL NMOS NMOS (VTO=1 KP=1m)
-
-.TRAN 10n 10u
-
-.PROBE V(sda_unbuf) V(sda_a) V(sda_b)
-.END
-
-* Compare rise times: unbuffered (slow) vs buffered (fast)`
+    ['filt-fsw', 'filt-L', 'filt-C', 'filt-esr', 'filt-dcr'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
     });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('filt-schematic');
+        const svg = new SchematicSVG(700, 200);
+
+        // π Filter (CLC)
+        svg.text(50, 25, 'π Filter (CLC) - Common for SMPS Output:', {fontSize: 12, fill: '#4af'});
+
+        svg.text(30, 80, 'From', {fontSize: 9});
+        svg.text(30, 95, 'SMPS', {fontSize: 9});
+        svg.wire([[60, 80], [100, 80]]);
+
+        // First capacitor
+        svg.wire([[100, 80], [100, 100]]);
+        svg.capacitor(100, 120, {horizontal: false});
+        svg.text(115, 120, 'C1', {fontSize: 9});
+        svg.wire([[100, 140], [100, 160]]);
+
+        // Inductor
+        svg.wire([[100, 80], [150, 80]]);
+        svg.inductor(170, 80, {horizontal: true});
+        svg.text(170, 65, 'L', {fontSize: 10});
+        svg.wire([[190, 80], [240, 80]]);
+
+        // Second capacitor
+        svg.wire([[240, 80], [240, 100]]);
+        svg.capacitor(240, 120, {horizontal: false});
+        svg.text(255, 120, 'C2', {fontSize: 9});
+        svg.wire([[240, 140], [240, 160]]);
+
+        // Output
+        svg.wire([[240, 80], [300, 80]]);
+        svg.text(280, 70, 'Vout', {fontSize: 10});
+
+        // Ground
+        svg.wire([[100, 160], [240, 160]]);
+        svg.ground(170, 160);
+
+        // ESR model detail
+        svg.text(350, 25, 'Capacitor with ESR Model:', {fontSize: 11, fill: '#4af'});
+
+        svg.wire([[350, 60], [400, 60]]);
+        svg.capacitor(420, 60, {horizontal: true});
+        svg.text(420, 45, 'C', {fontSize: 9});
+        svg.wire([[440, 60], [470, 60]]);
+        svg.resistor(490, 60, {horizontal: true});
+        svg.text(490, 45, 'ESR', {fontSize: 9});
+        svg.wire([[510, 60], [550, 60]]);
+
+        // Ferrite bead option
+        svg.text(350, 110, 'High-Freq Filter with Ferrite:', {fontSize: 11, fill: '#4af'});
+
+        svg.wire([[350, 140], [400, 140]]);
+        svg.inductor(420, 140, {horizontal: true});
+        svg.text(420, 125, 'FB', {fontSize: 9, fill: '#fa4'});
+        svg.wire([[440, 140], [480, 140]]);
+        svg.wire([[480, 140], [480, 155]]);
+        svg.capacitor(480, 170, {horizontal: false});
+        svg.text(495, 170, 'C', {fontSize: 9});
+        svg.wire([[480, 190], [480, 200]]);
+        svg.ground(480, 200);
+        svg.wire([[480, 140], [550, 140]]);
+
+        svg.text(520, 170, 'Good for > 10MHz', {fontSize: 9, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('filt-spice', {
+            title: 'LC Filter Analysis',
+            netlist: `* LC Output Filter Analysis
+* Examine frequency response and transient behavior
+
+* Switching noise source (square wave)
+Vsw in 0 PULSE(4.9 5.1 0 10n 10n 1u 2u)
+
+* LC Filter (10µH, 100µF)
+L1 in out 10u
+Rl in out 20m  ; DCR
+
+* Capacitor with ESR
+C1 out cap_esr 100u
+Resr cap_esr 0 50m
+
+* Load
+Rload out 0 5  ; 1A at 5V
+
+* Optional damping resistor (uncomment to add)
+* Rd out 0 0.5
+
+* AC source for frequency response
+Vac in 0 AC 1
+
+.tran 100n 100u
+.ac dec 100 100 10MEG
+
+.probe V(out) V(in)
+.end
+
+* Check:
+* - Transient ripple on Vout
+* - Bode plot shows -40dB/dec above fc
+* - Q peaking at resonance if undamped
+* - ESR zero limiting high-freq attenuation`
+        });
+    }
 
     // Checklist
-    new ChecklistWidget('checklist-container', {
-        lessonKey: 'm13l7',
-        items: [
-            'Calculate rise time: tr ≈ 2.2 × Rp × Cbus',
-            'Check against mode limit (SM: 1µs, FM: 300ns, FM+: 120ns)',
-            'Add buffer when Cbus > 400pF',
-            'Use level shifter for 3.3V ↔ 5V translation',
-            'Consider I2C switch for address conflicts',
-            'Account for buffer propagation delay',
-            'Verify hot-swap precharge if needed',
-            'Each side needs its own pull-ups after buffer'
-        ]
-    });
+    function initChecklist() {
+        new ChecklistWidget('filt-checklist', {
+            title: 'Filter Design Checklist',
+            items: [
+                'Calculate corner frequency (fc << fsw)',
+                'Verify attenuation at switching frequency',
+                'Check Q factor (add damping if Q > 2)',
+                'Consider ESR zero frequency impact',
+                'Select inductor for saturation and DCR',
+                'Choose capacitor type for frequency range',
+                'Check capacitor ripple current rating',
+                'Verify stability with load variations',
+                'Test EMI performance if required',
+                'Consider input filter interaction with SMPS'
+            ]
+        });
+    }
 
     // Exercises
-    const exercises = [
-        {
-            id: 'M13L7-1',
-            type: 'numeric',
-            question: 'An I2C bus has 2.2kΩ pull-ups and 400pF total capacitance. What is the rise time in nanoseconds?',
-            hint: 'tr = 2.2 × R × C',
-            expected: 1936,
-            tolerance: 0.05,
-            unit: 'ns',
-            solution: 'tr = 2.2 × 2200Ω × 400pF = 2.2 × 2200 × 400×10⁻¹² = 1.936µs = 1936ns',
-            explanation: 'This exceeds the Fast mode limit of 300ns, so a buffer is required.'
-        },
-        {
-            id: 'M13L7-2',
-            type: 'choice',
-            question: 'Why do I2C buffers need special bidirectional design?',
-            choices: [
-                { text: 'Because I2C runs at high speed', correct: false, explanation: 'Speed is not the reason for bidirectional design.' },
-                { text: 'Because SDA is bidirectional open-drain', correct: true, explanation: 'Correct! Both master and slave can pull SDA low, so the buffer must detect which side is driving and pass through accordingly.' },
-                { text: 'Because I2C needs level shifting', correct: false, explanation: 'Level shifting is a separate function; the bidirectional nature is inherent to I2C protocol.' },
-                { text: 'To increase current capacity', correct: false, explanation: 'Current capacity is a secondary benefit, not the primary reason.' }
+    function initExercises() {
+        new ExerciseWidget('filt-exercises', {
+            exercises: [
+                {
+                    question: 'LC filter: L=22µH, C=100µF. What is the corner frequency?',
+                    answer: '3.4kHz',
+                    solution: 'fc = 1/(2π√(LC)) = 1/(2π√(22µ × 100µ)) = 1/(2π × 1.48m) = 3.4kHz'
+                },
+                {
+                    question: 'The above filter at fsw=500kHz. Expected attenuation?',
+                    answer: '~86dB',
+                    solution: 'Atten = 40 × log10(fsw/fc) = 40 × log10(500k/3.4k) = 40 × 2.17 = 86.8dB (if no ESR zero)'
+                },
+                {
+                    question: 'Capacitor is 100µF with 50mΩ ESR. At what frequency does ESR dominate?',
+                    answer: '31.8kHz',
+                    solution: 'fz = 1/(2π × ESR × C) = 1/(2π × 0.05 × 100µ) = 31.8kHz. Above this, only -20dB/decade.'
+                }
             ]
-        },
-        {
-            id: 'M13L7-3',
-            type: 'numeric',
-            question: 'An I2C bus segment with buffer has 150pF on side A and 250pF on side B. With 2.2kΩ pull-ups on each side, what is the slower rise time (ns)?',
-            hint: 'Each side is independent; calculate both and take the slower one',
-            expected: 1210,
-            tolerance: 0.05,
-            unit: 'ns',
-            solution: 'Side A: 2.2 × 2200 × 150pF = 726ns. Side B: 2.2 × 2200 × 250pF = 1210ns. Slower = 1210ns',
-            explanation: 'The buffer isolates capacitance, so each side charges independently at its own rate.'
-        }
-    ];
+        });
+    }
 
-    const container = document.getElementById('exercise-container');
-    exercises.forEach((ex, i) => {
-        const div = document.createElement('div');
-        div.id = `exercise-${i}`;
-        div.style.marginBottom = '15px';
-        container.appendChild(div);
-        new ExerciseWidget(`exercise-${i}`, ex);
-    });
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
 })();
 </script>
