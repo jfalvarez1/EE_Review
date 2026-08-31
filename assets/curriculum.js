@@ -2737,40 +2737,62 @@ const Router = {
         let html = `
             <div class="card">
                 <h2>The learning path</h2>
-                <p>One route through the course, foundation first: what an amplifier
-                <em>is</em>, then the ideal op-amp, then why feedback makes it true, and only
-                then the transistor &mdash; arriving as the answer to &ldquo;how was that
-                built&rdquo; rather than as a prerequisite. Each step says what it earns you.</p>
-                <p>The sidebar runs in this same order, so you can follow it there instead. This
-                page is where the reasoning lives. <strong>${complete} of ${total} steps
-                complete.</strong></p>
+                <p>Four semesters. Two of them cover Electronics I and II as those courses are
+                actually taught; the other two go past them, into the design judgement, real
+                parts and bench work a first pass never has room for.</p>
+                <p>The order is deliberately not the traditional one. A standard Electronics I
+                opens on semiconductor physics and spends weeks inside the device before you
+                build anything. Here the ideal op-amp comes first &mdash; you can use one long
+                before you can explain one &mdash; and the transistor arrives as the answer to
+                &ldquo;how was that built&rdquo;. The physics is not skipped; it is stage 1.5,
+                where it explains something you have already used.</p>
+                <p>The sidebar runs in this same order. <strong>${complete} of ${total} steps
+                complete${LEARNING_PATH.todo().length
+                    ? `, ${LEARNING_PATH.todo().length} still to write`
+                    : ''}.</strong></p>
             </div>`;
 
-        LEARNING_PATH.STAGES.forEach((stage, si) => {
-            html += `<div class="card">
-                <h3>${si + 1}. ${esc(stage.title)}</h3>
-                <p class="lesson-description">${esc(stage.blurb)}</p>
-                <ol class="path-steps">`;
+        // Grouped by semester, because the shape of the thing is four terms and
+        // a flat list of fifteen stages hides that.
+        LEARNING_PATH.SEMESTERS.forEach(sem => {
+            const stages = LEARNING_PATH.stagesFor(sem.id);
+            const semSteps = LEARNING_PATH.steps().filter(s => s.semester === sem.id);
+            const semDone = semSteps.filter(s => s.ref && done['m' + s.ref[0] + 'l' + s.ref[1]]).length;
+            const semTodo = semSteps.filter(s => !s.ref).length;
 
-            stage.steps.forEach(step => {
-                const isDone = step.ref && done['m' + step.ref[0] + 'l' + step.ref[1]];
-                const href = step.ref
-                    ? `#module-${step.ref[0]}/lesson-${step.ref[1]}`
-                    : null;
-                const tag = step.ref
-                    ? `<span class="topic-tag">M${step.ref[0]}&middot;${step.ref[1]}</span>`
-                    : `<span class="topic-tag" style="opacity:.75">written for this path</span>`;
-                const title = href
-                    ? `<a href="${href}">${esc(step.title)}</a>`
-                    : `<span>${esc(step.title)}</span>`;
+            html += `<div class="card semester-head">
+                <h2>Semester ${sem.id}: ${esc(sem.title)}</h2>
+                <p class="lesson-description">${esc(sem.blurb)}</p>
+                <p class="path-step-earns">${semSteps.length} steps &middot;
+                   ${semDone} complete${semTodo ? ` &middot; ${semTodo} still to write` : ''}</p>
+            </div>`;
 
-                html += `<li class="path-step${isDone ? ' is-done' : ''}">
-                    <div class="path-step-head">${isDone ? '&#10003; ' : ''}${title} ${tag}</div>
-                    <div class="path-step-earns">${esc(step.earns)}</div>
-                </li>`;
+            stages.forEach((stage, si) => {
+                html += `<div class="card">
+                    <h3>${sem.id}.${si + 1} &nbsp; ${esc(stage.title)}</h3>
+                    <p class="lesson-description">${esc(stage.blurb)}</p>
+                    <ol class="path-steps">`;
+
+                stage.steps.forEach(step => {
+                    const isDone = step.ref && done['m' + step.ref[0] + 'l' + step.ref[1]];
+                    const href = step.ref ? `#module-${step.ref[0]}/lesson-${step.ref[1]}` : null;
+                    // A step with no lesson behind it is shown, not hidden: the
+                    // syllabus is the plan, and its gaps are part of the plan.
+                    const tag = step.ref
+                        ? `<span class="topic-tag">M${step.ref[0]}&middot;${step.ref[1]}</span>`
+                        : `<span class="topic-tag is-todo">not yet written</span>`;
+                    const title = href
+                        ? `<a href="${href}">${esc(step.title)}</a>`
+                        : `<span class="step-todo">${esc(step.title)}</span>`;
+
+                    html += `<li class="path-step${isDone ? ' is-done' : ''}${step.ref ? '' : ' is-todo'}">
+                        <div class="path-step-head">${isDone ? '&#10003; ' : ''}${title} ${tag}</div>
+                        <div class="path-step-earns">${esc(step.earns)}</div>
+                    </li>`;
+                });
+
+                html += `</ol></div>`;
             });
-
-            html += `</ol></div>`;
         });
 
         const welcomeCard = content.querySelector('.welcome-card');

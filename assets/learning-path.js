@@ -1,65 +1,96 @@
 /**
- * THE LEARNING PATH
+ * THE SYLLABUS
  *
- * One ordered spine, for someone who has finished a first circuits course and
- * wants to end up designing. Each step says what it earns you, so the order is
- * arguable rather than arbitrary.
+ * Four semesters. Two of them cover Electronics I and Electronics II as those
+ * courses are actually taught; the other two go past them, into the design
+ * judgement, real parts and bench work a first pass never has room for.
  *
- * The catalogue has since been re-sequenced to match this, so the sidebar and
- * this file now agree. That was not always so: the modules used to be grouped
- * purely by topic, which opened the course on 35 lessons of BJT internals and
- * left negative feedback until module 25 - even though the op-amp golden rules
- * in module 2 were only true because of it. This file is where the intended
- * order is stated and reasoned; the catalogue follows it.
+ *   S1  Electronics I - core          the abstraction, then the physics
+ *   S2  Electronics I - beyond        those devices as amplifiers, properly
+ *   S3  Electronics II - core         multi-device circuits and feedback
+ *   S4  Electronics II - beyond       real design: noise, matching, systems
  *
- * The arc it follows, deliberately:
+ * ORDER. The sequence is deliberately not the traditional one. A standard
+ * Electronics I opens on semiconductor physics and spends weeks inside the
+ * device before the student builds anything. Here the ideal op-amp comes
+ * first, because you can use one correctly long before you can explain one,
+ * and the transistor arrives as the answer to "how was that built". The
+ * physics is not skipped - it is stage 5, where it explains something the
+ * reader has already used rather than something they have not.
  *
- *   abstraction first    You can use an op-amp correctly long before you can
- *                        explain one. Starting inside the transistor means
- *                        months before the learner builds anything.
- *   then the mechanism   Feedback, because it is why the golden rules hold.
- *   then the device      The transistor, arriving as the ANSWER to "how was
- *                        that op-amp built", not as a prerequisite.
- *   then the topologies  CE, CS, cascode - each one a fix for a specific
- *                        limitation of the one before.
- *   then real parts      Datasheets, tolerances, and choosing an actual
- *                        transistor by part number.
+ * The catalogue has been re-sequenced to match this, so the sidebar and this
+ * file agree. Modules used to be grouped purely by topic, which opened the
+ * course on 35 lessons of BJT internals and left negative feedback until
+ * module 25 - even though the golden rules were only true because of it.
  *
- * `ref` points into the catalogue as [module, lesson]. `status: 'new'` marks a
- * step written for this path because the catalogue had no lesson for it.
+ * SOURCES. The shape of the syllabus is drawn from the courses that teach this
+ * material best rather than invented: Agarwal's 6.002 for the abstraction-first
+ * arc and the discipline of stating a model's validity; Shankar for deriving
+ * rather than asserting; Razavi for the device-level treatment and for the
+ * habit of asking what each topology fixes about the last one; Horowitz and
+ * Hill (and the X Chapters) for judgement, part numbers and the things that
+ * only appear on a bench; and TI's and NI's application notes for the design
+ * procedures engineers actually follow.
+ *
+ * SCOPE, and what is deliberately skipped. The filter is practical use, not
+ * tradition. A classical Electronics I spends a fortnight designing half-wave
+ * and full-wave rectifiers; a working analog engineer buys a module or an IC
+ * and needs the ripple and peak-current intuition, not the design procedure.
+ * So that material is one survey lesson, and the space goes to things that are
+ * used daily and usually taught thinly: datasheet reading, matching, noise,
+ * frequency compensation, and choosing parts. Where a topic is glossed the
+ * step says so, so the omission is a decision on the record rather than a hole.
+ *
+ * `ref` points at [module, lesson]. `status: 'todo'` marks a topic the
+ * syllabus needs that has not been written yet: that is how the gaps stay
+ * visible instead of being quietly dropped. LEARNING_PATH.todo() lists them.
  */
 const LEARNING_PATH = (() => {
     'use strict';
 
+    const SEMESTERS = [
+        { id: 1, title: 'Electronics I — core',
+          blurb: 'The abstraction first, then the physics underneath it. By the end you can ' +
+                 'design working op-amp circuits and explain what a transistor is.' },
+        { id: 2, title: 'Electronics I — beyond',
+          blurb: 'The devices as amplifiers: model, bias, topology, and what the models get ' +
+                 'wrong. Where a first course stops and design work starts.' },
+        { id: 3, title: 'Electronics II — core',
+          blurb: 'Circuits made of several devices — differential pairs, mirrors, multistage ' +
+                 'amplifiers — and the feedback theory holding them together.' },
+        { id: 4, title: 'Electronics II — beyond',
+          blurb: 'Real design. Noise, matching, precision, power, and the judgement that ' +
+                 'decides which of several correct circuits you actually build.' }
+    ];
+
     const STAGES = [
+        // ============================ SEMESTER 1 ============================
         {
-            id: 'what-is-an-amplifier',
+            id: 'what-is-an-amplifier', semester: 1,
             title: 'What an amplifier is',
             blurb: 'Before any device. An amplifier is a specification before it is a circuit, ' +
                    'and four numbers describe it.',
             steps: [
-                { ref: [1, 1], status: 'new', slug: 'ideal-amplifier',
-                  title: 'The ideal amplifier',
+                { ref: [1, 1], title: 'The ideal amplifier',
                   earns: 'Gain, input impedance, output impedance, and why there are exactly ' +
-                         'four kinds of amplifier rather than one.' },
-                { ref: [1, 2],
-                  title: 'Golden rules and the basic configurations',
+                         'four kinds of amplifier. The loading theorem, derived.' },
+                { ref: [1, 2], title: 'Golden rules and the basic configurations',
                   earns: 'Inverting, non-inverting, buffer, summing, difference — every one ' +
-                         'of them solved with two rules and no algebra about transistors.' }
+                         'solved with two rules and no algebra about transistors.' }
             ]
         },
         {
-            id: 'using-the-ideal-opamp',
+            id: 'using-the-ideal-opamp', semester: 1,
             title: 'Using the ideal op-amp',
             blurb: 'Get real work out of the abstraction while it is still simple. Everything ' +
                    'here is solvable with the golden rules alone.',
             steps: [
                 { ref: [1, 3], title: 'Integrator and differentiator',
-                  earns: 'The golden rules applied to a capacitor: the same two rules now ' +
-                         'give you calculus.' },
+                  earns: 'The golden rules applied to a capacitor: the same two rules now give ' +
+                         'you calculus.' },
                 { ref: [2, 2], title: 'Transimpedance amplifier',
                   earns: 'Your first amplifier whose input is a current — the reason the four ' +
-                         'amplifier types in step 1 were worth naming.' },
+                         'amplifier types were worth naming.' },
                 { ref: [2, 3], title: 'Instrumentation amplifier',
                   earns: 'Difference amplification done properly, and the first circuit where ' +
                          'resistor matching, not the op-amp, sets performance.' },
@@ -68,27 +99,27 @@ const LEARNING_PATH = (() => {
             ]
         },
         {
-            id: 'why-it-works',
+            id: 'why-it-works', semester: 1,
             title: 'Why any of that worked: feedback',
-            blurb: 'The golden rules are not axioms. They are what a large loop gain looks like ' +
-                   'from outside - which is why it comes before the stages that lean on it.',
+            blurb: 'The golden rules are not axioms. They are what a large loop gain looks ' +
+                   'like from outside.',
             steps: [
                 { ref: [3, 1], title: 'Feedback fundamentals',
-                  earns: 'A/(1+Aβ), loop gain, and the reason "the inputs are equal" is an ' +
+                  earns: 'A/(1+Aβ), loop gain, and why "the inputs are equal" is an ' +
                          'approximation with a known error rather than a law.' },
                 { ref: [3, 2], title: 'Feedback topologies',
-                  earns: 'Why feedback raises one impedance and lowers another, which is how ' +
-                         'the four amplifier types get built on purpose.' },
+                  earns: 'Why feedback raises one impedance and lowers another — how the four ' +
+                         'amplifier types get built on purpose.' },
                 { ref: [1, 7], title: 'Stability and compensation',
-                  earns: 'What you pay for that loop gain: phase margin, and the ringing you ' +
-                         'get when you spend it all.' }
+                  earns: 'What you pay for loop gain: phase margin, and the ringing you get ' +
+                         'when you spend it all.' }
             ]
         },
         {
-            id: 'not-ideal',
+            id: 'not-ideal', semester: 1,
             title: 'The op-amp stops being ideal',
-            blurb: 'Every departure from the ideal model, in the order you will meet them on ' +
-                   'a bench — and then the datasheet that predicts them.',
+            blurb: 'Every departure from the ideal model, in the order you meet them on a ' +
+                   'bench — then the datasheet that predicts them.',
             steps: [
                 { ref: [1, 4], title: 'Bandwidth and slew rate',
                   earns: 'Gain is not free above DC. GBW, and why slew rate is a different ' +
@@ -100,17 +131,36 @@ const LEARNING_PATH = (() => {
                   earns: 'The supply is an input too.' },
                 { ref: [2, 4], title: 'Noise analysis',
                   earns: 'The floor you cannot design below, and where it comes from.' },
-                { ref: null, status: 'new', slug: 'reading-a-datasheet',
-                  title: 'Reading an op-amp datasheet',
-                  earns: 'Every error above, located on a real datasheet — where the number ' +
-                         'hides, which test conditions it was taken under, and which ' +
-                         'typical-only specs you must not design against.' }
+                { ref: null, status: 'todo', title: 'Reading an op-amp datasheet',
+                  earns: 'Every error above, located on a real datasheet: where the number ' +
+                         'hides, its test conditions, and which typical-only specs must never ' +
+                         'be designed against.' }
             ]
         },
         {
-            id: 'inside-switch',
-            title: 'Inside: the transistor as a switch',
-            blurb: 'Now open the box. The switch comes first because it needs no small-signal ' +
+            id: 'semiconductors', semester: 1,
+            title: 'What a semiconductor actually does',
+            blurb: 'The physics, arriving where it explains something you have already used ' +
+                   'rather than as a barrier before you have used anything. Two lessons, not ' +
+                   'the usual four — see the note on scope below.',
+            steps: [
+                { ref: null, status: 'todo', title: 'The pn junction and the exponential',
+                  earns: 'Where 0.7 V comes from, why it drifts at −2 mV/°C, why VT = kT/q is ' +
+                         '26 mV, and why every device in this course is exponential underneath. ' +
+                         'The diode equation and the three models — ideal, constant-drop, and ' +
+                         'small-signal rd = VT/ID — with the error each one costs you.' },
+                { ref: null, status: 'todo', title: 'Diodes in practice: an overview',
+                  earns: 'Rectification, clamping and protection at the level you actually use ' +
+                         'them: ripple as ΔV = I·t/C, why the capacitor and not the diode sets ' +
+                         'peak current, Schottky versus silicon, and what a TVS is for. ' +
+                         'Deliberately a survey — nobody designs a linear supply front end from ' +
+                         'scratch any more, but everybody sizes an input capacitor.' }
+            ]
+        },
+        {
+            id: 'inside-switch', semester: 1,
+            title: 'The transistor as a switch',
+            blurb: 'Open the box. The switch comes first because it needs no small-signal ' +
                    'model — it is on or it is off.',
             steps: [
                 { ref: [4, 7], title: 'BJT as a switch',
@@ -118,18 +168,19 @@ const LEARNING_PATH = (() => {
                 { ref: [5, 9], title: 'MOSFET as a switch',
                   earns: 'The same job done by a voltage, and Rds(on) instead of Vce(sat).' },
                 { ref: [4, 28], title: 'BJT versus MOSFET',
-                  earns: 'When each one wins, on the axes that actually decide it.' }
+                  earns: 'When each wins, on the axes that actually decide it.' }
             ]
         },
+
+        // ============================ SEMESTER 2 ============================
         {
-            id: 'bjt-amplifier',
-            title: 'The transistor as an amplifier: BJT',
-            blurb: 'The device that made the op-amp. Model first, then bias, then topologies — ' +
-                   'the catalogue does these in nearly the opposite order.',
+            id: 'bjt-amplifier', semester: 2,
+            title: 'The BJT as an amplifier',
+            blurb: 'The device that made the op-amp. Model first, then bias, then topologies.',
             steps: [
                 { ref: [4, 1], title: 'The BJT as a voltage-controlled current source',
-                  earns: 'gm = IC/VT and re = 25/IC(mA), derived — the two numbers every ' +
-                         'BJT circuit below is built from.' },
+                  earns: 'gm = IC/VT and re = 25/IC(mA), derived — the two numbers every BJT ' +
+                         'circuit is built from.' },
                 { ref: [4, 2], title: 'The small-signal model',
                   earns: 'Hybrid-pi: the linear circuit you actually solve. Everything after ' +
                          'this is that model with different resistors around it.' },
@@ -146,76 +197,148 @@ const LEARNING_PATH = (() => {
             ]
         },
         {
-            id: 'fet-amplifier',
-            title: 'The transistor as an amplifier: FET',
-            blurb: 'The catalogue teaches the MOSFET almost entirely as a power switch. This ' +
-                   'is the analog half, and most of it had to be written.',
+            id: 'fet-amplifier', semester: 2,
+            title: 'The FET as an amplifier',
+            blurb: 'The analog half of the MOSFET, which a power-electronics treatment of the ' +
+                   'device never reaches.',
             steps: [
                 { ref: [5, 1], title: 'MOSFET fundamentals',
                   earns: 'Threshold, inversion, and the three regions.' },
-                { ref: [5, 2], status: 'new', slug: 'mosfet-small-signal',
-                  title: 'MOSFET small-signal model and gm',
-                  earns: 'gm = 2·ID/Vov = sqrt(2·k·ID) derived from the square law — and why ' +
-                         'a FET needs far more current than a BJT for the same gm.' },
-                { ref: [5, 3], status: 'new', slug: 'common-source',
-                  title: 'The common-source amplifier',
-                  earns: 'The FET counterpart of common-emitter, worked end to end. The ' +
-                         'catalogue has no lesson for this at all.' },
+                { ref: [5, 2], title: 'Small-signal model and gm',
+                  earns: 'gm = √(2k·ID) = 2ID/Vov derived — and why a FET needs far more ' +
+                         'current than a BJT for the same gm.' },
+                { ref: [5, 3], title: 'The common-source amplifier',
+                  earns: 'The FET counterpart of common-emitter, worked end to end, and why ' +
+                         'fixed-VGS biasing fails on threshold spread.' },
+                { ref: null, status: 'todo', title: 'Source follower (common-drain)',
+                  earns: 'The FET buffer, and the body effect that stops its gain reaching one.' },
+                { ref: null, status: 'todo', title: 'Common-gate',
+                  earns: 'Low input impedance by design, and the other half of the cascode.' },
                 { ref: [5, 5], title: 'Body effect and the back gate',
                   earns: 'The fourth terminal, and the threshold shift that breaks a source ' +
                          'follower you thought you had designed.' },
-                { ref: [5, 4], status: 'new', slug: 'real-fet-behaviour',
-                  title: 'What the square law gets wrong',
-                  earns: 'Channel-length modulation, velocity saturation, subthreshold ' +
-                         'conduction, and the Vth spread across a real reel of parts.' }
+                { ref: [5, 4], title: 'What the square law gets wrong',
+                  earns: 'Subthreshold, velocity saturation, Pelgrom matching, and the ' +
+                         'zero-tempco point.' }
             ]
         },
         {
-            id: 'building-blocks',
+            id: 'frequency', semester: 2,
+            title: 'Frequency response',
+            blurb: 'Every amplifier so far has been treated as if it worked at all frequencies. ' +
+                   'None of them do.',
+            steps: [
+                { ref: [4, 13], title: 'BJT frequency response',
+                  earns: 'fT, beta roll-off, and where the useful band actually ends.' },
+                { ref: null, status: 'todo', title: 'The Miller effect, derived',
+                  earns: 'Why a 5 pF feedback capacitance behaves like 58 pF at the input, and ' +
+                         'why that is the dominant pole in most single-stage amplifiers.' },
+                { ref: [4, 8], title: 'Cascode',
+                  earns: 'The fix for Miller, and why high-frequency circuits look the way ' +
+                         'they do.' },
+                { ref: null, status: 'todo', title: 'Poles, zeros and Bode plots by hand',
+                  earns: 'Sketching a response from the circuit without a simulator — the ' +
+                         'skill that makes stability analysis intuitive rather than numerical.' }
+            ]
+        },
+
+        // ============================ SEMESTER 3 ============================
+        {
+            id: 'building-blocks', semester: 3,
             title: 'The blocks an op-amp is made of',
-            blurb: 'Back to where the path started, from the inside. By the end of this stage ' +
-                   'you can draw the op-amp you were using in stage 2.',
+            blurb: 'Back to where the course started, from the inside. By the end of this ' +
+                   'stage you can draw the op-amp you were using in semester 1.',
             steps: [
                 { ref: [4, 9], title: 'The differential pair',
                   earns: 'The input stage of essentially every op-amp ever made.' },
                 { ref: [4, 10], title: 'Current mirrors',
-                  earns: 'Biasing and active loads, from one matched pair.' },
+                  earns: 'Biasing and active loads from one matched pair — and the error ' +
+                         'budget that decides whether yours works.' },
                 { ref: [5, 7], title: 'MOSFET current mirrors',
                   earns: 'The same idea where matching is a layout problem, not a purchase.' },
                 { ref: [4, 11], title: 'Active loads',
-                  earns: 'Where the enormous open-loop gain in stage 3 actually came from.' },
-                { ref: [4, 8], title: 'Cascode',
-                  earns: 'The fix for the common-emitter\'s Miller problem, and the reason ' +
-                         'high-frequency circuits look the way they do.' },
+                  earns: 'Where the enormous open-loop gain in semester 1 came from.' },
+                { ref: [4, 17], title: 'Multistage amplifier design',
+                  earns: 'Putting stages together without the interfaces eating the gain.' },
                 { ref: [7, 2], title: 'Bandgap references',
-                  earns: 'Two temperature coefficients cancelled on purpose — the most ' +
-                         'elegant use of everything above.' }
+                  earns: 'Two temperature coefficients cancelled on purpose — the most elegant ' +
+                         'use of everything above.' }
             ]
         },
         {
-            id: 'design',
-            title: 'Designing with real parts',
-            blurb: 'The end of the path: not "how does this work" but "which one do I buy, ' +
-                   'and will it still work at 85 °C with the transistor I actually get".',
+            id: 'feedback-deep', semester: 3,
+            title: 'Feedback, properly',
+            blurb: 'Semester 1 used feedback. This is the analysis: how much you have, what it ' +
+                   'buys, and when it turns into an oscillator.',
             steps: [
-                { ref: null, status: 'new', slug: 'choosing-a-transistor',
-                  title: 'Choosing a transistor from a datasheet',
-                  earns: 'Reading a real BJT and MOSFET datasheet: which parameters are ' +
-                         'guaranteed, which are typical-only, how much beta really varies, ' +
-                         'and how to pick a part rather than recognise one.' },
-                { ref: [4, 36], status: 'new', slug: 'current-mirror-design',
-                  title: 'Design: a current mirror from a datasheet',
-                  earns: 'The capstone. Specify it, choose the part by number, work the ' +
-                         'matching and Early-effect errors from real datasheet numbers, and ' +
-                         'decide whether it meets spec over temperature.' },
+                { ref: [3, 3], title: 'Stability analysis',
+                  earns: 'Loop gain, phase margin, and the relation between margin and ' +
+                         'overshoot — derived, not asserted.' },
+                { ref: [3, 4], title: 'Compensation techniques',
+                  earns: 'Dominant pole, lead, lag: moving poles on purpose.' },
+                { ref: [3, 5], title: 'Two-stage amplifier compensation',
+                  earns: 'Miller compensation and pole splitting — the technique behind almost ' +
+                         'every integrated op-amp.' },
+                { ref: [3, 6], title: 'Stability with reactive loads',
+                  earns: 'Why a capacitive load turns a stable amplifier into an oscillator.' },
+                { ref: [3, 8], title: 'The Nyquist criterion',
+                  earns: 'The general statement, for cases where phase margin cannot answer ' +
+                         'the question.' }
+            ]
+        },
+        {
+            id: 'output-and-signal', semester: 3,
+            title: 'Output stages, oscillators and filters',
+            blurb: 'The circuits that deliver power, generate signals, and shape spectra.',
+            steps: [
+                { ref: [6, 1], title: 'Push-pull output stages',
+                  earns: 'Class A, B and AB, and where crossover distortion comes from.' },
+                { ref: [6, 5], title: 'Class AB biasing',
+                  earns: 'The VBE multiplier, and thermal runaway in an output stage.' },
+                { ref: [8, 2], title: 'RC oscillators (Wien bridge)',
+                  earns: 'Barkhausen, and the amplitude control problem every oscillator has.' },
+                { ref: [8, 1], title: 'LC oscillators',
+                  earns: 'Colpitts and Hartley, and why Q matters.' },
+                { ref: [8, 3], title: 'Crystal oscillators',
+                  earns: 'What a 10,000× improvement in Q buys, and what it costs.' }
+            ]
+        },
+
+        // ============================ SEMESTER 4 ============================
+        {
+            id: 'real-design', semester: 4,
+            title: 'Designing with real parts',
+            blurb: 'Not "how does this work" but "which one do I buy, and will it still meet ' +
+                   'spec at 70 °C with the part I actually receive".',
+            steps: [
+                { ref: null, status: 'todo', title: 'Choosing a transistor from a datasheet',
+                  earns: 'Which parameters are guaranteed, which are typical-only, how much ' +
+                         'beta really varies, and how to pick a part rather than recognise one.' },
+                { ref: [4, 36], title: 'Design: a current mirror from a datasheet',
+                  earns: 'An error budget against a real spec, and choosing between a $0.15 ' +
+                         'dual and an $8 matched pair.' },
                 { ref: [4, 34], title: 'Industry BJT selection guide',
-                  earns: 'The catalogue\'s reference list, useful once you know what the ' +
-                         'columns mean.' }
+                  earns: 'The reference list, useful once you know what the columns mean.' }
+            ]
+        },
+        {
+            id: 'systems', semester: 4,
+            title: 'Systems and the real world',
+            blurb: 'Where analog design meets everything else: converters, power, interference, ' +
+                   'and the grid.',
+            steps: [
+                { ref: [16, 1], title: 'Data conversion',
+                  earns: 'What happens at the boundary between this course and the digital one.' },
+                { ref: [13, 1], title: 'Power supply design',
+                  earns: 'The circuit every other circuit depends on.' },
+                { ref: [21, 1], title: 'EMI and EMC',
+                  earns: 'Why a circuit that works on a bench fails in a product.' },
+                { ref: [26, 1], title: 'Power systems and the grid',
+                  earns: 'The same physics, six orders of magnitude larger.' }
             ]
         }
     ];
 
-    /** Every step, flattened, with its stage and 1-based position on the path. */
     function steps() {
         const out = [];
         STAGES.forEach((stage, si) => {
@@ -223,6 +346,7 @@ const LEARNING_PATH = (() => {
                 out.push(Object.assign({}, step, {
                     stageId: stage.id,
                     stageTitle: stage.title,
+                    semester: stage.semester,
                     stageIndex: si,
                     indexInStage: i,
                     position: out.length + 1
@@ -236,17 +360,21 @@ const LEARNING_PATH = (() => {
         return STAGES.reduce((n, s) => n + s.steps.length, 0);
     }
 
-    /** The path position of a catalogue lesson, or null if it is not on the path. */
+    /** Topics the syllabus calls for that have not been written yet. */
+    function todo() {
+        return steps().filter(s => !s.ref);
+    }
+
+    function stagesFor(semester) {
+        return STAGES.filter(s => s.semester === semester);
+    }
+
     function positionOf(moduleId, lessonId) {
         const hit = steps().find(s => s.ref && s.ref[0] === moduleId && s.ref[1] === lessonId);
         return hit ? hit.position : null;
     }
 
-    function stepAt(position) {
-        return steps()[position - 1] || null;
-    }
-
-    return { STAGES, steps, total, positionOf, stepAt };
+    return { SEMESTERS, STAGES, steps, total, todo, stagesFor, positionOf };
 })();
 
 if (typeof window !== 'undefined') window.LEARNING_PATH = LEARNING_PATH;
