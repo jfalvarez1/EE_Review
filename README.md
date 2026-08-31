@@ -1,31 +1,124 @@
 # EE Review — Analog Design & Power Systems Study Guide
 
-A browser-based quick-reference study guide for electrical engineering. **26 modules, 354
-lessons**, each one short enough to read in a sitting: the concept, the equations that matter,
-a worked example with real numbers, an interactive calculator, and the gotchas that only show
-up on a bench or in the field.
+A browser-based study guide for electrical engineering. **26 modules, 358 lessons**, each one
+short enough to read in a sitting: the concept, the equations that matter, a worked example
+with real numbers, an interactive calculator, and the gotchas that only show up on a bench or
+in the field.
 
-It is deliberately **not** a course you work through in order. Open the sidebar, jump to the
-thing you need to remember, and leave.
+It reads two ways, and they are genuinely different documents:
 
-![The welcome screen, showing 26 modules and 354 lessons](docs/images/welcome.png)
+- **[The learning path](#the-learning-path)** (`#path`) — one ordered route for someone who has
+  finished a first circuits course and wants to end up designing. Foundation first: what an
+  amplifier *is*, then the ideal op-amp, then why feedback makes it true, then the transistor
+  arriving as the answer to "how was that built" rather than as a prerequisite. Every step says
+  what it earns you.
+- **The sidebar** — the same lessons grouped by topic. This is the right shape when you already
+  know the subject and need to look one thing up, and the wrong shape to learn from: it opens
+  with 35 lessons of transistor internals.
+
+![The welcome screen, showing 26 modules and 358 lessons](docs/images/welcome.png)
+
+### Suggested pairing: run the simulations in Circuit Toy
+
+This guide **teaches and calculates**; it does not simulate. Where a lesson would benefit from
+seeing a circuit actually solved — a mirror's output resistance against collector voltage, a
+loop's phase margin, a converter's ripple — build it in the companion project:
+
+> ### 🔌 [**Circuit Toy**](https://github.com/jfalvarez1/circuit_toy)
+> A fully featured circuit simulator with a synthwave bench: MNA analog + digital solver,
+> live probes, and a schematic editor.
+
+The two are designed to sit side by side. This repo's symbol catalogue is ported from Circuit
+Toy's component registry, so a schematic here and a schematic there use the same conventions
+and the same pin geometry — which means a circuit you read about in a lesson is a circuit you
+can rebuild in the simulator without translating anything.
 
 ---
 
 ## Running it
 
-The lessons are loaded over XHR, so the app needs a web server — opening `index.html`
-straight off disk will show a browser-security notice instead of lesson content.
+**Windows:** double-click `launch.bat`.
+**macOS / Linux:** `./launch.sh`.
 
-```bash
-python -m http.server 8000
-# then open http://localhost:8000
+Both find Python, start a server, open your browser, and print a second URL you can open on
+your phone:
+
+```
+  Analog Design Refresher Course
+  --------------------------------------------
+  On this computer:  http://localhost:8080/index.html
+  On your phone:     http://192.168.0.108:8080/index.html
+                     (same WiFi network)
+
+  Start here:        http://localhost:8080/index.html#path
+  Symbol reference:  http://localhost:8080/components.html
 ```
 
-On Windows, `Launch_EE_Learning.bat` does the same thing and opens a browser for you.
+If 8080 is busy it takes the next free port rather than failing, and it serves with caching
+off so an edited lesson appears on reload instead of three reloads later. `--local-only`
+binds to loopback if you would rather nothing on the network could reach it; `--no-browser`
+and `--port N` do what they say.
+
+**Why a server at all**, when there is no build step? Because lessons are fetched with
+`XMLHttpRequest`, and every browser blocks that on `file://`. Opening `index.html` directly
+gives you a sidebar full of lessons that will not load — which is why the launcher has no
+"just open the file" fallback. It would produce exactly the broken page it was meant to
+avoid.
+
+Any static server works if you prefer:
+
+```bash
+python -m http.server 8080      # then http://localhost:8080/index.html
+npx --yes http-server -p 8080 -c-1
+```
 
 No build step, no dependencies, no `node_modules`. It is plain HTML, CSS and ES5-compatible
-JavaScript.
+JavaScript. Python is needed only to serve the files, not by the course itself.
+
+---
+
+## The learning path
+
+Open `#path`, or the **Start here** link above the sidebar search.
+
+The 26 modules are a catalogue: lessons grouped by topic. That is the right shape for looking
+something up and the wrong shape for learning, and for a long time it was the only view. Three
+things were wrong with it as a teaching order:
+
+- **It is inverted.** The course opens with 35 lessons of BJT internals, before the learner has
+  met an op-amp. You can use an op-amp correctly long before you can explain one.
+- **Feedback is module 25 of 26.** The golden rules in module 2 are only true because of it, so
+  the learner applies feedback for 23 modules before being told why it works.
+- **Modules do not build internally either.** Differential pair (M1-3) and current mirrors
+  (M1-4) come before DC biasing (M1-5). The high-frequency AC model is M1-21, twelve lessons
+  after the frequency response it exists to explain.
+
+The path is one ordered route through the same lessons, in nine stages:
+
+| | Stage | What it earns you |
+|---|---|---|
+| 1 | What an amplifier is | Gain, Zin, Zout, and why there are exactly four kinds |
+| 2 | Using the ideal op-amp | Real circuits, solvable with two rules and no transistors |
+| 3 | Why any of that worked | Feedback — pulled forward from module 25 |
+| 4 | It stops being ideal | Bandwidth, slew, Vos, noise, and the datasheet that predicts them |
+| 5 | Inside: the switch | The transistor with no small-signal model needed |
+| 6 | The BJT as an amplifier | Model, then bias, then topologies — the catalogue's reverse |
+| 7 | The FET as an amplifier | gm, common-source, and where the square law fails |
+| 8 | The blocks an op-amp is made of | Diff pair, mirrors, active loads, cascode |
+| 9 | Designing with real parts | Datasheets, tolerances, and choosing a part by number |
+
+37 steps. Thirty point at existing lessons; seven were written because the catalogue had no
+lesson for them at all — including, surprisingly, **the common-source amplifier**: module 5 is
+20 lessons of MOSFET material that teaches the device almost entirely as a power switch.
+
+Nothing is renumbered. A step points at a lesson, so deep links and saved progress are
+untouched, and the catalogue still works exactly as before.
+
+**Depth, per topic.** Every lesson written for the path carries the same four things: a
+derivation from first principles, worked numbers escalating from clean to realistic, real part
+numbers with real datasheet figures, and the failure modes that bite you on a bench. The path
+ends where the numbers do — designing a current mirror to a ±5% spec, working the error budget,
+and choosing between a $0.15 dual and an $8 matched pair.
 
 ---
 
@@ -189,7 +282,7 @@ for (const m of CURRICULUM.modules) {
 }
 ```
 
-Latest run: **354 lessons, 2,529 controls, 483 canvases, zero JavaScript errors.**
+Latest run: **358 lessons, 2,529 controls, 483 canvases, zero JavaScript errors.**
 
 ### Four checks worth running after any change
 
@@ -261,7 +354,7 @@ should use theme colours directly.
 
 ### Current state
 
-Full sweep, 354 lessons: **4,497 controls, 483 canvases, 0 JavaScript errors, 0 non-finite
+Full sweep, 358 lessons: **4,512 controls, 483 canvases, 0 JavaScript errors, 0 non-finite
 readouts, 0 geometry findings, 0 connection problems.**
 
 Every control that the sweep could drive non-finite now declares an admissible range, so
