@@ -149,14 +149,22 @@ function extractSpecs(html) {
         let j = i + marker.length;
         while (j < html.length && /\s/.test(html[j])) j++;
         if (html[j] !== '{') { i = j; continue; }
-        let depth = 0, end = j, inStr = null;
+        // The scanner must know about COMMENTS, not just strings. These specs
+        // are heavily commented and an apostrophe in "Q2's collector" reads as
+        // an opening quote otherwise - which swallows the rest of the literal
+        // and reports a brace error. That was this tool's third bug.
+        let depth = 0, end = j, inStr = null, inCmt = null;
         for (; end < html.length; end++) {
-            const c = html[end];
+            const c = html[end], n = html[end + 1];
+            if (inCmt === '//') { if (c === '\n') inCmt = null; continue; }
+            if (inCmt === '/*') { if (c === '*' && n === '/') { end++; inCmt = null; } continue; }
             if (inStr) {
                 if (c === '\\') { end++; continue; }
                 if (c === inStr) inStr = null;
                 continue;
             }
+            if (c === '/' && n === '/') { inCmt = '//'; end++; continue; }
+            if (c === '/' && n === '*') { inCmt = '/*'; end++; continue; }
             if (c === '"' || c === "'" || c === '`') { inStr = c; continue; }
             if (c === '{') depth++;
             else if (c === '}') { depth--; if (depth === 0) { end++; break; } }

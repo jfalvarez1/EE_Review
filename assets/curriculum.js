@@ -312,204 +312,210 @@ const CURRICULUM = {
                 },
                 {
                     id: 4,
+                    title: 'The Miller Effect, Derived',
+                    description: 'Why four picofarads turns a 300 MHz transistor into a 215 kHz amplifier',
+                    topics: ['Zin = Z/(1-Av), in four lines', 'Ceff = C(1+A) at the input, C(1+1/A) at the output', 'Open-circuit time constants as the cross-check', 'Gain-bandwidth = 1/2*pi*Rs*Cmu, independent of gain', 'The right-half-plane zero at gm/Cmu', 'Cascode, common-base, stiffer source, less gain']
+                },
+                {
+                    id: 5,
                     title: 'DC Biasing Techniques',
                     description: 'Fixed, voltage-divider, and emitter bias',
                     topics: ['β-independent design', 'Stiffness rule', 'Thermal stability', 'Q-point calculation']
                 },
                 {
-                    id: 5,
+                    id: 6,
                     title: 'Common-Emitter Amplifier',
                     description: 'Gain, biasing, input/output impedance',
                     topics: ['G = -RC/(RE + re)', 'Voltage divider bias', 'Phase inversion', 'Clipping behavior']
                 },
                 {
-                    id: 6,
+                    id: 7,
                     title: 'Emitter Follower (Common-Collector)',
                     description: 'Unity gain buffer with high input impedance',
                     topics: ['Av ≈ 1', 'Zin = β(RE + re)', 'Zout = RS/β + re', 'Current gain']
                 },
                 {
-                    id: 7,
+                    id: 8,
                     title: 'Common-Base Amplifier',
                     description: 'Low input impedance, high frequency performance',
                     topics: ['Zin ≈ re', 'No Miller effect', 'Current buffer', 'Cascode lower device']
                 },
                 {
-                    id: 8,
+                    id: 9,
                     title: 'BJT as a Switch',
                     description: 'Saturation, cutoff, and switching times',
                     topics: ['Saturation conditions', 'Forced β', 'Storage time', 'Speed-up capacitor']
                 },
                 {
-                    id: 9,
+                    id: 10,
                     title: 'Cascode Amplifier',
                     description: 'CE-CB cascade for high bandwidth and gain',
                     topics: ['Miller elimination', 'Output impedance', 'Voltage gain', 'Folded cascode']
                 },
                 {
-                    id: 10,
+                    id: 11,
                     title: 'Differential Pair',
                     description: 'How the diff pair creates op-amp front-end',
                     topics: ['Transfer characteristic', 'Gdiff = RC/(2(RE + re))', 'CMRR with current source tail', 'Common-mode rejection']
                 },
                 {
-                    id: 11,
+                    id: 12,
                     title: 'Current Mirrors',
                     description: 'Simple, Wilson, and cascode configurations',
                     topics: ['Matched transistor principle', 'Output impedance comparison', 'Compliance range', 'Early effect']
                 },
                 {
-                    id: 12,
+                    id: 13,
                     title: 'BJT Active Loads',
                     description: 'Current source loads for high gain',
                     topics: ['Current source vs resistor', 'Gain = gm × ro', 'Output swing', 'Common-mode range']
                 },
                 {
-                    id: 13,
+                    id: 14,
                     title: 'Darlington and Sziklai Pairs',
                     description: 'Compound transistors for high β',
                     topics: ['β multiplication', 'VBE(sat) = 2VBE', 'Sziklai (complementary)', 'Speed vs gain']
                 },
                 {
-                    id: 14,
+                    id: 15,
                     title: 'BJT Frequency Response',
                     description: 'fT, fβ, and high-frequency limitations',
                     topics: ['Transition frequency', 'Miller effect', 'Hybrid-pi model', 'Bandwidth estimation']
                 },
                 {
-                    id: 15,
+                    id: 16,
                     title: 'BJT Amplifier Distortion',
                     description: 'Nonlinearity, harmonic distortion, and intermodulation',
                     topics: ['Exponential nonlinearity', 'THD analysis', 'Emitter degeneration', 'Feedback linearization']
                 },
                 {
-                    id: 16,
+                    id: 17,
                     title: 'BJT Noise Analysis',
                     description: 'Shot noise, thermal noise, 1/f noise',
                     topics: ['in² = 2qIC', 'Noise figure', 'Optimal collector current', 'Low-noise design']
                 },
                 {
-                    id: 17,
+                    id: 18,
                     title: 'Temperature Compensation Techniques',
                     description: 'Bias stability and drift cancellation',
                     topics: ['Diode compensation', 'PTAT currents', 'Matched pairs', 'Thermal tracking']
                 },
                 {
-                    id: 18,
+                    id: 19,
                     title: 'Multistage Amplifier Design',
                     description: 'Cascading gain stages, coupling, and feedback',
                     topics: ['DC coupling', 'Impedance matching', 'Overall gain', 'Feedback techniques']
                 },
                 {
-                    id: 19,
+                    id: 20,
                     title: 'BJT in Bandgap References',
                     description: 'PTAT + CTAT for stable voltage reference',
                     topics: ['ΔVBE generation', '1.2V reference', 'Temperature coefficient', 'Curvature correction']
                 },
                 {
-                    id: 20,
+                    id: 21,
                     title: 'BJT Current Limiters and Foldback Protection',
                     description: 'Overcurrent protection circuits',
                     topics: ['Simple current limit', 'Foldback characteristic', 'Safe operating area', 'Sense resistor']
                 },
                 {
-                    id: 21,
+                    id: 22,
                     title: 'BJT Oscillators',
                     description: 'Colpitts, Hartley, and crystal oscillators',
                     topics: ['Barkhausen criterion', 'Tank circuit', 'Start-up conditions', 'Amplitude limiting']
                 },
                 {
-                    id: 22,
+                    id: 23,
                     title: 'Emitter Follower Oscillation',
                     description: 'Parasitic oscillation and why output looks inductive',
                     topics: ['Inductive output impedance', 'Capacitive load instability', 'Base stopper resistor', 'Ferrite beads']
                 },
                 {
-                    id: 23,
+                    id: 24,
                     title: 'Wideband BJT Amplifiers',
                     description: 'Design for maximum bandwidth',
                     topics: ['Load capacitance reduction', 'Shunt peaking', 'Distributed amplifiers', 'Cherry-Hooper']
                 },
                 {
-                    id: 24,
+                    id: 25,
                     title: 'Low-Current BJT Operation',
                     description: 'Micropower design and β degradation',
                     topics: ['β vs IC at low currents', 'Leakage currents', 'fT reduction', 'Precision bias']
                 },
                 {
-                    id: 25,
+                    id: 26,
                     title: 'High-Current BJT Effects',
                     description: 'Kirk effect, β droop, and quasi-saturation',
                     topics: ['High-level injection', 'Base widening', 'Current crowding', 'fT degradation']
                 },
                 {
-                    id: 26,
+                    id: 27,
                     title: 'BJT SPICE Modeling',
                     description: 'Gummel-Poon model parameters and simulation',
                     topics: ['IS, BF, BR', 'Early voltage VA', 'Transit time TF', 'Capacitance parameters']
                 },
                 {
-                    id: 27,
+                    id: 28,
                     title: 'Translinear Circuits',
                     description: 'Log-domain signal processing with BJTs',
                     topics: ['Translinear principle', 'Analog multipliers', 'RMS-to-DC converters', 'Log amplifiers']
                 },
                 {
-                    id: 28,
+                    id: 29,
                     title: 'BJT Output Stages',
                     description: 'Class A, B, AB push-pull designs',
                     topics: ['Crossover distortion', 'Vbe multiplier bias', 'Thermal stability', 'Quasi-complementary']
                 },
                 {
-                    id: 29,
+                    id: 30,
                     title: 'BJT vs MOSFET Trade-offs',
                     description: 'When to use BJT over MOSFET and vice versa',
                     topics: ['gm per current', 'Input impedance', 'Noise performance', 'Matching']
                 },
                 {
-                    id: 30,
+                    id: 31,
                     title: 'High-Speed BJT Circuits',
                     description: 'ECL logic and fast switching',
                     topics: ['ECL gates', 'Non-saturating design', 'Current steering', 'Transmission line drivers']
                 },
                 {
-                    id: 31,
+                    id: 32,
                     title: 'BJT Bootstrapping Techniques',
                     description: 'Increasing input impedance and swing',
                     topics: ['Bootstrap capacitor', 'Constant current drive', 'Voltage swing extension', 'Stability considerations']
                 },
                 {
-                    id: 32,
+                    id: 33,
                     title: 'BJT in Feedback Amplifiers',
                     description: 'Series-shunt, shunt-series feedback topologies',
                     topics: ['Four feedback topologies', 'Gain desensitization', 'Bandwidth extension', 'Input/output impedance']
                 },
                 {
-                    id: 33,
+                    id: 34,
                     title: 'Precision BJT Matched Pairs',
                     description: 'Matched transistors for precision analog',
                     topics: ['VBE matching', 'Thermal coupling', 'MAT02/MAT03', 'Differential offset']
                 },
                 {
-                    id: 34,
+                    id: 35,
                     title: 'Power BJTs and Thermal Design',
                     description: 'SOA, thermal resistance, and heatsinking',
                     topics: ['Secondary breakdown', 'RθJC/RθJA', 'Thermal runaway', 'Derating curves']
                 },
                 {
-                    id: 35,
+                    id: 36,
                     title: 'Industry BJT Selection Guide',
                     description: 'Choosing the right BJT for your application',
                     topics: ['2N3904/2N3906', 'BC547/BC557', 'Power transistors', 'RF transistors']
                 },
                 {
-                    id: 36,
+                    id: 37,
                     title: 'BJT Design Case Studies',
                     description: 'Real-world designs analyzed step by step',
                     topics: ['20V 5ns amplifier', 'Audio power amp', 'Precision current source', 'RF LNA design']
                 },
                 {
-                    id: 37,
+                    id: 38,
                     title: 'Design: A Current Mirror from a Datasheet',
                     description: 'An error budget against a real spec, and choosing the part that meets it',
                     topics: ['VBE mismatch = dVBE/VT', 'Matched pairs: 2N3904 vs BC847BS vs MAT12', 'Emitter degeneration: money or headroom', 'Early effect and the cascode fix']

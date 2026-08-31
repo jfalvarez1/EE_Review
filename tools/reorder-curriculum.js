@@ -56,12 +56,9 @@ const MODULE_ORDER = [
 // Entries are validated as permutations of the module they name, so a stale
 // plan aborts rather than scrambling the lessons.
 const LESSON_ORDER = {
-    // BJTs: the small-signal model was written last and appended at 37, but it
-    // is the tool every later lesson uses. It belongs at position 2, before the
-    // high-frequency model that adds capacitors to it and before the amplifier
-    // topologies whose gain expressions it supplies.
-    5: [1, 37, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-        20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36]
+    // Empty. Applied so far: the small-signal model lifted to position 2, then
+    // Miller to position 4 - after the high-frequency model that introduces the
+    // capacitances it is about, and before the cascode that answers it.
 };
 
 // Lessons that are in the wrong MODULE, given as current coordinates. Each is

@@ -163,11 +163,11 @@ const LEARNING_PATH = (() => {
             blurb: 'Open the box. The switch comes first because it needs no small-signal ' +
                    'model — it is on or it is off.',
             steps: [
-                { ref: [5, 8], title: 'BJT as a switch',
+                { ref: [5, 9], title: 'BJT as a switch',
                   earns: 'Saturation, base drive, and why an overdriven BJT turns off slowly.' },
                 { ref: [6, 11], title: 'MOSFET as a switch',
                   earns: 'The same job done by a voltage, and Rds(on) instead of Vce(sat).' },
-                { ref: [5, 29], title: 'BJT versus MOSFET',
+                { ref: [5, 30], title: 'BJT versus MOSFET',
                   earns: 'When each wins, on the axes that actually decide it.' }
             ]
         },
@@ -185,15 +185,15 @@ const LEARNING_PATH = (() => {
                   earns: 'Hybrid-pi derived from the exponential: gm, r-pi, ro, the intrinsic ' +
                          'gain VA/VT, and exactly how small a small signal must be. Everything ' +
                          'after this is that model with different resistors around it.' },
-                { ref: [5, 4], title: 'DC biasing',
+                { ref: [5, 5], title: 'DC biasing',
                   earns: 'Putting the device where the model is valid, and keeping it there ' +
                          'over temperature and beta spread.' },
-                { ref: [5, 5], title: 'Common-emitter',
+                { ref: [5, 6], title: 'Common-emitter',
                   earns: 'Voltage gain, and its three problems: gain that depends on beta, ' +
                          'distortion, and a low input impedance.' },
-                { ref: [5, 6], title: 'Emitter follower',
+                { ref: [5, 7], title: 'Emitter follower',
                   earns: 'Gain of one, and why that is worth a whole transistor.' },
-                { ref: [5, 7], title: 'Common-base',
+                { ref: [5, 8], title: 'Common-base',
                   earns: 'The current-input stage, and the first hint of why cascode exists.' }
             ]
         },
@@ -230,12 +230,14 @@ const LEARNING_PATH = (() => {
             blurb: 'Every amplifier so far has been treated as if it worked at all frequencies. ' +
                    'None of them do.',
             steps: [
-                { ref: [5, 14], title: 'BJT frequency response',
+                { ref: [5, 15], title: 'BJT frequency response',
                   earns: 'fT, beta roll-off, and where the useful band actually ends.' },
-                { ref: null, status: 'todo', title: 'The Miller effect, derived',
-                  earns: 'Why a 5 pF feedback capacitance behaves like 58 pF at the input, and ' +
-                         'why that is the dominant pole in most single-stage amplifiers.' },
-                { ref: [5, 9], title: 'Cascode',
+                { ref: [5, 4], title: 'The Miller effect, derived',
+                  earns: 'Why 4 pF of collector-base capacitance behaves like 732 pF at the ' +
+                         'input and turns a 300 MHz transistor into a 215 kHz amplifier — and ' +
+                         'why the gain-bandwidth product that results depends on nothing but ' +
+                         'the source resistance.' },
+                { ref: [5, 10], title: 'Cascode',
                   earns: 'The fix for Miller, and why high-frequency circuits look the way ' +
                          'they do.' },
                 { ref: null, status: 'todo', title: 'Poles, zeros and Bode plots by hand',
@@ -251,16 +253,16 @@ const LEARNING_PATH = (() => {
             blurb: 'Back to where the course started, from the inside. By the end of this ' +
                    'stage you can draw the op-amp you were using in semester 1.',
             steps: [
-                { ref: [5, 10], title: 'The differential pair',
+                { ref: [5, 11], title: 'The differential pair',
                   earns: 'The input stage of essentially every op-amp ever made.' },
-                { ref: [5, 11], title: 'Current mirrors',
+                { ref: [5, 12], title: 'Current mirrors',
                   earns: 'Biasing and active loads from one matched pair — and the error ' +
                          'budget that decides whether yours works.' },
                 { ref: [6, 9], title: 'MOSFET current mirrors',
                   earns: 'The same idea where matching is a layout problem, not a purchase.' },
-                { ref: [5, 12], title: 'Active loads',
+                { ref: [5, 13], title: 'Active loads',
                   earns: 'Where the enormous open-loop gain in semester 1 came from.' },
-                { ref: [5, 18], title: 'Multistage amplifier design',
+                { ref: [5, 19], title: 'Multistage amplifier design',
                   earns: 'Putting stages together without the interfaces eating the gain.' },
                 { ref: [8, 2], title: 'Bandgap references',
                   earns: 'Two temperature coefficients cancelled on purpose — the most elegant ' +
@@ -316,10 +318,10 @@ const LEARNING_PATH = (() => {
                 { ref: null, status: 'todo', title: 'Choosing a transistor from a datasheet',
                   earns: 'Which parameters are guaranteed, which are typical-only, how much ' +
                          'beta really varies, and how to pick a part rather than recognise one.' },
-                { ref: [5, 37], title: 'Design: a current mirror from a datasheet',
+                { ref: [5, 38], title: 'Design: a current mirror from a datasheet',
                   earns: 'An error budget against a real spec, and choosing between a $0.15 ' +
                          'dual and an $8 matched pair.' },
-                { ref: [5, 35], title: 'Industry BJT selection guide',
+                { ref: [5, 36], title: 'Industry BJT selection guide',
                   earns: 'The reference list, useful once you know what the columns mean.' }
             ]
         },
