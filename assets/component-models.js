@@ -2442,6 +2442,29 @@ const ComponentModels = (() => {
     });
 
     define({
+        key: 'port',
+        name: 'Off-sheet Port',
+        category: 'Measurement',
+        refdes: '',
+        aliases: ['terminal', 'off-sheet', 'continuation'],
+        pins: [
+            { name: 'a', x: -15, y: 0, dir: 'W' }
+        ],
+        body: { x: -15, y: -7, w: 22, h: 14 },
+        ops: [
+            ['line', -15, 0, -7, 0],
+            ['circle', 0, 0, 7]
+        ],
+        params: [],
+        equations: [],
+        study: {
+            what: 'Marks a conductor that continues off the drawing - to the next sheet, the rest of the feeder, or a load not shown.',
+            remember: ['A wire that simply stops in white space is ambiguous: it reads as either an error or an invisible connection. A port says which.'],
+            gotchas: ['Ports must be labelled. An unlabelled port is worse than no port, because it implies a connection you have not named.']
+        }
+    });
+
+    define({
         key: 'testpoint',
         name: 'Test Point',
         category: 'Measurement',
@@ -2965,13 +2988,15 @@ const ComponentModels = (() => {
             const halfH = (b.h / 2) * o.scale;
             const halfW = (b.w / 2) * o.scale;
             if (pos === 'top') {
-                lx = o.x; ly = o.y - halfH - 8; vy = o.y + halfH + 14; anchor = 'middle';
+                // Both stacked ABOVE the body: label on top, value beneath it.
+                lx = o.x; ly = o.y - halfH - 22; vy = o.y - halfH - 9; anchor = 'middle';
+                if (!o.label) ly = vy;
             } else if (pos === 'bottom') {
-                lx = o.x; ly = o.y + halfH + 14; vy = o.y + halfH + 26; anchor = 'middle';
+                lx = o.x; ly = o.y + halfH + 14; vy = o.y + halfH + 28; anchor = 'middle';
             } else if (pos === 'left') {
-                lx = o.x - halfW - 8; ly = o.y - 2; vy = o.y + 11; anchor = 'end';
+                lx = o.x - halfW - 9; ly = o.y - 5; vy = o.y + 10; anchor = 'end';
             } else {
-                lx = o.x + halfW + 8; ly = o.y - 2; vy = o.y + 11; anchor = 'start';
+                lx = o.x + halfW + 9; ly = o.y - 5; vy = o.y + 10; anchor = 'start';
             }
             if (pos !== 'none') {
                 if (o.label) {
@@ -2979,7 +3004,7 @@ const ComponentModels = (() => {
                         { size: 11, anchor, weight: 'bold', color: COLORS.label }], COLORS.label));
                 }
                 if (o.value) {
-                    outer.push(opToSVG(['text', lx, o.label ? vy : ly, o.value,
+                    outer.push(opToSVG(['text', lx, vy, o.value,
                         { size: 10, anchor, color: COLORS.value }], COLORS.value));
                 }
             }

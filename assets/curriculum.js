@@ -2337,6 +2337,30 @@ const CURRICULUM = {
                     title: 'Field Safety and Practice',
                     description: 'Approach distances, arc flash, clearances and what goes wrong',
                     topics: ['OSHA 1910.269 MAD table', 'NFPA 70E PPE categories', 'Bracket grounding', 'Induced voltage and backfeed']
+                },
+                {
+                    id: 15,
+                    title: 'Conductor Selection and Ampacity',
+                    description: 'Why ampacity is a temperature you agree to, not a number on the wire',
+                    topics: ['ACSR/AAC/ACSS/ACCC families', 'IEEE 738 heat balance', 'Bird-named conductor tables', 'Bundling and corona']
+                },
+                {
+                    id: 16,
+                    title: 'Sag, Tension and Clearance',
+                    description: 'The catenary that decides structure height, span length and cost',
+                    topics: ['S = wL^2/8T', 'NESC tension limits', 'Ruling span', 'Clearance at max operating temperature']
+                },
+                {
+                    id: 17,
+                    title: 'Line Impedance, Structures and Insulation',
+                    description: 'How tower geometry becomes R, X and B',
+                    topics: ['GMD and GMR', 'X = 0.2794 log(GMD/GMR)', 'Phase configurations and transposition', 'Insulator strings, shielding, footing resistance']
+                },
+                {
+                    id: 18,
+                    title: 'Specifying a Transmission Line End to End',
+                    description: 'One worked project from brief to spec sheet',
+                    topics: ['N-1 sizes the conductor', 'Span versus structure-height trade', 'Loss economics', 'The line spec sheet']
                 }
             ]
         }

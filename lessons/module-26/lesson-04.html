@@ -333,47 +333,41 @@
     const sel = document.getElementById('seq-type');
     if (!host || !window.ComponentModels) return;
 
-    // Each sequence network is drawn as a source in series with its impedance,
-    // between a top node and the reference. Only the positive-sequence network
-    // has an internal EMF; negative and zero sequence are passive.
-    function network(x, yTop, label, zLabel, withSource) {
-        const parts = [];
-        if (withSource) {
-            parts.push({ key: 'vsource', x: x, y: yTop + 55, label: 'E', labelPos: 'left' });
-            parts.push({ key: 'resistor', x: x, y: yTop + 135, rotate: 90,
-                         label: zLabel, labelPos: 'right' });
-        } else {
-            parts.push({ key: 'resistor', x: x, y: yTop + 95, rotate: 90,
-                         label: zLabel, labelPos: 'right' });
-        }
-        return parts;
+    // Geometry note: vsource pins sit at y +/- 25 from its centre; a resistor
+    // rotated 90 has pins at y +/- 25; xfmr/ground pins are documented in
+    // component-models.js. Every coordinate below is derived from those, so
+    // conductors land on terminals rather than near them.
+    const SRC_Y = 80, Z1_Y = 165, Z2_Y = 255, Z3_Y = 345;
+
+    function stack(x, items) {
+        // items: [{key, y, label, labelPos}] already pin-aligned
+        return items.map(it => Object.assign({ x: x, rotate: 90 }, it));
     }
 
     const CONFIG = {
         '3p': {
-            caption: 'Only the positive-sequence network is involved. The fault point ' +
-                     'connects straight to the reference, so I = E / Z1.',
+            caption: 'Only the positive-sequence network is involved. The fault ' +
+                     'point connects straight back to the reference, so I = E / Z1.',
             insight: '<strong>Balanced fault, balanced solution.</strong> A three-phase ' +
                      'fault is symmetric, so it produces no negative or zero sequence at ' +
-                     'all. This is the only fault you can solve on a single-phase ' +
+                     'all. It is the only fault you can solve on a single-phase ' +
                      'equivalent without the transform.',
             build: () => ({
-                width: 640, height: 300,
-                parts: [].concat(
-                    network(160, 40, 'Positive', 'Z1', true),
-                    [{ key: 'ground', x: 160, y: 250 }]
-                ),
-                wires: [
-                    [[160, 15], [160, 30]],
-                    [[160, 80], [160, 110]],
-                    [[160, 160], [160, 240]],
-                    [[160, 15], [420, 15], [420, 200], [160, 200]]
+                width: 620, height: 300,
+                parts: [
+                    { key: 'vsource',  x: 180, y: SRC_Y, label: 'E', labelPos: 'left' },
+                    { key: 'resistor', x: 180, y: Z1_Y, rotate: 90, label: 'Z1', labelPos: 'right' },
+                    { key: 'ground',   x: 180, y: 235 }
                 ],
-                dots: [[160, 200]],
+                wires: [
+                    [[180, SRC_Y + 25], [180, Z1_Y - 25]],
+                    [[180, Z1_Y + 25], [180, 225]],
+                    [[180, SRC_Y - 25], [180, 40], [430, 40], [430, 225], [180, 225]]
+                ],
+                dots: [[180, 225]],
                 texts: [
-                    { x: 160, y: 285, text: 'reference (neutral)', size: 10 },
-                    { x: 470, y: 110, text: 'fault path', size: 11, anchor: 'start' },
-                    { x: 470, y: 128, text: 'I = E / Z1', size: 11, anchor: 'start' }
+                    { x: 470, y: 130, text: 'fault path', size: 11, anchor: 'start' },
+                    { x: 470, y: 148, text: 'I = E / Z1', size: 11, anchor: 'start' }
                 ]
             })
         },
@@ -383,97 +377,92 @@
                      'I = 3E / (Z1 + Z2 + Z0 + 3Zf).',
             insight: '<strong>Why the factor of three.</strong> The faulted phase current ' +
                      'is Ia = I0 + I1 + I2, and the series connection forces all three to ' +
-                     'be equal — so Ia = 3·I1. This is also why the ground element sees ' +
-                     '3I0 residually: it is measuring exactly this quantity.',
+                     'be equal, so Ia = 3&middot;I1. That is also exactly what the ground ' +
+                     'element measures when it sums three CTs residually.',
             build: () => ({
-                width: 640, height: 430,
-                parts: [].concat(
-                    network(160, 30, 'Positive', 'Z1', true),
-                    network(160, 175, 'Negative', 'Z2', false),
-                    network(160, 285, 'Zero', 'Z0', false),
-                    [{ key: 'ground', x: 160, y: 415 }]
-                ),
-                wires: [
-                    [[160, 10], [160, 20]],
-                    [[160, 70], [160, 100]],
-                    [[160, 150], [160, 245]],
-                    [[160, 295], [160, 355]],
-                    [[160, 405], [160, 405]],
-                    [[160, 10], [430, 10], [430, 380], [160, 380]]
+                width: 620, height: 440,
+                parts: [
+                    { key: 'vsource',  x: 180, y: SRC_Y, label: 'E', labelPos: 'left' },
+                    { key: 'resistor', x: 180, y: Z1_Y, rotate: 90, label: 'Z1', value: 'positive', labelPos: 'right' },
+                    { key: 'resistor', x: 180, y: Z2_Y, rotate: 90, label: 'Z2', value: 'negative', labelPos: 'right' },
+                    { key: 'resistor', x: 180, y: Z3_Y, rotate: 90, label: 'Z0', value: 'zero', labelPos: 'right' },
+                    { key: 'ground',   x: 180, y: 400 }
                 ],
-                dots: [[160, 380]],
+                wires: [
+                    [[180, SRC_Y + 25], [180, Z1_Y - 25]],
+                    [[180, Z1_Y + 25], [180, Z2_Y - 25]],
+                    [[180, Z2_Y + 25], [180, Z3_Y - 25]],
+                    [[180, Z3_Y + 25], [180, 390]],
+                    [[180, SRC_Y - 25], [180, 40], [450, 40], [450, 390], [180, 390]]
+                ],
+                dots: [[180, 390]],
                 texts: [
-                    { x: 300, y: 165, text: 'series connection', size: 11 },
-                    { x: 470, y: 190, text: 'I1 = I2 = I0', size: 11, anchor: 'start' },
-                    { x: 470, y: 208, text: 'If = 3·I1', size: 11, anchor: 'start' }
+                    { x: 500, y: 200, text: 'I1 = I2 = I0', size: 11, anchor: 'start' },
+                    { x: 500, y: 218, text: 'If = 3 x I1', size: 11, anchor: 'start' }
                 ]
             })
         },
         'll': {
-            caption: 'Positive and negative sequence in PARALLEL; the zero-sequence ' +
-                     'network is not involved at all. I = √3·E / (Z1 + Z2).',
+            caption: 'Positive and negative sequence in PARALLEL. The zero-sequence ' +
+                     'network is not involved at all: I = sqrt(3) E / (Z1 + Z2).',
             insight: '<strong>No ground, no zero sequence.</strong> A line-to-line fault ' +
                      'has no path to earth, so I0 = 0 and a ground overcurrent element ' +
                      'never sees it. That is precisely why phase and ground protection are ' +
                      'separate elements with separate settings.',
             build: () => ({
-                width: 640, height: 320,
-                parts: [].concat(
-                    network(150, 40, 'Positive', 'Z1', true),
-                    network(340, 70, 'Negative', 'Z2', false),
-                    [{ key: 'ground', x: 150, y: 275 }]
-                ),
-                wires: [
-                    [[150, 15], [150, 30]],
-                    [[150, 80], [150, 110]],
-                    [[150, 160], [150, 265]],
-                    [[340, 140], [340, 110]],
-                    [[340, 190], [340, 230], [150, 230]],
-                    [[150, 15], [340, 15], [340, 140]]
+                width: 620, height: 330,
+                parts: [
+                    { key: 'vsource',  x: 180, y: SRC_Y, label: 'E', labelPos: 'left' },
+                    { key: 'resistor', x: 180, y: Z1_Y, rotate: 90, label: 'Z1', labelPos: 'left' },
+                    { key: 'resistor', x: 340, y: Z1_Y, rotate: 90, label: 'Z2', labelPos: 'right' },
+                    { key: 'ground',   x: 180, y: 285 }
                 ],
-                dots: [[150, 230]],
+                wires: [
+                    [[180, SRC_Y + 25], [180, Z1_Y - 25]],
+                    [[180, Z1_Y + 25], [180, 275]],
+                    [[180, SRC_Y - 25], [180, 40], [340, 40], [340, Z1_Y - 25]],
+                    [[340, Z1_Y + 25], [340, 275], [180, 275]]
+                ],
+                dots: [[180, 275]],
                 texts: [
-                    { x: 245, y: 250, text: 'parallel connection', size: 11 },
-                    { x: 470, y: 120, text: 'I0 = 0', size: 11, anchor: 'start' },
-                    { x: 470, y: 138, text: 'no ground path', size: 11, anchor: 'start' }
+                    { x: 260, y: 300, text: 'parallel connection', size: 11 },
+                    { x: 470, y: 120, text: 'I0 = 0 — no ground path', size: 11, anchor: 'start' }
                 ]
             })
         },
         'dlg': {
             caption: 'Positive sequence in series with the PARALLEL combination of ' +
-                     'negative and zero: I1 = E / (Z1 + Z2‖Z0).',
-            insight: '<strong>The nastiest one to intuit.</strong> Because Z2 and Z0 are ' +
-                     'in parallel, the total impedance is lower than for an SLG fault — so ' +
-                     'a double line-to-ground fault can produce the highest ground current ' +
-                     'of any fault type on a solidly grounded system. Always check it when ' +
+                     'negative and zero: I1 = E / (Z1 + Z2 || Z0).',
+            insight: '<strong>The nastiest one to intuit.</strong> Because Z2 and Z0 sit ' +
+                     'in parallel the total impedance is lower than for an SLG fault, so a ' +
+                     'double line-to-ground fault can produce the highest ground current of ' +
+                     'any fault type on a solidly grounded system. Always check it when ' +
                      'sizing ground relaying.',
             build: () => ({
-                width: 640, height: 380,
-                parts: [].concat(
-                    network(150, 30, 'Positive', 'Z1', true),
-                    network(290, 210, 'Negative', 'Z2', false),
-                    network(410, 210, 'Zero', 'Z0', false),
-                    [{ key: 'ground', x: 150, y: 355 }]
-                ),
-                wires: [
-                    [[150, 10], [150, 20]],
-                    [[150, 70], [150, 100]],
-                    [[150, 150], [150, 190], [290, 190]],
-                    [[290, 190], [410, 190]],
-                    [[290, 280], [290, 320], [410, 320]],
-                    [[410, 280], [410, 320]],
-                    [[290, 320], [150, 320], [150, 345]],
-                    [[150, 10], [520, 10], [520, 250]]
+                width: 620, height: 400,
+                parts: [
+                    { key: 'vsource',  x: 180, y: SRC_Y, label: 'E', labelPos: 'left' },
+                    { key: 'resistor', x: 180, y: Z1_Y, rotate: 90, label: 'Z1', labelPos: 'left' },
+                    { key: 'resistor', x: 180, y: Z3_Y - 40, rotate: 90, label: 'Z2', labelPos: 'left' },
+                    { key: 'resistor', x: 340, y: Z3_Y - 40, rotate: 90, label: 'Z0', labelPos: 'right' },
+                    { key: 'ground',   x: 180, y: 360 }
                 ],
-                dots: [[290, 190], [290, 320]],
+                wires: [
+                    [[180, SRC_Y + 25], [180, Z1_Y - 25]],
+                    [[180, Z1_Y + 25], [180, Z3_Y - 65]],
+                    [[180, Z3_Y - 65], [340, Z3_Y - 65]],
+                    [[340, Z3_Y - 65], [340, Z3_Y - 65]],
+                    [[180, Z3_Y - 15], [180, 350]],
+                    [[340, Z3_Y - 15], [340, 350], [180, 350]],
+                    [[180, SRC_Y - 25], [180, 40], [470, 40], [470, 350], [340, 350]]
+                ],
+                dots: [[180, Z3_Y - 65], [180, 350], [340, 350]],
                 texts: [
-                    { x: 350, y: 178, text: 'Z2 ∥ Z0', size: 11 },
-                    { x: 545, y: 150, text: 'fault path', size: 11, anchor: 'start' }
+                    { x: 260, y: Z3_Y - 78, text: 'Z2 in parallel with Z0', size: 11 }
                 ]
             })
         }
     };
-
     function render() {
         const key = sel.value;
         const cfg = CONFIG[key] || CONFIG.slg;

@@ -198,6 +198,19 @@ const AD = (() => {
         return x.toExponential(digits);
     }
 
+    /**
+     * Plain thousands-separated integer.
+     *
+     * fmt() collapses to engineering notation, which is right for component
+     * values (100n, 4.7k) and wrong for a current you are about to compare
+     * against a breaker rating: 1339 A became "1k A". Use this for amps, volts
+     * and MW where the digits are the point.
+     */
+    function fmtInt(x) {
+        if (!isFinite(x)) return '\u2014';
+        return Math.round(x).toLocaleString('en-US');
+    }
+
     function fmtUnit(x, unit, digits = 3) {
         return fmt(x, digits) + unit;
     }
@@ -1366,6 +1379,7 @@ const AD = (() => {
         num,
         clamp,
         fmt,
+        fmtInt,
         fmtUnit,
         formatValue,
 
