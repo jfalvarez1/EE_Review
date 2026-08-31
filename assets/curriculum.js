@@ -2796,6 +2796,34 @@ const Router = {
     // never runs against the next lesson's DOM.
     navGeneration: 0,
 
+    /**
+     * Typeset the TeX in a freshly injected lesson.
+     *
+     * MathJax may still be downloading when the first lesson lands, so this
+     * retries briefly rather than silently doing nothing - the failure mode
+     * otherwise is a lesson that shows raw \frac{}{} on a fast navigation and
+     * renders correctly on reload, which is maddening to debug.
+     */
+    typesetMath(root, attempt) {
+        attempt = attempt || 0;
+        const gen = this.navGeneration;
+        if (!window.MathJax || !MathJax.typesetPromise) {
+            if (attempt < 40) setTimeout(() => this.typesetMath(root, attempt + 1), 150);
+            return;
+        }
+        if (MathJax.typesetClear) {
+            try { MathJax.typesetClear([root]); } catch (e) {}
+        }
+        MathJax.typesetPromise([root]).catch(err => {
+            // A malformed macro in one lesson must not stop the page.
+            console.warn('MathJax: ' + (err && err.message ? err.message : err));
+        }).then(() => {
+            // If the reader navigated away mid-typeset, the work was wasted
+            // but harmless; nothing to undo.
+            if (gen !== this.navGeneration) return;
+        });
+    },
+
     loadLesson(moduleId, lessonId) {
         this.navGeneration++;
         if (this.clearStaleTimers) this.clearStaleTimers();
@@ -2959,6 +2987,12 @@ const Router = {
                     document.addEventListener = realDocAdd;
                     window.addEventListener = realWinAdd;
                 }, 0);
+
+                // Re-typeset the TeX in the lesson just injected. MathJax is
+                // loaded once by index.html and told not to typeset at
+                // startup, because at that point the lesson pane is empty -
+                // every lesson arrives later, by XHR.
+                Router.typesetMath(content);
 
                 // Normalize manual SVG schematics (supply rails, etc.)
                 if (window.SchematicNormalizer) {
