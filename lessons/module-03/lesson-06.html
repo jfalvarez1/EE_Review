@@ -1,267 +1,242 @@
 <article class="lesson-content">
-    <p class="author-credit">Based on Art of Electronics practical wisdom and Razavi stability analysis</p>
+    <p class="author-credit">Based on Razavi's "Design of Analog CMOS Integrated Circuits" Chapter 10</p>
 
     <h2>Introduction</h2>
-    <p>Op-amps are designed to be stable with resistive feedback, but real-world loads are rarely purely resistive. <strong>Capacitive loads</strong> are the most common stability challenge, adding an extra pole that can degrade phase margin and cause oscillation. Understanding how to maintain stability with reactive loads is essential for practical analog design.</p>
+    <p>The <strong>two-stage operational amplifier</strong> is the workhorse of analog IC design. However, it has an inherent stability problem: two high-gain stages create two significant poles, leading to potential instability. <strong>Miller compensation</strong> is the elegant solution that has been used since the μA741 (1968) and remains the dominant technique today.</p>
 
     <div class="concept-box">
-        <h3>The Capacitive Load Problem</h3>
-        <p>When you connect a capacitor to an op-amp output:</p>
+        <h3>The Two-Stage Problem</h3>
+        <p>A two-stage op-amp (differential input stage + common-source output stage) naturally has:</p>
         <ul>
-            <li>The capacitor and output impedance form an additional pole</li>
-            <li>This pole is inside the feedback loop</li>
-            <li>It adds phase shift at a frequency that may be near the unity-gain crossover</li>
-            <li>Result: Reduced phase margin, ringing, or oscillation</li>
+            <li><strong>Pole 1:</strong> At the high-impedance output of the first stage (differential pair)</li>
+            <li><strong>Pole 2:</strong> At the high-impedance output of the second stage (common-source)</li>
         </ul>
+        <p>Both poles may be at similar frequencies, causing rapid phase degradation and potential oscillation.</p>
     </div>
 
-    <h2>Op-Amp Output Impedance</h2>
-    <p>An op-amp's output is not a perfect voltage source. It has an open-loop output impedance Z<sub>o</sub> that varies with frequency:</p>
+    <h2>Miller Compensation Principle</h2>
+    <p>Miller compensation exploits the <strong>Miller effect</strong>: a capacitor connected between the input and output of an inverting amplifier appears multiplied by (1 + A<sub>v</sub>) at the input.</p>
 
     <div class="formula-box">
-        <h4>Closed-Loop Output Impedance</h4>
-        <div class="formula">Z<sub>out,CL</sub> = Z<sub>o</sub> / (1 + Aβ)</div>
-        <p>At low frequencies where loop gain Aβ is high, Z<sub>out,CL</sub> is very low (milliohms).</p>
-        <p>At high frequencies where Aβ → 0, Z<sub>out,CL</sub> → Z<sub>o</sub> (tens of ohms to hundreds of ohms).</p>
+        <h4>Miller Effect</h4>
+        <p>For a capacitor C<sub>c</sub> between input and output of an inverting amplifier with gain -A:</p>
+        <div class="formula">C<sub>in,eff</sub> = C<sub>c</sub>(1 + A)</div>
+        <div class="formula">C<sub>out,eff</sub> = C<sub>c</sub>(1 + 1/A) ≈ C<sub>c</sub></div>
+        <p>This creates a very low-frequency dominant pole at the input with a small physical capacitor!</p>
     </div>
 
-    <h3>The Extra Pole</h3>
-    <p>When capacitive load C<sub>L</sub> is added, it forms a pole with Z<sub>o</sub>:</p>
-    <div class="formula-box">
-        <h4>Capacitive Load Pole</h4>
-        <div class="formula">f<sub>p,CL</sub> = 1 / (2π × Z<sub>o</sub> × C<sub>L</sub>)</div>
-        <p>Example: Z<sub>o</sub> = 50Ω, C<sub>L</sub> = 100pF → f<sub>p,CL</sub> = 31.8 MHz</p>
-        <p>This might seem safely high, but remember: Z<sub>o</sub> increases with frequency!</p>
-    </div>
+    <h3>Two-Stage Op-Amp with Miller Compensation</h3>
+    <div id="sch-two-stage-miller" class="schematic-placeholder" style="height: 200px;"></div>
 
-    <h3>Interactive: Capacitive Load Effect</h3>
-    <div class="control-group">
-        <label>Op-Amp GBW (MHz): <input type="number" id="gbw" value="10" min="1" max="100" step="1"></label>
-        <label>Open-loop output Z<sub>o</sub> (Ω): <input type="number" id="zo" value="50" min="10" max="500" step="10"></label>
-        <label>Load Capacitance C<sub>L</sub> (pF): <input type="number" id="cl" value="100" min="10" max="10000" step="10"></label>
-        <label>Feedback Factor (1/β): <input type="number" id="noise-gain" value="1" min="1" max="100" step="1"></label>
-        <button onclick="updateCapLoad()">Update</button>
-    </div>
-    <canvas id="cap-load-canvas" width="700" height="400"></canvas>
-    <div id="cap-load-result" class="result-box"></div>
+    <p>The compensation capacitor C<sub>c</sub> is connected from the output of the first stage to the output of the second stage. This achieves:</p>
+    <ol>
+        <li><strong>Pole Splitting:</strong> The first pole moves to lower frequency, the second pole moves to higher frequency</li>
+        <li><strong>Dominant Pole Creation:</strong> The Miller-multiplied capacitance creates a very low-frequency pole</li>
+        <li><strong>Bandwidth Definition:</strong> The unity-gain frequency becomes predictable: f<sub>u</sub> = g<sub>m1</sub>/(2πC<sub>c</sub>)</li>
+    </ol>
 
-    <h2>Solution 1: Isolation Resistor</h2>
-    <p>The simplest and most common fix is to add a small resistor in series between the op-amp output and the capacitive load:</p>
-
-    <div id="sch-isolation-resistor" class="schematic-placeholder" style="height: 180px;"></div>
+    <h2>Pole-Zero Analysis</h2>
+    <p>A detailed small-signal analysis of the two-stage amplifier with Miller capacitor reveals:</p>
 
     <div class="formula-box">
-        <h4>Isolation Resistor Design</h4>
-        <p>R<sub>iso</sub> moves the capacitive load pole and adds a zero that improves phase margin:</p>
-        <div class="formula">Zero: f<sub>z</sub> = 1 / (2π × R<sub>iso</sub> × C<sub>L</sub>)</div>
-        <div class="formula">Pole (original, now higher): f<sub>p</sub> ≈ 1 / (2π × (R<sub>iso</sub> + Z<sub>o</sub>) × C<sub>L</sub>)</div>
+        <h4>Two-Stage Transfer Function (Simplified)</h4>
+        <p>With Miller compensation:</p>
+        <div class="formula">A(s) = A<sub>0</sub> · (1 - s/ω<sub>z</sub>) / [(1 + s/ω<sub>p1</sub>)(1 + s/ω<sub>p2</sub>)]</div>
 
-        <h4>Design Rule of Thumb</h4>
-        <p>Choose R<sub>iso</sub> such that f<sub>z</sub> ≈ 0.5 × f<sub>crossover</sub>:</p>
-        <div class="formula">R<sub>iso</sub> = 1 / (2π × 0.5 × f<sub>c</sub> × C<sub>L</sub>) = 1 / (π × f<sub>c</sub> × C<sub>L</sub>)</div>
+        <h4>Pole and Zero Locations</h4>
+        <p><strong>Dominant pole:</strong></p>
+        <div class="formula">ω<sub>p1</sub> ≈ 1 / (R<sub>1</sub> · g<sub>m2</sub> · R<sub>2</sub> · C<sub>c</sub>)</div>
+
+        <p><strong>Non-dominant pole:</strong></p>
+        <div class="formula">ω<sub>p2</sub> ≈ g<sub>m2</sub> / C<sub>L</sub></div>
+
+        <p><strong>Right-half-plane zero (RHP zero):</strong></p>
+        <div class="formula">ω<sub>z</sub> = g<sub>m2</sub> / C<sub>c</sub></div>
     </div>
 
     <div class="warning-box">
-        <h4>Art of Electronics Warning</h4>
-        <p>The isolation resistor causes a DC error when driving DC current into the load:</p>
-        <div class="formula">V<sub>error</sub> = I<sub>load</sub> × R<sub>iso</sub></div>
-        <p>For precision applications, consider feedback from after R<sub>iso</sub>, or use other techniques.</p>
-    </div>
-
-    <h3>Interactive: Isolation Resistor Calculator</h3>
-    <div class="control-group">
-        <label>Crossover Frequency (MHz): <input type="number" id="fc-iso" value="5" min="0.1" max="100" step="0.5"></label>
-        <label>Load Capacitance (pF): <input type="number" id="cl-iso" value="500" min="10" max="10000" step="50"></label>
-        <button onclick="calcIsoResistor()">Calculate R<sub>iso</sub></button>
-    </div>
-    <div id="iso-result" class="result-box"></div>
-
-    <h2>Solution 2: Snubber Network (RC Damping)</h2>
-    <p>A snubber adds a series R-C to ground near the op-amp output. This provides damping without the DC error of an isolation resistor:</p>
-
-    <div id="sch-snubber" class="schematic-placeholder" style="height: 180px;"></div>
-
-    <div class="formula-box">
-        <h4>Snubber Design</h4>
-        <p>The snubber resistor R<sub>s</sub> and capacitor C<sub>s</sub> add a zero-pole pair:</p>
+        <h4>The RHP Zero Problem</h4>
+        <p>The RHP zero is problematic because:</p>
         <ul>
-            <li><strong>Zero:</strong> f<sub>z</sub> = 1/(2πR<sub>s</sub>C<sub>s</sub>)</li>
-            <li><strong>Pole:</strong> f<sub>p</sub> = 1/(2π × Z<sub>o</sub> × (C<sub>L</sub> + C<sub>s</sub>)) (approximately, when R<sub>s</sub> >> Z<sub>o</sub>)</li>
+            <li>It adds phase lag (like a pole) instead of phase lead</li>
+            <li>It can significantly degrade phase margin</li>
+            <li>It occurs at the same frequency order as the non-dominant pole</li>
         </ul>
-
-        <h4>Design Guidelines</h4>
-        <ol>
-            <li>C<sub>s</sub> ≈ C<sub>L</sub> (same order of magnitude)</li>
-            <li>R<sub>s</sub> chosen to place zero near crossover: R<sub>s</sub> = 1/(2πf<sub>c</sub>C<sub>s</sub>)</li>
-            <li>Verify with simulation - snubber design is iterative</li>
-        </ol>
+        <p><strong>Solution:</strong> Use a nulling resistor in series with C<sub>c</sub> to move or eliminate the zero.</p>
     </div>
 
-    <h2>Solution 3: Feedback Capacitor (Noise Gain Shaping)</h2>
-    <p>Adding a small capacitor across the feedback resistor increases the noise gain at high frequencies, reducing the crossover frequency before the capacitive load pole takes effect:</p>
-
-    <div id="sch-feedback-cap" class="schematic-placeholder" style="height: 180px;"></div>
+    <h2>Nulling Resistor Technique</h2>
+    <p>Adding a resistor R<sub>z</sub> in series with C<sub>c</sub> modifies the zero location:</p>
 
     <div class="formula-box">
-        <h4>Feedback Capacitor Effect</h4>
-        <p>C<sub>f</sub> in parallel with R<sub>f</sub> creates a zero in the noise gain:</p>
-        <div class="formula">f<sub>z,noise</sub> = 1 / (2π × R<sub>f</sub> × C<sub>f</sub>)</div>
-        <p>Above this frequency, noise gain increases at +20 dB/decade, reducing loop gain and crossover.</p>
-        <p>This is essentially "soft" lead compensation in the feedback network.</p>
-    </div>
-
-    <div class="design-tip">
-        <h4>Razavi Insight</h4>
-        <p>The feedback capacitor technique trades bandwidth for stability. It's most effective when bandwidth reduction is acceptable and you want to avoid the DC errors of isolation resistors.</p>
-    </div>
-
-    <h2>Solution 4: "In-the-Loop" Compensation</h2>
-    <p>For precision applications, include the load capacitor inside the feedback loop with an inner feedback path:</p>
-
-    <div id="sch-in-loop-comp" class="schematic-placeholder" style="height: 200px;"></div>
-
-    <p>The small resistor R<sub>x</sub> provides local feedback at high frequencies, creating a zero that stabilizes the loop while maintaining DC accuracy since C<sub>L</sub> is inside the overall feedback loop.</p>
-
-    <h2>Cable Capacitance</h2>
-    <p>Coaxial cables add significant capacitance (typically 30-100 pF/meter). This is one of the most common real-world sources of capacitive loading:</p>
-
-    <table class="info-table">
-        <thead>
-            <tr>
-                <th>Cable Type</th>
-                <th>Typical Capacitance</th>
-                <th>1m Cable</th>
-                <th>3m Cable</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>RG-58 (50Ω)</td>
-                <td>~100 pF/m</td>
-                <td>100 pF</td>
-                <td>300 pF</td>
-            </tr>
-            <tr>
-                <td>RG-174 (50Ω)</td>
-                <td>~100 pF/m</td>
-                <td>100 pF</td>
-                <td>300 pF</td>
-            </tr>
-            <tr>
-                <td>RG-59 (75Ω)</td>
-                <td>~70 pF/m</td>
-                <td>70 pF</td>
-                <td>210 pF</td>
-            </tr>
-            <tr>
-                <td>Standard hookup wire</td>
-                <td>~30 pF/m</td>
-                <td>30 pF</td>
-                <td>90 pF</td>
-            </tr>
-        </tbody>
-    </table>
-
-    <div class="warning-box">
-        <h4>Don't Do This: Ignoring Cable Capacitance</h4>
-        <p>A common mistake is designing an op-amp circuit on the bench with short leads, then deploying it with meters of cable. Always include expected cable capacitance in your stability analysis!</p>
-    </div>
-
-    <h2>Inductive Loads</h2>
-    <p>Inductive loads (motors, relays, solenoids) present different challenges:</p>
-
-    <div class="concept-box">
-        <h3>Inductive Load Effects</h3>
+        <h4>Zero Location with Nulling Resistor</h4>
+        <div class="formula">ω<sub>z</sub> = 1 / [C<sub>c</sub>(1/g<sub>m2</sub> - R<sub>z</sub>)]</div>
+        <p>Three cases:</p>
         <ul>
-            <li>Inductor and output resistance form a <strong>zero</strong> (not a pole)</li>
-            <li>This can actually improve phase margin in some cases</li>
-            <li>But: inductive kickback on current changes can cause voltage spikes</li>
-            <li>Always use flyback diodes for inductive DC loads</li>
+            <li><strong>R<sub>z</sub> = 0:</strong> RHP zero at g<sub>m2</sub>/C<sub>c</sub> (original case)</li>
+            <li><strong>R<sub>z</sub> = 1/g<sub>m2</sub>:</strong> Zero at infinity (eliminated!)</li>
+            <li><strong>R<sub>z</sub> > 1/g<sub>m2</sub>:</strong> LHP zero (can improve phase margin!)</li>
         </ul>
     </div>
 
-    <h2>Complex Loads: RLC Networks</h2>
-    <p>Real loads often combine R, L, and C. The key is to identify dominant effects at the crossover frequency:</p>
-
-    <h3>Interactive: Complex Load Analyzer</h3>
+    <h3>Interactive: Miller Compensation Calculator</h3>
     <div class="control-group">
-        <label>Load R (Ω): <input type="number" id="load-r" value="100" min="1" max="10000" step="10"></label>
-        <label>Load L (μH): <input type="number" id="load-l" value="0" min="0" max="1000" step="10"></label>
-        <label>Load C (pF): <input type="number" id="load-c" value="500" min="0" max="10000" step="50"></label>
-        <label>Op-Amp GBW (MHz): <input type="number" id="gbw-rlc" value="10" min="1" max="100" step="1"></label>
-        <button onclick="updateRLCLoad()">Analyze</button>
+        <label>First Stage g<sub>m1</sub> (μS): <input type="number" id="gm1" value="100" min="10" max="1000" step="10"></label>
+        <label>Second Stage g<sub>m2</sub> (mS): <input type="number" id="gm2" value="1" min="0.1" max="10" step="0.1"></label>
+        <label>R<sub>1</sub> (Output impedance stage 1, MΩ): <input type="number" id="r1" value="10" min="0.1" max="100" step="1"></label>
+        <label>R<sub>2</sub> (Output impedance stage 2, kΩ): <input type="number" id="r2" value="100" min="1" max="1000" step="10"></label>
+        <label>C<sub>L</sub> (Load capacitance, pF): <input type="number" id="cload" value="10" min="1" max="100" step="1"></label>
+        <label>C<sub>c</sub> (Compensation, pF): <input type="number" id="cc" value="2" min="0.1" max="20" step="0.1"></label>
+        <label>R<sub>z</sub> (Nulling resistor, kΩ): <input type="number" id="rz" value="0" min="0" max="10" step="0.1"></label>
+        <button onclick="updateMillerCalc()">Calculate</button>
     </div>
-    <canvas id="rlc-load-canvas" width="700" height="300"></canvas>
-    <div id="rlc-result" class="result-box"></div>
+    <canvas id="miller-bode-canvas" width="700" height="400"></canvas>
+    <div id="miller-result" class="result-box"></div>
 
-    <h2>Worked Example: Driving a Scope Probe</h2>
+    <h2>Design Procedure (Razavi Method)</h2>
+    <div class="design-procedure">
+        <h4>Step-by-Step Miller Compensation Design</h4>
+
+        <p><strong>Step 1: Determine Required Unity-Gain Bandwidth</strong></p>
+        <p>From specifications: f<sub>u</sub> (or GBW) required for settling time, slew rate, etc.</p>
+
+        <p><strong>Step 2: Size C<sub>c</sub> for Unity-Gain Frequency</strong></p>
+        <div class="formula">C<sub>c</sub> = g<sub>m1</sub> / (2π · f<sub>u</sub>)</div>
+        <p>This sets the dominant pole location.</p>
+
+        <p><strong>Step 3: Verify Non-Dominant Pole Location</strong></p>
+        <p>For 60° phase margin, need ω<sub>p2</sub> > 2.2 × ω<sub>u</sub>:</p>
+        <div class="formula">g<sub>m2</sub> / C<sub>L</sub> > 2.2 × g<sub>m1</sub> / C<sub>c</sub></div>
+        <p>Rearranging: g<sub>m2</sub> > 2.2 × g<sub>m1</sub> × (C<sub>L</sub>/C<sub>c</sub>)</p>
+
+        <p><strong>Step 4: Check RHP Zero Location</strong></p>
+        <p>The RHP zero should be at least 3× beyond ω<sub>u</sub>:</p>
+        <div class="formula">g<sub>m2</sub> / C<sub>c</sub> > 3 × g<sub>m1</sub> / C<sub>c</sub></div>
+        <p>This requires g<sub>m2</sub> > 3 × g<sub>m1</sub></p>
+
+        <p><strong>Step 5: If Needed, Add Nulling Resistor</strong></p>
+        <p>If RHP zero degrades phase margin, add R<sub>z</sub> ≈ 1/g<sub>m2</sub> to eliminate it, or R<sub>z</sub> > 1/g<sub>m2</sub> to create helpful LHP zero.</p>
+    </div>
+
+    <h2>Worked Example: Two-Stage CMOS Op-Amp</h2>
     <div class="worked-example">
-        <h4>Problem</h4>
-        <p>An op-amp buffer (gain = 1) with GBW = 20 MHz and Z<sub>o</sub> = 75Ω drives a 10× scope probe (10 MΩ || 15 pF) through a 1-meter RG-58 cable (100 pF). Determine stability and fix if needed.</p>
+        <h4>Specifications</h4>
+        <ul>
+            <li>Unity-gain frequency: 10 MHz</li>
+            <li>Load capacitance: 5 pF</li>
+            <li>Phase margin: ≥ 60°</li>
+            <li>Available: g<sub>m1</sub> = 200 μS, g<sub>m2</sub> = 2 mS</li>
+        </ul>
 
-        <h4>Step 1: Calculate Total Capacitive Load</h4>
-        <p>C<sub>L</sub> = C<sub>cable</sub> + C<sub>probe</sub> = 100 pF + 15 pF = 115 pF</p>
+        <h4>Step 1: Calculate C<sub>c</sub></h4>
+        <div class="formula">C<sub>c</sub> = g<sub>m1</sub> / (2π × f<sub>u</sub>) = 200×10⁻⁶ / (2π × 10×10⁶) = 3.18 pF</div>
+        <p>Choose C<sub>c</sub> = 3 pF (standard value)</p>
 
-        <h4>Step 2: Find Capacitive Load Pole</h4>
-        <div class="formula">f<sub>p,CL</sub> = 1 / (2π × 75Ω × 115pF) = 18.5 MHz</div>
+        <h4>Step 2: Verify Non-Dominant Pole</h4>
+        <div class="formula">f<sub>p2</sub> = g<sub>m2</sub> / (2π × C<sub>L</sub>) = 2×10⁻³ / (2π × 5×10⁻¹²) = 63.7 MHz</div>
+        <p>Check: f<sub>p2</sub> / f<sub>u</sub> = 63.7 / 10 = 6.4 > 2.2 ✓</p>
 
-        <h4>Step 3: Assess Stability</h4>
-        <p>For unity-gain buffer, crossover ≈ GBW = 20 MHz</p>
-        <p>Capacitive load pole at 18.5 MHz is very close to crossover!</p>
-        <p>Phase shift from this pole at crossover: arctan(20/18.5) = 47°</p>
-        <p>Combined with internal op-amp phase: likely unstable or severely ringing</p>
+        <h4>Step 3: Check RHP Zero</h4>
+        <div class="formula">f<sub>z</sub> = g<sub>m2</sub> / (2π × C<sub>c</sub>) = 2×10⁻³ / (2π × 3×10⁻¹²) = 106 MHz</div>
+        <p>Check: f<sub>z</sub> / f<sub>u</sub> = 106 / 10 = 10.6 > 3 ✓</p>
 
-        <h4>Step 4: Design Isolation Resistor</h4>
-        <p>Target: Place zero at ~10 MHz (0.5 × crossover)</p>
-        <div class="formula">R<sub>iso</sub> = 1 / (2π × 10MHz × 115pF) = 138Ω</div>
-        <p>Use standard value: R<sub>iso</sub> = 150Ω</p>
+        <h4>Step 4: Calculate Phase Margin</h4>
+        <p>At f<sub>u</sub> = 10 MHz:</p>
+        <ul>
+            <li>Phase from p1 (very low): ≈ -90°</li>
+            <li>Phase from p2: -arctan(10/63.7) = -8.9°</li>
+            <li>Phase from RHP zero: -arctan(10/106) = -5.4° (adds lag!)</li>
+        </ul>
+        <p>Total phase: -90° - 8.9° - 5.4° = -104.3°</p>
+        <p><strong>Phase margin: 180° - 104.3° = 75.7°</strong> ✓ Exceeds 60° requirement</p>
 
-        <h4>Step 5: Verify</h4>
-        <p>New zero at: 1/(2π × 150 × 115pF) = 9.2 MHz ✓</p>
-        <p>Phase boost from zero at 20 MHz: arctan(20/9.2) = +65°</p>
-        <p>Net effect: significant improvement in phase margin</p>
+        <h4>Optional: Add Nulling Resistor</h4>
+        <p>If we wanted to improve further:</p>
+        <div class="formula">R<sub>z</sub> = 1/g<sub>m2</sub> = 1/(2×10⁻³) = 500 Ω</div>
+        <p>This eliminates the RHP zero, adding ~5° to phase margin.</p>
 
         <div class="formula-box" style="background: #1a3a1a;">
-            <h4>Solution</h4>
-            <p>Add 150Ω resistor in series with op-amp output</p>
-            <p>Trade-off: 150Ω × I<sub>out</sub> DC error (negligible for scope probe's 10 MΩ)</p>
+            <h4>Final Design</h4>
+            <p>C<sub>c</sub> = 3 pF, R<sub>z</sub> = 500 Ω (optional)</p>
+            <p>Unity-gain frequency: 10.6 MHz</p>
+            <p>Phase margin: 76° (or 81° with R<sub>z</sub>)</p>
         </div>
     </div>
 
-    <h2>Summary: Load Type Quick Reference</h2>
+    <h2>Alternative Compensation Techniques</h2>
+
+    <h3>Cascode Compensation</h3>
+    <p>In a cascode stage, the compensation capacitor can be connected to an internal low-impedance node, eliminating the RHP zero:</p>
+    <div id="sch-cascode-comp" class="schematic-placeholder" style="height: 180px;"></div>
+
+    <div class="design-tip">
+        <h4>Razavi Insight</h4>
+        <p>Connecting C<sub>c</sub> to the source of a cascode device (a low-impedance node) prevents feedforward through C<sub>c</sub> that causes the RHP zero. The zero moves to very high frequency or becomes an LHP zero.</p>
+    </div>
+
+    <h3>Ahuja Compensation</h3>
+    <p>Uses a current buffer (common-gate stage) in series with C<sub>c</sub> to:</p>
+    <ul>
+        <li>Eliminate the RHP zero</li>
+        <li>Push the non-dominant pole to higher frequency</li>
+        <li>Achieve higher bandwidth for given C<sub>c</sub></li>
+    </ul>
+
+    <h2>Practical Considerations</h2>
+
+    <div class="warning-box">
+        <h4>Art of Electronics: Real-World Issues</h4>
+        <ol>
+            <li><strong>Parasitic capacitances:</strong> Add to C<sub>L</sub> and can create additional poles. Always include estimated parasitics in design.</li>
+            <li><strong>Process variation:</strong> g<sub>m</sub> varies with process corners. Design for worst-case (slow corner has lower g<sub>m</sub>, higher poles).</li>
+            <li><strong>Temperature effects:</strong> g<sub>m</sub> decreases at high temperature, affecting pole locations. Verify stability across temperature range.</li>
+            <li><strong>Layout parasitics:</strong> The compensation node is high-impedance and sensitive. Keep it short and shielded.</li>
+        </ol>
+    </div>
+
+    <h3>Interactive: Pole-Zero Visualization</h3>
+    <canvas id="pole-zero-canvas" width="500" height="400"></canvas>
+    <div class="control-group">
+        <label>g<sub>m2</sub>/g<sub>m1</sub> ratio: <input type="range" id="gm-ratio" min="1" max="20" value="10" step="1" oninput="updatePoleZero()"></label>
+        <span id="gm-ratio-val">10</span>
+        <label>C<sub>c</sub>/C<sub>L</sub> ratio: <input type="range" id="cc-ratio" min="0.1" max="2" value="0.5" step="0.1" oninput="updatePoleZero()"></label>
+        <span id="cc-ratio-val">0.5</span>
+    </div>
+
+    <h2>Summary: Key Design Equations</h2>
     <table class="info-table">
         <thead>
             <tr>
-                <th>Load Type</th>
-                <th>Effect</th>
-                <th>Primary Solution</th>
-                <th>Alternative</th>
+                <th>Parameter</th>
+                <th>Equation</th>
+                <th>Design Target</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td>Pure Capacitive</td>
-                <td>Extra pole, reduced PM</td>
-                <td>Isolation resistor</td>
-                <td>Snubber, feedback cap</td>
+                <td>Unity-gain frequency</td>
+                <td>f<sub>u</sub> = g<sub>m1</sub>/(2πC<sub>c</sub>)</td>
+                <td>From settling/slew specs</td>
             </tr>
             <tr>
-                <td>Cable + Device</td>
-                <td>Distributed C, extra pole</td>
-                <td>Isolation resistor at source</td>
-                <td>Back-termination</td>
+                <td>Non-dominant pole</td>
+                <td>f<sub>p2</sub> = g<sub>m2</sub>/(2πC<sub>L</sub>)</td>
+                <td>> 2.2×f<sub>u</sub> for 60° PM</td>
             </tr>
             <tr>
-                <td>Pure Inductive</td>
-                <td>Zero (can help PM)</td>
-                <td>Flyback diode for DC</td>
-                <td>Snubber for AC</td>
+                <td>RHP zero</td>
+                <td>f<sub>z</sub> = g<sub>m2</sub>/(2πC<sub>c</sub>)</td>
+                <td>> 3×f<sub>u</sub> ideally</td>
             </tr>
             <tr>
-                <td>Parallel RLC</td>
-                <td>Resonant peak</td>
-                <td>Add damping resistance</td>
-                <td>Avoid resonance near f<sub>c</sub></td>
+                <td>Nulling resistor</td>
+                <td>R<sub>z</sub> = 1/g<sub>m2</sub></td>
+                <td>Eliminates RHP zero</td>
+            </tr>
+            <tr>
+                <td>g<sub>m2</sub> requirement</td>
+                <td>g<sub>m2</sub> > 2.2×g<sub>m1</sub>×(C<sub>L</sub>/C<sub>c</sub>)</td>
+                <td>For 60° PM</td>
             </tr>
         </tbody>
     </table>
@@ -269,22 +244,22 @@
     <h2>Exercises</h2>
     <div id="exercises-container">
         <div class="exercise-widget" data-exercise="1">
-            <p class="exercise-problem"><strong>Exercise 1:</strong> An op-amp with GBW = 50 MHz and Z<sub>o</sub> = 40Ω drives a 200 pF load. At what frequency is the capacitive load pole?</p>
-            <input type="text" id="ex1-input" placeholder="Enter frequency in MHz">
+            <p class="exercise-problem"><strong>Exercise 1:</strong> A two-stage op-amp has g<sub>m1</sub> = 100 μS and requires f<sub>u</sub> = 5 MHz. What is the required compensation capacitor C<sub>c</sub>?</p>
+            <input type="text" id="ex1-input" placeholder="Enter Cc in pF">
             <button onclick="checkEx1()">Check Answer</button>
             <div id="ex1-result"></div>
         </div>
 
         <div class="exercise-widget" data-exercise="2">
-            <p class="exercise-problem"><strong>Exercise 2:</strong> For the op-amp in Exercise 1 configured as unity-gain buffer, what isolation resistor value would place a stabilizing zero at 25 MHz?</p>
-            <input type="text" id="ex2-input" placeholder="Enter resistance in Ω">
+            <p class="exercise-problem"><strong>Exercise 2:</strong> With C<sub>c</sub> = 4 pF and C<sub>L</sub> = 10 pF, what minimum g<sub>m2</sub> is required for 60° phase margin if g<sub>m1</sub> = 100 μS?</p>
+            <input type="text" id="ex2-input" placeholder="Enter gm2 in mS">
             <button onclick="checkEx2()">Check Answer</button>
             <div id="ex2-result"></div>
         </div>
 
         <div class="exercise-widget" data-exercise="3">
-            <p class="exercise-problem"><strong>Exercise 3:</strong> A 5-meter cable with 100 pF/m capacitance connects an op-amp buffer to a load. If the op-amp has GBW = 10 MHz, what minimum isolation resistor is recommended?</p>
-            <input type="text" id="ex3-input" placeholder="Enter resistance in Ω">
+            <p class="exercise-problem"><strong>Exercise 3:</strong> If g<sub>m2</sub> = 0.8 mS and C<sub>c</sub> = 2 pF, what nulling resistor R<sub>z</sub> is needed to eliminate the RHP zero?</p>
+            <input type="text" id="ex3-input" placeholder="Enter Rz in kΩ">
             <button onclick="checkEx3()">Check Answer</button>
             <div id="ex3-result"></div>
         </div>
@@ -292,26 +267,62 @@
 
     <script>
     (function() {
-        const capLoadCanvas = document.getElementById('cap-load-canvas');
-        if (!capLoadCanvas || typeof AD === 'undefined') return;
-        const capLoadCtx = capLoadCanvas.getContext('2d');
+        const millerCanvas = document.getElementById('miller-bode-canvas');
+        if (!millerCanvas || typeof AD === 'undefined') return;
+        const millerCtx = millerCanvas.getContext('2d');
         const TEK = AD.TEK_COLORS;
 
-        window.updateCapLoad = function() {
-            const gbw = AD.num('gbw') * 1e6;
-            const Zo = AD.num('zo');
-            const CL = AD.num('cl') * 1e-12;
-            const noiseGain = AD.num('noise-gain');
+        window.updateMillerCalc = function() {
+            const gm1 = AD.num('gm1') * 1e-6; // to S
+            const gm2 = AD.num('gm2') * 1e-3; // to S
+            const R1 = AD.num('r1') * 1e6; // to Ω
+            const R2 = AD.num('r2') * 1e3; // to Ω
+            const CL = AD.num('cload') * 1e-12; // to F
+            const Cc = AD.num('cc') * 1e-12; // to F
+            const Rz = AD.num('rz') * 1e3; // to Ω
 
-            const w = capLoadCanvas.width, h = capLoadCanvas.height;
+            // DC gain
+            const A0 = gm1 * R1 * gm2 * R2;
+            const A0_dB = 20 * Math.log10(A0);
+
+            // Pole locations
+            const wp1 = 1 / (R1 * gm2 * R2 * Cc); // Dominant pole
+            const wp2 = gm2 / CL; // Non-dominant pole
+            const fp1 = wp1 / (2 * Math.PI);
+            const fp2 = wp2 / (2 * Math.PI);
+
+            // Unity-gain frequency
+            const fu = gm1 / (2 * Math.PI * Cc);
+
+            // Zero location (with nulling resistor)
+            let fz, rhp;
+            if (Rz === 0) {
+                fz = gm2 / (2 * Math.PI * Cc);
+                rhp = true;
+            } else {
+                const denominator = Cc * (1/gm2 - Rz);
+                if (Math.abs(denominator) < 1e-15) {
+                    fz = 1e15; // Essentially infinite
+                    rhp = false;
+                } else if (denominator > 0) {
+                    fz = 1 / (2 * Math.PI * denominator);
+                    rhp = true;
+                } else {
+                    fz = -1 / (2 * Math.PI * denominator);
+                    rhp = false; // LHP zero
+                }
+            }
+
+            // Draw Bode plot
+            const w = millerCanvas.width, h = millerCanvas.height;
             const margin = { left: 60, right: 30, top: 30, bottom: 50 };
             const plotW = w - margin.left - margin.right;
             const plotH = (h - margin.top - margin.bottom - 20) / 2;
 
-            capLoadCtx.fillStyle = '#0d1117';
-            capLoadCtx.fillRect(0, 0, w, h);
+            millerCtx.fillStyle = '#0d1117';
+            millerCtx.fillRect(0, 0, w, h);
 
-            const fMin = 1e3, fMax = 1e9;
+            const fMin = 0.1, fMax = 1e9;
             const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
 
             function freqToX(f) {
@@ -320,107 +331,111 @@
 
             const magTop = margin.top;
             const magBot = margin.top + plotH;
-            const dBMin = -20, dBMax = 80;
+            const dBMin = -40, dBMax = 120;
 
             function dBToY(dB) {
                 return magBot - (dB - dBMin) / (dBMax - dBMin) * plotH;
             }
 
-            // Grid
-            capLoadCtx.strokeStyle = '#333';
-            capLoadCtx.lineWidth = 1;
-            for (let dB = -20; dB <= 80; dB += 20) {
+            // Draw grids
+            millerCtx.strokeStyle = '#333';
+            millerCtx.lineWidth = 1;
+            for (let dB = -20; dB <= 100; dB += 20) {
                 const y = dBToY(dB);
-                capLoadCtx.beginPath();
-                capLoadCtx.moveTo(margin.left, y);
-                capLoadCtx.lineTo(w - margin.right, y);
-                capLoadCtx.stroke();
-                capLoadCtx.fillStyle = '#888';
-                capLoadCtx.font = '10px monospace';
-                capLoadCtx.textAlign = 'right';
-                capLoadCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
+                millerCtx.beginPath();
+                millerCtx.moveTo(margin.left, y);
+                millerCtx.lineTo(w - margin.right, y);
+                millerCtx.stroke();
+                millerCtx.fillStyle = '#888';
+                millerCtx.font = '10px monospace';
+                millerCtx.textAlign = 'right';
+                millerCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
             }
 
             // 0 dB line
-            capLoadCtx.strokeStyle = '#666';
-            capLoadCtx.lineWidth = 2;
-            capLoadCtx.beginPath();
-            capLoadCtx.moveTo(margin.left, dBToY(0));
-            capLoadCtx.lineTo(w - margin.right, dBToY(0));
-            capLoadCtx.stroke();
+            millerCtx.strokeStyle = '#666';
+            millerCtx.lineWidth = 2;
+            millerCtx.beginPath();
+            millerCtx.moveTo(margin.left, dBToY(0));
+            millerCtx.lineTo(w - margin.right, dBToY(0));
+            millerCtx.stroke();
 
-            // Open-loop gain (single pole at GBW / A0, simplified to first-order)
-            // Assume A0 = 100 dB, so dominant pole is at GBW/100000
-            const A0 = 1e5;
-            const fp1 = gbw / A0;
-
-            // Capacitive load pole
-            const fpCL = 1 / (2 * Math.PI * Zo * CL);
-
-            // Loop gain T = A * β = A / noise_gain
-            function loopGainMag(f) {
-                // Open loop: A0 / (1 + s/wp1)
-                const Amag = A0 / Math.sqrt(1 + (f/fp1)**2);
-                // Extra pole from capacitive load
-                const CLeffect = 1 / Math.sqrt(1 + (f/fpCL)**2);
-                return 20 * Math.log10(Amag * CLeffect / noiseGain);
+            // Magnitude response
+            function magnitude(f) {
+                const s = 2 * Math.PI * f;
+                // Numerator: (1 - s/wz) for RHP, (1 + s/wz) for LHP
+                let numMag;
+                if (fz > 1e12) {
+                    numMag = 1;
+                } else if (rhp) {
+                    numMag = Math.sqrt(1 + (f/fz)**2);
+                } else {
+                    numMag = Math.sqrt(1 + (f/fz)**2);
+                }
+                const denMag = Math.sqrt(1 + (f/fp1)**2) * Math.sqrt(1 + (f/fp2)**2);
+                return 20 * Math.log10(A0 * numMag / denMag);
             }
 
-            function loopGainMagNoCL(f) {
-                const Amag = A0 / Math.sqrt(1 + (f/fp1)**2);
-                return 20 * Math.log10(Amag / noiseGain);
-            }
-
-            function loopPhase(f) {
-                let ph = -Math.atan(f/fp1) * 180/Math.PI;
-                ph -= Math.atan(f/fpCL) * 180/Math.PI;
+            function phase(f) {
+                let ph = 0;
+                // Poles contribute negative phase
+                ph -= Math.atan(f/fp1) * 180/Math.PI;
+                ph -= Math.atan(f/fp2) * 180/Math.PI;
+                // Zero
+                if (fz < 1e12) {
+                    if (rhp) {
+                        ph -= Math.atan(f/fz) * 180/Math.PI; // RHP zero adds lag
+                    } else {
+                        ph += Math.atan(f/fz) * 180/Math.PI; // LHP zero adds lead
+                    }
+                }
                 return ph;
             }
 
-            function loopPhaseNoCL(f) {
-                return -Math.atan(f/fp1) * 180/Math.PI;
-            }
-
-            // Draw without CL
-            capLoadCtx.strokeStyle = TEK.yellow;
-            capLoadCtx.lineWidth = 2;
-            capLoadCtx.setLineDash([5, 5]);
-            capLoadCtx.beginPath();
+            // Draw magnitude
+            millerCtx.strokeStyle = TEK.green;
+            millerCtx.lineWidth = 2;
+            millerCtx.beginPath();
             let first = true;
-            for (let i = 0; i <= 400; i++) {
-                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                const dB = loopGainMagNoCL(f);
+            for (let i = 0; i <= 500; i++) {
+                const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
+                const dB = magnitude(f);
                 const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                if (first) { capLoadCtx.moveTo(x, y); first = false; }
-                else capLoadCtx.lineTo(x, y);
+                if (first) { millerCtx.moveTo(x, y); first = false; }
+                else millerCtx.lineTo(x, y);
             }
-            capLoadCtx.stroke();
-            capLoadCtx.setLineDash([]);
+            millerCtx.stroke();
 
-            // Draw with CL
-            capLoadCtx.strokeStyle = TEK.green;
-            capLoadCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 400; i++) {
-                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                const dB = loopGainMag(f);
-                const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                if (first) { capLoadCtx.moveTo(x, y); first = false; }
-                else capLoadCtx.lineTo(x, y);
+            // Mark poles and zero
+            // Pole 1
+            millerCtx.strokeStyle = TEK.red;
+            millerCtx.setLineDash([5, 5]);
+            millerCtx.beginPath();
+            millerCtx.moveTo(freqToX(fp1), magTop);
+            millerCtx.lineTo(freqToX(fp1), magBot);
+            millerCtx.stroke();
+            millerCtx.fillStyle = TEK.red;
+            millerCtx.textAlign = 'center';
+            millerCtx.fillText('p1', freqToX(fp1), magTop - 5);
+
+            // Pole 2
+            millerCtx.beginPath();
+            millerCtx.moveTo(freqToX(fp2), magTop);
+            millerCtx.lineTo(freqToX(fp2), magBot);
+            millerCtx.stroke();
+            millerCtx.fillText('p2', freqToX(fp2), magTop - 5);
+
+            // Zero
+            if (fz < 1e12 && fz > 0.1) {
+                millerCtx.strokeStyle = rhp ? TEK.yellow : TEK.cyan;
+                millerCtx.beginPath();
+                millerCtx.moveTo(freqToX(fz), magTop);
+                millerCtx.lineTo(freqToX(fz), magBot);
+                millerCtx.stroke();
+                millerCtx.fillStyle = rhp ? TEK.yellow : TEK.cyan;
+                millerCtx.fillText(rhp ? 'z(RHP)' : 'z(LHP)', freqToX(fz), magTop - 5);
             }
-            capLoadCtx.stroke();
-
-            // Mark CL pole
-            capLoadCtx.strokeStyle = TEK.red;
-            capLoadCtx.setLineDash([5, 5]);
-            capLoadCtx.beginPath();
-            capLoadCtx.moveTo(freqToX(fpCL), magTop);
-            capLoadCtx.lineTo(freqToX(fpCL), magBot);
-            capLoadCtx.stroke();
-            capLoadCtx.setLineDash([]);
-            capLoadCtx.fillStyle = TEK.red;
-            capLoadCtx.textAlign = 'center';
-            capLoadCtx.fillText('CL pole', freqToX(fpCL), magTop - 5);
+            millerCtx.setLineDash([]);
 
             // Phase plot
             const phTop = magBot + 30;
@@ -433,450 +448,253 @@
             }
 
             // Phase grid
-            capLoadCtx.strokeStyle = '#333';
-            capLoadCtx.lineWidth = 1;
+            millerCtx.strokeStyle = '#333';
+            millerCtx.lineWidth = 1;
             for (let ph = -270; ph <= 0; ph += 45) {
                 const y = phToY(ph);
-                capLoadCtx.beginPath();
-                capLoadCtx.moveTo(margin.left, y);
-                capLoadCtx.lineTo(w - margin.right, y);
-                capLoadCtx.stroke();
-                capLoadCtx.fillStyle = '#888';
-                capLoadCtx.textAlign = 'right';
-                capLoadCtx.fillText(ph + '°', margin.left - 5, y + 4);
+                millerCtx.beginPath();
+                millerCtx.moveTo(margin.left, y);
+                millerCtx.lineTo(w - margin.right, y);
+                millerCtx.stroke();
+                millerCtx.fillStyle = '#888';
+                millerCtx.textAlign = 'right';
+                millerCtx.fillText(ph + '°', margin.left - 5, y + 4);
             }
 
             // -180° line
-            capLoadCtx.strokeStyle = TEK.red;
-            capLoadCtx.lineWidth = 2;
-            capLoadCtx.setLineDash([5, 5]);
-            capLoadCtx.beginPath();
-            capLoadCtx.moveTo(margin.left, phToY(-180));
-            capLoadCtx.lineTo(w - margin.right, phToY(-180));
-            capLoadCtx.stroke();
-            capLoadCtx.setLineDash([]);
+            millerCtx.strokeStyle = TEK.red;
+            millerCtx.lineWidth = 2;
+            millerCtx.setLineDash([5, 5]);
+            millerCtx.beginPath();
+            millerCtx.moveTo(margin.left, phToY(-180));
+            millerCtx.lineTo(w - margin.right, phToY(-180));
+            millerCtx.stroke();
+            millerCtx.setLineDash([]);
 
-            // Phase without CL
-            capLoadCtx.strokeStyle = TEK.yellow;
-            capLoadCtx.lineWidth = 2;
-            capLoadCtx.setLineDash([5, 5]);
-            capLoadCtx.beginPath();
+            // Draw phase
+            millerCtx.strokeStyle = TEK.green;
+            millerCtx.lineWidth = 2;
+            millerCtx.beginPath();
             first = true;
-            for (let i = 0; i <= 400; i++) {
-                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                const ph = loopPhaseNoCL(f);
+            for (let i = 0; i <= 500; i++) {
+                const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
+                const ph = phase(f);
                 const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                if (first) { capLoadCtx.moveTo(x, y); first = false; }
-                else capLoadCtx.lineTo(x, y);
+                if (first) { millerCtx.moveTo(x, y); first = false; }
+                else millerCtx.lineTo(x, y);
             }
-            capLoadCtx.stroke();
-            capLoadCtx.setLineDash([]);
-
-            // Phase with CL
-            capLoadCtx.strokeStyle = TEK.green;
-            capLoadCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 400; i++) {
-                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                const ph = loopPhase(f);
-                const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                if (first) { capLoadCtx.moveTo(x, y); first = false; }
-                else capLoadCtx.lineTo(x, y);
-            }
-            capLoadCtx.stroke();
+            millerCtx.stroke();
 
             // Frequency labels
-            for (let exp = 3; exp <= 9; exp++) {
+            for (let exp = -1; exp <= 9; exp++) {
                 const f = Math.pow(10, exp);
-                const x = freqToX(f);
-                capLoadCtx.fillStyle = '#888';
-                capLoadCtx.textAlign = 'center';
-                const label = exp === 3 ? '1k' : exp === 4 ? '10k' : exp === 5 ? '100k' : exp === 6 ? '1M' : exp === 7 ? '10M' : exp === 8 ? '100M' : '1G';
-                capLoadCtx.fillText(label, x, phBot + 15);
-            }
-            capLoadCtx.fillText('Frequency (Hz)', margin.left + plotW/2, h - 5);
-
-            // Calculate phase margins
-            function findCrossover(fn) {
-                for (let f = fMin; f < fMax; f *= 1.05) {
-                    if (fn(f) < 0) return f;
+                if (f >= fMin && f <= fMax) {
+                    const x = freqToX(f);
+                    millerCtx.fillStyle = '#888';
+                    millerCtx.textAlign = 'center';
+                    let label = exp < 3 ? f + '' : (exp === 3 ? '1k' : exp === 4 ? '10k' : exp === 5 ? '100k' : exp === 6 ? '1M' : exp === 7 ? '10M' : exp === 8 ? '100M' : '1G');
+                    millerCtx.fillText(label, x, phBot + 15);
                 }
-                return fMax;
             }
+            millerCtx.fillText('Frequency (Hz)', margin.left + plotW/2, h - 5);
 
-            const fcNoCL = findCrossover(loopGainMagNoCL);
-            const fcWithCL = findCrossover(loopGainMag);
-            const pmNoCL = 180 + loopPhaseNoCL(fcNoCL);
-            const pmWithCL = 180 + loopPhase(fcWithCL);
-
-            // Legend
-            capLoadCtx.fillStyle = TEK.yellow;
-            capLoadCtx.fillRect(w - 180, 10, 15, 10);
-            capLoadCtx.fillStyle = '#fff';
-            capLoadCtx.textAlign = 'left';
-            capLoadCtx.fillText('Without CL', w - 160, 18);
-
-            capLoadCtx.fillStyle = TEK.green;
-            capLoadCtx.fillRect(w - 180, 25, 15, 10);
-            capLoadCtx.fillStyle = '#fff';
-            capLoadCtx.fillText('With CL', w - 160, 33);
+            // Calculate phase margin
+            const pm = 180 + phase(fu);
 
             // Results
-            const result = document.getElementById('cap-load-result');
+            const result = document.getElementById('miller-result');
             result.innerHTML = `
-                <strong>Capacitive Load Pole:</strong> ${AD.fmtUnit(fpCL, 'Hz')}<br>
-                <strong>Without CL:</strong> f<sub>c</sub> = ${AD.fmtUnit(fcNoCL, 'Hz')}, PM = ${pmNoCL.toFixed(1)}°<br>
-                <strong>With CL:</strong> f<sub>c</sub> = ${AD.fmtUnit(fcWithCL, 'Hz')}, PM = <span style="color: ${pmWithCL > 45 ? TEK.green : pmWithCL > 0 ? TEK.yellow : TEK.red}">${pmWithCL.toFixed(1)}°</span><br>
-                <strong>Phase Margin Degradation:</strong> ${(pmNoCL - pmWithCL).toFixed(1)}°
-                ${pmWithCL < 30 ? '<br><span style="color:' + TEK.red + '">WARNING: Circuit may ring or oscillate! Add isolation resistor.</span>' : ''}
+                <strong>DC Gain:</strong> ${A0_dB.toFixed(1)} dB (${AD.fmtUnit(A0, '')}×)<br>
+                <strong>Dominant Pole (p1):</strong> ${AD.fmtUnit(fp1, 'Hz')}<br>
+                <strong>Non-dominant Pole (p2):</strong> ${AD.fmtUnit(fp2, 'Hz')}<br>
+                <strong>Zero:</strong> ${fz > 1e12 ? '∞ (eliminated)' : AD.fmtUnit(fz, 'Hz') + (rhp ? ' (RHP - adds phase lag!)' : ' (LHP - adds phase lead)')}<br>
+                <strong>Unity-gain Frequency:</strong> ${AD.fmtUnit(fu, 'Hz')}<br>
+                <strong>Phase Margin:</strong> <span style="color: ${pm > 60 ? TEK.green : pm > 45 ? TEK.yellow : TEK.red}">${pm.toFixed(1)}°</span>
+                ${pm < 45 ? ' <span style="color:' + TEK.red + '">(Increase gm2 or reduce CL!)</span>' : ''}
             `;
         };
 
-        // Isolation resistor calculator
-        window.calcIsoResistor = function() {
-            const fc = AD.num('fc-iso') * 1e6;
-            const CL = AD.num('cl-iso') * 1e-12;
+        // Pole-zero s-plane visualization
+        const pzCanvas = document.getElementById('pole-zero-canvas');
+        if (pzCanvas) {
+            const pzCtx = pzCanvas.getContext('2d');
 
-            // Place zero at 0.5 × fc
-            const fz = 0.5 * fc;
-            const Riso = 1 / (2 * Math.PI * fz * CL);
+            window.updatePoleZero = function() {
+                const gmRatio = AD.num('gm-ratio');
+                const ccRatio = AD.num('cc-ratio');
+                document.getElementById('gm-ratio-val').textContent = gmRatio;
+                document.getElementById('cc-ratio-val').textContent = ccRatio.toFixed(1);
 
-            const result = document.getElementById('iso-result');
-            result.innerHTML = `
-                <strong>Target zero frequency:</strong> ${AD.fmtUnit(fz, 'Hz')} (0.5 × f<sub>c</sub>)<br>
-                <strong>Recommended R<sub>iso</sub>:</strong> ${Riso.toFixed(1)} Ω<br>
-                <strong>Standard value:</strong> ${Riso < 50 ? '47Ω' : Riso < 75 ? '68Ω' : Riso < 110 ? '100Ω' : Riso < 160 ? '150Ω' : Riso < 240 ? '220Ω' : Riso < 360 ? '330Ω' : Riso < 540 ? '470Ω' : '680Ω'}
-            `;
-        };
+                const w = pzCanvas.width, h = pzCanvas.height;
+                const centerX = w * 0.6, centerY = h / 2;
+                const scale = 40;
 
-        // RLC Load analyzer
-        const rlcCanvas = document.getElementById('rlc-load-canvas');
-        if (rlcCanvas) {
-            const rlcCtx = rlcCanvas.getContext('2d');
+                pzCtx.fillStyle = '#0d1117';
+                pzCtx.fillRect(0, 0, w, h);
 
-            window.updateRLCLoad = function() {
-                const R = AD.num('load-r');
-                const L = AD.num('load-l') * 1e-6;
-                const C = AD.num('load-c') * 1e-12;
-                const gbw = AD.num('gbw-rlc') * 1e6;
+                // Draw axes
+                pzCtx.strokeStyle = '#666';
+                pzCtx.lineWidth = 1;
+                pzCtx.beginPath();
+                pzCtx.moveTo(0, centerY);
+                pzCtx.lineTo(w, centerY);
+                pzCtx.stroke();
+                pzCtx.beginPath();
+                pzCtx.moveTo(centerX, 0);
+                pzCtx.lineTo(centerX, h);
+                pzCtx.stroke();
 
-                const w = rlcCanvas.width, h = rlcCanvas.height;
-                const margin = { left: 60, right: 30, top: 30, bottom: 40 };
-                const plotW = w - margin.left - margin.right;
-                const plotH = h - margin.top - margin.bottom;
+                pzCtx.fillStyle = '#888';
+                pzCtx.font = '12px monospace';
+                pzCtx.fillText('σ (Real)', w - 40, centerY - 10);
+                pzCtx.fillText('jω', centerX + 10, 15);
+                pzCtx.fillText('LHP', 20, 20);
+                pzCtx.fillStyle = '#553333';
+                pzCtx.fillRect(centerX, 0, w - centerX, h);
+                pzCtx.fillStyle = '#888';
+                pzCtx.fillText('RHP', centerX + 10, 20);
 
-                rlcCtx.fillStyle = '#0d1117';
-                rlcCtx.fillRect(0, 0, w, h);
+                // Normalized pole/zero locations
+                // p1 (dominant) at low frequency - very far left
+                // p2 at normalized 1
+                // RHP zero at gm2/gm1 * (Cc/CL) = gmRatio * ccRatio
+                const p1Norm = -0.1; // Very small (dominant pole)
+                const p2Norm = -1; // Non-dominant pole at unity
+                const zNorm = gmRatio * ccRatio; // RHP zero
 
-                const fMin = 1e3, fMax = 1e9;
-                const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
-
-                function freqToX(f) {
-                    return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
+                // Draw poles (X marks)
+                function drawPole(x, y, color) {
+                    pzCtx.strokeStyle = color;
+                    pzCtx.lineWidth = 3;
+                    const size = 8;
+                    pzCtx.beginPath();
+                    pzCtx.moveTo(x - size, y - size);
+                    pzCtx.lineTo(x + size, y + size);
+                    pzCtx.stroke();
+                    pzCtx.beginPath();
+                    pzCtx.moveTo(x - size, y + size);
+                    pzCtx.lineTo(x + size, y - size);
+                    pzCtx.stroke();
                 }
 
-                // Calculate load impedance magnitude
-                function loadZ(f) {
-                    const omega = 2 * Math.PI * f;
-                    // Parallel RLC: 1/Z = 1/R + 1/jωL + jωC
-                    // Z = 1 / (1/R + jωC - j/(ωL))
-                    const Greal = 1/R;
-                    const Bimag = omega * C - 1/(omega * L);
-                    // |Z| = 1 / sqrt(G^2 + B^2)
-                    if (L === 0) {
-                        // Just RC
-                        // Actually: |Z| for R || C
-                        return R / Math.sqrt(1 + (omega * R * C)**2);
-                    }
-                    if (C === 0 && L === 0) return R;
-                    if (L === 0) {
-                        return R / Math.sqrt(1 + (omega * R * C)**2);
-                    }
-                    return 1 / Math.sqrt(Greal**2 + Bimag**2);
+                function drawZero(x, y, color) {
+                    pzCtx.strokeStyle = color;
+                    pzCtx.lineWidth = 3;
+                    pzCtx.beginPath();
+                    pzCtx.arc(x, y, 8, 0, 2 * Math.PI);
+                    pzCtx.stroke();
                 }
 
-                // Impedance plot
-                const zMin = 0.1, zMax = 10000;
+                // p1 (very far left, show at edge)
+                drawPole(50, centerY, TEK.red);
+                pzCtx.fillStyle = TEK.red;
+                pzCtx.fillText('p1 (dominant)', 30, centerY + 25);
 
-                function zToY(z) {
-                    const logZ = Math.log10(Math.max(z, 0.1));
-                    const logZMin = Math.log10(zMin);
-                    const logZMax = Math.log10(zMax);
-                    return margin.top + plotH - (logZ - logZMin) / (logZMax - logZMin) * plotH;
-                }
+                // p2
+                drawPole(centerX + p2Norm * scale * 3, centerY, TEK.red);
+                pzCtx.fillStyle = TEK.red;
+                pzCtx.fillText('p2', centerX + p2Norm * scale * 3 - 10, centerY - 15);
 
-                // Grid
-                rlcCtx.strokeStyle = '#333';
-                rlcCtx.lineWidth = 1;
-                for (let exp = -1; exp <= 4; exp++) {
-                    const z = Math.pow(10, exp);
-                    const y = zToY(z);
-                    rlcCtx.beginPath();
-                    rlcCtx.moveTo(margin.left, y);
-                    rlcCtx.lineTo(w - margin.right, y);
-                    rlcCtx.stroke();
-                    rlcCtx.fillStyle = '#888';
-                    rlcCtx.textAlign = 'right';
-                    rlcCtx.font = '10px monospace';
-                    const label = exp === -1 ? '0.1' : exp === 0 ? '1' : exp === 1 ? '10' : exp === 2 ? '100' : exp === 3 ? '1k' : '10k';
-                    rlcCtx.fillText(label + ' Ω', margin.left - 5, y + 4);
-                }
-
-                // Draw impedance
-                rlcCtx.strokeStyle = TEK.cyan;
-                rlcCtx.lineWidth = 2;
-                rlcCtx.beginPath();
-                let first = true;
-                for (let i = 0; i <= 400; i++) {
-                    const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
-                    let z;
-                    if (L > 0 && C > 0) {
-                        const omega = 2 * Math.PI * f;
-                        const Greal = 1/R;
-                        const Bimag = omega * C - 1/(omega * L);
-                        z = 1 / Math.sqrt(Greal**2 + Bimag**2);
-                    } else if (C > 0) {
-                        const omega = 2 * Math.PI * f;
-                        z = R / Math.sqrt(1 + (omega * R * C)**2);
-                    } else if (L > 0) {
-                        const omega = 2 * Math.PI * f;
-                        const zL = omega * L;
-                        z = R * zL / Math.sqrt(R**2 + zL**2);
-                    } else {
-                        z = R;
-                    }
-                    const x = freqToX(f), y = Math.max(margin.top, Math.min(h - margin.bottom, zToY(z)));
-                    if (first) { rlcCtx.moveTo(x, y); first = false; }
-                    else rlcCtx.lineTo(x, y);
-                }
-                rlcCtx.stroke();
-
-                // Frequency labels
-                for (let exp = 3; exp <= 9; exp++) {
-                    const f = Math.pow(10, exp);
-                    const x = freqToX(f);
-                    rlcCtx.fillStyle = '#888';
-                    rlcCtx.textAlign = 'center';
-                    const label = exp === 3 ? '1k' : exp === 4 ? '10k' : exp === 5 ? '100k' : exp === 6 ? '1M' : exp === 7 ? '10M' : exp === 8 ? '100M' : '1G';
-                    rlcCtx.fillText(label, x, h - margin.bottom + 15);
-                }
-                rlcCtx.fillText('|Z| vs Frequency', margin.left + plotW/2, 15);
-
-                // Mark crossover
-                rlcCtx.strokeStyle = TEK.yellow;
-                rlcCtx.setLineDash([5, 5]);
-                rlcCtx.beginPath();
-                rlcCtx.moveTo(freqToX(gbw), margin.top);
-                rlcCtx.lineTo(freqToX(gbw), h - margin.bottom);
-                rlcCtx.stroke();
-                rlcCtx.setLineDash([]);
-                rlcCtx.fillStyle = TEK.yellow;
-                rlcCtx.fillText('GBW', freqToX(gbw), margin.top + 15);
-
-                // Results
-                let zAtGBW;
-                if (L > 0 && C > 0) {
-                    const omega = 2 * Math.PI * gbw;
-                    const Greal = 1/R;
-                    const Bimag = omega * C - 1/(omega * L);
-                    zAtGBW = 1 / Math.sqrt(Greal**2 + Bimag**2);
-                } else if (C > 0) {
-                    const omega = 2 * Math.PI * gbw;
-                    zAtGBW = R / Math.sqrt(1 + (omega * R * C)**2);
-                } else if (L > 0) {
-                    const omega = 2 * Math.PI * gbw;
-                    const zL = omega * L;
-                    zAtGBW = R * zL / Math.sqrt(R**2 + zL**2);
+                // RHP zero
+                const zeroX = centerX + zNorm * scale * 0.5;
+                if (zeroX < w - 20) {
+                    drawZero(zeroX, centerY, TEK.yellow);
+                    pzCtx.fillStyle = TEK.yellow;
+                    pzCtx.fillText('z (RHP)', zeroX - 20, centerY - 15);
                 } else {
-                    zAtGBW = R;
+                    pzCtx.fillStyle = TEK.yellow;
+                    pzCtx.fillText('z → ∞', w - 50, centerY - 15);
                 }
 
-                // Check for resonance
-                let fRes = 0;
-                if (L > 0 && C > 0) {
-                    fRes = 1 / (2 * Math.PI * Math.sqrt(L * C));
-                }
-
-                const result = document.getElementById('rlc-result');
-                result.innerHTML = `
-                    <strong>Load impedance at GBW:</strong> ${zAtGBW.toFixed(1)} Ω<br>
-                    ${fRes > 0 ? '<strong>Resonant frequency:</strong> ' + AD.fmtUnit(fRes, 'Hz') + (fRes < gbw && fRes > gbw/10 ? ' <span style="color:' + TEK.yellow + '">(Warning: near crossover!)</span>' : '') + '<br>' : ''}
-                    <strong>Recommendation:</strong> ${zAtGBW < 100 && C > 0 ? 'Consider isolation resistor to decouple capacitive component' : 'Load appears manageable'}
-                `;
+                // Legend
+                pzCtx.fillStyle = '#fff';
+                pzCtx.font = '11px monospace';
+                pzCtx.fillText('Pole locations:', 10, h - 60);
+                pzCtx.fillStyle = TEK.red;
+                pzCtx.fillText('p1: dominant (Miller-multiplied)', 10, h - 45);
+                pzCtx.fillText('p2: gm2/CL (non-dominant)', 10, h - 30);
+                pzCtx.fillStyle = TEK.yellow;
+                pzCtx.fillText('z: gm2/Cc (RHP zero)', 10, h - 15);
             };
         }
 
-        // Schematics
-        const isoSch = document.getElementById('sch-isolation-resistor');
-        if (isoSch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(isoSch, 450, 160);
+        // Two-stage op-amp schematic
+        const twoStageSch = document.getElementById('sch-two-stage-miller');
+        if (twoStageSch && typeof SchematicSVG !== 'undefined') {
+            const sch = new SchematicSVG(twoStageSch, 500, 180);
 
-            // Op-amp
-            sch.opamp(100, 80, { label: '' });
-            const op = SchematicSVG.opampTerminals(100, 80);
+            // First stage (diff pair + current mirror load) - simplified as box
+            sch.wire([[40, 90], [70, 90]]);
+            sch.nodeLabel(40, 90, 'Vin', { position: 'left' });
 
-            // Input
-            sch.wire([[30, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-            sch.nodeLabel(30, op.nonInvInput.y, 'Vin', { position: 'left' });
+            // Stage 1 box
+            sch.rect(70, 50, 80, 80, { label: 'Stage 1\n(Diff Pair)', fill: '#1a1a2e' });
 
-            // Feedback resistor
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 30]]);
-            sch.wire([[op.invInput.x, 30], [op.output.x, 30]]);
-            sch.resistor((op.invInput.x + op.output.x)/2, 30, 'horizontal', { label: 'Rf' });
+            // Internal node
+            sch.wire([[150, 90], [200, 90]]);
+            sch.dot(200, 90);
+            sch.nodeLabel(200, 75, 'Node 1', { position: 'above' });
 
-            // Inverting input to ground
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 30, op.invInput.y]]);
-            sch.resistor(op.invInput.x - 55, op.invInput.y, 'horizontal', { label: 'Rin' });
-            sch.ground(op.invInput.x - 80, op.invInput.y);
-
-            // Output with isolation resistor
-            sch.wire([[op.output.x, op.output.y], [op.output.x + 30, op.output.y]]);
-            sch.dot(op.output.x, op.output.y);
-            sch.resistor(op.output.x + 55, op.output.y, 'horizontal', { label: 'Riso' });
-
-            // Load
-            sch.wire([[op.output.x + 80, op.output.y], [op.output.x + 120, op.output.y]]);
-            sch.dot(op.output.x + 120, op.output.y);
-            sch.wire([[op.output.x + 120, op.output.y], [op.output.x + 120, op.output.y + 30]]);
-            sch.capacitor(op.output.x + 120, op.output.y + 30, 'vertical', { label: 'CL' });
-            sch.ground(op.output.x + 120, op.output.y + 80);
-
-            sch.nodeLabel(op.output.x + 140, op.output.y, 'Vout', { position: 'right' });
-
-            sch.render();
-        }
-
-        const snubberSch = document.getElementById('sch-snubber');
-        if (snubberSch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(snubberSch, 450, 160);
-
-            // Op-amp
-            sch.opamp(100, 80, { label: '' });
-            const op = SchematicSVG.opampTerminals(100, 80);
-
-            // Simplified - just show output portion
-            sch.wire([[op.output.x, op.output.y], [op.output.x + 80, op.output.y]]);
-            sch.dot(op.output.x, op.output.y);
-            sch.dot(op.output.x + 80, op.output.y);
-
-            // Snubber branch
-            sch.wire([[op.output.x + 40, op.output.y], [op.output.x + 40, op.output.y + 25]]);
-            sch.dot(op.output.x + 40, op.output.y);
-            sch.resistor(op.output.x + 40, op.output.y + 25, 'vertical', { label: 'Rs' });
-            sch.capacitor(op.output.x + 40, op.output.y + 75, 'vertical', { label: 'Cs' });
-            sch.ground(op.output.x + 40, op.output.y + 120);
-
-            // Load capacitor
-            sch.wire([[op.output.x + 80, op.output.y], [op.output.x + 80, op.output.y + 25]]);
-            sch.capacitor(op.output.x + 80, op.output.y + 25, 'vertical', { label: 'CL' });
-            sch.ground(op.output.x + 80, op.output.y + 75);
-
-            sch.wire([[op.output.x + 80, op.output.y], [op.output.x + 120, op.output.y]]);
-            sch.nodeLabel(op.output.x + 120, op.output.y, 'Vout', { position: 'right' });
-
-            // Input side simplified
-            sch.wire([[30, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-            sch.nodeLabel(30, op.nonInvInput.y, 'Vin', { position: 'left' });
-            sch.ground(op.invInput.x - 30, op.invInput.y);
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 30, op.invInput.y]]);
-
-            sch.render();
-        }
-
-        const fbCapSch = document.getElementById('sch-feedback-cap');
-        if (fbCapSch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(fbCapSch, 450, 160);
-
-            sch.opamp(100, 80, { label: '' });
-            const op = SchematicSVG.opampTerminals(100, 80);
-
-            // Input
-            sch.wire([[30, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-            sch.nodeLabel(30, op.nonInvInput.y, 'Vin', { position: 'left' });
-
-            // Input resistor
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 20, op.invInput.y]]);
-            sch.resistor(op.invInput.x - 45, op.invInput.y, 'horizontal', { label: 'Rin' });
-            sch.ground(op.invInput.x - 70, op.invInput.y);
-
-            // Feedback with parallel R and C
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 30]]);
-            sch.dot(op.invInput.x, op.invInput.y);
-
-            // Rf on top path
-            sch.wire([[op.invInput.x, 30], [op.invInput.x + 20, 30]]);
-            sch.resistor(op.invInput.x + 45, 30, 'horizontal', { label: 'Rf' });
-            sch.wire([[op.invInput.x + 70, 30], [op.output.x, 30]]);
-
-            // Cf on bottom path (parallel)
-            sch.wire([[op.invInput.x, 30], [op.invInput.x, 50]]);
-            sch.dot(op.invInput.x, 30);
-            sch.wire([[op.invInput.x, 50], [op.invInput.x + 20, 50]]);
-            sch.capacitor(op.invInput.x + 45, 50, 'horizontal', { label: 'Cf' });
-            sch.wire([[op.invInput.x + 70, 50], [op.output.x, 50]]);
-            sch.wire([[op.output.x, 50], [op.output.x, 30]]);
-            sch.dot(op.output.x, 30);
-
-            sch.wire([[op.output.x, 30], [op.output.x, op.output.y]]);
+            // Stage 2 box
+            sch.rect(250, 50, 80, 80, { label: 'Stage 2\n(CS Amp)', fill: '#1a1a2e' });
+            sch.wire([[200, 90], [250, 90]]);
 
             // Output
-            sch.wire([[op.output.x, op.output.y], [op.output.x + 60, op.output.y]]);
-            sch.dot(op.output.x, op.output.y);
-            sch.nodeLabel(op.output.x + 60, op.output.y, 'Vout', { position: 'right' });
+            sch.wire([[330, 90], [400, 90]]);
+            sch.dot(400, 90);
+            sch.nodeLabel(420, 90, 'Vout', { position: 'right' });
+
+            // Compensation capacitor
+            sch.wire([[200, 90], [200, 30]]);
+            sch.wire([[200, 30], [280, 30]]);
+            sch.capacitor(280, 30, 'horizontal', { label: 'Cc' });
+            sch.wire([[330, 30], [400, 30]]);
+            sch.wire([[400, 30], [400, 90]]);
 
             // Load capacitor
-            sch.wire([[op.output.x + 30, op.output.y], [op.output.x + 30, op.output.y + 25]]);
-            sch.dot(op.output.x + 30, op.output.y);
-            sch.capacitor(op.output.x + 30, op.output.y + 25, 'vertical', { label: 'CL' });
-            sch.ground(op.output.x + 30, op.output.y + 75);
+            sch.wire([[400, 90], [400, 130]]);
+            sch.capacitor(400, 130, 'vertical', { label: 'CL' });
+            sch.ground(400, 175);
 
             sch.render();
         }
 
-        const inLoopSch = document.getElementById('sch-in-loop-comp');
-        if (inLoopSch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(inLoopSch, 500, 180);
+        // Cascode compensation schematic placeholder
+        const cascodeSch = document.getElementById('sch-cascode-comp');
+        if (cascodeSch && typeof SchematicSVG !== 'undefined') {
+            const sch = new SchematicSVG(cascodeSch, 450, 160);
 
-            sch.opamp(120, 90, { label: '' });
-            const op = SchematicSVG.opampTerminals(120, 90);
+            // Simplified view
+            sch.wire([[40, 80], [70, 80]]);
+            sch.nodeLabel(40, 80, 'Vin', { position: 'left' });
 
-            // Input
-            sch.wire([[30, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-            sch.nodeLabel(30, op.nonInvInput.y, 'Vin', { position: 'left' });
+            // Stage 1
+            sch.rect(70, 40, 80, 80, { label: 'Cascode\nStage 1', fill: '#1a1a2e' });
 
-            // Main feedback resistor (outer loop - to load side)
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 20]]);
-            sch.dot(op.invInput.x, op.invInput.y);
-            sch.wire([[op.invInput.x, 20], [op.output.x + 100, 20]]);
-            sch.resistor((op.invInput.x + op.output.x + 100)/2, 20, 'horizontal', { label: 'Rf' });
-            sch.wire([[op.output.x + 100, 20], [op.output.x + 100, op.output.y]]);
-            sch.dot(op.output.x + 100, op.output.y);
+            // Low-Z node for Cc connection
+            sch.wire([[150, 60], [180, 60]]);
+            sch.dot(180, 60);
+            sch.nodeLabel(180, 45, 'Low-Z', { position: 'above' });
 
-            // Input resistor
-            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 20, op.invInput.y]]);
-            sch.resistor(op.invInput.x - 45, op.invInput.y, 'horizontal', { label: 'Rin' });
-            sch.ground(op.invInput.x - 70, op.invInput.y);
+            // High-Z node (output of stage 1)
+            sch.wire([[150, 100], [200, 100]]);
+            sch.nodeLabel(195, 115, 'High-Z', { position: 'below' });
 
-            // Output with Rx
-            sch.wire([[op.output.x, op.output.y], [op.output.x + 30, op.output.y]]);
-            sch.dot(op.output.x, op.output.y);
-            sch.resistor(op.output.x + 55, op.output.y, 'horizontal', { label: 'Rx' });
-            sch.wire([[op.output.x + 80, op.output.y], [op.output.x + 100, op.output.y]]);
+            // Stage 2
+            sch.rect(250, 40, 70, 80, { label: 'Stage 2', fill: '#1a1a2e' });
+            sch.wire([[200, 100], [200, 80], [250, 80]]);
 
-            // Local feedback to op-amp output
-            sch.wire([[op.output.x, op.output.y], [op.output.x, 50]]);
-            sch.wire([[op.output.x, 50], [op.invInput.x + 20, 50]]);
-            sch.resistor(op.invInput.x + 45, 50, 'horizontal', { label: 'Rx\'' });
-            sch.wire([[op.invInput.x + 20, 50], [op.invInput.x, 50]]);
-            sch.wire([[op.invInput.x, 50], [op.invInput.x, op.invInput.y]]);
+            // Output
+            sch.wire([[320, 80], [380, 80]]);
+            sch.dot(380, 80);
+            sch.nodeLabel(395, 80, 'Vout', { position: 'right' });
 
-            // Load capacitor (inside feedback loop now)
-            sch.wire([[op.output.x + 100, op.output.y], [op.output.x + 100, op.output.y + 25]]);
-            sch.capacitor(op.output.x + 100, op.output.y + 25, 'vertical', { label: 'CL' });
-            sch.ground(op.output.x + 100, op.output.y + 75);
-
-            sch.wire([[op.output.x + 100, op.output.y], [op.output.x + 140, op.output.y]]);
-            sch.nodeLabel(op.output.x + 140, op.output.y, 'Vout', { position: 'right' });
+            // Cc from low-Z to output (better!)
+            sch.wire([[180, 60], [180, 20]]);
+            sch.wire([[180, 20], [260, 20]]);
+            sch.capacitor(260, 20, 'horizontal', { label: 'Cc' });
+            sch.wire([[310, 20], [380, 20]]);
+            sch.wire([[380, 20], [380, 80]]);
 
             sch.render();
         }
@@ -885,44 +703,42 @@
         window.checkEx1 = function() {
             const input = AD.num('ex1-input');
             const result = document.getElementById('ex1-result');
-            // fp = 1/(2π × 40 × 200p) = 19.9 MHz
-            if (Math.abs(input - 19.9) < 1.5 || Math.abs(input - 20) < 1) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! f<sub>p,CL</sub> = 1/(2π × 40Ω × 200pF) ≈ 20 MHz</span>';
+            // Cc = gm1 / (2π × fu) = 100μ / (2π × 5M) = 3.18 pF
+            if (Math.abs(input - 3.18) < 0.3 || Math.abs(input - 3.2) < 0.2) {
+                result.innerHTML = '<span style="color: #4ade80">Correct! C<sub>c</sub> = g<sub>m1</sub>/(2πf<sub>u</sub>) = 100μS/(2π×5MHz) = 3.18 pF</span>';
             } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. Use f<sub>p,CL</sub> = 1/(2π × Z<sub>o</sub> × C<sub>L</sub>).</span>';
+                result.innerHTML = '<span style="color: #f87171">Not quite. Use C<sub>c</sub> = g<sub>m1</sub>/(2πf<sub>u</sub>).</span>';
             }
         };
 
         window.checkEx2 = function() {
             const input = AD.num('ex2-input');
             const result = document.getElementById('ex2-result');
-            // Riso = 1/(2π × 25MHz × 200pF) = 31.8 Ω
-            if (Math.abs(input - 31.8) < 5 || Math.abs(input - 33) < 5) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! R<sub>iso</sub> = 1/(2π × 25MHz × 200pF) ≈ 32Ω. Standard value: 33Ω</span>';
+            // gm2 > 2.2 × gm1 × (CL/Cc) = 2.2 × 100μ × (10/4) = 550 μS = 0.55 mS
+            if (input >= 0.5 && input <= 0.6) {
+                result.innerHTML = '<span style="color: #4ade80">Correct! g<sub>m2</sub> > 2.2 × 100μS × (10pF/4pF) = 0.55 mS minimum</span>';
+            } else if (input >= 0.4 && input <= 0.7) {
+                result.innerHTML = '<span style="color: #fbbf24">Close! The calculation gives g<sub>m2</sub> > 2.2 × g<sub>m1</sub> × (C<sub>L</sub>/C<sub>c</sub>) = 0.55 mS</span>';
             } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. R<sub>iso</sub> = 1/(2π × f<sub>z</sub> × C<sub>L</sub>).</span>';
+                result.innerHTML = '<span style="color: #f87171">Not quite. Use g<sub>m2</sub> > 2.2 × g<sub>m1</sub> × (C<sub>L</sub>/C<sub>c</sub>).</span>';
             }
         };
 
         window.checkEx3 = function() {
             const input = AD.num('ex3-input');
             const result = document.getElementById('ex3-result');
-            // CL = 5m × 100pF/m = 500 pF
-            // fc = 10 MHz (unity gain), target zero at 5 MHz
-            // Riso = 1/(2π × 5MHz × 500pF) = 63.7 Ω → use 68Ω
-            if (input >= 60 && input <= 75) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! With C<sub>L</sub> = 500pF and f<sub>z</sub> = 5MHz, R<sub>iso</sub> ≈ 64Ω. Standard value: 68Ω</span>';
-            } else if (input >= 47 && input <= 100) {
-                result.innerHTML = '<span style="color: #fbbf24">Close! Total cable capacitance is 500pF. Place zero at ~5MHz (half of GBW). R<sub>iso</sub> ≈ 64Ω.</span>';
+            // Rz = 1/gm2 = 1/0.8mS = 1.25 kΩ
+            if (Math.abs(input - 1.25) < 0.15 || Math.abs(input - 1.3) < 0.1) {
+                result.innerHTML = '<span style="color: #4ade80">Correct! R<sub>z</sub> = 1/g<sub>m2</sub> = 1/(0.8mS) = 1.25 kΩ</span>';
             } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. First calculate total C<sub>L</sub> = 5m × 100pF/m = 500pF, then R<sub>iso</sub> = 1/(π × f<sub>c</sub> × C<sub>L</sub>).</span>';
+                result.innerHTML = '<span style="color: #f87171">Not quite. To eliminate the RHP zero, R<sub>z</sub> = 1/g<sub>m2</sub>.</span>';
             }
         };
 
         // Initialize
-        updateCapLoad();
-        if (typeof updateRLCLoad === 'function') {
-            updateRLCLoad();
+        updateMillerCalc();
+        if (typeof updatePoleZero === 'function') {
+            updatePoleZero();
         }
     })();
     </script>

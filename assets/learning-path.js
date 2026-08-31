@@ -110,6 +110,11 @@ const LEARNING_PATH = (() => {
                 { ref: [3, 2], title: 'Feedback topologies',
                   earns: 'Why feedback raises one impedance and lowers another — how the four ' +
                          'amplifier types get built on purpose.' },
+                { ref: [3, 3], title: 'Poles, zeros and Bode plots by hand',
+                  earns: 'Sketching a response straight from the circuit, without a simulator ' +
+                         '— the skill that makes the next step intuitive rather than ' +
+                         'numerical. Sketch errors of 3.01, 0.97 and 0.04 dB, and why a pole a ' +
+                         'decade past crossover still costs 5.7 degrees of margin.' },
                 { ref: [1, 7], title: 'Stability and compensation',
                   earns: 'What you pay for loop gain: phase margin, and the ringing you get ' +
                          'when you spend it all.' }
@@ -239,10 +244,7 @@ const LEARNING_PATH = (() => {
                          'the source resistance.' },
                 { ref: [5, 10], title: 'Cascode',
                   earns: 'The fix for Miller, and why high-frequency circuits look the way ' +
-                         'they do.' },
-                { ref: null, status: 'todo', title: 'Poles, zeros and Bode plots by hand',
-                  earns: 'Sketching a response from the circuit without a simulator — the ' +
-                         'skill that makes stability analysis intuitive rather than numerical.' }
+                         'they do.' }
             ]
         },
 
@@ -275,17 +277,17 @@ const LEARNING_PATH = (() => {
             blurb: 'Semester 1 used feedback. This is the analysis: how much you have, what it ' +
                    'buys, and when it turns into an oscillator.',
             steps: [
-                { ref: [3, 3], title: 'Stability analysis',
+                { ref: [3, 4], title: 'Stability analysis',
                   earns: 'Loop gain, phase margin, and the relation between margin and ' +
                          'overshoot — derived, not asserted.' },
-                { ref: [3, 4], title: 'Compensation techniques',
+                { ref: [3, 5], title: 'Compensation techniques',
                   earns: 'Dominant pole, lead, lag: moving poles on purpose.' },
-                { ref: [3, 5], title: 'Two-stage amplifier compensation',
+                { ref: [3, 6], title: 'Two-stage amplifier compensation',
                   earns: 'Miller compensation and pole splitting — the technique behind almost ' +
                          'every integrated op-amp.' },
-                { ref: [3, 6], title: 'Stability with reactive loads',
+                { ref: [3, 7], title: 'Stability with reactive loads',
                   earns: 'Why a capacitive load turns a stable amplifier into an oscillator.' },
-                { ref: [3, 8], title: 'The Nyquist criterion',
+                { ref: [3, 9], title: 'The Nyquist criterion',
                   earns: 'The general statement, for cases where phase margin cannot answer ' +
                          'the question.' }
             ]

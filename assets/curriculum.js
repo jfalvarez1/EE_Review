@@ -218,48 +218,54 @@ const CURRICULUM = {
                 },
                 {
                     id: 3,
+                    title: 'Poles, Zeros and Bode Plots by Hand',
+                    description: 'Building the plot stability analysis is read from, in under a minute and without a simulator',
+                    topics: ['Time-constant form, and why root form cannot be sketched', 'The three primitives, added in dB and degrees', 'Sketch errors: 3.01 dB, 0.97 dB, 0.04 dB', 'Phase is two decades wide - the pole you cannot see', 'RHP zero: magnitude of a zero, phase of a pole', 'Crossover by counting decades', 'Reading a measured plot back into components']
+                },
+                {
+                    id: 4,
                     title: 'Stability Analysis',
                     description: 'Bode plots, phase margin, gain margin',
                     topics: ['Barkhausen criterion', 'Phase/gain margin', 'Pole/zero effects', 'Capacitive load stability']
                 },
                 {
-                    id: 4,
+                    id: 5,
                     title: 'Compensation Techniques',
                     description: 'Dominant pole, Miller, lead-lag compensation',
                     topics: ['Pole splitting', 'Miller capacitor sizing', 'Lead compensation', 'Nested Miller']
                 },
                 {
-                    id: 5,
+                    id: 6,
                     title: 'Two-Stage Amplifier Compensation',
                     description: 'Miller compensation for multi-stage op-amps',
                     topics: ['741-style analysis', 'GBW vs CC tradeoff', 'Right-half-plane zero', 'Nulling resistor']
                 },
                 {
-                    id: 6,
+                    id: 7,
                     title: 'Stability with Reactive Loads',
                     description: 'Capacitive and inductive load handling',
                     topics: ['Isolation resistor', 'In-loop compensation', 'Snubber networks', 'Cable driving']
                 },
                 {
-                    id: 7,
+                    id: 8,
                     title: 'Power Supply Loop Stability',
                     description: 'Type I, II, III compensators for switching converters',
                     topics: ['Voltage-mode vs current-mode', 'Compensator design procedure', 'Optocoupler phase shift', 'Loop gain measurement']
                 },
                 {
-                    id: 8,
+                    id: 9,
                     title: 'Nyquist Stability Criterion',
                     description: 'Advanced stability analysis using Nyquist plots',
                     topics: ['Encirclement count', 'Conditionally stable systems', 'Right-half-plane poles', 'Gain/phase margin from Nyquist']
                 },
                 {
-                    id: 9,
+                    id: 10,
                     title: 'Root Locus Analysis',
                     description: 'Tracking poles as loop gain varies',
                     topics: ['Root locus rules', 'Breakaway points', 'Dominant pole design', 'Lead-lag placement']
                 },
                 {
-                    id: 10,
+                    id: 11,
                     title: 'Feedback Design Case Studies',
                     description: 'Complete worked examples from Razavi and Art of Electronics',
                     topics: ['Precision amplifier', 'High-speed buffer', 'Transimpedance amplifier', 'Power supply compensator']

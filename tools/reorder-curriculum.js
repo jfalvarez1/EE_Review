@@ -56,9 +56,10 @@ const MODULE_ORDER = [
 // Entries are validated as permutations of the module they name, so a stale
 // plan aborts rather than scrambling the lessons.
 const LESSON_ORDER = {
-    // Empty. Applied so far: the small-signal model lifted to position 2, then
-    // Miller to position 4 - after the high-frequency model that introduces the
-    // capacitances it is about, and before the cascode that answers it.
+    // Empty. Applied so far: the BJT small-signal model to 5-2, Miller to 5-4,
+    // and Bode-by-hand to 3-3 - the last because the feedback module went
+    // straight from topologies to STABILITY ANALYSIS with nothing in between
+    // teaching how to read the plot that stability is judged on.
 };
 
 // Lessons that are in the wrong MODULE, given as current coordinates. Each is

@@ -1,874 +1,989 @@
-<article class="lesson-content">
-    <p class="author-credit">Based on Razavi's "Design of Analog CMOS Integrated Circuits" and Agarwal's MIT 6.002</p>
-
-    <h2>Introduction</h2>
-    <p>When a feedback system has insufficient phase margin, we must add <strong>compensation</strong> to stabilize it. Compensation modifies the loop gain frequency response to ensure adequate stability margins. This lesson covers the fundamental compensation techniques used throughout analog design.</p>
-
-    <div class="concept-box">
-        <h3>The Compensation Problem</h3>
-        <p>Consider an amplifier with two poles at frequencies f<sub>p1</sub> and f<sub>p2</sub>. Each pole contributes -90° of phase shift at high frequencies. If the loop gain is still greater than unity when both poles have taken effect, the phase margin may be dangerously low or even negative (unstable).</p>
-        <p><strong>Compensation Goal:</strong> Modify the frequency response so that the magnitude crosses 0 dB while the phase is still above -180° (with adequate margin).</p>
+<!-- Module 3, Lesson 4: Stability Analysis -->
+<div class="lesson-content" data-module="3" data-lesson="4">
+    <div class="card">
+        <h2>Stability Analysis: Bode Plots and Phase Margin</h2>
+        <p>Feedback systems can oscillate if not properly designed. This lesson develops the stability analysis techniques using Bode plots, phase margin, and gain margin - the practical tools every analog designer must master.</p>
+        <div class="info-box warning">
+            <p><strong>Art of Electronics Warning:</strong> "Every feedback circuit is a potential oscillator. The question is not whether it might oscillate, but whether you've designed it so that it won't."</p>
+        </div>
     </div>
 
-    <h2>Dominant Pole Compensation</h2>
-    <p>The simplest compensation technique is to introduce a <strong>dominant pole</strong> at a frequency much lower than all other poles. This ensures the loop gain drops below unity before the higher-frequency poles contribute significant phase shift.</p>
-
-    <div class="formula-box">
-        <h4>Dominant Pole Design Rule</h4>
-        <p>To achieve phase margin PM, place the dominant pole f<sub>d</sub> such that:</p>
-        <div class="formula">f<sub>unity</sub> &lt; f<sub>p2</sub> / tan(90° - PM)</div>
-        <p>For PM = 60°: f<sub>unity</sub> &lt; f<sub>p2</sub> / 1.73</p>
-        <p>For PM = 45°: f<sub>unity</sub> &lt; f<sub>p2</sub></p>
-    </div>
-
-    <h3>Implementation Methods</h3>
-    <ul>
-        <li><strong>External Capacitor:</strong> Add a capacitor at a high-impedance node to create a low-frequency pole</li>
-        <li><strong>Miller Capacitor:</strong> Use feedback capacitance to create effective large capacitance (see Lesson 5)</li>
-        <li><strong>Integration:</strong> Some amplifiers are designed with intentionally low bandwidth (integrator-like response)</li>
-    </ul>
-
-    <div class="warning-box">
-        <h4>Don't Do This: Random Capacitor Placement</h4>
-        <p>Adding capacitors at arbitrary nodes can create additional poles and make stability worse! Always analyze the impedance at potential compensation nodes before adding capacitance.</p>
-    </div>
-
-    <h3>Interactive: Dominant Pole Compensation</h3>
-    <div class="control-group">
-        <label>Original Pole 1 (kHz): <input type="number" id="orig-p1" value="100" min="1" max="1000" step="10"></label>
-        <label>Original Pole 2 (kHz): <input type="number" id="orig-p2" value="1000" min="100" max="10000" step="100"></label>
-        <label>DC Loop Gain (dB): <input type="number" id="dc-gain-comp" value="60" min="20" max="100" step="5"></label>
-        <label>Dominant Pole (Hz): <input type="number" id="dom-pole" value="100" min="1" max="10000" step="10"></label>
-        <button onclick="updateDominantPole()">Update</button>
-    </div>
-    <canvas id="dominant-pole-canvas" width="700" height="400"></canvas>
-    <div id="dominant-pole-result" class="result-box"></div>
-
-    <h2>Lead Compensation</h2>
-    <p>Lead compensation adds a <strong>zero-pole pair</strong> where the zero occurs before the pole. This provides phase boost (positive phase shift) near the crossover frequency, improving phase margin without reducing bandwidth as much as dominant pole compensation.</p>
-
-    <div class="formula-box">
-        <h4>Lead Compensator Transfer Function</h4>
-        <div class="formula">H(s) = (1 + s/ω<sub>z</sub>) / (1 + s/ω<sub>p</sub>), where ω<sub>z</sub> &lt; ω<sub>p</sub></div>
-        <p>Maximum phase boost: φ<sub>max</sub> = arctan((ω<sub>p</sub> - ω<sub>z</sub>) / (2√(ω<sub>z</sub>ω<sub>p</sub>)))</p>
-        <p>Occurs at geometric mean: ω<sub>max</sub> = √(ω<sub>z</sub>ω<sub>p</sub>)</p>
-    </div>
-
-    <h3>Circuit Implementation</h3>
-    <p>A common lead compensation network uses a resistor-capacitor combination:</p>
-    <div id="sch-lead-comp" class="schematic-placeholder" style="height: 150px;"></div>
-
-    <p>Transfer function: H(s) = (R<sub>1</sub> + R<sub>2</sub>) / R<sub>2</sub> × (1 + sR<sub>1</sub>C) / (1 + s(R<sub>1</sub>||R<sub>2</sub>)C)</p>
-
-    <ul>
-        <li>Zero at: f<sub>z</sub> = 1/(2πR<sub>1</sub>C)</li>
-        <li>Pole at: f<sub>p</sub> = 1/(2π(R<sub>1</sub>||R<sub>2</sub>)C) = (1 + R<sub>1</sub>/R<sub>2</sub>)/(2πR<sub>1</sub>C)</li>
-    </ul>
-
-    <div class="design-tip">
-        <h4>Razavi Design Insight</h4>
-        <p>Place the geometric mean of the zero and pole at the desired crossover frequency. This positions maximum phase boost exactly where it's needed.</p>
-    </div>
-
-    <h2>Lag Compensation</h2>
-    <p>Lag compensation adds a <strong>pole-zero pair</strong> where the pole occurs before the zero. This reduces loop gain at high frequencies while adding minimal phase lag at the crossover frequency (if designed properly).</p>
-
-    <div class="formula-box">
-        <h4>Lag Compensator Transfer Function</h4>
-        <div class="formula">H(s) = (1 + s/ω<sub>p</sub>) / (1 + s/ω<sub>z</sub>), where ω<sub>p</sub> &lt; ω<sub>z</sub></div>
-        <p>Key: Both pole and zero should be at least a decade below crossover to minimize phase impact at crossover.</p>
-    </div>
-
-    <h3>When to Use Lag Compensation</h3>
-    <ul>
-        <li>When you need to reduce DC gain error but can accept bandwidth reduction</li>
-        <li>When lead compensation alone doesn't provide enough phase margin</li>
-        <li>In combination with lead for "lead-lag" compensation</li>
-    </ul>
-
-    <h2>Lead-Lag (PID-like) Compensation</h2>
-    <p>For challenging systems, combining lead and lag creates a more powerful compensator. This is similar to PID control theory applied to analog circuits.</p>
-
-    <div class="formula-box">
-        <h4>Lead-Lag Compensator</h4>
-        <p>Combines the benefits of both:</p>
+    <div class="card">
+        <h3>The Stability Problem</h3>
+        <p>Recall the closed-loop transfer function:</p>
+        <p style="font-family: monospace; font-size: 1.1em; text-align: center;">
+            A<sub>CL</sub> = A / (1 + A&beta;)
+        </p>
+        <p><strong>What happens when 1 + A&beta; = 0?</strong></p>
+        <p>This means A&beta; = -1, which requires:</p>
         <ul>
-            <li><strong>Lag portion:</strong> Increases low-frequency gain (reduces DC error)</li>
-            <li><strong>Lead portion:</strong> Adds phase boost at crossover for stability</li>
+            <li>|A&beta;| = 1 (loop gain magnitude = 1)</li>
+            <li>&angle;A&beta; = -180&deg; (loop gain phase = -180&deg;)</li>
         </ul>
-    </div>
+        <p style="color: #ff5252;"><strong>When both conditions are met, the system oscillates!</strong></p>
 
-    <h3>Interactive: Compensation Type Comparison</h3>
-    <div class="control-group">
-        <label>System Poles (kHz): <input type="text" id="sys-poles" value="10, 100, 500" size="20"></label>
-        <label>DC Gain (dB): <input type="number" id="sys-gain" value="80" min="20" max="120" step="10"></label>
-        <label>Compensation Type:
-            <select id="comp-type">
-                <option value="none">None (Uncompensated)</option>
-                <option value="dominant">Dominant Pole</option>
-                <option value="lead">Lead</option>
-                <option value="lag">Lag</option>
-                <option value="leadlag">Lead-Lag</option>
-            </select>
-        </label>
-        <button onclick="updateCompensation()">Update</button>
-    </div>
-    <canvas id="compensation-canvas" width="700" height="450"></canvas>
-    <div id="compensation-result" class="result-box"></div>
-
-    <h2>Worked Example: Lead Compensator Design</h2>
-    <div class="worked-example">
-        <h4>Problem</h4>
-        <p>An amplifier has loop gain T(s) = 10000/(1 + s/ω<sub>1</sub>)(1 + s/ω<sub>2</sub>) where f<sub>1</sub> = 100 Hz and f<sub>2</sub> = 10 kHz. Design a lead compensator to achieve 60° phase margin.</p>
-
-        <h4>Step 1: Analyze Uncompensated System</h4>
-        <p>DC loop gain: 20log(10000) = 80 dB</p>
-        <p>With two poles, the system rolls off at -40 dB/decade after both poles.</p>
-        <p>Uncompensated crossover: Using |T(jω)| = 1:</p>
-        <p style="margin-left: 20px;">At high frequencies: |T| ≈ 10000/(ω/ω<sub>1</sub>)(ω/ω<sub>2</sub>) = 10000·ω<sub>1</sub>·ω<sub>2</sub>/ω²</p>
-        <p style="margin-left: 20px;">Setting |T| = 1: ω<sub>c</sub> = √(10000 × 628 × 62832) = 62.8 krad/s → f<sub>c</sub> ≈ 10 kHz</p>
-        <p>Phase at crossover: -arctan(10k/100) - arctan(10k/10k) = -89.4° - 45° = -134.4°</p>
-        <p>Phase margin: 180° - 134.4° = 45.6° (insufficient for 60° target)</p>
-
-        <h4>Step 2: Determine Required Phase Boost</h4>
-        <p>Need: 60° - 45.6° = 14.4° additional phase margin</p>
-        <p>Add ~20° margin for safety: Design for 35° phase boost</p>
-
-        <h4>Step 3: Design Lead Compensator</h4>
-        <p>Maximum phase boost formula: φ<sub>max</sub> = arcsin((α-1)/(α+1)) where α = ω<sub>p</sub>/ω<sub>z</sub></p>
-        <p>For 35° boost: sin(35°) = (α-1)/(α+1) → α = (1 + 0.574)/(1 - 0.574) = 3.69</p>
-        <p>Place geometric mean at crossover: √(f<sub>z</sub>·f<sub>p</sub>) = 10 kHz</p>
-        <p>With α = 3.69: f<sub>z</sub> = 10k/√3.69 = 5.2 kHz, f<sub>p</sub> = 10k × √3.69 = 19.2 kHz</p>
-
-        <h4>Step 4: Verify</h4>
-        <p>Lead network adds: +arctan(10k/5.2k) - arctan(10k/19.2k) = 62.5° - 27.5° = 35° ✓</p>
-        <p>New phase margin: 45.6° + 35° = 80.6° (exceeds 60° target with margin)</p>
-
-        <h4>Step 5: Component Values</h4>
-        <p>Choose C = 1 nF for practical values:</p>
-        <p>R<sub>1</sub> = 1/(2π × 5.2k × 1n) = 30.6 kΩ → use 30 kΩ</p>
-        <p>R<sub>2</sub> = R<sub>1</sub>/(α-1) = 30k/2.69 = 11.2 kΩ → use 11 kΩ</p>
-
-        <div class="formula-box" style="background: #1a3a1a;">
-            <h4>Final Design</h4>
-            <p>R<sub>1</sub> = 30 kΩ, R<sub>2</sub> = 11 kΩ, C = 1 nF</p>
-            <p>Zero at 5.3 kHz, Pole at 19.5 kHz</p>
-            <p>Phase margin improved from 46° to ~78°</p>
+        <div class="info-box" style="background: #1a2a1a; border-color: #4caf50;">
+            <h4>Barkhausen Criterion</h4>
+            <p>A feedback system will oscillate if, at some frequency:</p>
+            <ol>
+                <li>Loop gain |A&beta;| &ge; 1</li>
+                <li>Phase shift of A&beta; = -180&deg; (total phase = 360&deg; around the loop)</li>
+            </ol>
+            <p><strong>For stability, we need to violate at least one condition at all frequencies.</strong></p>
         </div>
     </div>
 
-    <h2>Frequency Response Shaping Rules</h2>
-    <table class="info-table">
-        <thead>
-            <tr>
-                <th>Compensation Type</th>
-                <th>Effect on Bandwidth</th>
-                <th>Effect on Phase Margin</th>
-                <th>Best Used When</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Dominant Pole</td>
-                <td>Significantly reduces</td>
-                <td>Improves (by lowering crossover)</td>
-                <td>Bandwidth not critical, simple implementation needed</td>
-            </tr>
-            <tr>
-                <td>Lead</td>
-                <td>Can maintain or increase</td>
-                <td>Improves (phase boost)</td>
-                <td>Need phase margin without sacrificing bandwidth</td>
-            </tr>
-            <tr>
-                <td>Lag</td>
-                <td>Reduces somewhat</td>
-                <td>Minimal effect if designed properly</td>
-                <td>Need higher DC gain, can accept lower bandwidth</td>
-            </tr>
-            <tr>
-                <td>Lead-Lag</td>
-                <td>Maintains reasonably</td>
-                <td>Improves significantly</td>
-                <td>Challenging systems, need both DC accuracy and stability</td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="card">
+        <h3>Bode Plot Fundamentals</h3>
+        <p>The Bode plot shows magnitude (in dB) and phase versus frequency on a log scale.</p>
 
-    <h2>Common Mistakes in Compensation</h2>
-    <div class="warning-box">
-        <h4>Art of Electronics Wisdom</h4>
-        <ol>
-            <li><strong>Compensating at the wrong node:</strong> Adding capacitance at a low-impedance node has minimal effect. Always check node impedance first.</li>
-            <li><strong>Creating new poles:</strong> The compensation capacitor interacts with circuit impedances to create new poles. Verify you haven't added a pole near crossover.</li>
-            <li><strong>Ignoring parasitic poles:</strong> Real circuits have many high-frequency poles. Simulation is essential for verification.</li>
-            <li><strong>Over-compensating:</strong> Too much compensation wastes bandwidth. Aim for adequate margin (45-60°), not maximum.</li>
-        </ol>
+        <canvas id="bode-example-canvas" width="500" height="400"></canvas>
+
+        <h4>Key Relationships</h4>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Pole/Zero</th>
+                    <th>Magnitude Effect</th>
+                    <th>Phase Effect</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Simple pole at f<sub>p</sub></td>
+                    <td>-20 dB/decade after f<sub>p</sub></td>
+                    <td>-45&deg; at f<sub>p</sub>, -90&deg; ultimately</td>
+                </tr>
+                <tr>
+                    <td>Simple zero at f<sub>z</sub></td>
+                    <td>+20 dB/decade after f<sub>z</sub></td>
+                    <td>+45&deg; at f<sub>z</sub>, +90&deg; ultimately</td>
+                </tr>
+                <tr>
+                    <td>Double pole at f<sub>p</sub></td>
+                    <td>-40 dB/decade after f<sub>p</sub></td>
+                    <td>-90&deg; at f<sub>p</sub>, -180&deg; ultimately</td>
+                </tr>
+                <tr>
+                    <td>RHP zero at f<sub>z</sub></td>
+                    <td>+20 dB/decade</td>
+                    <td><span style="color:#ff5252;">-45&deg;</span> at f<sub>z</sub> (phase <em>decreases!</em>)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="info-box" style="background: #1a1a2a; border-color: #4fc3f7;">
+            <h4>The 45&deg; Rule (Razavi)</h4>
+            <p>Phase change of &plusmn;45&deg; occurs per decade, centered at the pole/zero frequency:</p>
+            <ul>
+                <li>At f = f<sub>p</sub>/10: phase shift is -5.7&deg;</li>
+                <li>At f = f<sub>p</sub>: phase shift is -45&deg;</li>
+                <li>At f = 10f<sub>p</sub>: phase shift is -84.3&deg;</li>
+            </ul>
+            <p>In practice, significant phase shift occurs over about two decades centered on the pole.</p>
+        </div>
     </div>
 
-    <h2>Exercises</h2>
-    <div id="exercises-container">
-        <div class="exercise-widget" data-exercise="1">
-            <p class="exercise-problem"><strong>Exercise 1:</strong> A two-pole system has poles at 1 kHz and 100 kHz with DC loop gain of 10,000. Where should a dominant pole be placed to achieve 60° phase margin?</p>
-            <input type="text" id="ex1-input" placeholder="Enter frequency in Hz">
-            <button onclick="checkEx1()">Check Answer</button>
-            <div id="ex1-result"></div>
-            <div class="exercise-hint" style="display:none;">
-                <p><strong>Hint:</strong> First find the uncompensated crossover, then determine where it needs to move. For 60° phase margin with a dominant pole, the crossover should be at f<sub>p2</sub>/tan(30°) = f<sub>p2</sub>/0.577.</p>
+    <div class="card">
+        <h3>Phase Margin and Gain Margin</h3>
+
+        <canvas id="margins-canvas" width="500" height="400"></canvas>
+
+        <h4>Definitions</h4>
+        <ul>
+            <li><strong>Unity-gain crossover frequency (f<sub>c</sub>):</strong> Where |A&beta;| = 1 (0 dB)</li>
+            <li><strong>Phase margin (PM):</strong> 180&deg; + &angle;A&beta; at f<sub>c</sub></li>
+            <li><strong>Gain margin (GM):</strong> 1/|A&beta;| at the frequency where &angle;A&beta; = -180&deg;</li>
+        </ul>
+
+        <div class="info-box" style="background: #1a2a1a; border-color: #4caf50;">
+            <h4>Design Guidelines</h4>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Phase Margin</th>
+                        <th>Behavior</th>
+                        <th>Recommendation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>&lt; 0&deg;</td>
+                        <td>Unstable (oscillates)</td>
+                        <td style="color:#ff5252;">Never acceptable</td>
+                    </tr>
+                    <tr>
+                        <td>0-30&deg;</td>
+                        <td>Severe ringing, near-oscillation</td>
+                        <td style="color:#ff9800;">Marginal, add compensation</td>
+                    </tr>
+                    <tr>
+                        <td>30-45&deg;</td>
+                        <td>Some overshoot, acceptable for fast systems</td>
+                        <td style="color:#ffeb3b;">Acceptable for speed-critical</td>
+                    </tr>
+                    <tr>
+                        <td>45-60&deg;</td>
+                        <td>Good damping, slight overshoot</td>
+                        <td style="color:#4caf50;">Recommended minimum</td>
+                    </tr>
+                    <tr>
+                        <td>60-90&deg;</td>
+                        <td>Well-damped, no overshoot</td>
+                        <td style="color:#4caf50;">Excellent</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Worked Example: Op-Amp Stability (Razavi Style)</h3>
+
+        <div class="info-box" style="background: #2a1a1a; border-color: #ff9800;">
+            <h4>Problem</h4>
+            <p>An op-amp has:</p>
+            <ul>
+                <li>DC gain A<sub>0</sub> = 100,000 (100 dB)</li>
+                <li>Two poles: f<sub>p1</sub> = 10 Hz, f<sub>p2</sub> = 1 MHz</li>
+            </ul>
+            <p>It's used in a unity-gain buffer (&beta; = 1). Is it stable?</p>
+
+            <h4>Solution</h4>
+
+            <p><strong>Step 1: Find the unity-gain crossover frequency</strong></p>
+            <p>For a two-pole system with well-separated poles:</p>
+            <p style="font-family: monospace;">
+                |A(f)| &asymp; A<sub>0</sub> / [(1 + f/f<sub>p1</sub>)(1 + f/f<sub>p2</sub>)]
+            </p>
+            <p>At high frequencies (f >> f<sub>p1</sub> but f << f<sub>p2</sub>):</p>
+            <p style="font-family: monospace;">
+                |A(f)| &asymp; A<sub>0</sub> &times; f<sub>p1</sub> / f = GBW / f
+            </p>
+            <p>where GBW = A<sub>0</sub> &times; f<sub>p1</sub> = 100,000 &times; 10 Hz = 1 MHz</p>
+            <p>Unity-gain crossover: f<sub>c</sub> = GBW = 1 MHz</p>
+
+            <p><strong>Step 2: Calculate phase at crossover</strong></p>
+            <p style="font-family: monospace;">
+                &angle;A(f<sub>c</sub>) = -tan<sup>-1</sup>(f<sub>c</sub>/f<sub>p1</sub>) - tan<sup>-1</sup>(f<sub>c</sub>/f<sub>p2</sub>)<br>
+                &angle;A(1MHz) = -tan<sup>-1</sup>(1M/10) - tan<sup>-1</sup>(1M/1M)<br>
+                &angle;A(1MHz) = -89.999&deg; - 45&deg; = -135&deg;
+            </p>
+
+            <p><strong>Step 3: Calculate phase margin</strong></p>
+            <p style="font-family: monospace;">
+                PM = 180&deg; + (-135&deg;) = 45&deg;
+            </p>
+
+            <p style="color: #ffeb3b;"><strong>Conclusion:</strong> PM = 45&deg; is marginally acceptable. There will be some overshoot (~16%) in the step response, but the system is stable.</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive Stability Analyzer</h3>
+        <div class="calculator-section">
+            <div class="input-group">
+                <label for="dc-gain">DC Gain A<sub>0</sub> (dB):</label>
+                <input type="range" id="dc-gain" min="40" max="140" value="100" oninput="updateStability()">
+                <span id="dc-gain-val">100 dB</span>
             </div>
-        </div>
-
-        <div class="exercise-widget" data-exercise="2">
-            <p class="exercise-problem"><strong>Exercise 2:</strong> Design a lead compensator to add 45° of phase boost centered at 50 kHz. What is the ratio of pole frequency to zero frequency (α)?</p>
-            <input type="text" id="ex2-input" placeholder="Enter ratio α">
-            <button onclick="checkEx2()">Check Answer</button>
-            <div id="ex2-result"></div>
-            <div class="exercise-hint" style="display:none;">
-                <p><strong>Hint:</strong> Use φ<sub>max</sub> = arcsin((α-1)/(α+1)). Solve for α when φ<sub>max</sub> = 45°.</p>
+            <div class="input-group">
+                <label for="pole1">First Pole f<sub>p1</sub> (Hz):</label>
+                <input type="range" id="pole1" min="1" max="1000" value="10" oninput="updateStability()">
+                <span id="pole1-val">10 Hz</span>
             </div>
+            <div class="input-group">
+                <label for="pole2">Second Pole f<sub>p2</sub> (Hz):</label>
+                <input type="range" id="pole2" min="100000" max="100000000" value="1000000" step="100000" oninput="updateStability()">
+                <span id="pole2-val">1 MHz</span>
+            </div>
+            <div class="input-group">
+                <label for="beta-stab">Feedback Factor &beta;:</label>
+                <input type="range" id="beta-stab" min="0.001" max="1" step="0.001" value="1" oninput="updateStability()">
+                <span id="beta-stab-val">1 (unity-gain)</span>
+            </div>
+            <canvas id="stability-bode-canvas" width="500" height="350"></canvas>
+            <div id="stability-results" class="result-box"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Why Op-Amps Are Internally Compensated</h3>
+        <p>Most general-purpose op-amps have a dominant pole at very low frequency (10-100 Hz) to ensure stability at unity gain.</p>
+
+        <div class="info-box" style="background: #1a1a2a; border-color: #4fc3f7;">
+            <h4>The Compensation Trade-off</h4>
+            <p><strong>Problem:</strong> A multi-stage amplifier naturally has multiple poles. Without compensation, the second pole would be within the unity-gain bandwidth, causing instability.</p>
+            <p><strong>Solution:</strong> Add a "dominant pole" at very low frequency, pushing unity-gain crossover below where other poles contribute significant phase shift.</p>
+            <p><strong>Cost:</strong> Reduced bandwidth! The op-amp is slower than it needs to be for higher gains.</p>
         </div>
 
-        <div class="exercise-widget" data-exercise="3">
-            <p class="exercise-problem"><strong>Exercise 3:</strong> For the lead compensator in Exercise 2 (α from your answer, centered at 50 kHz), what are the zero and pole frequencies?</p>
-            <input type="text" id="ex3-zero" placeholder="Zero frequency (kHz)">
-            <input type="text" id="ex3-pole" placeholder="Pole frequency (kHz)">
-            <button onclick="checkEx3()">Check Answer</button>
-            <div id="ex3-result"></div>
+        <h4>Decompensated Op-Amps</h4>
+        <p>Some op-amps are intentionally decompensated for use at higher gains:</p>
+        <ul>
+            <li><strong>Unity-gain stable:</strong> Guaranteed PM > 45&deg; at G = 1</li>
+            <li><strong>Gain of 2 stable:</strong> Only stable for G &ge; 2 (e.g., OP37)</li>
+            <li><strong>Gain of 10 stable:</strong> Only stable for G &ge; 10</li>
+        </ul>
+        <p>Using a decompensated op-amp at too low a gain will cause oscillation!</p>
+    </div>
+
+    <div class="card">
+        <h3>The Effect of Capacitive Loads</h3>
+        <p>Capacitive loads add a pole to the loop gain, reducing phase margin:</p>
+
+        <div class="info-box warning">
+            <h4>Art of Electronics: "Capacitive Load Catastrophe"</h4>
+            <p>The output impedance of an op-amp (typically 50-100&Omega; at high frequency) combined with a load capacitor C<sub>L</sub> creates a pole at:</p>
+            <p style="font-family: monospace;">
+                f<sub>p,load</sub> = 1 / (2&pi; &times; Z<sub>out</sub> &times; C<sub>L</sub>)
+            </p>
+            <p>This additional pole can steal 90&deg; of phase margin!</p>
         </div>
+
+        <h4>Solutions for Capacitive Loads</h4>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Technique</th>
+                    <th>How It Works</th>
+                    <th>Trade-off</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Isolation resistor</td>
+                    <td>R in series with output, moves load outside loop</td>
+                    <td>Slight output impedance increase</td>
+                </tr>
+                <tr>
+                    <td>"Snubber" (R-C)</td>
+                    <td>Adds zero to cancel load pole</td>
+                    <td>Requires tuning</td>
+                </tr>
+                <tr>
+                    <td>Feedback capacitor</td>
+                    <td>C<sub>f</sub> across feedback resistor adds lead compensation</td>
+                    <td>Reduces high-frequency gain</td>
+                </tr>
+                <tr>
+                    <td>Use stable op-amp</td>
+                    <td>Some op-amps are designed for capacitive loads</td>
+                    <td>Usually lower bandwidth</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div id="sch-isolation-resistor"></div>
+    </div>
+
+    <div class="card">
+        <h3>Step Response and Stability</h3>
+        <p>Phase margin directly affects transient response:</p>
+
+        <canvas id="step-response-canvas" width="500" height="280"></canvas>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Phase Margin</th>
+                    <th>Damping Ratio &zeta;</th>
+                    <th>Overshoot</th>
+                    <th>Settling Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>30&deg;</td>
+                    <td>0.30</td>
+                    <td>37%</td>
+                    <td>Long (many cycles)</td>
+                </tr>
+                <tr>
+                    <td>45&deg;</td>
+                    <td>0.45</td>
+                    <td>23%</td>
+                    <td>Moderate</td>
+                </tr>
+                <tr>
+                    <td>60&deg;</td>
+                    <td>0.58</td>
+                    <td>10%</td>
+                    <td>Good</td>
+                </tr>
+                <tr>
+                    <td>76&deg;</td>
+                    <td>1.0</td>
+                    <td>0%</td>
+                    <td>Critically damped</td>
+                </tr>
+                <tr>
+                    <td>90&deg;</td>
+                    <td>>1</td>
+                    <td>0%</td>
+                    <td>Overdamped</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="info-box" style="background: #1a2a1a; border-color: #4caf50;">
+            <h4>Razavi's Approximation</h4>
+            <p>For a second-order system with phase margin PM:</p>
+            <p style="font-family: monospace;">
+                &zeta; &asymp; tan(PM) / 2 (for PM < 60&deg;)<br>
+                Overshoot &asymp; exp(-&pi;&zeta;/&radic;(1-&zeta;&sup2;)) &times; 100%
+            </p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Exercises</h3>
+        <div id="exercise-container"></div>
     </div>
 
     <script>
     (function() {
-        // Dominant Pole Compensation Visualization
-        const dpCanvas = document.getElementById('dominant-pole-canvas');
-        if (!dpCanvas || typeof AD === 'undefined') return;
-        const dpCtx = dpCanvas.getContext('2d');
-        const TEK = AD.TEK_COLORS;
+        // Bode example canvas
+        const bodeCanvas = document.getElementById('bode-example-canvas');
+        if (bodeCanvas) {
+            const ctx = bodeCanvas.getContext('2d');
+            const w = bodeCanvas.width, h = bodeCanvas.height;
 
-        window.updateDominantPole = function() {
-            const fp1 = AD.num('orig-p1') * 1000;
-            const fp2 = AD.num('orig-p2') * 1000;
-            const A0_dB = AD.num('dc-gain-comp');
-            const fd = AD.num('dom-pole');
-            const A0 = Math.pow(10, A0_dB/20);
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, w, h);
 
-            const w = dpCanvas.width, h = dpCanvas.height;
-            const margin = { left: 60, right: 30, top: 30, bottom: 50 };
-            const plotW = w - margin.left - margin.right;
-            const plotH = (h - margin.top - margin.bottom - 20) / 2;
+            const ml = 60, mr = 20, gap = 30;
+            const plotH = (h - gap - 40) / 2;
 
-            dpCtx.fillStyle = '#0d1117';
-            dpCtx.fillRect(0, 0, w, h);
+            // Draw magnitude plot
+            function drawMagPlot() {
+                const mt = 20, mb = mt + plotH;
 
-            // Frequency range: 1 Hz to 10 MHz
-            const fMin = 1, fMax = 10e6;
-            const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
+                // Axes
+                ctx.strokeStyle = '#4a4a6a';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(ml, mt);
+                ctx.lineTo(ml, mb);
+                ctx.lineTo(w - mr, mb);
+                ctx.stroke();
 
-            function freqToX(f) {
-                return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
+                ctx.fillStyle = '#b0b0b0';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('Frequency (Hz)', w/2, mb + 12);
+
+                ctx.textAlign = 'right';
+                ['100', '80', '60', '40', '20', '0', '-20'].forEach((label, i) => {
+                    const y = mt + i * plotH / 6;
+                    ctx.fillText(label, ml - 5, y + 3);
+                });
+
+                // Frequency ticks
+                ctx.textAlign = 'center';
+                [1, 10, 100, 1e3, 1e4, 1e5, 1e6].forEach((f, i) => {
+                    const x = ml + i * (w - ml - mr) / 6;
+                    ctx.fillText(f >= 1000 ? (f/1000) + 'k' : f.toString(), x, mb + 12);
+                });
+
+                // Plot: single pole at 100 Hz, gain 100dB
+                ctx.strokeStyle = '#4fc3f7';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i <= 6; i += 0.05) {
+                    const f = Math.pow(10, i);
+                    const gain_dB = 100 - 20 * Math.log10(Math.sqrt(1 + Math.pow(f/100, 2)));
+                    const x = ml + i * (w - ml - mr) / 6;
+                    const y = mt + (100 - gain_dB) * plotH / 120;
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Asymptotes
+                ctx.strokeStyle = '#ff9800';
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                // Flat portion
+                const flatY = mt + 0 * plotH / 120;
+                ctx.moveTo(ml, flatY);
+                ctx.lineTo(ml + 2 * (w - ml - mr) / 6, flatY);
+                // -20dB/dec portion
+                ctx.lineTo(w - mr, mt + (100 - 0 + 80) * plotH / 120);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Label
+                ctx.fillStyle = '#4fc3f7';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('|A(f)| dB', ml + 10, mt + 15);
             }
 
-            // Magnitude plot
-            const magTop = margin.top;
-            const magBot = margin.top + plotH;
-            const dBMin = -40, dBMax = 100;
+            // Draw phase plot
+            function drawPhasePlot() {
+                const mt = 20 + plotH + gap, mb = mt + plotH;
 
-            function dBToY(dB) {
-                return magBot - (dB - dBMin) / (dBMax - dBMin) * plotH;
+                // Axes
+                ctx.strokeStyle = '#4a4a6a';
+                ctx.beginPath();
+                ctx.moveTo(ml, mt);
+                ctx.lineTo(ml, mb);
+                ctx.lineTo(w - mr, mb);
+                ctx.stroke();
+
+                ctx.fillStyle = '#b0b0b0';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'right';
+                ['0', '-45', '-90'].forEach((label, i) => {
+                    const y = mt + i * plotH / 2;
+                    ctx.fillText(label + '\u00B0', ml - 5, y + 3);
+                });
+
+                // Plot: single pole at 100 Hz
+                ctx.strokeStyle = '#4caf50';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i <= 6; i += 0.05) {
+                    const f = Math.pow(10, i);
+                    const phase = -Math.atan(f / 100) * 180 / Math.PI;
+                    const x = ml + i * (w - ml - mr) / 6;
+                    const y = mt + (-phase) * plotH / 90;
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Pole frequency marker
+                ctx.strokeStyle = '#ff5252';
+                ctx.setLineDash([2, 2]);
+                const poleX = ml + 2 * (w - ml - mr) / 6;
+                ctx.beginPath();
+                ctx.moveTo(poleX, mt);
+                ctx.lineTo(poleX, mb);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#ff5252';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('fp = 100 Hz', poleX, mt - 5);
+
+                ctx.fillStyle = '#4caf50';
+                ctx.textAlign = 'left';
+                ctx.fillText('\u2220A(f)', ml + 10, mt + 15);
             }
 
-            // Draw magnitude grid
-            dpCtx.strokeStyle = '#333';
-            dpCtx.lineWidth = 1;
-            for (let dB = -20; dB <= 100; dB += 20) {
-                const y = dBToY(dB);
-                dpCtx.beginPath();
-                dpCtx.moveTo(margin.left, y);
-                dpCtx.lineTo(w - margin.right, y);
-                dpCtx.stroke();
-                dpCtx.fillStyle = '#888';
-                dpCtx.font = '10px monospace';
-                dpCtx.textAlign = 'right';
-                dpCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
-            }
+            drawMagPlot();
+            drawPhasePlot();
+        }
 
-            // Frequency grid
-            for (let exp = 0; exp <= 7; exp++) {
-                const f = Math.pow(10, exp);
-                const x = freqToX(f);
-                dpCtx.beginPath();
-                dpCtx.moveTo(x, magTop);
-                dpCtx.lineTo(x, magBot);
-                dpCtx.stroke();
-            }
+        // Margins canvas
+        const marginsCanvas = document.getElementById('margins-canvas');
+        if (marginsCanvas) {
+            const ctx = marginsCanvas.getContext('2d');
+            const w = marginsCanvas.width, h = marginsCanvas.height;
 
-            // 0 dB line (bold)
-            dpCtx.strokeStyle = '#666';
-            dpCtx.lineWidth = 2;
-            dpCtx.beginPath();
-            dpCtx.moveTo(margin.left, dBToY(0));
-            dpCtx.lineTo(w - margin.right, dBToY(0));
-            dpCtx.stroke();
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, w, h);
 
-            // Calculate uncompensated and compensated responses
-            function uncompMag(f) {
-                const w = 2 * Math.PI * f;
-                const wp1 = 2 * Math.PI * fp1;
-                const wp2 = 2 * Math.PI * fp2;
-                const mag = A0 / Math.sqrt(1 + (w/wp1)**2) / Math.sqrt(1 + (w/wp2)**2);
-                return 20 * Math.log10(mag);
-            }
+            const ml = 60, mr = 20, gap = 30;
+            const plotH = (h - gap - 40) / 2;
 
-            function compMag(f) {
-                const w = 2 * Math.PI * f;
-                const wd = 2 * Math.PI * fd;
-                const wp1 = 2 * Math.PI * fp1;
-                const wp2 = 2 * Math.PI * fp2;
-                const mag = A0 / Math.sqrt(1 + (w/wd)**2) / Math.sqrt(1 + (w/wp1)**2) / Math.sqrt(1 + (w/wp2)**2);
-                return 20 * Math.log10(mag);
-            }
+            // Magnitude plot with phase margin indicator
+            const mt = 20, mb = mt + plotH;
 
-            // Draw uncompensated
-            dpCtx.strokeStyle = TEK.yellow;
-            dpCtx.lineWidth = 2;
-            dpCtx.beginPath();
-            let first = true;
-            for (let i = 0; i <= 500; i++) {
-                const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                const dB = uncompMag(f);
-                const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                if (first) { dpCtx.moveTo(x, y); first = false; }
-                else dpCtx.lineTo(x, y);
-            }
-            dpCtx.stroke();
+            ctx.strokeStyle = '#4a4a6a';
+            ctx.beginPath();
+            ctx.moveTo(ml, mt);
+            ctx.lineTo(ml, mb);
+            ctx.lineTo(w - mr, mb);
+            ctx.stroke();
 
-            // Draw compensated
-            dpCtx.strokeStyle = TEK.green;
-            dpCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 500; i++) {
-                const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                const dB = compMag(f);
-                const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                if (first) { dpCtx.moveTo(x, y); first = false; }
-                else dpCtx.lineTo(x, y);
+            // 0dB line
+            const zeroDB_Y = mt + plotH * 0.6;
+            ctx.strokeStyle = '#666';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(ml, zeroDB_Y);
+            ctx.lineTo(w - mr, zeroDB_Y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#b0b0b0';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText('0 dB', ml - 5, zeroDB_Y + 3);
+
+            // Loop gain with two poles
+            ctx.strokeStyle = '#4fc3f7';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            const A0 = 80; // dB
+            const fp1 = 10, fp2 = 100000;
+            for (let i = 0; i <= 6; i += 0.05) {
+                const f = Math.pow(10, i);
+                const gain = A0 - 20*Math.log10(Math.sqrt(1 + Math.pow(f/fp1, 2))) - 20*Math.log10(Math.sqrt(1 + Math.pow(f/fp2, 2)));
+                const x = ml + i * (w - ml - mr) / 6;
+                const y = mt + (A0 + 20 - gain) * plotH / (A0 + 40);
+                if (y < mb && y > mt) {
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                }
             }
-            dpCtx.stroke();
+            ctx.stroke();
+
+            // Find crossover and mark phase margin
+            const fc = 10 * Math.pow(10, A0/20) / Math.pow(10, A0/40); // approximate
+            const fcX = ml + Math.log10(fc) * (w - ml - mr) / 6;
+
+            ctx.strokeStyle = '#4caf50';
+            ctx.setLineDash([2, 2]);
+            ctx.beginPath();
+            ctx.moveTo(fcX, mt);
+            ctx.lineTo(fcX, mb);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#4caf50';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('fc (crossover)', fcX, mt - 5);
 
             // Phase plot
-            const phTop = magBot + 30;
-            const phBot = h - margin.bottom;
-            const phPlotH = phBot - phTop;
-            const phMin = -270, phMax = 0;
+            const mt2 = mt + plotH + gap, mb2 = mt2 + plotH;
 
-            function phToY(ph) {
-                return phBot - (ph - phMin) / (phMax - phMin) * phPlotH;
-            }
+            ctx.strokeStyle = '#4a4a6a';
+            ctx.beginPath();
+            ctx.moveTo(ml, mt2);
+            ctx.lineTo(ml, mb2);
+            ctx.lineTo(w - mr, mb2);
+            ctx.stroke();
 
-            // Phase grid
-            dpCtx.strokeStyle = '#333';
-            dpCtx.lineWidth = 1;
-            for (let ph = -270; ph <= 0; ph += 45) {
-                const y = phToY(ph);
-                dpCtx.beginPath();
-                dpCtx.moveTo(margin.left, y);
-                dpCtx.lineTo(w - margin.right, y);
-                dpCtx.stroke();
-                dpCtx.fillStyle = '#888';
-                dpCtx.textAlign = 'right';
-                dpCtx.fillText(ph + '°', margin.left - 5, y + 4);
-            }
+            // -180 line
+            const phase180_Y = mb2;
+            ctx.strokeStyle = '#ff5252';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(ml, phase180_Y);
+            ctx.lineTo(w - mr, phase180_Y);
+            ctx.stroke();
+            ctx.setLineDash([]);
 
-            // -180° line (bold)
-            dpCtx.strokeStyle = TEK.red;
-            dpCtx.lineWidth = 2;
-            dpCtx.setLineDash([5, 5]);
-            dpCtx.beginPath();
-            dpCtx.moveTo(margin.left, phToY(-180));
-            dpCtx.lineTo(w - margin.right, phToY(-180));
-            dpCtx.stroke();
-            dpCtx.setLineDash([]);
+            ctx.fillStyle = '#ff5252';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText('-180\u00B0', ml - 5, phase180_Y - 3);
 
-            // Phase frequency grid
-            for (let exp = 0; exp <= 7; exp++) {
-                const f = Math.pow(10, exp);
-                const x = freqToX(f);
-                dpCtx.strokeStyle = '#333';
-                dpCtx.beginPath();
-                dpCtx.moveTo(x, phTop);
-                dpCtx.lineTo(x, phBot);
-                dpCtx.stroke();
-                dpCtx.fillStyle = '#888';
-                dpCtx.textAlign = 'center';
-                const label = exp === 0 ? '1' : exp <= 3 ? Math.pow(10, exp) + '' : (exp === 4 ? '10k' : exp === 5 ? '100k' : exp === 6 ? '1M' : '10M');
-                dpCtx.fillText(label, x, phBot + 15);
-            }
-            dpCtx.fillText('Frequency (Hz)', margin.left + plotW/2, h - 5);
-
-            // Calculate phases
-            function uncompPhase(f) {
-                const w = 2 * Math.PI * f;
-                return -Math.atan(w / (2*Math.PI*fp1)) * 180/Math.PI - Math.atan(w / (2*Math.PI*fp2)) * 180/Math.PI;
-            }
-
-            function compPhase(f) {
-                const w = 2 * Math.PI * f;
-                return -Math.atan(w / (2*Math.PI*fd)) * 180/Math.PI - Math.atan(w / (2*Math.PI*fp1)) * 180/Math.PI - Math.atan(w / (2*Math.PI*fp2)) * 180/Math.PI;
-            }
-
-            // Draw uncompensated phase
-            dpCtx.strokeStyle = TEK.yellow;
-            dpCtx.lineWidth = 2;
-            dpCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 500; i++) {
-                const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                const ph = uncompPhase(f);
-                const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                if (first) { dpCtx.moveTo(x, y); first = false; }
-                else dpCtx.lineTo(x, y);
-            }
-            dpCtx.stroke();
-
-            // Draw compensated phase
-            dpCtx.strokeStyle = TEK.green;
-            dpCtx.beginPath();
-            first = true;
-            for (let i = 0; i <= 500; i++) {
-                const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                const ph = compPhase(f);
-                const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                if (first) { dpCtx.moveTo(x, y); first = false; }
-                else dpCtx.lineTo(x, y);
-            }
-            dpCtx.stroke();
-
-            // Find crossovers and phase margins
-            function findCrossover(magFn) {
-                for (let f = 1; f < 10e6; f *= 1.01) {
-                    if (magFn(f) < 0) return f;
+            // Phase curve
+            ctx.strokeStyle = '#ff9800';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let i = 0; i <= 6; i += 0.05) {
+                const f = Math.pow(10, i);
+                const phase = -Math.atan(f/fp1)*180/Math.PI - Math.atan(f/fp2)*180/Math.PI;
+                const x = ml + i * (w - ml - mr) / 6;
+                const y = mt2 + (-phase) * plotH / 180;
+                if (y < mb2 && y > mt2) {
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                 }
-                return 10e6;
+            }
+            ctx.stroke();
+
+            // Phase margin indicator
+            ctx.strokeStyle = '#4caf50';
+            ctx.setLineDash([2, 2]);
+            ctx.beginPath();
+            ctx.moveTo(fcX, mt2);
+            ctx.lineTo(fcX, mb2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Calculate and show PM
+            const phaseAtFc = -Math.atan(fc/fp1)*180/Math.PI - Math.atan(fc/fp2)*180/Math.PI;
+            const PM = 180 + phaseAtFc;
+            const phaseY = mt2 + (-phaseAtFc) * plotH / 180;
+
+            ctx.fillStyle = '#4caf50';
+            ctx.beginPath();
+            ctx.arc(fcX, phaseY, 5, 0, 2*Math.PI);
+            ctx.fill();
+
+            // PM arrow
+            ctx.strokeStyle = '#4caf50';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(fcX + 10, phaseY);
+            ctx.lineTo(fcX + 10, mb2);
+            ctx.stroke();
+
+            ctx.fillStyle = '#4caf50';
+            ctx.font = 'bold 11px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('PM = ' + PM.toFixed(0) + '\u00B0', fcX + 15, (phaseY + mb2) / 2);
+        }
+
+        // Phase margin and damping ratio, for a loop with one dominant pole
+        // and one high-frequency pole:
+        //
+        //     PM = atan( 2z / sqrt( sqrt(1 + 4 z^4) - 2 z^2 ) )
+        //
+        // monotonic in z, so invert it by bisection. The tan(PM)/2 shortcut
+        // that used to be here is not this relation: it disagrees badly by
+        // 45 deg and goes imaginary past 63.43 deg, where tan(PM)/2 reaches 1.
+        function pmFromZeta(z) {
+            const r = Math.sqrt(Math.sqrt(1 + 4*Math.pow(z, 4)) - 2*z*z);
+            return Math.atan(2*z / r) * 180 / Math.PI;
+        }
+
+        function zetaFromPM(pm) {
+            if (!(pm > 0)) return 0;
+            if (pm >= 90) return 10;
+            let lo = 1e-4, hi = 10;
+            for (let i = 0; i < 100; i++) {
+                const mid = (lo + hi) / 2;
+                if (pmFromZeta(mid) < pm) lo = mid; else hi = mid;
+            }
+            return (lo + hi) / 2;
+        }
+
+        // Peak overshoot of the closed-loop step response. Above z = 1 the
+        // response is overdamped and there is no overshoot at all.
+        function overshootPct(pm) {
+            const z = zetaFromPM(pm);
+            if (!(z > 0)) return 100;
+            if (z >= 1) return 0;
+            return Math.exp(-Math.PI * z / Math.sqrt(1 - z*z)) * 100;
+        }
+
+        // Stability calculator
+        window.updateStability = function() {
+            const A0_dB = AD.num('dc-gain');
+            const fp1 = AD.num('pole1');
+            const fp2 = AD.num('pole2');
+            const beta = AD.num('beta-stab');
+
+            document.getElementById('dc-gain-val').textContent = A0_dB + ' dB';
+            document.getElementById('pole1-val').textContent = fp1 + ' Hz';
+            document.getElementById('pole2-val').textContent = fp2 >= 1e6 ? (fp2/1e6).toFixed(1) + ' MHz' : (fp2/1e3).toFixed(0) + ' kHz';
+            document.getElementById('beta-stab-val').textContent = beta.toFixed(3) + ' (G = ' + (1/beta).toFixed(1) + ')';
+
+            const A0 = Math.pow(10, A0_dB / 20);
+            const loopGain_dB = A0_dB + 20 * Math.log10(beta);
+
+            // |T(f)| for the two-pole loop. Monotonically decreasing in f,
+            // which is what lets the crossover be bracketed rather than
+            // chased by a fixed-step iteration.
+            const loopMag = (f) =>
+                A0 * beta / Math.sqrt(1 + Math.pow(f/fp1, 2)) / Math.sqrt(1 + Math.pow(f/fp2, 2));
+
+            // Crossover by bisection in log f. If the loop gain never reaches
+            // 0 dB there is no crossover, and saying so beats reporting the
+            // 0 Hz that the old fixed-step search underflowed to.
+            const F_LO = 1e-3, F_HI = 1e12;
+            const hasCrossover = loopMag(F_LO) > 1 && loopMag(F_HI) < 1;
+            let fc = NaN;
+            if (hasCrossover) {
+                let lo = Math.log10(F_LO), hi = Math.log10(F_HI);
+                for (let i = 0; i < 200; i++) {
+                    const mid = (lo + hi) / 2;
+                    if (loopMag(Math.pow(10, mid)) > 1) lo = mid; else hi = mid;
+                }
+                fc = Math.pow(10, (lo + hi) / 2);
             }
 
-            const fcUncomp = findCrossover(uncompMag);
-            const fcComp = findCrossover(compMag);
-            const pmUncomp = 180 + uncompPhase(fcUncomp);
-            const pmComp = 180 + compPhase(fcComp);
+            const phaseAtFc = hasCrossover
+                ? -Math.atan(fc/fp1) * 180/Math.PI - Math.atan(fc/fp2) * 180/Math.PI
+                : NaN;
+            const PM = hasCrossover ? 180 + phaseAtFc : NaN;
 
-            // Legend
-            dpCtx.fillStyle = TEK.yellow;
-            dpCtx.fillRect(w - 200, 10, 15, 10);
-            dpCtx.fillStyle = '#fff';
-            dpCtx.textAlign = 'left';
-            dpCtx.fillText('Uncompensated', w - 180, 18);
+            // Draw Bode plot
+            const canvas = document.getElementById('stability-bode-canvas');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
 
-            dpCtx.fillStyle = TEK.green;
-            dpCtx.fillRect(w - 200, 25, 15, 10);
-            dpCtx.fillStyle = '#fff';
-            dpCtx.fillText('Compensated', w - 180, 33);
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, w, h);
+
+            const ml = 60, mr = 20, gap = 20;
+            const plotH = (h - gap - 30) / 2;
+            const mt = 15, mb = mt + plotH;
+
+            // Magnitude plot
+            ctx.strokeStyle = '#4a4a6a';
+            ctx.beginPath();
+            ctx.moveTo(ml, mt);
+            ctx.lineTo(ml, mb);
+            ctx.lineTo(w - mr, mb);
+            ctx.stroke();
+
+            // 0dB line
+            const zeroDB_Y = mt + plotH * 0.7;
+            ctx.strokeStyle = '#666';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(ml, zeroDB_Y);
+            ctx.lineTo(w - mr, zeroDB_Y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#888';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText('0dB', ml - 3, zeroDB_Y + 3);
+
+            // Loop gain curve
+            ctx.strokeStyle = '#4fc3f7';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            let magStarted = false;
+            for (let i = 0; i <= 8; i += 0.05) {
+                const f = Math.pow(10, i);
+                // Both poles roll off at 20 dB/dec. The second term had been
+                // mangled into a Math.sqrt(...) truthiness test, which dropped
+                // the sqrt and doubled fp2's slope.
+                const gain_dB = loopGain_dB
+                    - 20*Math.log10(Math.sqrt(1 + Math.pow(f/fp1, 2)))
+                    - 20*Math.log10(Math.sqrt(1 + Math.pow(f/fp2, 2)));
+                const x = ml + i * (w - ml - mr) / 8;
+                const y = mt + (loopGain_dB + 20 - gain_dB) * plotH / (loopGain_dB + 60);
+                if (isFinite(y) && y > mt && y < mb) {
+                    magStarted ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), magStarted = true);
+                }
+            }
+            ctx.stroke();
+
+            // Crossover marker
+            const fcX = hasCrossover ? ml + Math.log10(fc) * (w - ml - mr) / 8 : NaN;
+            if (isFinite(fcX) && fcX > ml && fcX < w - mr) {
+                ctx.strokeStyle = '#4caf50';
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(fcX, mt);
+                ctx.lineTo(fcX, h - 15);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Phase plot
+            const mt2 = mb + gap, mb2 = mt2 + plotH;
+
+            ctx.strokeStyle = '#4a4a6a';
+            ctx.beginPath();
+            ctx.moveTo(ml, mt2);
+            ctx.lineTo(ml, mb2);
+            ctx.lineTo(w - mr, mb2);
+            ctx.stroke();
+
+            // -180 line
+            ctx.strokeStyle = '#ff5252';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(ml, mb2);
+            ctx.lineTo(w - mr, mb2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#888';
+            ctx.textAlign = 'right';
+            ctx.fillText('-180\u00B0', ml - 3, mb2 - 3);
+
+            // Phase curve
+            ctx.strokeStyle = '#ff9800';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            let phStarted = false;
+            for (let i = 0; i <= 8; i += 0.05) {
+                const f = Math.pow(10, i);
+                const phase = -Math.atan(f/fp1)*180/Math.PI - Math.atan(f/fp2)*180/Math.PI;
+                const x = ml + i * (w - ml - mr) / 8;
+                const y = mt2 + (-phase) * plotH / 180;
+                if (isFinite(y) && y > mt2 && y < mb2) {
+                    phStarted ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), phStarted = true);
+                }
+            }
+            ctx.stroke();
+
+            // PM annotation
+            if (isFinite(fcX) && fcX > ml && fcX < w - mr) {
+                const phaseY = mt2 + (-phaseAtFc) * plotH / 180;
+                ctx.fillStyle = '#4caf50';
+                ctx.beginPath();
+                ctx.arc(fcX, phaseY, 4, 0, 2*Math.PI);
+                ctx.fill();
+
+                ctx.strokeStyle = '#4caf50';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(fcX + 5, phaseY);
+                ctx.lineTo(fcX + 5, mb2);
+                ctx.stroke();
+
+                ctx.fillStyle = '#4caf50';
+                ctx.font = 'bold 10px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('PM=' + PM.toFixed(0) + '\u00B0', fcX + 10, (phaseY + mb2) / 2);
+            }
 
             // Results
-            const result = document.getElementById('dominant-pole-result');
-            result.innerHTML = `
-                <strong>Uncompensated:</strong> f<sub>crossover</sub> = ${AD.fmtUnit(fcUncomp, 'Hz')}, Phase Margin = ${pmUncomp.toFixed(1)}°<br>
-                <strong>Compensated:</strong> f<sub>crossover</sub> = ${AD.fmtUnit(fcComp, 'Hz')}, Phase Margin = ${pmComp.toFixed(1)}°<br>
-                <strong>Bandwidth reduction:</strong> ${(fcUncomp/fcComp).toFixed(1)}× slower, but ${(pmComp - pmUncomp).toFixed(1)}° more phase margin
+            let status, statusColor;
+            if (!hasCrossover) {
+                status = 'No crossover - loop gain never reaches 0 dB';
+                statusColor = '#4fc3f7';
+            } else if (PM < 0) {
+                status = 'UNSTABLE - will oscillate!';
+                statusColor = '#ff5252';
+            } else if (PM < 30) {
+                status = 'Marginal - severe ringing expected';
+                statusColor = '#ff9800';
+            } else if (PM < 45) {
+                status = 'Acceptable - some overshoot';
+                statusColor = '#ffeb3b';
+            } else {
+                status = 'Good - stable with adequate margin';
+                statusColor = '#4caf50';
+            }
+
+            const overshoot = hasCrossover && PM > 0 ? overshootPct(PM) : null;
+
+            const fcText = !hasCrossover ? 'none'
+                : fc >= 1e6 ? (fc/1e6).toFixed(2) + ' MHz'
+                : fc >= 1e3 ? (fc/1e3).toFixed(1) + ' kHz'
+                : fc.toFixed(1) + ' Hz';
+
+            document.getElementById('stability-results').innerHTML = `
+                <p><strong>Unity-gain crossover:</strong> ${fcText}</p>
+                <p><strong>Phase at crossover:</strong> ${hasCrossover ? phaseAtFc.toFixed(1) + '\u00B0' : '\u2014'}</p>
+                <p><strong>Phase Margin:</strong> <span style="color:${statusColor}; font-weight:bold;">${hasCrossover ? PM.toFixed(1) + '\u00B0' : '\u2014'}</span></p>
+                <p><strong>Status:</strong> <span style="color:${statusColor};">${status}</span></p>
+                <p><strong>Expected overshoot:</strong> ${overshoot === null ? '\u2014' : overshoot.toFixed(1) + '%'}</p>
             `;
         };
+        updateStability();
 
-        // Compensation comparison visualization
-        const compCanvas = document.getElementById('compensation-canvas');
-        if (compCanvas) {
-            const compCtx = compCanvas.getContext('2d');
+        // Step response canvas
+        const stepCanvas = document.getElementById('step-response-canvas');
+        if (stepCanvas) {
+            const ctx = stepCanvas.getContext('2d');
+            const w = stepCanvas.width, h = stepCanvas.height;
 
-            window.updateCompensation = function() {
-                // Free-text list, so parse it defensively: an empty box or a
-                // stray character used to yield [NaN] and take every readout
-                // and both curves down with it. Keep only finite positive
-                // entries, and fall back to the field's own default when
-                // nothing usable is left.
-                const polesEl = document.getElementById('sys-poles');
-                const parsePoles = (str) => String(str || '')
-                    .split(',')
-                    .map(s => parseFloat(s.trim()) * 1000)
-                    .filter(v => isFinite(v) && v > 0)
-                    .sort((a, b) => a - b);
-                let poles = parsePoles(polesEl.value);
-                if (!poles.length) poles = parsePoles(polesEl.defaultValue);
-                if (!poles.length) poles = [10e3, 100e3, 500e3];
-                const A0_dB = AD.num('sys-gain');
-                const compType = document.getElementById('comp-type').value;
-                const A0 = Math.pow(10, A0_dB/20);
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, w, h);
 
-                const w = compCanvas.width, h = compCanvas.height;
-                const margin = { left: 60, right: 30, top: 30, bottom: 50 };
-                const plotW = w - margin.left - margin.right;
-                const plotH = (h - margin.top - margin.bottom - 20) / 2;
+            const ml = 50, mr = 20, mt = 30, mb = 40;
+            const pw = w - ml - mr, ph = h - mt - mb;
 
-                compCtx.fillStyle = '#0d1117';
-                compCtx.fillRect(0, 0, w, h);
+            // Axes
+            ctx.strokeStyle = '#4a4a6a';
+            ctx.beginPath();
+            ctx.moveTo(ml, mt);
+            ctx.lineTo(ml, h - mb);
+            ctx.lineTo(w - mr, h - mb);
+            ctx.stroke();
 
-                const fMin = 0.1, fMax = 100e6;
-                const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
+            ctx.fillStyle = '#b0b0b0';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('Time', w/2, h - 10);
 
-                function freqToX(f) {
-                    return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
-                }
+            // Draw step responses for different phase margins
+            const pms = [30, 45, 60, 76];
+            const colors = ['#ff5252', '#ff9800', '#4caf50', '#4fc3f7'];
+            const labels = ['PM=30\u00B0', 'PM=45\u00B0', 'PM=60\u00B0', 'PM=76\u00B0'];
 
-                const magTop = margin.top;
-                const magBot = margin.top + plotH;
-                const dBMin = -60, dBMax = 120;
+            pms.forEach((pm, idx) => {
+                const zeta = zetaFromPM(pm);
+                const wn = 1;
 
-                function dBToY(dB) {
-                    return magBot - (dB - dBMin) / (dBMax - dBMin) * plotH;
-                }
+                ctx.strokeStyle = colors[idx];
+                ctx.lineWidth = 2;
+                ctx.beginPath();
 
-                // Draw grids
-                compCtx.strokeStyle = '#333';
-                compCtx.lineWidth = 1;
-                for (let dB = -40; dB <= 100; dB += 20) {
-                    const y = dBToY(dB);
-                    compCtx.beginPath();
-                    compCtx.moveTo(margin.left, y);
-                    compCtx.lineTo(w - margin.right, y);
-                    compCtx.stroke();
-                    compCtx.fillStyle = '#888';
-                    compCtx.font = '10px monospace';
-                    compCtx.textAlign = 'right';
-                    compCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
-                }
-
-                // 0 dB line
-                compCtx.strokeStyle = '#666';
-                compCtx.lineWidth = 2;
-                compCtx.beginPath();
-                compCtx.moveTo(margin.left, dBToY(0));
-                compCtx.lineTo(w - margin.right, dBToY(0));
-                compCtx.stroke();
-
-                // Uncompensated magnitude
-                function uncompMag(f) {
-                    let mag = A0;
-                    for (const fp of poles) {
-                        mag /= Math.sqrt(1 + (f/fp)**2);
-                    }
-                    return 20 * Math.log10(mag);
-                }
-
-                function uncompPhase(f) {
-                    let phase = 0;
-                    for (const fp of poles) {
-                        phase -= Math.atan(f/fp) * 180/Math.PI;
-                    }
-                    return phase;
-                }
-
-                // Compensated transfer function based on type
-                function compMag(f) {
-                    let mag = A0;
-
-                    if (compType === 'dominant') {
-                        // Add dominant pole at 10 Hz
-                        const fd = 10;
-                        mag /= Math.sqrt(1 + (f/fd)**2);
-                    } else if (compType === 'lead') {
-                        // Lead: zero at fc/3, pole at fc*3 (roughly)
-                        const fc = 10000; // approx crossover
-                        const fz = fc / 3, fp = fc * 3;
-                        mag *= Math.sqrt(1 + (f/fz)**2) / Math.sqrt(1 + (f/fp)**2);
-                    } else if (compType === 'lag') {
-                        // Lag: pole at 1 Hz, zero at 10 Hz
-                        const fpl = 1, fzl = 10;
-                        mag /= Math.sqrt(1 + (f/fpl)**2);
-                        mag *= Math.sqrt(1 + (f/fzl)**2);
-                    } else if (compType === 'leadlag') {
-                        // Combined
-                        const fpl = 1, fzl = 10; // lag
-                        const fzld = 3000, fpld = 30000; // lead
-                        mag /= Math.sqrt(1 + (f/fpl)**2);
-                        mag *= Math.sqrt(1 + (f/fzl)**2);
-                        mag *= Math.sqrt(1 + (f/fzld)**2) / Math.sqrt(1 + (f/fpld)**2);
+                for (let t = 0; t <= 15; t += 0.1) {
+                    let y;
+                    if (zeta < 1) {
+                        const wd = wn * Math.sqrt(1 - zeta * zeta);
+                        y = 1 - Math.exp(-zeta * wn * t) * (Math.cos(wd * t) + zeta / Math.sqrt(1 - zeta * zeta) * Math.sin(wd * t));
+                    } else {
+                        y = 1 - Math.exp(-wn * t) * (1 + wn * t);
                     }
 
-                    for (const fp of poles) {
-                        mag /= Math.sqrt(1 + (f/fp)**2);
-                    }
-                    return 20 * Math.log10(mag);
+                    const px = ml + t * pw / 15;
+                    const py = h - mb - y * ph * 0.7;
+
+                    t === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
                 }
+                ctx.stroke();
 
-                function compPhase(f) {
-                    let phase = 0;
+                // Label
+                ctx.fillStyle = colors[idx];
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(labels[idx], w - 80, mt + 15 + idx * 15);
+            });
 
-                    if (compType === 'dominant') {
-                        const fd = 10;
-                        phase -= Math.atan(f/fd) * 180/Math.PI;
-                    } else if (compType === 'lead') {
-                        const fc = 10000;
-                        const fz = fc / 3, fp = fc * 3;
-                        phase += Math.atan(f/fz) * 180/Math.PI - Math.atan(f/fp) * 180/Math.PI;
-                    } else if (compType === 'lag') {
-                        const fpl = 1, fzl = 10;
-                        phase -= Math.atan(f/fpl) * 180/Math.PI;
-                        phase += Math.atan(f/fzl) * 180/Math.PI;
-                    } else if (compType === 'leadlag') {
-                        const fpl = 1, fzl = 10;
-                        const fzld = 3000, fpld = 30000;
-                        phase -= Math.atan(f/fpl) * 180/Math.PI;
-                        phase += Math.atan(f/fzl) * 180/Math.PI;
-                        phase += Math.atan(f/fzld) * 180/Math.PI - Math.atan(f/fpld) * 180/Math.PI;
-                    }
-
-                    for (const fp of poles) {
-                        phase -= Math.atan(f/fp) * 180/Math.PI;
-                    }
-                    return phase;
-                }
-
-                // Draw uncompensated
-                compCtx.strokeStyle = TEK.yellow;
-                compCtx.lineWidth = 2;
-                compCtx.beginPath();
-                let first = true;
-                for (let i = 0; i <= 500; i++) {
-                    const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                    const dB = uncompMag(f);
-                    const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                    if (first) { compCtx.moveTo(x, y); first = false; }
-                    else compCtx.lineTo(x, y);
-                }
-                compCtx.stroke();
-
-                // Draw compensated (if not 'none')
-                if (compType !== 'none') {
-                    compCtx.strokeStyle = TEK.green;
-                    compCtx.beginPath();
-                    first = true;
-                    for (let i = 0; i <= 500; i++) {
-                        const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                        const dB = compMag(f);
-                        const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
-                        if (first) { compCtx.moveTo(x, y); first = false; }
-                        else compCtx.lineTo(x, y);
-                    }
-                    compCtx.stroke();
-                }
-
-                // Phase plot
-                const phTop = magBot + 30;
-                const phBot = h - margin.bottom;
-                const phPlotH = phBot - phTop;
-                const phMin = -360, phMax = 90;
-
-                function phToY(ph) {
-                    return phBot - (ph - phMin) / (phMax - phMin) * phPlotH;
-                }
-
-                // Phase grid
-                compCtx.strokeStyle = '#333';
-                compCtx.lineWidth = 1;
-                for (let ph = -360; ph <= 90; ph += 45) {
-                    const y = phToY(ph);
-                    if (y >= phTop && y <= phBot) {
-                        compCtx.beginPath();
-                        compCtx.moveTo(margin.left, y);
-                        compCtx.lineTo(w - margin.right, y);
-                        compCtx.stroke();
-                        compCtx.fillStyle = '#888';
-                        compCtx.textAlign = 'right';
-                        compCtx.fillText(ph + '°', margin.left - 5, y + 4);
-                    }
-                }
-
-                // -180° reference
-                compCtx.strokeStyle = TEK.red;
-                compCtx.lineWidth = 2;
-                compCtx.setLineDash([5, 5]);
-                compCtx.beginPath();
-                compCtx.moveTo(margin.left, phToY(-180));
-                compCtx.lineTo(w - margin.right, phToY(-180));
-                compCtx.stroke();
-                compCtx.setLineDash([]);
-
-                // Draw uncompensated phase
-                compCtx.strokeStyle = TEK.yellow;
-                compCtx.lineWidth = 2;
-                compCtx.beginPath();
-                first = true;
-                for (let i = 0; i <= 500; i++) {
-                    const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                    const ph = uncompPhase(f);
-                    const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                    if (first) { compCtx.moveTo(x, y); first = false; }
-                    else compCtx.lineTo(x, y);
-                }
-                compCtx.stroke();
-
-                // Draw compensated phase
-                if (compType !== 'none') {
-                    compCtx.strokeStyle = TEK.green;
-                    compCtx.beginPath();
-                    first = true;
-                    for (let i = 0; i <= 500; i++) {
-                        const f = Math.pow(10, logMin + i/500 * (logMax - logMin));
-                        const ph = compPhase(f);
-                        const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
-                        if (first) { compCtx.moveTo(x, y); first = false; }
-                        else compCtx.lineTo(x, y);
-                    }
-                    compCtx.stroke();
-                }
-
-                // Frequency labels
-                for (let exp = -1; exp <= 8; exp++) {
-                    const f = Math.pow(10, exp);
-                    const x = freqToX(f);
-                    compCtx.fillStyle = '#888';
-                    compCtx.textAlign = 'center';
-                    let label;
-                    if (exp < 0) label = '0.1';
-                    else if (exp < 3) label = Math.pow(10, exp) + '';
-                    else if (exp === 3) label = '1k';
-                    else if (exp === 4) label = '10k';
-                    else if (exp === 5) label = '100k';
-                    else if (exp === 6) label = '1M';
-                    else if (exp === 7) label = '10M';
-                    else label = '100M';
-                    compCtx.fillText(label, x, phBot + 15);
-                }
-                compCtx.fillText('Frequency (Hz)', margin.left + plotW/2, h - 5);
-
-                // Calculate phase margins
-                function findCrossover(magFn) {
-                    for (let f = 0.1; f < 100e6; f *= 1.02) {
-                        if (magFn(f) < 0) return f;
-                    }
-                    return 100e6;
-                }
-
-                const fcUncomp = findCrossover(uncompMag);
-                const pmUncomp = 180 + uncompPhase(fcUncomp);
-
-                let resultHTML = `<strong>System Poles:</strong> ${poles.map(p => AD.fmtUnit(p, 'Hz')).join(', ')}<br>`;
-                resultHTML += `<strong>Uncompensated:</strong> f<sub>c</sub> = ${AD.fmtUnit(fcUncomp, 'Hz')}, PM = ${pmUncomp.toFixed(1)}°`;
-
-                if (compType !== 'none') {
-                    const fcComp = findCrossover(compMag);
-                    const pmComp = 180 + compPhase(fcComp);
-                    resultHTML += `<br><strong>Compensated:</strong> f<sub>c</sub> = ${AD.fmtUnit(fcComp, 'Hz')}, PM = ${pmComp.toFixed(1)}°`;
-
-                    const stable = pmComp > 0 ? (pmComp > 45 ? '(Stable, good margin)' : '(Marginally stable)') : '(UNSTABLE!)';
-                    resultHTML += ` <span style="color: ${pmComp > 45 ? TEK.green : pmComp > 0 ? TEK.yellow : TEK.red}">${stable}</span>`;
-                }
-
-                document.getElementById('compensation-result').innerHTML = resultHTML;
-
-                // Legend
-                compCtx.fillStyle = TEK.yellow;
-                compCtx.fillRect(w - 200, 10, 15, 10);
-                compCtx.fillStyle = '#fff';
-                compCtx.textAlign = 'left';
-                compCtx.fillText('Uncompensated', w - 180, 18);
-
-                if (compType !== 'none') {
-                    compCtx.fillStyle = TEK.green;
-                    compCtx.fillRect(w - 200, 25, 15, 10);
-                    compCtx.fillStyle = '#fff';
-                    compCtx.fillText('Compensated', w - 180, 33);
-                }
-            };
+            // Final value line
+            const finalY = h - mb - 0.7 * ph;
+            ctx.strokeStyle = '#666';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(ml, finalY);
+            ctx.lineTo(w - mr, finalY);
+            ctx.stroke();
+            ctx.setLineDash([]);
         }
 
-        // Lead compensator schematic
-        const leadSch = document.getElementById('sch-lead-comp');
-        if (leadSch && typeof SchematicSVG !== 'undefined') {
-            const sch = new SchematicSVG(leadSch, 400, 120);
-
-            // Input
-            sch.wire([[30, 60], [70, 60]]);
-            sch.nodeLabel(30, 60, 'Vin', { position: 'left' });
-
-            // R1
-            sch.resistor(70, 60, 'horizontal', { label: 'R1' });
-
-            // Junction after R1
-            sch.dot(120, 60);
-
-            // C from junction to output
-            sch.wire([[120, 60], [120, 30]]);
-            sch.capacitor(120, 30, 'horizontal', { label: 'C' });
-            sch.wire([[170, 30], [220, 30]]);
-            sch.wire([[220, 30], [220, 60]]);
-
-            // R2 from junction down to ground, parallel path
-            sch.wire([[120, 60], [120, 90]]);
-            sch.resistor(120, 90, 'vertical', { label: 'R2' });
-            sch.wire([[120, 140], [220, 140]]);
-            sch.ground(170, 145);
-
-            // Output from R2/C junction
-            sch.wire([[120, 60], [220, 60]]);
-            sch.dot(220, 60);
-            sch.wire([[220, 60], [280, 60]]);
-            sch.nodeLabel(280, 60, 'Vout', { position: 'right' });
-
-            sch.render();
-        }
-
-        // Exercise checking
-        window.checkEx1 = function() {
-            const input = AD.num('ex1-input');
-            const result = document.getElementById('ex1-result');
-            // For 60° PM, crossover should be at f_p2/tan(30°) = 100k/0.577 = 173 kHz
-            // DC gain 10000 (80 dB) with dominant pole at fd
-            // At crossover: gain = 10000 * fd / fc = 1, so fd = fc / 10000
-            // Need fc = 173 kHz, so fd = 17.3 Hz
-            // Accept range 15-20 Hz
-            if (input >= 15 && input <= 20) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! A dominant pole around 17 Hz will reduce the crossover to about 170 kHz, where the second pole at 100 kHz contributes only arctan(1.7) = 60° of phase shift.</span>';
-            } else if (input >= 10 && input <= 30) {
-                result.innerHTML = '<span style="color: #fbbf24">Close. The answer is around 17 Hz. Calculate: for 60° PM, crossover needs to be where phase from p2 is 30° → f_c = f_p2×tan(60°) = 173 kHz. Then f_d = f_c/A0.</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. Review the dominant pole placement strategy.</span>';
+        // Exercises
+        const exercises = [
+            {
+                question: "An op-amp has 60\u00B0 phase margin. What approximate overshoot will the step response show?",
+                type: "numeric",
+                answer: 10,
+                tolerance: 3,
+                unit: "%",
+                hint: "PM = 60\u00B0 corresponds to \u03B6 \u2248 0.58, overshoot \u2248 10%"
+            },
+            {
+                question: "A system has |A\u03B2| = 10 dB when the phase is -180\u00B0. What is the gain margin?",
+                type: "numeric",
+                answer: 10,
+                tolerance: 1,
+                unit: "dB",
+                hint: "Gain margin is how much the loop gain could increase before reaching 0 dB at -180\u00B0"
+            },
+            {
+                question: "An op-amp has GBW = 10 MHz and two poles at 100 Hz and 5 MHz. At unity gain, approximately what is the phase margin?",
+                type: "numeric",
+                answer: 27,
+                tolerance: 5,
+                unit: "\u00B0",
+                hint: "fc \u2248 10 MHz. Phase = -90\u00B0 (from first pole) - arctan(10M/5M) = -90\u00B0 - 63\u00B0 = -153\u00B0. PM = 180 - 153 = 27\u00B0"
+            },
+            {
+                question: "A 100\u03A9 output impedance op-amp drives a 1nF capacitor. At what frequency does this load add 45\u00B0 of phase shift?",
+                type: "numeric",
+                answer: 1.59,
+                tolerance: 0.2,
+                unit: "MHz",
+                hint: "f = 1/(2\u03C0RC) = 1/(2\u03C0 \u00D7 100 \u00D7 1nF)"
             }
-        };
+        ];
 
-        window.checkEx2 = function() {
-            const input = AD.num('ex2-input');
-            const result = document.getElementById('ex2-result');
-            // sin(45°) = (α-1)/(α+1) → 0.707 = (α-1)/(α+1)
-            // 0.707(α+1) = α-1 → 0.707α + 0.707 = α - 1
-            // 1.707 = 0.293α → α = 5.83
-            if (Math.abs(input - 5.83) < 0.3 || Math.abs(input - 5.8) < 0.2) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! α ≈ 5.83 gives 45° of maximum phase boost.</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. Use φ_max = arcsin((α-1)/(α+1)) and solve for α when φ_max = 45°.</span>';
-            }
-        };
-
-        window.checkEx3 = function() {
-            const zeroIn = AD.num('ex3-zero');
-            const poleIn = AD.num('ex3-pole');
-            const result = document.getElementById('ex3-result');
-            // α = 5.83, geometric mean = 50 kHz
-            // fz = 50/√5.83 = 20.7 kHz, fp = 50×√5.83 = 121 kHz
-            const zeroOK = Math.abs(zeroIn - 20.7) < 3 || Math.abs(zeroIn - 21) < 2;
-            const poleOK = Math.abs(poleIn - 121) < 15 || Math.abs(poleIn - 120) < 10;
-
-            if (zeroOK && poleOK) {
-                result.innerHTML = '<span style="color: #4ade80">Correct! Zero at ~21 kHz, pole at ~121 kHz, with geometric mean at 50 kHz.</span>';
-            } else if (zeroOK || poleOK) {
-                result.innerHTML = '<span style="color: #fbbf24">Partially correct. Remember: f_z = f_center/√α and f_p = f_center×√α.</span>';
-            } else {
-                result.innerHTML = '<span style="color: #f87171">Not quite. Use the relationship √(f_z × f_p) = 50 kHz and f_p/f_z = α.</span>';
-            }
-        };
-
-        // Initialize visualizations
-        updateDominantPole();
-        if (typeof updateCompensation === 'function') {
-            updateCompensation();
+        const container = document.getElementById('exercise-container');
+        if (typeof ExerciseWidget !== 'undefined') {
+            exercises.forEach((ex, i) => {
+                const div = document.createElement('div');
+                div.className = 'exercise-item';
+                container.appendChild(div);
+                new ExerciseWidget(div, {
+                    question: ex.question,
+                    type: ex.type,
+                    answer: ex.answer,
+                    tolerance: ex.tolerance,
+                    unit: ex.unit,
+                    options: ex.options,
+                    hint: ex.hint
+                });
+            });
         }
     })();
     </script>
-</article>
+</div>
