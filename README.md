@@ -236,6 +236,24 @@ and it conducts along its whole length), a port, an op-amp's supply pins, a CT s
 a relay's trip output, which goes to the breaker's operating mechanism rather than to a
 terminal in the power circuit.
 
+**Coverage.** `netlist.html` only sees diagrams built through `ComponentModels.diagram()` —
+24 of them. The hundreds of hand-drawn ones are covered by a different mechanism:
+`schematic-svg.js` runs its own connectivity DRC at render time (`unconnected_pin`,
+`node_short`, `keepout_violation`, `floating_label`, `floating_node`) and reports through
+`console.error` / `console.warn`, which `sweep-all.html` hooks. So both halves of the course
+are checked, by different tools, and the sweep is where they meet.
+
+That is worth verifying rather than believing. Detach one pin — move a wire endpoint 30 px
+off `q1.base` in module 1-7 — and the sweep names it immediately:
+
+```
+module-01/lesson-07  console.error: [ERROR] Component pin at (135, 125) has no wire connections
+module-01/lesson-07  console.warn:  [WARN] Node at (105, 125) has degree 1 - may be floating
+```
+
+A safety net you have never seen catch anything is indistinguishable from one that is
+switched off.
+
 **4. Contrast.** Any SVG stroke below about 3:1 against `#0b0f16` is invisible. 106 lesson
 files were authored against a white page and stroke in `#333` (1.52:1). `schematic-normalize.js`
 now remaps those at load — 2,706 elements across the course — but new hand-authored diagrams
