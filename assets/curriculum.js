@@ -635,6 +635,30 @@ const CURRICULUM = {
                     title: 'Industry MOSFET Selection Guide',
                     description: 'A repeatable process for choosing a switch',
                     topics: ['Figure of merit (Rds(on) x Qg)', 'Current derating', 'Logic level vs standard gate', '48 V system considerations']
+                },
+                // The analog half of this module. Everything above treats the
+                // MOSFET as a switch; these three treat it as an amplifier,
+                // which the catalogue previously covered in one lesson.
+                {
+                    id: 21,
+                    title: 'MOSFET Small-Signal Model and gm',
+                    description: 'Where gm comes from, and why it grows only as the square root of current',
+                    topics: ['gm = sqrt(2k·ID) = 2ID/Vov', 'Square-root vs linear against the BJT',
+                             'ro and intrinsic gain 2VA/Vov', 'Ciss/Coss/Crss to Cgs/Cgd']
+                },
+                {
+                    id: 22,
+                    title: 'The Common-Source Amplifier',
+                    description: 'The FET voltage amplifier, and biasing it so the gain equation stays true',
+                    topics: ['Av = -gm(RD||ro)', 'Source degeneration and -RD/RS',
+                             'Worked 12 V design', 'Why fixed-VGS biasing fails on Vth spread']
+                },
+                {
+                    id: 23,
+                    title: 'What the Square Law Gets Wrong',
+                    description: 'Where the model breaks: subthreshold, velocity saturation, and real Vth spread',
+                    topics: ['Subthreshold exponential region', 'Velocity saturation and short channels',
+                             'Channel-length modulation', 'Vth spread, matching and temperature']
                 }
             ]
         },

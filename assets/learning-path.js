@@ -153,18 +153,18 @@ const LEARNING_PATH = (() => {
             steps: [
                 { ref: [5, 1], title: 'MOSFET fundamentals',
                   earns: 'Threshold, inversion, and the three regions.' },
-                { ref: null, status: 'new', slug: 'mosfet-small-signal',
+                { ref: [5, 21], status: 'new', slug: 'mosfet-small-signal',
                   title: 'MOSFET small-signal model and gm',
                   earns: 'gm = 2·ID/Vov = sqrt(2·k·ID) derived from the square law — and why ' +
                          'a FET needs far more current than a BJT for the same gm.' },
-                { ref: null, status: 'new', slug: 'common-source',
+                { ref: [5, 22], status: 'new', slug: 'common-source',
                   title: 'The common-source amplifier',
                   earns: 'The FET counterpart of common-emitter, worked end to end. The ' +
                          'catalogue has no lesson for this at all.' },
                 { ref: [5, 8], title: 'Body effect and the back gate',
                   earns: 'The fourth terminal, and the threshold shift that breaks a source ' +
                          'follower you thought you had designed.' },
-                { ref: null, status: 'new', slug: 'real-fet-behaviour',
+                { ref: [5, 23], status: 'new', slug: 'real-fet-behaviour',
                   title: 'What the square law gets wrong',
                   earns: 'Channel-length modulation, velocity saturation, subthreshold ' +
                          'conduction, and the Vth spread across a real reel of parts.' }
