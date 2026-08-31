@@ -5707,7 +5707,11 @@ const SchematicLib = (() => {
         // === THREE-STAGE RC PHASE SHIFT NETWORK ===
         // Each stage: horizontal capacitor followed by resistor to ground
         const phaseY = q1.base.y;
-        const resGndY = phaseY + 30;  // Resistor start position
+        // 45, not 30: each stage's capacitor carries a label and a value
+        // beneath it, and at 30 the value ran into the top of the resistor
+        // below - the DRC reports it as text over a component keepout. There
+        // is room, since the ladder's return wires only have to reach gndY=260.
+        const resGndY = phaseY + 45;  // Resistor start position
 
         // Stage 3 (closest to base): C3 → node → R3 to ground
         const node3X = q1.base.x - 30;
@@ -6612,8 +6616,15 @@ const SchematicLib = (() => {
         sch.wire([[pins.trig.x, pins.trig.y], [nodeBX, pins.trig.y], [nodeBX, nodeBY]]);
         {
             // Route THRESH around the CTRL capacitor (no wires through bodies).
+            // It joins the TRIG run at a junction rather than re-drawing it:
+            // repeating [busX..nodeBX] at trig.y and the drop to node B laid a
+            // second conductor exactly on top of the first, which the reader
+            // cannot distinguish from one wire and the DRC reports as a
+            // duplicate segment. Pins 2 and 6 are tied in an astable, and a
+            // dot is how a schematic says so.
             const busX = pins.thresh.x - 10;
-            sch.wire([[pins.thresh.x, pins.thresh.y], [busX, pins.thresh.y], [busX, pins.trig.y], [nodeBX, pins.trig.y], [nodeBX, nodeBY]]);
+            sch.wire([[pins.thresh.x, pins.thresh.y], [busX, pins.thresh.y], [busX, pins.trig.y]]);
+            sch.dot(busX, pins.trig.y);
         }
 
         // OUT pin

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Duplicate segment probe</title>
+<style>
+    body { background:#0b0f16; color:#e6edf3; font:12.5px ui-monospace,Consolas,monospace; margin:20px; }
+    pre { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Duplicate segment probe</h1>
+<pre id="out">running...</pre>
+
+<script src="../assets/ad-framework.js"></script>
+<script src="../assets/widgets.js"></script>
+<script src="../assets/component-models.js"></script>
+<script src="../assets/schematic-svg.js"></script>
+<script src="../assets/schematic-normalize.js"></script>
+<script src="../assets/curriculum.js"></script>
+<script src="../assets/exercises.js"></script>
+
+<div id="stage" style="position:absolute; left:-10000px; top:0; width:1000px;">
+    <div id="lesson-content"></div>
+</div>
+
+<!--
+    schematic-svg.js reports a duplicate segment by coordinate only, and in
+    these lessons the coordinates are computed from variables, so the message
+    cannot be grepped back to a source line. This records every wire() call in
+    order, so the duplicate can be reported as "the Nth and Mth wire call" -
+    which does map to the Nth and Mth `sch.wire(` in the file.
+-->
+<script>
+(function () {
+    'use strict';
+
+    var log = [];
+    var calls = 0;
+
+    // Patch the prototype that actually carries wire(). There are two in this
+    // file; patch whichever the lesson ends up using.
+    var protos = [];
+    if (window.SchematicSVG) {
+        Object.keys(window.SchematicSVG).forEach(function (k) {
+            var v = window.SchematicSVG[k];
+            if (typeof v === 'function' && v.prototype && typeof v.prototype.wire === 'function') {
+                protos.push(v.prototype);
+            }
+        });
+    }
+
+    function keyOf(x1, y1, x2, y2) {
+        x1 = Math.round(x1); y1 = Math.round(y1);
+        x2 = Math.round(x2); y2 = Math.round(y2);
+        if (x1 > x2 || (x1 === x2 && y1 > y2)) {
+            var tx = x1, ty = y1; x1 = x2; y1 = y2; x2 = tx; y2 = ty;
+        }
+        return x1 + ',' + y1 + '-' + x2 + ',' + y2;
+    }
+
+    var seen = {};      // segment key -> first call index
+    var dups = [];
+
+    function instrument(proto) {
+        var real = proto.wire;
+        proto.wire = function (points, options) {
+            var idx = ++calls;
+            log.push({ idx: idx, points: JSON.stringify(points) });
+            if (points && points.length > 1) {
+                for (var i = 1; i < points.length; i++) {
+                    var k = keyOf(points[i-1][0], points[i-1][1], points[i][0], points[i][1]);
+                    if (Math.round(points[i-1][0]) === Math.round(points[i][0]) &&
+                        Math.round(points[i-1][1]) === Math.round(points[i][1])) continue;
+                    if (seen[k] !== undefined) {
+                        dups.push({ key: k, first: seen[k], second: idx });
+                    } else {
+                        seen[k] = idx;
+                    }
+                }
+            }
+            return real.apply(this, arguments);
+        };
+    }
+    protos.forEach(instrument);
+
+    var LESSONS = ['module-01/lesson-07', 'module-11/lesson-04', 'module-11/lesson-01'];
+    var pane = document.getElementById('lesson-content');
+    var out = [];
+
+    LESSONS.forEach(function (rel) {
+        calls = 0; log.length = 0; dups.length = 0;
+        for (var k in seen) delete seen[k];
+
+        var x = new XMLHttpRequest();
+        x.open('GET', '../lessons/' + rel + '.html', false);
+        try { x.send(null); } catch (e) { return; }
+        if (x.status !== 200) { out.push(rel + ': fetch failed'); return; }
+
+        pane.innerHTML = x.responseText;
+        var scripts = pane.querySelectorAll('script');
+        for (var s = 0; s < scripts.length; s++) {
+            var old = scripts[s], fresh = document.createElement('script');
+            if (old.src) fresh.src = old.src;
+            else fresh.textContent = (window.Router && Router.scopeLessonScript)
+                ? Router.scopeLessonScript(old.textContent) : old.textContent;
+            try { old.parentNode.replaceChild(fresh, old); } catch (e) {}
+        }
+
+        out.push('=== ' + rel + '   (' + calls + ' wire calls)');
+        if (!dups.length) out.push('    no duplicate segments seen');
+        dups.forEach(function (d) {
+            out.push('    DUP ' + d.key + '  first drawn by wire call #' + d.first +
+                     ', repeated by call #' + d.second);
+            var a = log[d.first - 1], b = log[d.second - 1];
+            if (a) out.push('        #' + d.first + ' points ' + a.points);
+            if (b) out.push('        #' + d.second + ' points ' + b.points);
+        });
+        pane.innerHTML = '';
+    });
+
+    document.getElementById('out').textContent = out.join('\n');
+    window.__dupText = out.join('\n');
+})();
+</script>
+</body>
+</html>

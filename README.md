@@ -250,16 +250,30 @@ Every control that the sweep could drive non-finite now declares an admissible r
 `AD.num` clamps it. Sixty of them had no `min`/`max` at all, which is why a reader could type
 a zero resistance and get `Infinity` in the results panel.
 
+`schematic-svg.js` runs its own DRC and reports through `console.warn` / `console.error`
+rather than by throwing, so an `onerror` listener never sees it. The sweep hooks the console
+for exactly that reason — those are the most valuable findings the app produces about itself.
+All five it was reporting are now fixed:
+
+- **Module 1-7** drew the current source's return out to `emitter.x + 25` and straight back
+  along the same 25 px of `y = gndY`. The source's bottom already sits at ground level, so
+  the detour was flat: one conductor drawn twice, which reads as a single wire.
+- **The 555 astable builder** routed THRESH along the whole of TRIG's run and repeated its
+  drop to node B, laying a second conductor exactly on top of the first. Pins 2 and 6 *are*
+  tied in an astable — but a junction dot is how a schematic says so, not a doubled wire.
+- **The phase-shift oscillator builder** put each stage's resistor 30 px below the capacitor
+  above it, so the capacitor's value ran into the resistor's keepout.
+
 ### Known remaining
 
-- `schematic-svg.js` reports five DRC findings of its own through `console.warn` /
-  `console.error`: two duplicate segments (module 1-7, 11-4) and a `10nF` value label
-  overlapping a component keepout in the oscillator builders used by module 11-1. These are
-  inside shared builder code rather than in a lesson, and the affected figures render
-  acceptably; they are worth fixing but were left alone rather than destabilising a builder
-  many lessons share.
 - Op-amp supply pins are drawn unconnected throughout, which is the usual convention on a
   signal schematic but is not literally complete.
+
+Two console messages appear when running `_audit/sweep-all.html` that are artifacts of the
+harness, not defects: MathJax re-registers itself on every lesson that includes it, which only
+happens because 354 fragments are being loaded into one document, and a lesson's animation
+loop can fire once in the gap between chunks. Neither occurs in the app, where each lesson
+gets a fresh context.
 
 ---
 
