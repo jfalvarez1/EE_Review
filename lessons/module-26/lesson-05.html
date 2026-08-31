@@ -134,6 +134,62 @@
     </div>
 
     <div class="card">
+        <h3>The two-bus system, drawn</h3>
+        <div id="pf-diagram"></div>
+        <p class="fig-note">Everything in this lesson is this picture: two voltage
+        sources separated by a reactance, with reactive support available at the
+        receiving end.</p>
+    </div>
+
+    <div class="card">
+        <h3>The nose curve &mdash; where voltage collapse lives</h3>
+        <p>Plot receiving-end voltage against transferred power and you get the
+        <strong>P-V curve</strong>, universally called the nose curve. The upper branch
+        is stable operation. The tip is <strong>maximum deliverable power</strong>. The
+        lower branch is real mathematics but not a real operating point &mdash; on it,
+        drawing more current lowers voltage which lowers power, and the system runs away.</p>
+
+        <div class="canvas-wrap">
+            <canvas id="pv-canvas" width="720" height="380"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="pv-x">Line reactance X (pu)</label>
+                <input type="range" id="pv-x" value="0.25" min="0.05" max="0.80" step="0.01">
+                <span class="range-value" id="pv-x-val">0.25 pu</span>
+            </div>
+            <div class="c4">
+                <label for="pv-pf">Load power factor</label>
+                <input type="range" id="pv-pf" value="0.95" min="0.80" max="1.00" step="0.01">
+                <span class="range-value" id="pv-pf-val">0.95 lag</span>
+            </div>
+            <div class="c4">
+                <label for="pv-load">Operating load (pu)</label>
+                <input type="range" id="pv-load" value="1.5" min="0" max="5" step="0.05">
+                <span class="range-value" id="pv-load-val">1.50 pu</span>
+            </div>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Receiving voltage</div><div class="v mono" id="pv-v">&mdash;</div></div>
+            <div class="box"><div class="k">Maximum power (nose)</div><div class="v mono" id="pv-pmax">&mdash;</div></div>
+            <div class="box"><div class="k">Loading margin</div><div class="v mono" id="pv-margin">&mdash;</div></div>
+            <div class="box"><div class="k">Status</div><div class="v mono" id="pv-status">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="pv-note"></p>
+
+        <div class="field-note">
+            <strong>Drag the power factor down to 0.85.</strong> The whole nose shrinks
+            &mdash; both the maximum power and the voltage at every loading. That is the
+            practical argument for capacitor banks and SVCs: reactive support does not
+            just hold voltage at a point, it moves the collapse point further away. It is
+            also why a voltage collapse accelerates once it starts: as voltage falls,
+            motor load draws more reactive power, which lowers voltage further.
+        </div>
+    </div>
+
+    <div class="card">
         <h3>Check yourself</h3>
 
         <details class="qa">
@@ -284,6 +340,212 @@
     }
 
     ['pa-v1', 'pa-v2', 'pa-x', 'pa-d'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.addEventListener('input', update); el.addEventListener('change', update); }
+    });
+    update();
+})();
+</script>
+
+<script>
+(function () {
+    const host = document.getElementById('pf-diagram');
+    if (host && window.ComponentModels) {
+        host.innerHTML = ComponentModels.diagram({
+            width: 660, height: 290, title: 'Two-bus transfer with reactive support',
+            parts: [
+                { key: 'generator', x: 80,  y: 90,  label: 'V1∠δ', labelPos: 'left' },
+                { key: 'busbar',    x: 190, y: 150, label: 'Bus 1', labelPos: 'top' },
+                { key: 'inductor',  x: 340, y: 150, label: 'X', value: 'line', labelPos: 'top' },
+                { key: 'busbar',    x: 480, y: 150, label: 'Bus 2', labelPos: 'top' },
+                { key: 'capacitor', x: 440, y: 225, rotate: 90, label: 'shunt C', labelPos: 'left' },
+                { key: 'ground',    x: 440, y: 270 },
+                { key: 'motor',     x: 570, y: 225, label: 'load', labelPos: 'right' }
+            ],
+            wires: [
+                [[80, 115], [80, 150], [150, 150]],
+                [[230, 150], [315, 150]],
+                [[365, 150], [440, 150]],
+                [[440, 150], [570, 150], [570, 200]],
+                [[440, 150], [440, 200]]
+            ],
+            dots: [[440, 150]],
+            texts: [
+                { x: 340, y: 120, text: 'P = (V1·V2/X)·sin δ', size: 10 }
+            ]
+        });
+    }
+
+    const TEK = (window.AD && AD.TEK_COLORS) || {};
+    const canvas = document.getElementById('pv-canvas');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+
+    // Classic two-bus P-V solution. For a load at angle phi behind a pure
+    // reactance X from an infinite bus at 1.0 pu, the receiving voltage solves
+    // a quadratic in V^2; both roots are the two branches of the nose.
+    function branches(P, X, phi) {
+        const Q = P * Math.tan(phi);
+        const b = 1 - 2 * Q * X;
+        const c = (P * P + Q * Q) * X * X;
+        const disc = b * b - 4 * c;
+        if (disc < 0) return null;
+        const hi = Math.sqrt((b + Math.sqrt(disc)) / 2);
+        const lo = Math.sqrt(Math.max(0, (b - Math.sqrt(disc)) / 2));
+        return { hi, lo };
+    }
+
+    function curve(X, phi) {
+        const upper = [], lower = [];
+        let pmax = 0, vcrit = 0;
+        for (let P = 0; P <= 8; P += 0.01) {
+            const r = branches(P, X, phi);
+            if (!r) break;
+            upper.push([P, r.hi]);
+            lower.push([P, r.lo]);
+            if (P > pmax) { pmax = P; vcrit = r.hi; }
+        }
+        return { upper, lower, pmax, vcrit };
+    }
+
+    function update() {
+        const X = AD.num('pv-x');
+        const pf = Math.min(Math.max(AD.num('pv-pf'), 0.5), 1);
+        const load = AD.num('pv-load');
+        const phi = Math.acos(pf);
+
+        AD.setText('pv-x-val', X.toFixed(2) + ' pu');
+        AD.setText('pv-pf-val', pf.toFixed(2) + (pf < 1 ? ' lag' : ' unity'));
+        AD.setText('pv-load-val', load.toFixed(2) + ' pu');
+
+        const c = curve(X, phi);
+        const at = branches(load, X, phi);
+
+        AD.setText('pv-pmax', c.pmax.toFixed(2) + ' pu');
+        AD.setText('pv-v', at ? at.hi.toFixed(3) + ' pu' : 'no solution');
+
+        const margin = c.pmax > 0 ? ((c.pmax - load) / c.pmax) * 100 : 0;
+        AD.setText('pv-margin', at ? margin.toFixed(0) + '%' : '—');
+
+        let status, note;
+        if (!at) {
+            status = 'VOLTAGE COLLAPSE';
+            note = 'Beyond the nose there is no steady-state solution at all. The system ' +
+                   'cannot deliver this much power through this reactance at this power ' +
+                   'factor — voltage collapses rather than settling anywhere.';
+        } else if (margin < 5) {
+            status = 'at the nose';
+            note = 'Operating within 5% of maximum deliverable power. Any load increase, ' +
+                   'or the loss of a parallel circuit, tips the system over the edge. ' +
+                   'Planning criteria typically require far more margin than this.';
+        } else if (at.hi < 0.90) {
+            status = 'voltage below limit';
+            note = 'Receiving voltage of ' + at.hi.toFixed(3) + ' pu is below the 0.92 pu ' +
+                   'post-contingency floor in NERC TPL-001. Needs reactive support before ' +
+                   'stability even becomes the binding issue.';
+        } else if (margin < 20) {
+            status = 'tight';
+            note = 'Loading margin of ' + margin.toFixed(0) + '% is workable but thin. ' +
+                   'Reducing X or adding shunt compensation both push the nose to the right.';
+        } else {
+            status = 'stable';
+            note = 'Comfortable operating point on the upper branch with ' +
+                   margin.toFixed(0) + '% loading margin to the collapse point.';
+        }
+        AD.setText('pv-status', status);
+        const el = document.getElementById('pv-note');
+        if (el) el.textContent = note;
+
+        draw(c, load, at);
+    }
+
+    function draw(c, load, at) {
+        if (!ctx) return;
+        const W = canvas.width, H = canvas.height;
+        const padL = 62, padR = 22, padT = 28, padB = 46;
+        const plotW = W - padL - padR, plotH = H - padT - padB;
+
+        ctx.fillStyle = TEK.bg || '#001a00';
+        ctx.fillRect(0, 0, W, H);
+        ctx.strokeStyle = TEK.grid || 'rgba(0,255,0,0.15)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 8; i++) {
+            const x = padL + (plotW * i) / 8;
+            ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+        }
+        for (let i = 0; i <= 5; i++) {
+            const y = padT + (plotH * i) / 5;
+            ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+        }
+
+        const pMax = 8, vMax = 1.2;
+        const X = p => padL + (p / pMax) * plotW;
+        const Y = v => padT + plotH - (v / vMax) * plotH;
+
+        // 0.92 pu floor
+        ctx.strokeStyle = 'rgba(251,191,36,0.6)';
+        ctx.setLineDash([5, 4]); ctx.lineWidth = 1.3;
+        ctx.beginPath(); ctx.moveTo(padL, Y(0.92)); ctx.lineTo(padL + plotW, Y(0.92)); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(251,191,36,0.9)';
+        ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('0.92 pu — TPL-001 post-contingency floor', padL + 6, Y(0.92) - 5);
+
+        const plot = (pts, colour, dash) => {
+            ctx.strokeStyle = colour;
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash(dash || []);
+            ctx.beginPath();
+            pts.forEach((p, i) => {
+                const x = X(p[0]), y = Y(p[1]);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+            ctx.setLineDash([]);
+        };
+        plot(c.upper, '#6ee7ff');
+        plot(c.lower, 'rgba(251,113,133,0.65)', [5, 4]);
+
+        // nose
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath(); ctx.arc(X(c.pmax), Y(c.vcrit), 5, 0, Math.PI * 2); ctx.fill();
+        ctx.textAlign = 'center';
+        ctx.fillText('nose — max power', X(c.pmax), Y(c.vcrit) - 12);
+
+        // operating point
+        if (at) {
+            ctx.fillStyle = '#34d399';
+            ctx.beginPath(); ctx.arc(X(load), Y(at.hi), 7, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = 'rgba(52,211,153,0.6)';
+            ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(X(load), padT + plotH); ctx.lineTo(X(load), Y(at.hi)); ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        ctx.fillStyle = 'rgba(230,237,243,0.85)';
+        ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('P-V nose curve — receiving-end voltage vs transferred power', padL + plotW / 2, 16);
+        ctx.fillText('P (pu)', padL + plotW / 2, H - 12);
+        for (let i = 0; i <= 8; i++) ctx.fillText(String(i), X(i), padT + plotH + 18);
+        ctx.textAlign = 'right';
+        for (let i = 0; i <= 5; i++) {
+            const v = vMax * (1 - i / 5);
+            ctx.fillText(v.toFixed(1), padL - 8, padT + (plotH * i) / 5 + 4);
+        }
+        ctx.save();
+        ctx.translate(16, padT + plotH / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.fillText('V2 (pu)', 0, 0);
+        ctx.restore();
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(251,113,133,0.8)';
+        ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
+        ctx.fillText('lower branch — not an operating point', padL + 6, padT + plotH - 8);
+    }
+
+    ['pv-x', 'pv-pf', 'pv-load'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.addEventListener('input', update); el.addEventListener('change', update); }
     });

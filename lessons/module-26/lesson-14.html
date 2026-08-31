@@ -163,6 +163,56 @@
     </div>
 
     <div class="card">
+        <h3>Approach distance and arc-flash boundary, to scale</h3>
+        <p>The tables above are abstract until you draw them. Pick a voltage and see how
+        far back you actually have to stand &mdash; and how that compares to the
+        arc-flash boundary, which is a completely separate hazard with a completely
+        separate distance.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="mad-v">System voltage</label>
+                <select id="mad-v">
+                    <option value="15">15 kV — distribution</option>
+                    <option value="46">46 kV</option>
+                    <option value="69">69 kV</option>
+                    <option value="138" selected>138 kV</option>
+                    <option value="230">230 kV</option>
+                    <option value="345">345 kV</option>
+                    <option value="500">500 kV</option>
+                    <option value="765">765 kV</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="mad-ie">Incident energy at 18 in (cal/cm&sup2;)</label>
+                <input type="range" id="mad-ie" value="8" min="0.5" max="60" step="0.5">
+                <span class="range-value" id="mad-ie-val">8.0 cal/cm²</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="mad-canvas" width="720" height="330"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Minimum approach distance</div><div class="v mono" id="mad-d">&mdash;</div></div>
+            <div class="box"><div class="k">Arc-flash boundary (1.2 cal/cm²)</div><div class="v mono" id="mad-afb">&mdash;</div></div>
+            <div class="box"><div class="k">PPE at working distance</div><div class="v mono" id="mad-ppe">&mdash;</div></div>
+            <div class="box"><div class="k">Governing hazard</div><div class="v mono" id="mad-gov">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="mad-note"></p>
+
+        <div class="danger-note">
+            <strong>These are two different hazards and they do not scale together.</strong>
+            Approach distance protects against <em>flashover</em> and grows with voltage.
+            The arc-flash boundary protects against <em>thermal burn</em> and grows with
+            available fault energy and clearing time &mdash; a 480 V switchboard with slow
+            upstream protection can have a larger arc-flash boundary than a 138 kV
+            structure. Never reason about one from the other.
+        </div>
+    </div>
+
+    <div class="card">
         <h3>Check yourself</h3>
 
         <details class="qa">
@@ -238,6 +288,147 @@
     }
 
     ['af-base', 'af-t0', 'af-t1'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.addEventListener('input', update); el.addEventListener('change', update); }
+    });
+    update();
+})();
+</script>
+
+<script>
+(function () {
+    const TEK = (window.AD && AD.TEK_COLORS) || {};
+    const canvas = document.getElementById('mad-canvas');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+
+    // OSHA 1910.269 App B, legacy simplified phase-to-ground table, in inches.
+    const MAD = {
+        15: 25, 46: 31, 69: 36, 138: 43, 230: 63, 345: 102, 500: 135, 765: 179
+    };
+
+    function ppeCategory(e) {
+        if (e <= 1.2) return { cat: 'no arc-rated PPE required', min: 0 };
+        if (e <= 4)   return { cat: 'Category 1 (4 cal/cm²)', min: 4 };
+        if (e <= 8)   return { cat: 'Category 2 (8 cal/cm²)', min: 8 };
+        if (e <= 25)  return { cat: 'Category 3 (25 cal/cm²)', min: 25 };
+        if (e <= 40)  return { cat: 'Category 4 (40 cal/cm²)', min: 40 };
+        return { cat: 'above Category 4 — do not work energised', min: 999 };
+    }
+
+    function update() {
+        const v = AD.num('mad-v');
+        const ie = AD.num('mad-ie');
+        AD.setText('mad-ie-val', ie.toFixed(1) + ' cal/cm²');
+
+        const madIn = MAD[v] || 43;
+        // Incident energy falls roughly as 1/d^2; solve for the 1.2 cal/cm2 boundary
+        // from the stated energy at the 18 in working distance.
+        const afbIn = 18 * Math.sqrt(ie / 1.2);
+        const p = ppeCategory(ie);
+
+        const ft = n => Math.floor(n / 12) + '′ ' + Math.round(n % 12) + '″';
+        AD.setText('mad-d', ft(madIn) + '  (' + madIn + ' in)');
+        AD.setText('mad-afb', ft(afbIn) + '  (' + afbIn.toFixed(0) + ' in)');
+        AD.setText('mad-ppe', p.cat);
+        AD.setText('mad-gov', afbIn > madIn ? 'arc flash (thermal)' : 'approach distance (flashover)');
+
+        const note = document.getElementById('mad-note');
+        if (note) {
+            note.textContent = afbIn > madIn
+                ? 'At this energy the arc-flash boundary (' + afbIn.toFixed(0) +
+                  ' in) extends beyond the minimum approach distance (' + madIn +
+                  ' in) — the thermal hazard reaches further than the flashover hazard, ' +
+                  'so PPE and boundary marking govern how this job is planned.'
+                : 'The minimum approach distance (' + madIn +
+                  ' in) is the larger of the two here, which is typical at transmission ' +
+                  'voltages: flashover governs, and the answer is distance and insulated ' +
+                  'tools rather than heavier clothing.';
+        }
+        draw(madIn, afbIn, v, ie);
+    }
+
+    function draw(madIn, afbIn, v, ie) {
+        if (!ctx) return;
+        const W = canvas.width, H = canvas.height;
+        ctx.fillStyle = TEK.bg || '#001a00';
+        ctx.fillRect(0, 0, W, H);
+
+        const ground = H - 46;
+        const condX = 70;
+        const maxIn = Math.max(madIn, afbIn) * 1.25;
+        const pxPerIn = (W - 150) / maxIn;
+
+        // ground line
+        ctx.strokeStyle = 'rgba(230,237,243,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(20, ground); ctx.lineTo(W - 20, ground); ctx.stroke();
+
+        // energised conductor (a pole + conductor end-on)
+        ctx.strokeStyle = 'rgba(230,237,243,0.65)';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(condX, ground); ctx.lineTo(condX, 70); ctx.stroke();
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath(); ctx.arc(condX, 70, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(251,191,36,0.9)';
+        ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(v + ' kV', condX, 52);
+
+        // arc-flash boundary band
+        const afbX = condX + afbIn * pxPerIn;
+        ctx.fillStyle = 'rgba(251,113,133,0.10)';
+        ctx.fillRect(condX, 90, afbX - condX, ground - 90);
+        ctx.strokeStyle = '#fb7185';
+        ctx.setLineDash([6, 4]); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(afbX, 90); ctx.lineTo(afbX, ground); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // minimum approach distance
+        const madX = condX + madIn * pxPerIn;
+        ctx.strokeStyle = '#6ee7ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(madX, 110); ctx.lineTo(madX, ground); ctx.stroke();
+
+        // dimension arrows
+        const dim = (y, x2, colour, label) => {
+            ctx.strokeStyle = colour; ctx.lineWidth = 1.4;
+            ctx.beginPath(); ctx.moveTo(condX, y); ctx.lineTo(x2, y); ctx.stroke();
+            [[condX, 1], [x2, -1]].forEach(([x, s]) => {
+                ctx.beginPath();
+                ctx.moveTo(x, y); ctx.lineTo(x + 7 * s, y - 4); ctx.lineTo(x + 7 * s, y + 4);
+                ctx.closePath(); ctx.fillStyle = colour; ctx.fill();
+            });
+            ctx.fillStyle = colour;
+            ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(label, condX + 8, y - 7);
+        };
+        dim(120, madX, '#6ee7ff',
+            'minimum approach — ' + Math.floor(madIn / 12) + '′ ' + Math.round(madIn % 12) + '″');
+        dim(160, afbX, '#fb7185',
+            'arc-flash boundary — ' + Math.floor(afbIn / 12) + '′ ' + Math.round(afbIn % 12) + '″');
+
+        // worker figure at the larger of the two boundaries
+        const wx = Math.max(madX, afbX) + 26;
+        ctx.strokeStyle = '#34d399'; ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.arc(wx, ground - 62, 8, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(wx, ground - 54); ctx.lineTo(wx, ground - 24);
+        ctx.moveTo(wx - 11, ground - 44); ctx.lineTo(wx + 11, ground - 44);
+        ctx.moveTo(wx, ground - 24); ctx.lineTo(wx - 9, ground);
+        ctx.moveTo(wx, ground - 24); ctx.lineTo(wx + 9, ground);
+        ctx.stroke();
+        ctx.fillStyle = '#34d399';
+        ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('safe standing position', wx, ground + 18);
+
+        ctx.fillStyle = 'rgba(230,237,243,0.85)';
+        ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
+        ctx.fillText('Approach distance vs arc-flash boundary, drawn to scale', W / 2, 20);
+    }
+
+    ['mad-v', 'mad-ie'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.addEventListener('input', update); el.addEventListener('change', update); }
     });

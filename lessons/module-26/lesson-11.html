@@ -157,6 +157,67 @@
     </div>
 
     <div class="card">
+        <h3>The interconnection, drawn</h3>
+        <div id="ercot-topology"></div>
+        <p class="fig-note">ERCOT's entire external connection: five DC links totalling
+        roughly 1,200 MW against a 91 GW peak. Every one is a converter station, not a
+        synchronous tie &mdash; power crosses, frequency does not.</p>
+
+        <div class="field-note">
+            <strong>Why this single drawing explains so much:</strong> a synchronously
+            connected grid leans on its neighbours for inertia, reserves and emergency
+            imports. ERCOT cannot. Its frequency is its own, its reserves must be
+            carried internally, and in an emergency there is roughly 1.3% of peak demand
+            available from outside. That isolation is simultaneously why it escapes FERC
+            ratemaking jurisdiction and why Winter Storm Uri came within minutes of a
+            full interconnection blackout.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: nameplate versus what actually counts</h3>
+        <p>The single most common mistake in reading ERCOT capacity numbers is treating
+        nameplate as capacity. Resource adequacy uses <strong>Effective Load Carrying
+        Capability</strong> &mdash; how much firm load a resource can actually support
+        at the hours when the system is at risk.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="elcc-wind">Wind nameplate (MW)</label>
+                <input type="range" id="elcc-wind" value="41034" min="0" max="80000" step="500">
+                <span class="range-value" id="elcc-wind-val">41,034 MW</span>
+            </div>
+            <div class="c4">
+                <label for="elcc-solar">Solar nameplate (MW)</label>
+                <input type="range" id="elcc-solar" value="41035" min="0" max="80000" step="500">
+                <span class="range-value" id="elcc-solar-val">41,035 MW</span>
+            </div>
+            <div class="c4">
+                <label for="elcc-batt">Storage nameplate (MW)</label>
+                <input type="range" id="elcc-batt" value="21177" min="0" max="60000" step="500">
+                <span class="range-value" id="elcc-batt-val">21,177 MW</span>
+            </div>
+            <div class="c4">
+                <label for="elcc-peak">Forecast peak demand (MW)</label>
+                <input type="range" id="elcc-peak" value="91134" min="60000" max="120000" step="500">
+                <span class="range-value" id="elcc-peak-val">91,134 MW</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="elcc-canvas" width="720" height="330"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Total nameplate</div><div class="v mono" id="elcc-name">&mdash;</div></div>
+            <div class="box"><div class="k">Counted (ELCC)</div><div class="v mono" id="elcc-count">&mdash;</div></div>
+            <div class="box"><div class="k">Firm + counted vs peak</div><div class="v mono" id="elcc-margin">&mdash;</div></div>
+            <div class="box"><div class="k">Headline vs reality</div><div class="v mono" id="elcc-gap">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="elcc-note"></p>
+    </div>
+
+    <div class="card">
         <h3>Check yourself</h3>
 
         <details class="qa">
@@ -195,3 +256,171 @@
         </details>
     </div>
 </div>
+
+<script>
+(function () {
+    // ---- topology one-line ----
+    const host = document.getElementById('ercot-topology');
+    if (host && window.ComponentModels) {
+        host.innerHTML = ComponentModels.diagram({
+            width: 700, height: 380, title: 'ERCOT DC ties',
+            parts: [
+                { key: 'busbar',   x: 350, y: 190, label: 'ERCOT interconnection', labelPos: 'top' },
+                { key: 'breaker',  x: 190, y: 90,  label: 'North DC', labelPos: 'left' },
+                { key: 'breaker',  x: 350, y: 70,  label: 'East DC', labelPos: 'left' },
+                { key: 'breaker',  x: 210, y: 300, label: 'Railroad', labelPos: 'left' },
+                { key: 'breaker',  x: 350, y: 320, label: 'Laredo VFT', labelPos: 'left' },
+                { key: 'breaker',  x: 500, y: 300, label: 'Eagle Pass', labelPos: 'right' }
+            ],
+            wires: [
+                [[310, 190], [190, 190], [190, 115]],
+                [[350, 190], [350, 95]],
+                [[310, 190], [210, 190], [210, 275]],
+                [[350, 190], [350, 295]],
+                [[390, 190], [500, 190], [500, 275]],
+                [[190, 65], [190, 40], [350, 40]],
+                [[350, 45], [350, 40]],
+                [[210, 325], [210, 350], [500, 350]],
+                [[350, 345], [350, 350]],
+                [[500, 325], [500, 350]]
+            ],
+            dots: [[190, 190], [210, 190], [350, 190], [500, 190], [350, 40], [350, 350]],
+            texts: [
+                { x: 130, y: 88,  text: '220 MW', size: 10, anchor: 'end' },
+                { x: 292, y: 68,  text: '600 MW', size: 10, anchor: 'end' },
+                { x: 150, y: 298, text: '150 MW', size: 10, anchor: 'end' },
+                { x: 285, y: 318, text: '100 MW', size: 10, anchor: 'end' },
+                { x: 560, y: 298, text: '~30 MW', size: 10, anchor: 'start' },
+                { x: 470, y: 32,  text: 'SPP / Eastern Interconnection', size: 11, anchor: 'start' },
+                { x: 560, y: 366, text: 'CFE (Mexico)', size: 11, anchor: 'start' }
+            ]
+        });
+    }
+
+    // ---- ELCC chart ----
+    const TEK = (window.AD && AD.TEK_COLORS) || {};
+    const canvas = document.getElementById('elcc-canvas');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+
+    // ERCOT CDR contribution factors (Dec 2025 report).
+    const CF = { wind: 8186 / 41034, solar: 9932 / 41035, batt: 5029 / 21177 };
+    const FIRM = 48000;   // approximate gas + coal + nuclear + hydro contribution
+
+    function update() {
+        const w = AD.num('elcc-wind'), s = AD.num('elcc-solar'), b = AD.num('elcc-batt');
+        const peak = AD.num('elcc-peak');
+
+        AD.setText('elcc-wind-val', AD.fmt(w, 0) + ' MW');
+        AD.setText('elcc-solar-val', AD.fmt(s, 0) + ' MW');
+        AD.setText('elcc-batt-val', AD.fmt(b, 0) + ' MW');
+        AD.setText('elcc-peak-val', AD.fmt(peak, 0) + ' MW');
+
+        const rows = [
+            { label: 'Wind',    name: w, elcc: w * CF.wind,  colour: '#34d399' },
+            { label: 'Solar',   name: s, elcc: s * CF.solar, colour: '#fbbf24' },
+            { label: 'Storage', name: b, elcc: b * CF.batt,  colour: '#6ee7ff' }
+        ];
+        const totalName = rows.reduce((a, r) => a + r.name, 0);
+        const totalElcc = rows.reduce((a, r) => a + r.elcc, 0);
+        const available = FIRM + totalElcc;
+        const margin = peak > 0 ? ((available - peak) / peak) * 100 : 0;
+
+        AD.setText('elcc-name', AD.fmt(totalName, 0) + ' MW');
+        AD.setText('elcc-count', AD.fmt(totalElcc, 0) + ' MW');
+        AD.setText('elcc-margin', AD.fmt(available, 0) + ' MW  (' +
+            (margin >= 0 ? '+' : '') + margin.toFixed(1) + '%)');
+        AD.setText('elcc-gap', totalName > 0
+            ? (100 * totalElcc / totalName).toFixed(0) + '% of nameplate counts' : '—');
+
+        const note = document.getElementById('elcc-note');
+        if (note) {
+            let msg = 'Of ' + AD.fmt(totalName, 0) + ' MW of renewable and storage nameplate, ' +
+                      AD.fmt(totalElcc, 0) + ' MW counts toward serving peak. ';
+            if (margin < 0) {
+                msg += 'Available capacity is BELOW forecast peak — this is the condition that produces EEA and, if it persists, firm load shed.';
+            } else if (margin < 13.75) {
+                msg += 'Reserve margin is below the ~13.75% level ERCOT has historically treated as a target — tight.';
+            } else {
+                msg += 'Reserve margin is comfortable at this mix.';
+            }
+            note.textContent = msg;
+        }
+        draw(rows, peak, available);
+    }
+
+    function draw(rows, peak, available) {
+        if (!ctx) return;
+        const W = canvas.width, H = canvas.height;
+        ctx.fillStyle = TEK.bg || '#001a00';
+        ctx.fillRect(0, 0, W, H);
+
+        const padL = 76, padT = 34, padB = 46;
+        const plotW = W - padL - 30, plotH = H - padT - padB;
+        const max = Math.max(
+            peak, available,
+            rows.reduce((a, r) => a + r.name, 0)
+        ) * 1.1 || 1;
+        const Y = v => padT + plotH - (v / max) * plotH;
+
+        ctx.strokeStyle = TEK.grid || 'rgba(0,255,0,0.15)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 5; i++) {
+            const y = padT + (plotH * i) / 5;
+            ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+        }
+
+        const bw = plotW / (rows.length * 2 + 1);
+        rows.forEach((r, i) => {
+            const x = padL + bw * (i * 2 + 0.5);
+            // nameplate, hollow
+            ctx.strokeStyle = r.colour;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 3]);
+            ctx.strokeRect(x, Y(r.name), bw * 0.7, padT + plotH - Y(r.name));
+            ctx.setLineDash([]);
+            // elcc, filled
+            ctx.fillStyle = r.colour;
+            ctx.fillRect(x + bw * 0.75, Y(r.elcc), bw * 0.7, padT + plotH - Y(r.elcc));
+
+            ctx.fillStyle = 'rgba(230,237,243,0.9)';
+            ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(r.label, x + bw * 0.75, H - 26);
+            ctx.fillText(Math.round(100 * r.elcc / (r.name || 1)) + '%', x + bw * 0.75, H - 12);
+        });
+
+        // peak demand line
+        ctx.strokeStyle = '#fb7185';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath(); ctx.moveTo(padL, Y(peak)); ctx.lineTo(padL + plotW, Y(peak)); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#fb7185';
+        ctx.textAlign = 'left';
+        ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
+        ctx.fillText('peak demand', padL + 6, Y(peak) - 6);
+
+        ctx.fillStyle = 'rgba(230,237,243,0.85)';
+        ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Dashed = nameplate   ·   Solid = ELCC (what counts at peak)', W / 2, 18);
+        ctx.textAlign = 'right';
+        for (let i = 0; i <= 5; i++) {
+            const v = max * (1 - i / 5);
+            ctx.fillText(AD.fmt(v, 0), padL - 8, padT + (plotH * i) / 5 + 4);
+        }
+        ctx.save();
+        ctx.translate(18, padT + plotH / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.fillText('MW', 0, 0);
+        ctx.restore();
+    }
+
+    ['elcc-wind', 'elcc-solar', 'elcc-batt', 'elcc-peak'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.addEventListener('input', update); el.addEventListener('change', update); }
+    });
+    update();
+})();
+</script>

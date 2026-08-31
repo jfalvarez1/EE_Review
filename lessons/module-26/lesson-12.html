@@ -197,6 +197,47 @@
     </div>
 
     <div class="card">
+        <h3>The night of 15 February 2021, plotted</h3>
+        <p>Every escalation step from the table above, on one frequency trace. The
+        shaded band is the region below 59.4 Hz where the nine-minute generator trip
+        clock is running &mdash; the closest the grid came to losing itself.</p>
+
+        <div class="canvas-wrap">
+            <canvas id="uri-canvas" width="720" height="400"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="uri-shed">Load shed actually ordered (MW)</label>
+                <input type="range" id="uri-shed" value="8500" min="0" max="16000" step="250">
+                <span class="range-value" id="uri-shed-val">8,500 MW</span>
+            </div>
+            <div class="c4">
+                <label for="uri-delay">Delay before shedding (minutes)</label>
+                <input type="range" id="uri-delay" value="0" min="0" max="9" step="0.5">
+                <span class="range-value" id="uri-delay-val">0 min (as it happened)</span>
+            </div>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Time below 59.4 Hz</div><div class="v mono" id="uri-below">&mdash;</div></div>
+            <div class="box"><div class="k">Margin to 9-min limit</div><div class="v mono" id="uri-margin">&mdash;</div></div>
+            <div class="box"><div class="k">Frequency low point</div><div class="v mono" id="uri-nadir">&mdash;</div></div>
+            <div class="box"><div class="k">Outcome</div><div class="v mono" id="uri-outcome">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="uri-note"></p>
+
+        <div class="danger-note">
+            <strong>Move the delay slider.</strong> The real event held below 59.4 Hz
+            for 4 minutes 23 seconds. Push the delay past about 4.5 minutes and the
+            clock runs out: roughly 17,000 MW of generation trips on under-frequency
+            relays, and there is no recovering from that. The difference between a
+            three-day rolling outage and a black start of the entire interconnection
+            was a handful of minutes of operator decision-making.
+        </div>
+    </div>
+
+    <div class="card">
         <h3>Check yourself</h3>
 
         <details class="qa">
@@ -302,6 +343,215 @@
     }
 
     ['ee-prc', 'ee-f', 'ee-dur', 'ee-load'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.addEventListener('input', update); el.addEventListener('change', update); }
+    });
+    update();
+})();
+</script>
+
+<script>
+(function () {
+    const TEK = (window.AD && AD.TEK_COLORS) || {};
+    const canvas = document.getElementById('uri-canvas');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+
+    // Timeline anchored on the FERC/NERC staff report, minutes from 00:00 CST
+    // on 15 Feb 2021. Frequencies are the reported values.
+    const EVENTS = [
+        { t: 15,   f: 59.958, label: 'EEA1' },
+        { t: 67,   f: 59.900, label: 'EEA2' },
+        { t: 80,   f: 59.944, label: 'EEA3 · shed begins' },
+        { t: 111,  f: 59.600, label: 'below 59.4 Hz' },
+        { t: 114,  f: 59.304, label: 'low point 59.304' },
+        { t: 115,  f: 59.401, label: 'recovered' },
+        { t: 120,  f: 60.010, label: '10,500 MW shed' }
+    ];
+
+    function model() {
+        const shed = AD.num('uri-shed');
+        const delayMin = AD.num('uri-delay');
+
+        // Baseline: the recorded trace. The sliders scale how deep and how long
+        // the excursion runs, so the 9-minute rule can be explored.
+        const pts = [];
+        const shedFactor = shed > 0 ? Math.min(1.6, 8500 / shed) : 3;
+        let belowStart = null, belowEnd = null, nadir = 60, nadirT = 0;
+
+        for (let t = 0; t <= 140; t += 0.25) {
+            let f;
+            if (t < 100) {
+                f = 60.0 - 0.10 * Math.min(1, t / 100) - 0.02 * Math.sin(t / 7);
+            } else {
+                // Decline from 100 min, arrested once shedding takes effect.
+                const declineStart = 100;
+                const arrestAt = 111 + delayMin + 1.2;
+                if (t < arrestAt) {
+                    f = 59.90 - 0.145 * (t - declineStart) * shedFactor * 0.42;
+                } else {
+                    const rec = t - arrestAt;
+                    const low = 59.90 - 0.145 * (arrestAt - declineStart) * shedFactor * 0.42;
+                    f = low + rec * 0.34;
+                }
+            }
+            f = Math.max(57.6, Math.min(60.15, f));
+            if (f < 59.4 && belowStart === null) belowStart = t;
+            if (f < 59.4) belowEnd = t;
+            if (f < nadir) { nadir = f; nadirT = t; }
+            pts.push([t, f]);
+        }
+
+        const belowDur = (belowStart !== null) ? (belowEnd - belowStart) : 0;
+        return { pts, nadir, nadirT, belowDur, belowStart, belowEnd, delayMin };
+    }
+
+    function update() {
+        const m = model();
+        AD.setText('uri-shed-val', AD.fmt(AD.num('uri-shed'), 0) + ' MW');
+        const d = AD.num('uri-delay');
+        AD.setText('uri-delay-val', d === 0 ? '0 min (as it happened)' : '+' + d.toFixed(1) + ' min');
+
+        const mins = Math.floor(m.belowDur);
+        const secs = Math.round((m.belowDur - mins) * 60);
+        AD.setText('uri-below', m.belowDur > 0 ? mins + ' min ' + secs + ' s' : 'never');
+
+        const margin = 9 - m.belowDur;
+        AD.setText('uri-margin', margin > 0
+            ? Math.floor(margin) + ' min ' + Math.round((margin - Math.floor(margin)) * 60) + ' s'
+            : 'EXCEEDED');
+        AD.setText('uri-nadir', m.nadir.toFixed(3) + ' Hz');
+
+        let outcome, note;
+        if (m.belowDur >= 9) {
+            outcome = 'CASCADING BLACKOUT';
+            note = 'Frequency held below 59.4 Hz past the nine-minute PRC-024 limit. Roughly ' +
+                   '17,000 MW of generation would have tripped on under-frequency relays, ' +
+                   'collapsing the interconnection and requiring a black start measured in days.';
+        } else if (m.nadir < 58.5) {
+            outcome = 'all UFLS stages fired';
+            note = 'Low point below 58.5 Hz means every automatic load-shed stage operated — ' +
+                   'at least 25% of firm load dropped by relay, not by operator choice.';
+        } else if (m.nadir < 59.3) {
+            outcome = 'automatic UFLS operated';
+            note = 'Below 59.3 Hz the first automatic stage sheds at least 5% of firm load. ' +
+                   'This is past the point where operators are in control.';
+        } else {
+            outcome = 'arrested by manual shed';
+            note = 'Manual firm load shed arrested the decline before the automatic ' +
+                   'under-frequency relays operated — which is what actually happened, with ' +
+                   '4 min 37 s of margin left on the nine-minute clock.';
+        }
+        AD.setText('uri-outcome', outcome);
+        const el = document.getElementById('uri-note');
+        if (el) el.textContent = note;
+
+        draw(m);
+    }
+
+    function draw(m) {
+        if (!ctx) return;
+        const W = canvas.width, H = canvas.height;
+        const padL = 64, padR = 22, padT = 30, padB = 52;
+        const plotW = W - padL - padR, plotH = H - padT - padB;
+
+        ctx.fillStyle = TEK.bg || '#001a00';
+        ctx.fillRect(0, 0, W, H);
+
+        const fHi = 60.2, fLo = 57.8;
+        const X = t => padL + (t / 140) * plotW;
+        const Y = f => padT + plotH - ((f - fLo) / (fHi - fLo)) * plotH;
+
+        // danger band below 59.4 Hz
+        ctx.fillStyle = 'rgba(251,113,133,0.10)';
+        ctx.fillRect(padL, Y(59.4), plotW, padT + plotH - Y(59.4));
+
+        ctx.strokeStyle = TEK.grid || 'rgba(0,255,0,0.15)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 7; i++) {
+            const x = padL + (plotW * i) / 7;
+            ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+        }
+        for (let i = 0; i <= 6; i++) {
+            const y = padT + (plotH * i) / 6;
+            ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+        }
+
+        // reference lines
+        const refs = [
+            { f: 60.0, c: 'rgba(230,237,243,0.35)', t: '60.0 Hz' },
+            { f: 59.4, c: 'rgba(251,113,133,0.75)', t: '59.4 Hz — 9-min generator trip clock' },
+            { f: 59.3, c: 'rgba(251,191,36,0.65)',  t: '59.3 Hz — UFLS stage 1' },
+            { f: 58.9, c: 'rgba(251,191,36,0.5)',   t: '58.9 Hz — stage 2' },
+            { f: 58.5, c: 'rgba(251,191,36,0.4)',   t: '58.5 Hz — stage 3' }
+        ];
+        ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
+        refs.forEach(r => {
+            ctx.strokeStyle = r.c;
+            ctx.setLineDash([5, 4]); ctx.lineWidth = 1.2;
+            ctx.beginPath(); ctx.moveTo(padL, Y(r.f)); ctx.lineTo(padL + plotW, Y(r.f)); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = r.c;
+            ctx.textAlign = 'right';
+            ctx.fillText(r.t, padL + plotW - 4, Y(r.f) - 4);
+        });
+
+        // trace
+        ctx.strokeStyle = '#6ee7ff';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        m.pts.forEach((p, i) => {
+            const x = X(p[0]), y = Y(p[1]);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        // event markers
+        ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
+        EVENTS.forEach((e, i) => {
+            const x = X(e.t);
+            ctx.strokeStyle = 'rgba(230,237,243,0.30)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath(); ctx.arc(x, Y(e.f), 3.5, 0, Math.PI * 2); ctx.fill();
+            ctx.save();
+            ctx.translate(x + 4, padT + 8 + (i % 3) * 12);
+            ctx.fillStyle = 'rgba(230,237,243,0.8)';
+            ctx.textAlign = 'left';
+            ctx.fillText(e.label, 0, 0);
+            ctx.restore();
+        });
+
+        // nadir
+        ctx.fillStyle = '#fb7185';
+        ctx.beginPath(); ctx.arc(X(m.nadirT), Y(m.nadir), 6, 0, Math.PI * 2); ctx.fill();
+
+        // axes labels
+        ctx.fillStyle = 'rgba(230,237,243,0.85)';
+        ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('ERCOT frequency, 15 February 2021', padL + plotW / 2, 17);
+        ctx.fillText('Minutes after midnight CST', padL + plotW / 2, H - 14);
+        for (let i = 0; i <= 7; i++) {
+            const t = (140 * i) / 7;
+            const hh = String(Math.floor(t / 60)).padStart(2, '0');
+            const mm = String(Math.round(t % 60)).padStart(2, '0');
+            ctx.fillText(hh + ':' + mm, X(t), padT + plotH + 18);
+        }
+        ctx.textAlign = 'right';
+        for (let i = 0; i <= 6; i++) {
+            const f = fHi - ((fHi - fLo) * i) / 6;
+            ctx.fillText(f.toFixed(1), padL - 8, padT + (plotH * i) / 6 + 4);
+        }
+        ctx.save();
+        ctx.translate(16, padT + plotH / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.fillText('Hz', 0, 0);
+        ctx.restore();
+    }
+
+    ['uri-shed', 'uri-delay'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.addEventListener('input', update); el.addEventListener('change', update); }
     });

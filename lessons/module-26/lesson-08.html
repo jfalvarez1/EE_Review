@@ -141,6 +141,71 @@
     </div>
 
     <div class="card">
+        <h3>The R-X plane &mdash; how the relay actually sees the world</h3>
+        <p>A distance relay does not measure distance. It measures the complex ratio
+        V/I at its terminal and plots it on the <strong>R-X plane</strong>. A fault
+        puts that point somewhere along the line impedance vector; load puts it far
+        out along the resistive axis. The relay's zones are literally shapes drawn on
+        this plane, and the entire art of setting one is making the shapes enclose
+        faults without enclosing load.</p>
+
+        <div class="canvas-wrap">
+            <canvas id="rx-canvas" width="720" height="470"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="rx-fault">Fault location (% of line)</label>
+                <input type="range" id="rx-fault" value="60" min="0" max="200" step="1">
+                <span class="range-value" id="rx-fault-val">60 %</span>
+            </div>
+            <div class="c4">
+                <label for="rx-rf">Fault resistance R<sub>f</sub> (&Omega;)</label>
+                <input type="range" id="rx-rf" value="0" min="0" max="40" step="0.5">
+                <span class="range-value" id="rx-rf-val">0 Ω</span>
+            </div>
+            <div class="c4">
+                <label for="rx-load">Load (% of line rating)</label>
+                <input type="range" id="rx-load" value="0" min="0" max="180" step="5">
+                <span class="range-value" id="rx-load-val">0 %</span>
+            </div>
+            <div class="c4">
+                <label for="rx-angle">Line angle (degrees)</label>
+                <input type="range" id="rx-angle" value="72" min="45" max="88" step="1">
+                <span class="range-value" id="rx-angle-val">72°</span>
+            </div>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Apparent impedance</div><div class="v mono" id="rx-z">&mdash;</div></div>
+            <div class="box"><div class="k">Impedance angle</div><div class="v mono" id="rx-ang">&mdash;</div></div>
+            <div class="box"><div class="k">Relay decision</div><div class="v mono" id="rx-zone">&mdash;</div></div>
+            <div class="box"><div class="k">Clearing time</div><div class="v mono" id="rx-time">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="rx-note"></p>
+
+        <div class="field-note">
+            <strong>Try this:</strong> set fault location to 0 and push <em>load</em> to
+            160%. The operating point walks out along the resistive axis and into the
+            Zone 3 circle &mdash; with no fault anywhere on the system. That is
+            <strong>load encroachment</strong>, and it is the mechanism behind several
+            historic cascading blackouts: a heavily loaded line sags in voltage, the
+            apparent impedance falls into a backup zone, and the relay trips a healthy
+            circuit, shifting even more load onto its neighbours. NERC PRC-023 exists
+            to govern exactly this, and modern relays add load blinders that carve a
+            wedge out of the characteristic.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Zone reach along the protected line</h3>
+        <div id="zone-diagram"></div>
+        <p class="fig-note">The same settings drawn geographically. Zone 1 stops short
+        of the remote bus on purpose; Zone 2 deliberately overreaches into the next
+        line and waits; Zone 3 reaches further still and waits longer.</p>
+    </div>
+
+    <div class="card">
         <h3>Check yourself</h3>
 
         <details class="qa">
@@ -222,6 +287,227 @@
     }
 
     ['d-z', 'd-z1', 'd-ct', 'd-pt', 'd-fault'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.addEventListener('input', update); el.addEventListener('change', update); }
+    });
+    update();
+})();
+</script>
+
+<script>
+(function () {
+    // ---- zone reach one-line ----
+    const host = document.getElementById('zone-diagram');
+    if (host && window.ComponentModels) {
+        host.innerHTML = ComponentModels.diagram({
+            width: 680, height: 250, title: 'Distance protection zone reach',
+            parts: [
+                { key: 'busbar',       x: 90,  y: 70, label: 'Bus A', labelPos: 'top' },
+                { key: 'breaker',      x: 190, y: 70, label: '52', labelPos: 'top' },
+                { key: 'relay_device', x: 190, y: 150, label: '21', labelPos: 'bottom' },
+                { key: 'busbar',       x: 420, y: 70, label: 'Bus B', labelPos: 'top' },
+                { key: 'busbar',       x: 620, y: 70, label: 'Bus C', labelPos: 'top' }
+            ],
+            wires: [
+                [[130, 70], [190, 70]],
+                [[190, 95], [190, 134]],
+                [[190, 70], [380, 70]],
+                [[460, 70], [580, 70]]
+            ],
+            texts: [
+                { x: 300, y: 58, text: 'protected line', size: 10 },
+                { x: 520, y: 58, text: 'next line', size: 10 }
+            ]
+        });
+        // Zone bars are drawn as plain SVG on top, since they are annotation
+        // rather than circuit geometry.
+        const svg = host.querySelector('svg');
+        if (svg) {
+            const bar = (y, x2, colour, label) =>
+                `<line x1="190" y1="${y}" x2="${x2}" y2="${y}" stroke="${colour}"
+                       stroke-width="3" stroke-linecap="round"/>
+                 <line x1="${x2}" y1="${y - 5}" x2="${x2}" y2="${y + 5}"
+                       stroke="${colour}" stroke-width="2"/>
+                 <text x="196" y="${y - 7}" font-size="10" fill="${colour}">${label}</text>`;
+            svg.insertAdjacentHTML('beforeend',
+                bar(180, 190 + 0.85 * 230, '#34d399', 'Zone 1 — 85%, instantaneous') +
+                bar(205, 190 + 1.30 * 230, '#fbbf24', 'Zone 2 — 130%, ~0.3 s') +
+                bar(230, 190 + 1.85 * 230, '#fb7185', 'Zone 3 — 185%, ~1 s'));
+        }
+    }
+
+    // ---- R-X plane ----
+    const TEK = (window.AD && AD.TEK_COLORS) || {};
+    const canvas = document.getElementById('rx-canvas');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+
+    const ZLINE = 50;          // ohms, protected line
+    const Z1 = 0.85, Z2 = 1.30, Z3 = 1.85;
+
+    function state() {
+        const pct = AD.num('rx-fault') / 100;
+        const rf = AD.num('rx-rf');
+        const load = AD.num('rx-load') / 100;
+        const ang = AD.num('rx-angle') * Math.PI / 180;
+
+        let R, X;
+        if (load > 0.01 && pct < 0.02) {
+            // No fault: apparent impedance is load impedance, near the R axis at
+            // roughly the load power factor angle.
+            // Load impedance is roughly 1.9x the line impedance at rated load,
+            // which is what makes a heavily loaded line actually reach the Zone 3
+            // circle. At 2.2x the demonstration never triggers.
+            const zload = load > 0 ? ZLINE * 1.9 / load : 1e6;
+            const pf = 25 * Math.PI / 180;
+            R = zload * Math.cos(pf);
+            X = zload * Math.sin(pf);
+        } else {
+            const zf = ZLINE * pct;
+            R = zf * Math.cos(ang) + rf;
+            X = zf * Math.sin(ang);
+        }
+        return { R, X, mag: Math.hypot(R, X), ang, rf, pct, load };
+    }
+
+    // Mho characteristic: circle through the origin with diameter along the
+    // line angle. Inside test is the classic |Z - centre| <= radius.
+    function insideMho(R, X, reach, lineAng) {
+        const d = ZLINE * reach;
+        const cx = (d / 2) * Math.cos(lineAng);
+        const cy = (d / 2) * Math.sin(lineAng);
+        return Math.hypot(R - cx, X - cy) <= d / 2 + 1e-9;
+    }
+
+    function update() {
+        const s = state();
+        AD.setText('rx-fault-val', AD.num('rx-fault') + ' %');
+        AD.setText('rx-rf-val', AD.num('rx-rf').toFixed(1) + ' Ω');
+        AD.setText('rx-load-val', AD.num('rx-load') + ' %');
+        AD.setText('rx-angle-val', AD.num('rx-angle') + '°');
+
+        AD.setText('rx-z', s.R.toFixed(1) + ' + j' + s.X.toFixed(1) + ' Ω');
+        AD.setText('rx-ang', (Math.atan2(s.X, s.R) * 180 / Math.PI).toFixed(1) + '°');
+
+        const in1 = insideMho(s.R, s.X, Z1, s.ang);
+        const in2 = insideMho(s.R, s.X, Z2, s.ang);
+        const in3 = insideMho(s.R, s.X, Z3, s.ang);
+
+        let zone, time, note;
+        const noFault = s.pct < 0.02 && s.load > 0.01;
+        if (in1) { zone = 'Zone 1 — trip'; time = '1–2 cycles'; }
+        else if (in2) { zone = 'Zone 2 — trip'; time = '~0.3 s'; }
+        else if (in3) { zone = 'Zone 3 — trip'; time = '~1 s'; }
+        else { zone = 'no operation'; time = '—'; }
+        AD.setText('rx-zone', zone);
+        AD.setText('rx-time', time);
+
+        if (noFault && (in1 || in2 || in3)) {
+            note = 'LOAD ENCROACHMENT — there is no fault, but load has pulled the ' +
+                   'apparent impedance inside a tripping zone. A relay set like this ' +
+                   'would trip a healthy, heavily loaded line.';
+        } else if (s.rf > 0 && !in1 && s.pct <= 0.85) {
+            note = 'Fault resistance has pushed the point to the right, out of Zone 1 ' +
+                   'even though the fault is inside Zone 1 reach. Resistive faults ' +
+                   'under-reach — this is why ground distance elements use quadrilateral ' +
+                   'characteristics rather than a plain mho circle.';
+        } else if (s.pct > 1.0 && s.pct <= 1.3) {
+            note = 'Fault is past the remote bus. Zone 2 sees it as delayed backup; the ' +
+                   'next line’s own Zone 1 should clear it first.';
+        } else if (in1) {
+            note = 'Inside Zone 1 — cleared instantaneously with no communication needed.';
+        } else {
+            note = 'Drag the fault location to move the point along the line impedance ' +
+                   'vector. Add fault resistance to push it sideways.';
+        }
+        const el = document.getElementById('rx-note');
+        if (el) el.textContent = note;
+
+        draw(s, in1, in2, in3);
+    }
+
+    function draw(s, in1, in2, in3) {
+        if (!ctx) return;
+        const W = canvas.width, H = canvas.height;
+        ctx.fillStyle = TEK.bg || '#001a00';
+        ctx.fillRect(0, 0, W, H);
+
+        // origin near lower-left, X up, R right
+        const ox = 110, oy = H - 78;
+        const scale = 3.0;                     // px per ohm
+        const X2p = v => ox + v * scale;
+        const Y2p = v => oy - v * scale;
+
+        // grid
+        ctx.strokeStyle = TEK.grid || 'rgba(0,255,0,0.15)';
+        ctx.lineWidth = 1;
+        for (let r = -40; r <= 200; r += 20) {
+            ctx.beginPath(); ctx.moveTo(X2p(r), 20); ctx.lineTo(X2p(r), H - 30); ctx.stroke();
+        }
+        for (let x = -20; x <= 160; x += 20) {
+            ctx.beginPath(); ctx.moveTo(30, Y2p(x)); ctx.lineTo(W - 20, Y2p(x)); ctx.stroke();
+        }
+
+        // axes
+        ctx.strokeStyle = 'rgba(230,237,243,0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(30, oy); ctx.lineTo(W - 20, oy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ox, 20); ctx.lineTo(ox, H - 30); ctx.stroke();
+
+        // mho circles, largest first
+        const zones = [
+            { reach: Z3, colour: '#fb7185', label: 'Z3' },
+            { reach: Z2, colour: '#fbbf24', label: 'Z2' },
+            { reach: Z1, colour: '#34d399', label: 'Z1' }
+        ];
+        zones.forEach(z => {
+            const d = ZLINE * z.reach;
+            const cx = X2p((d / 2) * Math.cos(s.ang));
+            const cy = Y2p((d / 2) * Math.sin(s.ang));
+            const r = (d / 2) * scale;
+            ctx.strokeStyle = z.colour;
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = z.colour;
+            ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(z.label, cx, cy - r + 14);
+        });
+
+        // line impedance vector
+        ctx.strokeStyle = '#6ee7ff';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(X2p(0), Y2p(0));
+        ctx.lineTo(X2p(ZLINE * Math.cos(s.ang)), Y2p(ZLINE * Math.sin(s.ang)));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // operating point
+        const px = X2p(s.R), py = Y2p(s.X);
+        const tripping = in1 || in2 || in3;
+        ctx.fillStyle = tripping ? '#fb7185' : '#6ee7ff';
+        ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(230,237,243,0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(X2p(0), Y2p(0)); ctx.lineTo(px, py); ctx.stroke();
+
+        // labels
+        ctx.fillStyle = 'rgba(230,237,243,0.85)';
+        ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('X (Ω)', ox + 8, 32);
+        ctx.textAlign = 'right';
+        ctx.fillText('R (Ω)', W - 24, oy + 18);
+        ctx.textAlign = 'center';
+        ctx.fillText('Distance relay characteristic on the R-X plane', W / 2, 16);
+        ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(110,231,255,0.9)';
+        const lx = X2p(ZLINE * Math.cos(s.ang)), ly = Y2p(ZLINE * Math.sin(s.ang));
+        ctx.fillText('line impedance', lx + 30, ly - 6);
+    }
+
+    ['rx-fault', 'rx-rf', 'rx-load', 'rx-angle'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.addEventListener('input', update); el.addEventListener('change', update); }
     });
