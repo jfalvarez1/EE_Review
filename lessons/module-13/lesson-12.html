@@ -1,0 +1,512 @@
+<!-- Module 13, Lesson 12: Power Sequencing and Hot-Swap -->
+<div class="lesson-content" data-module="13" data-lesson="12">
+    <div class="card">
+        <h2>Power Sequencing and Hot-Swap</h2>
+        <p>Complex systems with multiple supply rails require controlled power-up sequences to prevent latch-up, ESD damage, and functional failures. Hot-swap circuits enable safe insertion of boards into live backplanes.</p>
+
+        <div class="kv">
+            <div class="box">
+                <h4>Why Sequence Power?</h4>
+                <ul>
+                    <li><strong>Latch-up prevention:</strong> I/O before core can trigger SCR</li>
+                    <li><strong>FPGA/CPU requirements:</strong> Core → auxiliary → I/O</li>
+                    <li><strong>Analog stability:</strong> Reference before amplifier</li>
+                    <li><strong>Inrush current:</strong> Staged startup reduces peak</li>
+                </ul>
+            </div>
+            <div class="box">
+                <h4>Hot-Swap Requirements</h4>
+                <ul>
+                    <li><strong>Inrush limiting:</strong> Slow capacitor charging</li>
+                    <li><strong>Overcurrent protection:</strong> Fault detection</li>
+                    <li><strong>Undervoltage lockout:</strong> Wait for valid supply</li>
+                    <li><strong>Connector make-before-break:</strong> Ground first</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Power Sequencing Strategies</h3>
+        <p>Different systems require different sequencing approaches based on the type of ICs being powered.</p>
+
+        <svg viewBox="0 0 650 350" class="circuit-diagram">
+            <text x="325" y="20" text-anchor="middle" class="label" style="font-weight:bold;">Common Sequencing Patterns</text>
+
+            <!-- Sequential timing diagram -->
+            <text x="160" y="50" text-anchor="middle" class="label" style="font-weight:bold;">Sequential</text>
+
+            <!-- Time axis -->
+            <line x1="50" y1="180" x2="270" y2="180" stroke="#333" stroke-width="1"/>
+            <text x="160" y="195" text-anchor="middle" class="label" style="font-size:9px;">Time →</text>
+
+            <!-- Rail 1 (Core) -->
+            <text x="35" y="90" text-anchor="end" class="label" style="font-size:10px;">Core</text>
+            <line x1="50" y1="85" x2="80" y2="85" stroke="#27ae60" stroke-width="2"/>
+            <line x1="80" y1="85" x2="90" y2="65" stroke="#27ae60" stroke-width="2"/>
+            <line x1="90" y1="65" x2="270" y2="65" stroke="#27ae60" stroke-width="2"/>
+
+            <!-- Rail 2 (Aux) -->
+            <text x="35" y="115" text-anchor="end" class="label" style="font-size:10px;">Aux</text>
+            <line x1="50" y1="110" x2="120" y2="110" stroke="#3498db" stroke-width="2"/>
+            <line x1="120" y1="110" x2="130" y2="90" stroke="#3498db" stroke-width="2"/>
+            <line x1="130" y1="90" x2="270" y2="90" stroke="#3498db" stroke-width="2"/>
+
+            <!-- Rail 3 (I/O) -->
+            <text x="35" y="140" text-anchor="end" class="label" style="font-size:10px;">I/O</text>
+            <line x1="50" y1="135" x2="160" y2="135" stroke="#e74c3c" stroke-width="2"/>
+            <line x1="160" y1="135" x2="170" y2="115" stroke="#e74c3c" stroke-width="2"/>
+            <line x1="170" y1="115" x2="270" y2="115" stroke="#e74c3c" stroke-width="2"/>
+
+            <!-- PGOOD -->
+            <text x="35" y="165" text-anchor="end" class="label" style="font-size:10px;">PGOOD</text>
+            <line x1="50" y1="160" x2="200" y2="160" stroke="#9b59b6" stroke-width="2" stroke-dasharray="3,3"/>
+            <line x1="200" y1="160" x2="200" y2="145" stroke="#9b59b6" stroke-width="2"/>
+            <line x1="200" y1="145" x2="270" y2="145" stroke="#9b59b6" stroke-width="2"/>
+
+            <!-- Delay markers -->
+            <line x1="90" y1="70" x2="90" y2="175" stroke="#999" stroke-width="1" stroke-dasharray="2,2"/>
+            <line x1="130" y1="95" x2="130" y2="175" stroke="#999" stroke-width="1" stroke-dasharray="2,2"/>
+            <line x1="170" y1="120" x2="170" y2="175" stroke="#999" stroke-width="1" stroke-dasharray="2,2"/>
+            <text x="110" y="190" text-anchor="middle" class="label" style="font-size:8px;">t1</text>
+            <text x="150" y="190" text-anchor="middle" class="label" style="font-size:8px;">t2</text>
+
+            <!-- Simultaneous (Ratiometric) -->
+            <text x="480" y="50" text-anchor="middle" class="label" style="font-weight:bold;">Ratiometric</text>
+
+            <!-- Time axis -->
+            <line x1="370" y1="180" x2="590" y2="180" stroke="#333" stroke-width="1"/>
+            <text x="480" y="195" text-anchor="middle" class="label" style="font-size:9px;">Time →</text>
+
+            <!-- All rails together -->
+            <text x="355" y="90" text-anchor="end" class="label" style="font-size:10px;">Core</text>
+            <line x1="370" y1="85" x2="400" y2="85" stroke="#27ae60" stroke-width="2"/>
+            <line x1="400" y1="85" x2="480" y2="65" stroke="#27ae60" stroke-width="2"/>
+            <line x1="480" y1="65" x2="590" y2="65" stroke="#27ae60" stroke-width="2"/>
+
+            <text x="355" y="115" text-anchor="end" class="label" style="font-size:10px;">Aux</text>
+            <line x1="370" y1="110" x2="400" y2="110" stroke="#3498db" stroke-width="2"/>
+            <line x1="400" y1="110" x2="480" y2="90" stroke="#3498db" stroke-width="2"/>
+            <line x1="480" y1="90" x2="590" y2="90" stroke="#3498db" stroke-width="2"/>
+
+            <text x="355" y="140" text-anchor="end" class="label" style="font-size:10px;">I/O</text>
+            <line x1="370" y1="135" x2="400" y2="135" stroke="#e74c3c" stroke-width="2"/>
+            <line x1="400" y1="135" x2="480" y2="115" stroke="#e74c3c" stroke-width="2"/>
+            <line x1="480" y1="115" x2="590" y2="115" stroke="#e74c3c" stroke-width="2"/>
+
+            <!-- Ratio annotation -->
+            <line x1="440" y1="70" x2="440" y2="130" stroke="#999" stroke-width="1"/>
+            <text x="445" y="100" text-anchor="start" class="label" style="font-size:8px;">All track</text>
+
+            <!-- Pros/Cons boxes -->
+            <rect x="50" y="210" width="220" height="60" fill="#e8f4f8" stroke="#3498db" stroke-width="1" rx="3"/>
+            <text x="160" y="230" text-anchor="middle" class="label" style="font-size:10px;font-weight:bold;">Sequential Pros</text>
+            <text x="55" y="247" text-anchor="start" class="label" style="font-size:9px;">+ Most control over timing</text>
+            <text x="55" y="262" text-anchor="start" class="label" style="font-size:9px;">+ Required by many FPGAs</text>
+
+            <rect x="370" y="210" width="220" height="60" fill="#fce4ec" stroke="#e74c3c" stroke-width="1" rx="3"/>
+            <text x="480" y="230" text-anchor="middle" class="label" style="font-size:10px;font-weight:bold;">Ratiometric Pros</text>
+            <text x="375" y="247" text-anchor="start" class="label" style="font-size:9px;">+ All rails reach target together</text>
+            <text x="375" y="262" text-anchor="start" class="label" style="font-size:9px;">+ Lower peak inrush</text>
+
+            <!-- Application note -->
+            <rect x="150" y="285" width="350" height="55" fill="#fff3cd" stroke="#ffc107" stroke-width="1" rx="5"/>
+            <text x="325" y="305" text-anchor="middle" class="label" style="font-weight:bold;">Check Device Datasheet!</text>
+            <text x="325" y="322" text-anchor="middle" class="label" style="font-size:10px;">FPGAs, CPUs, and DDR memory have specific requirements.</text>
+            <text x="325" y="336" text-anchor="middle" class="label" style="font-size:10px;">Violating sequence can cause permanent damage.</text>
+        </svg>
+    </div>
+
+    <div class="card">
+        <h3>Sequencer IC Architecture</h3>
+        <p>Dedicated power sequencer ICs monitor rail voltages and control enable pins with programmable delays.</p>
+
+        <svg viewBox="0 0 650 300" class="circuit-diagram">
+            <text x="325" y="20" text-anchor="middle" class="label" style="font-weight:bold;">Power Sequencer Block Diagram</text>
+
+            <!-- Sequencer IC box -->
+            <rect x="200" y="50" width="250" height="180" fill="#f8f9fa" stroke="#333" stroke-width="2" rx="5"/>
+            <text x="325" y="75" text-anchor="middle" class="label" style="font-weight:bold;">Power Sequencer IC</text>
+
+            <!-- Input: VIN -->
+            <line x1="130" y1="90" x2="200" y2="90" stroke="#333" stroke-width="2"/>
+            <text x="120" y="93" text-anchor="end" class="label" style="font-size:10px;">VIN</text>
+
+            <!-- Monitor inputs -->
+            <line x1="130" y1="130" x2="200" y2="130" stroke="#27ae60" stroke-width="2"/>
+            <text x="120" y="133" text-anchor="end" class="label" style="font-size:10px;">VMON1</text>
+
+            <line x1="130" y1="155" x2="200" y2="155" stroke="#3498db" stroke-width="2"/>
+            <text x="120" y="158" text-anchor="end" class="label" style="font-size:10px;">VMON2</text>
+
+            <line x1="130" y1="180" x2="200" y2="180" stroke="#e74c3c" stroke-width="2"/>
+            <text x="120" y="183" text-anchor="end" class="label" style="font-size:10px;">VMON3</text>
+
+            <!-- Internal blocks -->
+            <rect x="220" y="95" width="70" height="30" fill="#e8f4f8" stroke="#3498db" stroke-width="1"/>
+            <text x="255" y="115" text-anchor="middle" class="label" style="font-size:9px;">Comparators</text>
+
+            <rect x="220" y="140" width="70" height="30" fill="#d5f5e3" stroke="#27ae60" stroke-width="1"/>
+            <text x="255" y="160" text-anchor="middle" class="label" style="font-size:9px;">Delay Timer</text>
+
+            <rect x="310" y="115" width="70" height="35" fill="#fdebd0" stroke="#e67e22" stroke-width="1"/>
+            <text x="345" y="137" text-anchor="middle" class="label" style="font-size:9px;">Sequence</text>
+            <text x="345" y="148" text-anchor="middle" class="label" style="font-size:9px;">Logic</text>
+
+            <rect x="310" y="165" width="70" height="30" fill="#f5b7b1" stroke="#e74c3c" stroke-width="1"/>
+            <text x="345" y="185" text-anchor="middle" class="label" style="font-size:9px;">Fault Detect</text>
+
+            <!-- Enable outputs -->
+            <line x1="450" y1="100" x2="520" y2="100" stroke="#27ae60" stroke-width="2"/>
+            <text x="530" y="103" text-anchor="start" class="label" style="font-size:10px;">EN1 → Rail 1</text>
+
+            <line x1="450" y1="140" x2="520" y2="140" stroke="#3498db" stroke-width="2"/>
+            <text x="530" y="143" text-anchor="start" class="label" style="font-size:10px;">EN2 → Rail 2</text>
+
+            <line x1="450" y1="180" x2="520" y2="180" stroke="#e74c3c" stroke-width="2"/>
+            <text x="530" y="183" text-anchor="start" class="label" style="font-size:10px;">EN3 → Rail 3</text>
+
+            <!-- PGOOD output -->
+            <line x1="450" y1="210" x2="520" y2="210" stroke="#9b59b6" stroke-width="2"/>
+            <text x="530" y="213" text-anchor="start" class="label" style="font-size:10px;">PGOOD → MCU</text>
+
+            <!-- Fault input/output -->
+            <line x1="325" y1="230" x2="325" y2="260" stroke="#e74c3c" stroke-width="2"/>
+            <text x="325" y="275" text-anchor="middle" class="label" style="font-size:10px;">/FAULT</text>
+
+            <!-- Popular ICs -->
+            <rect x="50" y="240" width="130" height="50" fill="#f8f9fa" stroke="#ddd" stroke-width="1"/>
+            <text x="115" y="260" text-anchor="middle" class="label" style="font-size:10px;font-weight:bold;">Common ICs</text>
+            <text x="115" y="278" text-anchor="middle" class="label" style="font-size:9px;">TPS3848, LTC2937</text>
+            <text x="115" y="290" text-anchor="middle" class="label" style="font-size:9px;">UCD9090, MAX6819</text>
+
+            <!-- Delay setting info -->
+            <rect x="470" y="240" width="130" height="50" fill="#f8f9fa" stroke="#ddd" stroke-width="1"/>
+            <text x="535" y="260" text-anchor="middle" class="label" style="font-size:10px;font-weight:bold;">Delay Methods</text>
+            <text x="535" y="278" text-anchor="middle" class="label" style="font-size:9px;">External R-C</text>
+            <text x="535" y="290" text-anchor="middle" class="label" style="font-size:9px;">I²C programmable</text>
+        </svg>
+    </div>
+
+    <div class="card">
+        <h3>Hot-Swap Controller</h3>
+        <p>Hot-swap controllers manage inrush current and protect the system during live board insertion. They use a series MOSFET to slowly charge bulk capacitance.</p>
+
+        <div id="hotswap-circuit-diagram"></div>
+    </div>
+
+    <div class="card">
+        <h3>Hot-Swap Inrush Calculator</h3>
+        <p>Calculate the maximum inrush current and required MOSFET SOA for hot-swap applications.</p>
+
+        <div class="controls">
+            <label>Input Voltage: <input type="text" id="hs-vin" value="48" style="width:80px;"> V</label>
+            <label>Load Capacitance: <input type="text" id="hs-cload" value="1000u" style="width:80px;"> F</label>
+            <label>Startup Time: <input type="text" id="hs-tstart" value="50m" style="width:80px;"> s</label>
+        </div>
+        <div class="controls">
+            <label>Current Limit: <input type="text" id="hs-ilimit" value="3" style="width:80px;"> A</label>
+            <button onclick="calculateHotSwap()">Calculate</button>
+        </div>
+        <div id="hotswap-results" class="results"></div>
+
+        <h4>Common Hot-Swap Controller ICs</h4>
+        <table class="data-table">
+            <tr>
+                <th>IC</th>
+                <th>Voltage Range</th>
+                <th>Features</th>
+                <th>Application</th>
+            </tr>
+            <tr>
+                <td>LTC4215</td>
+                <td>2.9V - 15V</td>
+                <td>I²C, electronic CB, PG output</td>
+                <td>PCIe, server boards</td>
+            </tr>
+            <tr>
+                <td>TPS2491</td>
+                <td>9V - 80V</td>
+                <td>Adjustable current limit, timer</td>
+                <td>Telecom -48V, industrial</td>
+            </tr>
+            <tr>
+                <td>LTC4260</td>
+                <td>15V - 80V</td>
+                <td>UV/OV, current limit, timer</td>
+                <td>48V backplane</td>
+            </tr>
+            <tr>
+                <td>MAX5976</td>
+                <td>3.3V - 16.5V</td>
+                <td>PMBus, MOSFET stress monitor</td>
+                <td>Blade servers</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Power Good (PGOOD) Supervision</h3>
+        <p>PGOOD signals indicate when power rails have stabilized within tolerance. They're essential for reliable system startup.</p>
+
+        <svg viewBox="0 0 600 200" class="circuit-diagram">
+            <text x="300" y="20" text-anchor="middle" class="label" style="font-weight:bold;">PGOOD Threshold Operation</text>
+
+            <!-- Voltage vs Time graph -->
+            <!-- Y axis -->
+            <line x1="80" y1="40" x2="80" y2="160" stroke="#333" stroke-width="1"/>
+            <text x="35" y="100" text-anchor="middle" class="label" style="font-size:10px;writing-mode:tb;">Voltage</text>
+
+            <!-- X axis -->
+            <line x1="80" y1="160" x2="520" y2="160" stroke="#333" stroke-width="1"/>
+            <text x="300" y="185" text-anchor="middle" class="label" style="font-size:10px;">Time</text>
+
+            <!-- Upper threshold -->
+            <line x1="80" y1="70" x2="520" y2="70" stroke="#e74c3c" stroke-width="1" stroke-dasharray="5,3"/>
+            <text x="530" y="73" text-anchor="start" class="label" style="font-size:9px;fill:#e74c3c;">OV (110%)</text>
+
+            <!-- Nominal -->
+            <line x1="80" y1="90" x2="520" y2="90" stroke="#27ae60" stroke-width="1" stroke-dasharray="5,3"/>
+            <text x="530" y="93" text-anchor="start" class="label" style="font-size:9px;fill:#27ae60;">Nominal</text>
+
+            <!-- Lower threshold -->
+            <line x1="80" y1="115" x2="520" y2="115" stroke="#f39c12" stroke-width="1" stroke-dasharray="5,3"/>
+            <text x="530" y="118" text-anchor="start" class="label" style="font-size:9px;fill:#f39c12;">UV (90%)</text>
+
+            <!-- Voltage curve -->
+            <path d="M 80 160 L 100 160 L 150 90 L 350 90 L 360 100 L 370 90 L 500 90" fill="none" stroke="#3498db" stroke-width="2"/>
+
+            <!-- PGOOD signal below -->
+            <text x="35" y="195" text-anchor="middle" class="label" style="font-size:10px;">PGOOD</text>
+
+            <!-- PGOOD trace -->
+            <line x1="80" y1="192" x2="175" y2="192" stroke="#9b59b6" stroke-width="2"/>
+            <line x1="175" y1="192" x2="175" y2="178" stroke="#9b59b6" stroke-width="2"/>
+            <line x1="175" y1="178" x2="355" y2="178" stroke="#9b59b6" stroke-width="2"/>
+            <line x1="355" y1="178" x2="355" y2="192" stroke="#9b59b6" stroke-width="2"/>
+            <line x1="355" y1="192" x2="385" y2="192" stroke="#9b59b6" stroke-width="2"/>
+            <line x1="385" y1="192" x2="385" y2="178" stroke="#9b59b6" stroke-width="2"/>
+            <line x1="385" y1="178" x2="500" y2="178" stroke="#9b59b6" stroke-width="2"/>
+
+            <!-- Annotations -->
+            <line x1="175" y1="150" x2="175" y2="95" stroke="#999" stroke-width="1" stroke-dasharray="2,2"/>
+            <text x="175" y="145" text-anchor="middle" class="label" style="font-size:8px;">PG delay</text>
+
+            <line x1="360" y1="100" x2="360" y2="150" stroke="#999" stroke-width="1" stroke-dasharray="2,2"/>
+            <text x="360" y="145" text-anchor="middle" class="label" style="font-size:8px;">Glitch</text>
+        </svg>
+
+        <table class="data-table">
+            <tr>
+                <th>Feature</th>
+                <th>Purpose</th>
+                <th>Typical Value</th>
+            </tr>
+            <tr>
+                <td>UV threshold</td>
+                <td>Assert PGOOD when rail exceeds this</td>
+                <td>85-95% of nominal</td>
+            </tr>
+            <tr>
+                <td>OV threshold</td>
+                <td>De-assert PGOOD if rail exceeds this</td>
+                <td>105-115% of nominal</td>
+            </tr>
+            <tr>
+                <td>Hysteresis</td>
+                <td>Prevent chattering at threshold</td>
+                <td>1-5% of nominal</td>
+            </tr>
+            <tr>
+                <td>Deglitch time</td>
+                <td>Ignore brief transients</td>
+                <td>1-100 μs</td>
+            </tr>
+            <tr>
+                <td>PGOOD delay</td>
+                <td>Time after UV passed to assert PG</td>
+                <td>10-500 μs</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <div id="exercise-container"></div>
+    </div>
+
+    <script>
+    (function() {
+        // Exposed on window because the markup calls this from an inline
+        // onclick=, which resolves against the global scope, while this
+        // script body is wrapped in an IIFE.
+        window.calculateHotSwap = calculateHotSwap;
+        function calculateHotSwap() {
+            const vin = AD.num('hs-vin') || 48;
+            const cload = AD.num('hs-cload') || 1000e-6;
+            const tstart = AD.num('hs-tstart') || 50e-3;
+            const ilimit = AD.num('hs-ilimit') || 3;
+
+            // Capacitor charging with current limit
+            // I = C * dV/dt => t = C * V / I
+            const tCharge = (cload * vin) / ilimit;
+
+            // If startup time is less than charge time, we need higher current
+            const requiredCurrent = (cload * vin) / tstart;
+
+            // MOSFET stress during startup (linear region)
+            // Peak power = Vin * Ilimit (at start when Vds = Vin)
+            const peakPower = vin * ilimit;
+
+            // Energy dissipated in MOSFET during startup
+            // E = 0.5 * Vin * I * t (triangular approximation)
+            const energy = 0.5 * vin * ilimit * tCharge;
+
+            // Sense resistor power
+            const rsense = 0.005; // 5mΩ typical
+            const sensePower = ilimit * ilimit * rsense;
+
+            let html = '<h4>Hot-Swap Analysis</h4>';
+            html += '<table class="data-table">';
+            html += '<tr><td>Charge time (at Ilimit)</td><td>' + AD.fmtUnit(tCharge, 's') + '</td></tr>';
+            html += '<tr><td>Required current (for Tstart)</td><td>' + requiredCurrent.toFixed(2) + ' A</td></tr>';
+            html += '<tr><td>Peak MOSFET power</td><td><strong>' + peakPower.toFixed(1) + ' W</strong></td></tr>';
+            html += '<tr><td>MOSFET energy (startup)</td><td>' + AD.fmtUnit(energy, 'J') + '</td></tr>';
+            html += '<tr><td>Sense resistor power</td><td>' + AD.fmtUnit(sensePower, 'W') + '</td></tr>';
+            html += '</table>';
+
+            // MOSFET SOA check
+            html += '<h4>MOSFET SOA Requirements</h4>';
+            html += '<p>The MOSFET must survive ' + peakPower.toFixed(0) + ' W for ' + AD.fmtUnit(tCharge, 's') + ' during startup.</p>';
+            html += '<p>Check datasheet SOA curve for: V<sub>DS</sub> = ' + vin + ' V, I<sub>D</sub> = ' + ilimit + ' A, t = ' + AD.fmtUnit(tCharge, 's') + '</p>';
+
+            if (tCharge > tstart) {
+                html += '<p style="color:#e67e22;"><strong>Warning:</strong> Charge time exceeds target startup time. Increase current limit or decrease load capacitance.</p>';
+            }
+
+            if (peakPower > 50) {
+                html += '<p style="color:#e74c3c;"><strong>Caution:</strong> High peak power - consider multiple MOSFETs in parallel or staged startup.</p>';
+            }
+
+            document.getElementById('hotswap-results').innerHTML = html;
+        }
+
+        // Initialize
+        calculateHotSwap();
+
+        // Exercises
+        const exercises = [
+            {
+                id: 'seq1',
+                type: 'choice',
+                question: 'For a typical FPGA, what is the recommended power-up sequence?',
+                options: ['I/O first, then core', 'Core first, then auxiliary, then I/O', 'All rails simultaneously', 'Any order is acceptable'],
+                correct: 1,
+                hint: 'I/O before core can trigger latch-up in CMOS devices'
+            },
+            {
+                id: 'seq2',
+                type: 'numeric',
+                question: 'A hot-swap circuit limits inrush to 2A while charging 500μF to 12V. How long does charging take?',
+                expected: 3,
+                tolerance: 0.1,
+                unit: 'ms',
+                hint: 't = C × V / I'
+            },
+            {
+                id: 'seq3',
+                type: 'choice',
+                question: 'What is the purpose of the timer capacitor in a hot-swap controller?',
+                options: ['Filter high frequency noise', 'Set the gate ramp rate for inrush control', 'Store energy for the load', 'Provide output voltage ripple filtering'],
+                correct: 1,
+                hint: 'The timer controls how fast the MOSFET gate charges'
+            },
+            {
+                id: 'seq4',
+                type: 'numeric',
+                question: 'Peak MOSFET power during hot-swap startup: VIN=48V, Ilimit=3A. Calculate peak power in watts.',
+                expected: 144,
+                tolerance: 1,
+                unit: 'W',
+                hint: 'P = V × I when MOSFET is fully on but Vout ≈ 0'
+            },
+            {
+                id: 'seq5',
+                type: 'choice',
+                question: 'Why do PGOOD outputs typically have a deglitch filter?',
+                options: ['To increase rise time', 'To ignore brief voltage transients that don\'t indicate real faults', 'To reduce EMI', 'To match the sequencer clock'],
+                correct: 1,
+                hint: 'Short glitches from load transients shouldn\'t reset the system'
+            }
+        ];
+
+        exercises.forEach((ex, i) => {
+            const div = document.createElement('div');
+            div.id = 'exercise-' + i;
+            document.getElementById('exercise-container').appendChild(div);
+            new ExerciseWidget('exercise-' + i, ex);
+        });
+    })();
+    </script>
+</div>
+<script>
+(function () {
+    const host = document.getElementById('hotswap-circuit-diagram');
+    if (!host || !window.ComponentModels) return;
+
+    // Hot-swap controller. Q1 is deliberately driven into its linear region
+    // during startup so the inrush into Cload is a controlled ramp rather
+    // than a step; the controller watches Rs for overcurrent.
+    const RAIL = 110;                    // input rail
+    const QX = 290, QY = 110;            // Q1 centre (drain/source on the rail)
+    const CTRL_X = 300, CTRL_Y = 250;
+    const GND = 320;
+
+    host.innerHTML = ComponentModels.diagram({
+        width: 700, height: 380, title: 'Hot-swap controller circuit',
+        blocks: [
+            // h=70 so the half-height lands on the 5 px grid and the ground
+            // stub below leaves the block at a gridded y.
+            { x: CTRL_X, y: CTRL_Y, w: 130, h: 70, label: 'Hot-Swap',
+              sub: ['Controller'], color: '#34d399' }
+        ],
+        parts: [
+            // Stacked above, not to the left: "backplane" is 50 px wide and a
+            // left label at x=60 runs off the sheet.
+            { key: 'port', x: 60, y: RAIL, label: 'VIN', value: 'backplane', labelPos: 'top' },
+            { key: 'resistor', x: 165, y: RAIL, label: 'Rs', value: '5 m\u03a9', labelPos: 'top' },
+            // rotate:270 puts the drain on the left and the source on the
+            // right, and the +15 offset drops both onto the rail. With
+            // rotate:90 they sit 15 px below it and the FET is out of circuit.
+            { key: 'nmos', x: QX, y: RAIL + 15, rotate: 270, label: 'Q1', value: 'N-FET', labelPos: 'top' },
+            { key: 'capacitor_pol', x: 470, y: 175, rotate: 90, label: 'Cload', labelPos: 'left' },
+            { key: 'port', x: 620, y: RAIL, label: 'VOUT', labelPos: 'right' },
+            { key: 'ground', x: 470, y: GND },
+            { key: 'ground', x: CTRL_X, y: GND }
+        ],
+        wires: [
+            [[45, RAIL], [140, RAIL]],                    // input port to Rs
+            [[190, RAIL], [QX - 35, RAIL]],               // Rs to the drain
+            [[QX + 35, RAIL], [605, RAIL]],               // source out to the load
+            [[470, RAIL], [470, 150]],                    // Cload tap
+            [[470, 200], [470, GND]],
+            // Rs sensed across both ends, each on its own row into the
+            // controller's left edge.
+            [[140, RAIL], [140, 230], [CTRL_X - 65, 230]],
+            [[190, RAIL], [190, 250], [CTRL_X - 65, 250]],
+            // Gate leaves on the right-hand side. Routing it down x=235
+            // put it on top of the two sense taps' endpoints, which made
+            // all three one node.
+            // The gate pin is at RAIL+40, not RAIL+55.
+            [[QX, RAIL + 40], [QX, 190], [380, 190], [380, 250], [CTRL_X + 65, 250]],
+            [[CTRL_X, CTRL_Y + 35], [CTRL_X, GND]]
+        ],
+        dots: [[140, RAIL], [190, RAIL], [470, RAIL]],
+        texts: [
+            { x: 60, y: 350, text: 'Startup: the controller holds Q1 in its linear region so dV/dt across Cload is a ramp.',
+              size: 10, anchor: 'start' },
+            { x: 60, y: 366, text: 'Q1 dissipates the whole inrush - check it against the SOA curve, not just Rdson.',
+              size: 10, anchor: 'start' }
+        ]
+    });
+})();
+</script>

@@ -1,481 +1,1418 @@
-<!-- Module 22, Lesson 9: Power Supply Failure Analysis -->
-<div class="lesson-content" data-module="22" data-lesson="9">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conducted Emissions - EMI/EMC Design</title>
+</head>
+<body>
+    <div class="lesson-content" data-module="22" data-lesson="9">
+        <div class="card">
+            <h2>Conducted Emissions</h2>
+            <p>Conducted emissions are unwanted high-frequency currents that propagate along power and signal
+            cables, coupling noise into other equipment or the power grid. Understanding the sources, measurement
+            techniques, and mitigation strategies is essential for meeting regulatory requirements like FCC Part 15
+            and CISPR 22/32.</p>
 
-    <div class="card">
-        <h2>Case Study: Switching Power Supply Failure</h2>
-        <p>Investigate a failed ATX power supply with no output. This scenario covers systematic SMPS troubleshooting, from input protection through the control loop, identifying common failure modes.</p>
-
-        <div class="kv">
-            <div class="box">
-                <div class="k">Symptom</div>
-                <div class="v">No output, fan dead</div>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Frequency Range:</span><span class="kv-value">150 kHz - 30 MHz</span></div>
+                <div class="kv-item"><span class="kv-label">LISN Impedance:</span><span class="kv-value">50Ω || 50μH</span></div>
+                <div class="kv-item"><span class="kv-label">Limit Class A:</span><span class="kv-value">~60 dBμV (industrial)</span></div>
+                <div class="kv-item"><span class="kv-label">Limit Class B:</span><span class="kv-value">~48 dBμV (residential)</span></div>
             </div>
-            <div class="box">
-                <div class="k">Input</div>
-                <div class="v">AC mains present</div>
-            </div>
-            <div class="box">
-                <div class="k">Fuse</div>
-                <div class="v">Intact (not blown)</div>
-            </div>
-            <div class="box">
-                <div class="k">Age</div>
-                <div class="v">~5 years service</div>
-            </div>
-        </div>
 
-        <div class="notice">
-            <strong>Safety Warning:</strong> SMPS contain lethal voltages even when unplugged. The main filter capacitor can hold charge >300V. Always discharge and verify before touching. Use isolation transformer when testing under power.
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>The Scenario</h3>
-        <div style="background:#111; padding:15px; border-radius:4px;">
-            <p><strong>Equipment:</strong> 500W ATX PC power supply</p>
-            <ul style="margin-top:10px; color:#aaa;">
-                <li>Reported: Computer suddenly died, won't turn on</li>
-                <li>No burning smell, no visible damage</li>
-                <li>Fuse OK, bridge rectifier OK, main cap charges to 320V</li>
-                <li>Standby 5V present at motherboard connector</li>
-                <li>PS_ON signal present but no 12V, 5V, 3.3V outputs</li>
-            </ul>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Interactive: SMPS Block Diagnosis</h3>
-
-        <div class="controls">
-            <div class="c3">
-                <label for="smps-block">Stage Under Test</label>
-                <select id="smps-block">
-                    <option value="input">Input/EMI Filter</option>
-                    <option value="rectifier">Bridge Rectifier</option>
-                    <option value="pfc">PFC Stage</option>
-                    <option value="primary">Primary Switch</option>
-                    <option value="transformer">Transformer</option>
-                    <option value="secondary">Secondary Rectifier</option>
-                    <option value="feedback">Feedback/Control</option>
-                    <option value="standby">Standby Supply</option>
-                </select>
-            </div>
-            <div class="c3">
-                <label for="smps-test">Test Method</label>
-                <select id="smps-test">
-                    <option value="dc">DC Voltage</option>
-                    <option value="diode">Diode Mode</option>
-                    <option value="scope">Oscilloscope</option>
-                    <option value="esr">ESR Meter</option>
-                </select>
+            <div class="notice">
+                <strong>Key Insight:</strong> Conducted emissions have two modes - differential mode (noise between
+                Line and Neutral) and common mode (noise on both conductors relative to ground). Most emissions
+                above 1 MHz are common mode, requiring different filtering approaches.
             </div>
         </div>
 
-        <div class="canvas-wrap">
-            <canvas id="smps-canvas" width="980" height="360"></canvas>
+        <!-- Interactive 1: LISN and Measurement Setup -->
+        <div class="card">
+            <h3>Interactive: LISN Measurement System</h3>
+            <p>Visualize how a Line Impedance Stabilization Network (LISN) measures conducted emissions:</p>
+
+            <div class="controls">
+                <label>Noise Source Frequency:
+                    <input type="range" id="noise-freq" min="150" max="30000" value="1000" step="50">
+                    <span id="noise-freq-val">1 MHz</span>
+                </label>
+                <label>Noise Level (dBμV):
+                    <input type="range" id="noise-level" min="20" max="80" value="55" step="1">
+                    <span id="noise-level-val">55 dBμV</span>
+                </label>
+                <label>Emission Mode:
+                    <select id="emission-mode">
+                        <option value="dm">Differential Mode</option>
+                        <option value="cm">Common Mode</option>
+                        <option value="both">Both (Typical)</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="lisn-canvas" width="980" height="380"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">LISN Impedance:</span><span class="kv-value" id="lisn-z">50 Ω</span></div>
+                <div class="kv-item"><span class="kv-label">Line Measurement:</span><span class="kv-value" id="line-meas">55 dBμV</span></div>
+                <div class="kv-item"><span class="kv-label">Neutral Measurement:</span><span class="kv-value" id="neutral-meas">52 dBμV</span></div>
+                <div class="kv-item"><span class="kv-label">Limit (Class B):</span><span class="kv-value" id="limit-status">FAIL</span></div>
+            </div>
         </div>
 
-        <div class="kv">
-            <div class="box">
-                <div class="k">Block Status</div>
-                <div class="v mono" id="smps-status">—</div>
+        <!-- Interactive 2: Conducted Emissions Spectrum -->
+        <div class="card">
+            <h3>Interactive: Conducted Emissions Spectrum</h3>
+            <p>Analyze the frequency spectrum of conducted emissions from a switching power supply:</p>
+
+            <div class="controls">
+                <label>Switching Frequency:
+                    <input type="range" id="sw-freq" min="50" max="500" value="100" step="10">
+                    <span id="sw-freq-val">100 kHz</span>
+                </label>
+                <label>Rise Time:
+                    <input type="range" id="rise-time" min="5" max="100" value="20" step="5">
+                    <span id="rise-time-val">20 ns</span>
+                </label>
+                <label>Input Filter:
+                    <select id="input-filter">
+                        <option value="none">None</option>
+                        <option value="basic">Basic LC (10μH + 100nF)</option>
+                        <option value="cm">CM Choke (1mH)</option>
+                        <option value="full">Full Pi Filter</option>
+                    </select>
+                </label>
             </div>
-            <div class="box">
-                <div class="k">Expected</div>
-                <div class="v mono" id="smps-expect">—</div>
+
+            <div class="canvas-wrap">
+                <canvas id="spectrum-canvas" width="980" height="380"></canvas>
             </div>
-            <div class="box">
-                <div class="k">Measured</div>
-                <div class="v mono" id="smps-meas">—</div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Fundamental:</span><span class="kv-value" id="fund-level">65 dBμV</span></div>
+                <div class="kv-item"><span class="kv-label">Bandwidth:</span><span class="kv-value" id="noise-bw">16 MHz</span></div>
+                <div class="kv-item"><span class="kv-label">Peak Harmonic:</span><span class="kv-value" id="peak-harm">3rd @ 300 kHz</span></div>
+                <div class="kv-item"><span class="kv-label">Margin to Limit:</span><span class="kv-value" id="margin">-8 dB (FAIL)</span></div>
             </div>
-            <div class="box">
-                <div class="k">Diagnosis</div>
-                <div class="v mono" id="smps-diag">—</div>
+        </div>
+
+        <!-- Interactive 3: CM/DM Separation -->
+        <div class="card">
+            <h3>Interactive: Common Mode vs Differential Mode Analysis</h3>
+            <p>Separate and analyze CM and DM components of conducted emissions:</p>
+
+            <div class="controls">
+                <label>Line Level (dBμV):
+                    <input type="range" id="line-level" min="30" max="70" value="55" step="1">
+                    <span id="line-level-val">55 dBμV</span>
+                </label>
+                <label>Neutral Level (dBμV):
+                    <input type="range" id="neutral-level" min="30" max="70" value="52" step="1">
+                    <span id="neutral-level-val">52 dBμV</span>
+                </label>
+                <label>Phase Angle:
+                    <input type="range" id="phase-angle" min="0" max="180" value="30" step="5">
+                    <span id="phase-angle-val">30°</span>
+                </label>
             </div>
+
+            <div class="canvas-wrap">
+                <canvas id="cmdm-canvas" width="980" height="350"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">CM Level:</span><span class="kv-value" id="cm-level">50 dBμV</span></div>
+                <div class="kv-item"><span class="kv-label">DM Level:</span><span class="kv-value" id="dm-level">45 dBμV</span></div>
+                <div class="kv-item"><span class="kv-label">CM/DM Ratio:</span><span class="kv-value" id="cmdm-ratio">5 dB</span></div>
+                <div class="kv-item"><span class="kv-label">Dominant Mode:</span><span class="kv-value" id="dominant-mode">Common Mode</span></div>
+            </div>
+        </div>
+
+        <!-- Interactive 4: EMI Filter Design -->
+        <div class="card">
+            <h3>Interactive: EMI Filter Design</h3>
+            <p>Design an input EMI filter to meet conducted emissions limits:</p>
+
+            <div class="controls">
+                <label>CM Choke:
+                    <input type="range" id="cm-choke" min="0" max="10" value="1" step="0.5">
+                    <span id="cm-choke-val">1 mH</span>
+                </label>
+                <label>X Capacitor (DM):
+                    <input type="range" id="x-cap" min="10" max="1000" value="100" step="10">
+                    <span id="x-cap-val">100 nF</span>
+                </label>
+                <label>Y Capacitors (CM):
+                    <input type="range" id="y-cap" min="0.5" max="10" value="2.2" step="0.1">
+                    <span id="y-cap-val">2.2 nF</span>
+                </label>
+                <label>Leakage Inductance:
+                    <input type="range" id="leakage-l" min="1" max="50" value="10" step="1">
+                    <span id="leakage-l-val">10 μH</span>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="filter-canvas" width="980" height="380"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">DM Corner:</span><span class="kv-value" id="dm-corner">15 kHz</span></div>
+                <div class="kv-item"><span class="kv-label">CM Corner:</span><span class="kv-value" id="cm-corner">2.4 kHz</span></div>
+                <div class="kv-item"><span class="kv-label">DM Attenuation @1MHz:</span><span class="kv-value" id="dm-atten">-36 dB</span></div>
+                <div class="kv-item"><span class="kv-label">CM Attenuation @1MHz:</span><span class="kv-value" id="cm-atten">-52 dB</span></div>
+            </div>
+        </div>
+
+        <!-- Conducted Emissions Limits Table -->
+        <div class="card">
+            <h3>Conducted Emissions Limits (CISPR 32 / FCC Part 15)</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Frequency Range</th>
+                        <th>Class A (QP)</th>
+                        <th>Class A (AVG)</th>
+                        <th>Class B (QP)</th>
+                        <th>Class B (AVG)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>150 kHz - 500 kHz</td>
+                        <td>79 dBμV</td>
+                        <td>66 dBμV</td>
+                        <td>66-56 dBμV*</td>
+                        <td>56-46 dBμV*</td>
+                    </tr>
+                    <tr>
+                        <td>500 kHz - 5 MHz</td>
+                        <td>73 dBμV</td>
+                        <td>60 dBμV</td>
+                        <td>56 dBμV</td>
+                        <td>46 dBμV</td>
+                    </tr>
+                    <tr>
+                        <td>5 MHz - 30 MHz</td>
+                        <td>73 dBμV</td>
+                        <td>60 dBμV</td>
+                        <td>60 dBμV</td>
+                        <td>50 dBμV</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p style="font-size: 0.9em; color: #888;">*Decreasing linearly with log of frequency. QP = Quasi-Peak, AVG = Average detector.</p>
+        </div>
+
+        <!-- Schematic -->
+        <div class="card">
+            <h3>EMI Filter Schematic</h3>
+            <div id="filter-schematic"></div>
+        </div>
+
+        <!-- Common Noise Sources -->
+        <div class="card">
+            <h3>Common Conducted Emissions Sources</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Source</th>
+                        <th>Type</th>
+                        <th>Frequency</th>
+                        <th>Mitigation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>SMPS Switching</td>
+                        <td>DM + CM</td>
+                        <td>100kHz - 10MHz</td>
+                        <td>Pi filter, spread spectrum</td>
+                    </tr>
+                    <tr>
+                        <td>Diode Recovery</td>
+                        <td>DM</td>
+                        <td>1MHz - 100MHz</td>
+                        <td>Snubber, soft recovery diodes</td>
+                    </tr>
+                    <tr>
+                        <td>Parasitic Capacitance</td>
+                        <td>CM</td>
+                        <td>>1MHz</td>
+                        <td>Shield, Y capacitors</td>
+                    </tr>
+                    <tr>
+                        <td>Motor Drives</td>
+                        <td>CM</td>
+                        <td>PWM freq harmonics</td>
+                        <td>CM choke, shielded cables</td>
+                    </tr>
+                    <tr>
+                        <td>Digital Clock</td>
+                        <td>CM</td>
+                        <td>Clock harmonics</td>
+                        <td>Ferrite beads, filtering</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- SPICE Netlist -->
+        <div class="card">
+            <h3>SPICE Netlist</h3>
+            <div id="ce-spice"></div>
+        </div>
+
+        <!-- Design Checklist -->
+        <div class="card">
+            <h3>Design Checklist</h3>
+            <div id="ce-checklist"></div>
+        </div>
+
+        <!-- Exercises -->
+        <div class="card">
+            <h3>Practice Exercises</h3>
+            <div id="ce-exercises"></div>
         </div>
     </div>
 
-    <div class="card">
-        <h3>Systematic Troubleshooting</h3>
+    <script>
+        // Canvas 1: LISN Measurement System
+        const lisnCanvas = document.getElementById('lisn-canvas');
+        const lisnCtx = lisnCanvas.getContext('2d');
 
-        <table class="table">
-            <tr>
-                <th>Test Point</th>
-                <th>Expected</th>
-                <th>Measured</th>
-                <th>Verdict</th>
-            </tr>
-            <tr>
-                <td>AC Input</td>
-                <td>120/240V AC</td>
-                <td>120V AC</td>
-                <td style="color:#4f4;">PASS</td>
-            </tr>
-            <tr>
-                <td>Main Fuse</td>
-                <td><1Ω</td>
-                <td>0.3Ω</td>
-                <td style="color:#4f4;">PASS</td>
-            </tr>
-            <tr>
-                <td>Bulk Cap Voltage</td>
-                <td>~320V DC</td>
-                <td>318V</td>
-                <td style="color:#4f4;">PASS</td>
-            </tr>
-            <tr>
-                <td>Standby 5V</td>
-                <td>5V ±5%</td>
-                <td>5.1V</td>
-                <td style="color:#4f4;">PASS</td>
-            </tr>
-            <tr>
-                <td>PS_ON Signal</td>
-                <td>0V when active</td>
-                <td>0V</td>
-                <td style="color:#4f4;">PASS</td>
-            </tr>
-            <tr>
-                <td>PWM Controller Vcc</td>
-                <td>12-15V</td>
-                <td>8V</td>
-                <td style="color:#f44;">FAIL</td>
-            </tr>
-            <tr>
-                <td>Aux Winding Cap</td>
-                <td>Low ESR</td>
-                <td>High ESR</td>
-                <td style="color:#f44;">FAIL</td>
-            </tr>
-        </table>
-    </div>
+        const noiseFreq = document.getElementById('noise-freq');
+        const noiseLevel = document.getElementById('noise-level');
+        const emissionMode = document.getElementById('emission-mode');
 
-    <div class="card">
-        <h3>SMPS Block Diagram</h3>
-        <div id="smps-schematic"></div>
-    </div>
+        function drawLisnSystem() {
+            const freq = parseFloat(noiseFreq.value);
+            const level = parseFloat(noiseLevel.value);
+            const mode = emissionMode.value;
 
-    <div class="card">
-        <h3>Root Cause: Failed Electrolytic Capacitor</h3>
-        <div style="background:#111; padding:15px; border-radius:4px;">
-            <p><strong>Finding:</strong> Aux winding filter capacitor (C15, 47µF/25V) has high ESR.</p>
-            <ul style="margin-top:10px; color:#aaa;">
-                <li>ESR measured: 8Ω (expected: <0.5Ω)</li>
-                <li>Ripple prevents PWM controller from reaching UVLO threshold</li>
-                <li>Controller tries to start, drops out, oscillates at ~2Hz</li>
-                <li>Classic capacitor "hiccup" failure mode</li>
-            </ul>
-            <p style="margin-top:15px; color:#4af;"><strong>Repair:</strong> Replace C15 with 47µF/35V 105°C low-ESR capacitor. Also replace nearby electrolytics as preventive maintenance.</p>
-        </div>
-    </div>
+            document.getElementById('noise-freq-val').textContent =
+                freq >= 1000 ? (freq/1000).toFixed(1) + ' MHz' : freq + ' kHz';
+            document.getElementById('noise-level-val').textContent = level + ' dBμV';
 
-    <div class="card">
-        <h3>Common SMPS Failure Modes</h3>
+            lisnCtx.fillStyle = '#181818';
+            lisnCtx.fillRect(0, 0, lisnCanvas.width, lisnCanvas.height);
 
-        <table class="table">
-            <tr>
-                <th>Component</th>
-                <th>Failure Mode</th>
-                <th>Symptom</th>
-            </tr>
-            <tr>
-                <td>Electrolytic Caps</td>
-                <td>High ESR, low capacitance</td>
-                <td>Hiccup, ripple, instability</td>
-            </tr>
-            <tr>
-                <td>Primary MOSFET</td>
-                <td>Short circuit</td>
-                <td>Blown fuse, smoke</td>
-            </tr>
-            <tr>
-                <td>Schottky Rectifiers</td>
-                <td>Short or open</td>
-                <td>No output or shorted rail</td>
-            </tr>
-            <tr>
-                <td>PWM Controller IC</td>
-                <td>EOS/Latchup</td>
-                <td>No switching, overheating</td>
-            </tr>
-            <tr>
-                <td>Optocoupler</td>
-                <td>CTR degradation</td>
-                <td>Poor regulation, overshoot</td>
-            </tr>
-        </table>
-    </div>
+            const w = lisnCanvas.width;
+            const h = lisnCanvas.height;
 
-    <div class="card">
-        <h3>SPICE Netlist</h3>
-        <div id="smps-spice"></div>
-    </div>
+            // Calculate LISN impedance at frequency
+            const f = freq * 1000; // Hz
+            const L = 50e-6; // 50μH
+            const R = 50; // 50Ω
+            const Xl = 2 * Math.PI * f * L;
+            const Zlisn = Math.sqrt(R * R * Xl * Xl / (R * R + Xl * Xl));
 
-    <div class="card">
-        <h3>Repair Checklist</h3>
-        <div id="smps-checklist"></div>
-    </div>
+            document.getElementById('lisn-z').textContent = Zlisn.toFixed(1) + ' Ω';
 
-    <div class="card">
-        <h3>Practice Exercises</h3>
-        <div id="smps-exercises"></div>
-    </div>
+            // Draw LISN block diagram
+            lisnCtx.strokeStyle = '#666';
+            lisnCtx.lineWidth = 2;
 
-</div>
+            // Power source (left)
+            lisnCtx.fillStyle = '#333';
+            lisnCtx.fillRect(30, 120, 80, 100);
+            lisnCtx.strokeStyle = '#FFFF00';
+            lisnCtx.strokeRect(30, 120, 80, 100);
+            lisnCtx.fillStyle = '#FFFF00';
+            lisnCtx.font = 'bold 14px monospace';
+            lisnCtx.textAlign = 'center';
+            lisnCtx.fillText('AC', 70, 165);
+            lisnCtx.fillText('MAINS', 70, 185);
 
-<script>
-(function() {
-    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+            // LISN box
+            lisnCtx.fillStyle = '#333';
+            lisnCtx.fillRect(180, 80, 200, 180);
+            lisnCtx.strokeStyle = '#00FFFF';
+            lisnCtx.lineWidth = 2;
+            lisnCtx.strokeRect(180, 80, 200, 180);
 
-    const canvas = document.getElementById('smps-canvas');
-    const blockEl = document.getElementById('smps-block');
-    const testEl = document.getElementById('smps-test');
-    if (!canvas || !blockEl || !testEl) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const W = canvas.width, H = canvas.height;
+            lisnCtx.fillStyle = '#00FFFF';
+            lisnCtx.font = 'bold 16px monospace';
+            lisnCtx.fillText('LISN', 280, 110);
 
-    const blocks = {
-        input: {x: 50, y: 140, w: 80, h: 60, label: 'Input\nFilter', status: 'PASS', expected: '120V AC', measured: '120V AC', diag: 'Normal'},
-        rectifier: {x: 150, y: 140, w: 80, h: 60, label: 'Bridge\nRect', status: 'PASS', expected: '320V DC', measured: '318V DC', diag: 'Normal'},
-        pfc: {x: 250, y: 140, w: 80, h: 60, label: 'PFC\nBoost', status: 'PASS', expected: '390V DC', measured: '385V DC', diag: 'Normal'},
-        primary: {x: 350, y: 140, w: 80, h: 60, label: 'Primary\nSwitch', status: 'WARN', expected: 'Switching', measured: 'Hiccup', diag: 'Check Vcc'},
-        transformer: {x: 450, y: 140, w: 80, h: 60, label: 'Xfmr', status: 'PASS', expected: 'Isolation', measured: 'OK', diag: 'Normal'},
-        secondary: {x: 550, y: 140, w: 80, h: 60, label: 'Output\nRect', status: 'PASS', expected: '12V, 5V, 3.3V', measured: '0V all', diag: 'No input'},
-        feedback: {x: 450, y: 250, w: 80, h: 60, label: 'Feedback\nControl', status: 'WARN', expected: '12V Vcc', measured: '8V', diag: 'Low Vcc'},
-        standby: {x: 550, y: 250, w: 80, h: 60, label: 'Standby\n5V', status: 'PASS', expected: '5V', measured: '5.1V', diag: 'Normal'}
-    };
+            // Internal LISN components (simplified)
+            lisnCtx.strokeStyle = '#888';
+            lisnCtx.lineWidth = 1;
 
-    function update() {
-        const block = blockEl.value || 'input';
-        const test = testEl.value;
+            // Line path
+            lisnCtx.fillStyle = '#888';
+            lisnCtx.font = '11px monospace';
+            lisnCtx.textAlign = 'left';
+            lisnCtx.fillText('50μH', 200, 145);
+            lisnCtx.fillText('50Ω', 320, 145);
 
-        const b = blocks[block] || blocks.input;
-        let statusColor = b.status === 'PASS' ? '#4f4' : (b.status === 'FAIL' ? '#f44' : '#fa4');
+            // Draw inductor symbol
+            lisnCtx.strokeStyle = '#888';
+            lisnCtx.beginPath();
+            for (let i = 0; i < 4; i++) {
+                lisnCtx.arc(220 + i * 15, 155, 7, Math.PI, 0, false);
+            }
+            lisnCtx.stroke();
 
-        document.getElementById('smps-status').innerHTML = '<span style="color:' + statusColor + '">' + b.status + '</span>';
-        document.getElementById('smps-expect').textContent = b.expected;
-        document.getElementById('smps-meas').textContent = b.measured;
-        document.getElementById('smps-diag').textContent = b.diag;
+            // Resistor to measurement port
+            lisnCtx.beginPath();
+            lisnCtx.moveTo(290, 155);
+            lisnCtx.lineTo(290, 180);
+            lisnCtx.stroke();
+            lisnCtx.fillRect(285, 180, 10, 20);
 
-        // Draw block diagram
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, W, H);
+            // Neutral path
+            lisnCtx.fillText('50μH', 200, 215);
+            lisnCtx.fillText('50Ω', 320, 215);
 
-        // Draw all blocks
-        Object.entries(blocks).forEach(([key, bl]) => {
-            const isSelected = key === block;
-            ctx.strokeStyle = isSelected ? '#fff' : '#666';
-            ctx.lineWidth = isSelected ? 3 : 1;
+            lisnCtx.beginPath();
+            for (let i = 0; i < 4; i++) {
+                lisnCtx.arc(220 + i * 15, 225, 7, Math.PI, 0, false);
+            }
+            lisnCtx.stroke();
 
-            let fillColor = bl.status === 'PASS' ? 'rgba(68,255,68,0.2)' :
-                           (bl.status === 'FAIL' ? 'rgba(255,68,68,0.3)' : 'rgba(255,170,68,0.2)');
-            ctx.fillStyle = fillColor;
-            ctx.fillRect(bl.x, bl.y, bl.w, bl.h);
-            ctx.strokeRect(bl.x, bl.y, bl.w, bl.h);
+            lisnCtx.beginPath();
+            lisnCtx.moveTo(290, 225);
+            lisnCtx.lineTo(290, 200);
+            lisnCtx.stroke();
 
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'center';
-            const lines = bl.label.split('\n');
-            lines.forEach((line, i) => {
-                ctx.fillText(line, bl.x + bl.w/2, bl.y + 25 + i * 14);
+            // Connections
+            lisnCtx.strokeStyle = '#FFFF00';
+            lisnCtx.lineWidth = 2;
+            lisnCtx.beginPath();
+            lisnCtx.moveTo(110, 140);
+            lisnCtx.lineTo(180, 140);
+            lisnCtx.moveTo(110, 200);
+            lisnCtx.lineTo(180, 200);
+            lisnCtx.stroke();
+
+            // EUT (Equipment Under Test)
+            lisnCtx.fillStyle = '#333';
+            lisnCtx.fillRect(450, 100, 150, 140);
+            lisnCtx.strokeStyle = '#FF6600';
+            lisnCtx.strokeRect(450, 100, 150, 140);
+
+            lisnCtx.fillStyle = '#FF6600';
+            lisnCtx.font = 'bold 14px monospace';
+            lisnCtx.textAlign = 'center';
+            lisnCtx.fillText('EUT', 525, 160);
+            lisnCtx.font = '11px monospace';
+            lisnCtx.fillText('(SMPS)', 525, 180);
+
+            // Connections to EUT
+            lisnCtx.strokeStyle = '#FF6600';
+            lisnCtx.beginPath();
+            lisnCtx.moveTo(380, 140);
+            lisnCtx.lineTo(450, 140);
+            lisnCtx.moveTo(380, 200);
+            lisnCtx.lineTo(450, 200);
+            lisnCtx.stroke();
+
+            // Label wires
+            lisnCtx.fillStyle = '#CCC';
+            lisnCtx.font = '11px monospace';
+            lisnCtx.fillText('L', 415, 135);
+            lisnCtx.fillText('N', 415, 195);
+
+            // Spectrum analyzer
+            lisnCtx.fillStyle = '#222';
+            lisnCtx.fillRect(650, 50, 300, 180);
+            lisnCtx.strokeStyle = '#00FF00';
+            lisnCtx.strokeRect(650, 50, 300, 180);
+
+            lisnCtx.fillStyle = '#00FF00';
+            lisnCtx.font = 'bold 12px monospace';
+            lisnCtx.textAlign = 'center';
+            lisnCtx.fillText('SPECTRUM ANALYZER', 800, 75);
+
+            // Draw spectrum inside analyzer
+            const saX = 670;
+            const saY = 90;
+            const saW = 260;
+            const saH = 120;
+
+            lisnCtx.fillStyle = '#000';
+            lisnCtx.fillRect(saX, saY, saW, saH);
+            lisnCtx.strokeStyle = '#333';
+            lisnCtx.strokeRect(saX, saY, saW, saH);
+
+            // Grid
+            lisnCtx.strokeStyle = '#333';
+            lisnCtx.lineWidth = 0.5;
+            for (let i = 0; i <= 10; i++) {
+                const x = saX + (i / 10) * saW;
+                lisnCtx.beginPath();
+                lisnCtx.moveTo(x, saY);
+                lisnCtx.lineTo(x, saY + saH);
+                lisnCtx.stroke();
+            }
+            for (let i = 0; i <= 6; i++) {
+                const y = saY + (i / 6) * saH;
+                lisnCtx.beginPath();
+                lisnCtx.moveTo(saX, y);
+                lisnCtx.lineTo(saX + saW, y);
+                lisnCtx.stroke();
+            }
+
+            // Draw limit line
+            lisnCtx.strokeStyle = '#FF0000';
+            lisnCtx.lineWidth = 1;
+            lisnCtx.setLineDash([5, 3]);
+            const limitDbUv = 56; // Class B quasi-peak
+            const limitY = saY + saH - ((limitDbUv - 20) / 80) * saH;
+            lisnCtx.beginPath();
+            lisnCtx.moveTo(saX, limitY);
+            lisnCtx.lineTo(saX + saW, limitY);
+            lisnCtx.stroke();
+            lisnCtx.setLineDash([]);
+
+            // Draw emissions spectrum
+            lisnCtx.strokeStyle = '#00FF00';
+            lisnCtx.lineWidth = 1.5;
+            lisnCtx.beginPath();
+
+            const fMin = 150e3;
+            const fMax = 30e6;
+            const logFmin = Math.log10(fMin);
+            const logFmax = Math.log10(fMax);
+
+            for (let i = 0; i <= 260; i++) {
+                const logF = logFmin + (i / 260) * (logFmax - logFmin);
+                const fPoint = Math.pow(10, logF);
+                const x = saX + i;
+
+                // Generate emission based on switching noise
+                let emission = level - 20; // Background
+                const swFreq = 100e3;
+
+                // Harmonics of switching frequency
+                for (let h = 1; h <= 50; h++) {
+                    const harmFreq = swFreq * h;
+                    const diff = Math.abs(fPoint - harmFreq);
+                    if (diff < harmFreq * 0.05) {
+                        let harmLevel = level - 20 * Math.log10(h);
+                        if (mode === 'dm') harmLevel -= (fPoint > 1e6 ? 20 : 0);
+                        if (mode === 'cm') harmLevel += (fPoint > 1e6 ? 6 : -10);
+                        emission = Math.max(emission, harmLevel);
+                    }
+                }
+
+                // Noise floor modulation
+                emission += (Math.random() - 0.5) * 3;
+
+                const y = saY + saH - ((emission - 20) / 80) * saH;
+                if (i === 0) lisnCtx.moveTo(x, Math.min(saY + saH, Math.max(saY, y)));
+                else lisnCtx.lineTo(x, Math.min(saY + saH, Math.max(saY, y)));
+            }
+            lisnCtx.stroke();
+
+            // Frequency labels
+            lisnCtx.fillStyle = '#888';
+            lisnCtx.font = '9px monospace';
+            lisnCtx.textAlign = 'center';
+            const freqLabels = ['150k', '500k', '1M', '5M', '10M', '30M'];
+            const freqPositions = [0, 0.2, 0.33, 0.58, 0.73, 1];
+            freqLabels.forEach((label, i) => {
+                const x = saX + freqPositions[i] * saW;
+                lisnCtx.fillText(label, x, saY + saH + 12);
+            });
+
+            // Coax cable from LISN to analyzer
+            lisnCtx.strokeStyle = '#888';
+            lisnCtx.lineWidth = 3;
+            lisnCtx.beginPath();
+            lisnCtx.moveTo(350, 170);
+            lisnCtx.lineTo(350, 280);
+            lisnCtx.lineTo(750, 280);
+            lisnCtx.lineTo(750, 230);
+            lisnCtx.stroke();
+
+            lisnCtx.fillStyle = '#888';
+            lisnCtx.font = '10px monospace';
+            lisnCtx.fillText('50Ω Coax', 550, 275);
+
+            // Calculate measurements
+            let lineMeas = level;
+            let neutralMeas = level - 3;
+            if (mode === 'cm') {
+                neutralMeas = level;
+            } else if (mode === 'dm') {
+                neutralMeas = level - 6;
+            }
+
+            document.getElementById('line-meas').textContent = lineMeas.toFixed(0) + ' dBμV';
+            document.getElementById('neutral-meas').textContent = neutralMeas.toFixed(0) + ' dBμV';
+            document.getElementById('limit-status').textContent =
+                (lineMeas > 56 || neutralMeas > 56) ? 'FAIL' : 'PASS';
+            document.getElementById('limit-status').style.color =
+                (lineMeas > 56 || neutralMeas > 56) ? '#FF0000' : '#00FF00';
+
+            // Ground plane
+            lisnCtx.fillStyle = '#444';
+            lisnCtx.fillRect(20, 320, 620, 30);
+            lisnCtx.strokeStyle = '#666';
+            lisnCtx.strokeRect(20, 320, 620, 30);
+            lisnCtx.fillStyle = '#888';
+            lisnCtx.font = '12px monospace';
+            lisnCtx.textAlign = 'center';
+            lisnCtx.fillText('Reference Ground Plane', 330, 340);
+
+            // Ground connections
+            lisnCtx.strokeStyle = '#00FF00';
+            lisnCtx.lineWidth = 1;
+            lisnCtx.setLineDash([3, 3]);
+            lisnCtx.beginPath();
+            lisnCtx.moveTo(280, 260);
+            lisnCtx.lineTo(280, 320);
+            lisnCtx.moveTo(525, 240);
+            lisnCtx.lineTo(525, 320);
+            lisnCtx.stroke();
+            lisnCtx.setLineDash([]);
+        }
+
+        // Canvas 2: Conducted Emissions Spectrum
+        const specCanvas = document.getElementById('spectrum-canvas');
+        const specCtx = specCanvas.getContext('2d');
+
+        const swFreq = document.getElementById('sw-freq');
+        const riseTime = document.getElementById('rise-time');
+        const inputFilter = document.getElementById('input-filter');
+
+        function drawSpectrum() {
+            const fsw = parseFloat(swFreq.value);
+            const tr = parseFloat(riseTime.value);
+            const filter = inputFilter.value;
+
+            document.getElementById('sw-freq-val').textContent = fsw + ' kHz';
+            document.getElementById('rise-time-val').textContent = tr + ' ns';
+
+            specCtx.fillStyle = '#181818';
+            specCtx.fillRect(0, 0, specCanvas.width, specCanvas.height);
+
+            const w = specCanvas.width;
+            const h = specCanvas.height;
+            const margin = { left: 80, right: 40, top: 50, bottom: 60 };
+            const plotW = w - margin.left - margin.right;
+            const plotH = h - margin.top - margin.bottom;
+
+            // Calculate bandwidth from rise time
+            const bw = 0.35 / (tr * 1e-9); // Hz
+            document.getElementById('noise-bw').textContent = (bw / 1e6).toFixed(1) + ' MHz';
+
+            // Draw grid
+            specCtx.strokeStyle = '#333';
+            specCtx.lineWidth = 1;
+
+            // Vertical grid (frequency)
+            const fMin = 100e3;
+            const fMax = 30e6;
+            const logFmin = Math.log10(fMin);
+            const logFmax = Math.log10(fMax);
+
+            for (let dec = 5; dec <= 7; dec++) {
+                const x = margin.left + ((dec - logFmin) / (logFmax - logFmin)) * plotW;
+                specCtx.beginPath();
+                specCtx.moveTo(x, margin.top);
+                specCtx.lineTo(x, margin.top + plotH);
+                specCtx.stroke();
+            }
+
+            // Horizontal grid (amplitude)
+            for (let db = 20; db <= 100; db += 10) {
+                const y = margin.top + plotH - ((db - 20) / 80) * plotH;
+                specCtx.beginPath();
+                specCtx.moveTo(margin.left, y);
+                specCtx.lineTo(margin.left + plotW, y);
+                specCtx.stroke();
+            }
+
+            // Draw limit line (Class B)
+            specCtx.strokeStyle = '#FF0000';
+            specCtx.lineWidth = 2;
+            specCtx.setLineDash([8, 4]);
+            specCtx.beginPath();
+
+            for (let i = 0; i <= plotW; i++) {
+                const logF = logFmin + (i / plotW) * (logFmax - logFmin);
+                const f = Math.pow(10, logF);
+                let limit;
+
+                if (f < 500e3) {
+                    limit = 66 - 10 * (Math.log10(f) - Math.log10(150e3)) / (Math.log10(500e3) - Math.log10(150e3));
+                } else if (f < 5e6) {
+                    limit = 56;
+                } else {
+                    limit = 60;
+                }
+
+                const x = margin.left + i;
+                const y = margin.top + plotH - ((limit - 20) / 80) * plotH;
+
+                if (i === 0) specCtx.moveTo(x, y);
+                else specCtx.lineTo(x, y);
+            }
+            specCtx.stroke();
+            specCtx.setLineDash([]);
+
+            // Calculate filter attenuation
+            function getFilterAtten(f) {
+                switch(filter) {
+                    case 'none':
+                        return 0;
+                    case 'basic':
+                        const fc1 = 1 / (2 * Math.PI * Math.sqrt(10e-6 * 100e-9));
+                        if (f < fc1) return 0;
+                        return -40 * Math.log10(f / fc1);
+                    case 'cm':
+                        const fc2 = 1 / (2 * Math.PI * Math.sqrt(1e-3 * 2.2e-9));
+                        if (f < fc2) return 0;
+                        return -40 * Math.log10(f / fc2);
+                    case 'full':
+                        const fc3 = 1 / (2 * Math.PI * Math.sqrt(1e-3 * 100e-9));
+                        if (f < fc3) return 0;
+                        return -60 * Math.log10(f / fc3);
+                }
+                return 0;
+            }
+
+            // Draw emissions spectrum
+            specCtx.strokeStyle = '#00FF00';
+            specCtx.lineWidth = 1.5;
+
+            let maxLevel = 0;
+            let maxFreq = 0;
+            let fundLevel = 0;
+            let worstMargin = 100;
+
+            specCtx.beginPath();
+            for (let i = 0; i <= plotW; i++) {
+                const logF = logFmin + (i / plotW) * (logFmax - logFmin);
+                const f = Math.pow(10, logF);
+                const x = margin.left + i;
+
+                // Base noise floor
+                let level = 30;
+
+                // Add harmonics
+                const fswHz = fsw * 1000;
+                for (let harm = 1; harm <= 100; harm++) {
+                    const harmFreq = fswHz * harm;
+                    const bandwidth = f * 0.02;
+
+                    if (Math.abs(f - harmFreq) < bandwidth) {
+                        // Trapezoidal envelope based on rise time
+                        let harmLevel = 70 - 20 * Math.log10(harm);
+
+                        // High frequency rolloff from rise time
+                        if (f > bw / 10) {
+                            harmLevel -= 20 * Math.log10(f / (bw / 10));
+                        }
+
+                        // Apply filter attenuation
+                        harmLevel += getFilterAtten(f);
+
+                        level = Math.max(level, harmLevel);
+
+                        if (harm === 1) fundLevel = harmLevel;
+                    }
+                }
+
+                // Track peak
+                if (level > maxLevel && f > 150e3) {
+                    maxLevel = level;
+                    maxFreq = f;
+                }
+
+                // Calculate limit at this frequency
+                let limit;
+                if (f < 500e3) {
+                    limit = 66 - 10 * (Math.log10(f) - Math.log10(150e3)) / (Math.log10(500e3) - Math.log10(150e3));
+                } else if (f < 5e6) {
+                    limit = 56;
+                } else {
+                    limit = 60;
+                }
+                const margin_db = limit - level;
+                if (margin_db < worstMargin && f > 150e3) {
+                    worstMargin = margin_db;
+                }
+
+                // Add noise
+                level += (Math.random() - 0.5) * 2;
+
+                const y = margin.top + plotH - ((level - 20) / 80) * plotH;
+                if (i === 0) specCtx.moveTo(x, Math.max(margin.top, Math.min(margin.top + plotH, y)));
+                else specCtx.lineTo(x, Math.max(margin.top, Math.min(margin.top + plotH, y)));
+            }
+            specCtx.stroke();
+
+            document.getElementById('fund-level').textContent = fundLevel.toFixed(0) + ' dBμV';
+            document.getElementById('peak-harm').textContent =
+                Math.round(maxFreq / (fsw * 1000)) + 'th @ ' + (maxFreq / 1e6).toFixed(2) + ' MHz';
+            document.getElementById('margin').textContent =
+                (worstMargin >= 0 ? '+' : '') + worstMargin.toFixed(0) + ' dB (' +
+                (worstMargin >= 0 ? 'PASS' : 'FAIL') + ')';
+            document.getElementById('margin').style.color = worstMargin >= 0 ? '#00FF00' : '#FF0000';
+
+            // Labels
+            specCtx.fillStyle = '#CCC';
+            specCtx.font = '14px monospace';
+            specCtx.textAlign = 'center';
+            specCtx.fillText('Frequency (Hz)', margin.left + plotW / 2, h - 15);
+
+            specCtx.save();
+            specCtx.translate(25, margin.top + plotH / 2);
+            specCtx.rotate(-Math.PI / 2);
+            specCtx.fillText('Level (dBμV)', 0, 0);
+            specCtx.restore();
+
+            // Frequency scale
+            specCtx.font = '11px monospace';
+            specCtx.fillStyle = '#888';
+            const freqTicks = ['100k', '150k', '500k', '1M', '5M', '10M', '30M'];
+            const freqValues = [100e3, 150e3, 500e3, 1e6, 5e6, 10e6, 30e6];
+            freqValues.forEach((f, i) => {
+                const x = margin.left + ((Math.log10(f) - logFmin) / (logFmax - logFmin)) * plotW;
+                specCtx.fillText(freqTicks[i], x, margin.top + plotH + 25);
+            });
+
+            // Amplitude scale
+            specCtx.textAlign = 'right';
+            for (let db = 20; db <= 100; db += 20) {
+                const y = margin.top + plotH - ((db - 20) / 80) * plotH;
+                specCtx.fillText(db + '', margin.left - 10, y + 4);
+            }
+
+            // Legend
+            specCtx.textAlign = 'left';
+            specCtx.fillStyle = '#00FF00';
+            specCtx.fillRect(margin.left + 10, margin.top + 10, 20, 3);
+            specCtx.fillStyle = '#CCC';
+            specCtx.fillText('Emissions', margin.left + 35, margin.top + 15);
+
+            specCtx.fillStyle = '#FF0000';
+            specCtx.fillRect(margin.left + 120, margin.top + 10, 20, 3);
+            specCtx.fillStyle = '#CCC';
+            specCtx.fillText('Class B Limit', margin.left + 145, margin.top + 15);
+
+            // Title
+            specCtx.fillStyle = '#FFF';
+            specCtx.font = 'bold 16px monospace';
+            specCtx.textAlign = 'center';
+            specCtx.fillText('Conducted Emissions Spectrum', w / 2, 25);
+        }
+
+        // Canvas 3: CM/DM Separation
+        const cmdmCanvas = document.getElementById('cmdm-canvas');
+        const cmdmCtx = cmdmCanvas.getContext('2d');
+
+        const lineLevel = document.getElementById('line-level');
+        const neutralLevel = document.getElementById('neutral-level');
+        const phaseAngle = document.getElementById('phase-angle');
+
+        function drawCmDm() {
+            const vLine = parseFloat(lineLevel.value);
+            const vNeutral = parseFloat(neutralLevel.value);
+            const phase = parseFloat(phaseAngle.value);
+
+            document.getElementById('line-level-val').textContent = vLine + ' dBμV';
+            document.getElementById('neutral-level-val').textContent = vNeutral + ' dBμV';
+            document.getElementById('phase-angle-val').textContent = phase + '°';
+
+            cmdmCtx.fillStyle = '#181818';
+            cmdmCtx.fillRect(0, 0, cmdmCanvas.width, cmdmCanvas.height);
+
+            const w = cmdmCanvas.width;
+            const h = cmdmCanvas.height;
+
+            // Convert to linear voltages
+            const vL = Math.pow(10, vLine / 20);
+            const vN = Math.pow(10, vNeutral / 20);
+            const phaseRad = phase * Math.PI / 180;
+
+            // Calculate CM and DM components
+            // V_L = V_CM + V_DM, V_N = V_CM - V_DM (for in-phase DM)
+            // With phase: V_N includes phase shift
+            const vNreal = vN * Math.cos(phaseRad);
+            const vNimag = vN * Math.sin(phaseRad);
+
+            // CM = (V_L + V_N) / 2, DM = (V_L - V_N) / 2
+            const vCMreal = (vL + vNreal) / 2;
+            const vCMimag = vNimag / 2;
+            const vDMreal = (vL - vNreal) / 2;
+            const vDMimag = -vNimag / 2;
+
+            const vCM = Math.sqrt(vCMreal * vCMreal + vCMimag * vCMimag);
+            const vDM = Math.sqrt(vDMreal * vDMreal + vDMimag * vDMimag);
+
+            const cmDb = 20 * Math.log10(vCM);
+            const dmDb = 20 * Math.log10(vDM);
+
+            document.getElementById('cm-level').textContent = cmDb.toFixed(1) + ' dBμV';
+            document.getElementById('dm-level').textContent = dmDb.toFixed(1) + ' dBμV';
+            document.getElementById('cmdm-ratio').textContent = (cmDb - dmDb).toFixed(1) + ' dB';
+            document.getElementById('dominant-mode').textContent = cmDb > dmDb ? 'Common Mode' : 'Differential Mode';
+
+            // Draw phasor diagram
+            const centerX = 250;
+            const centerY = 175;
+            const scale = 2;
+
+            // Draw axes
+            cmdmCtx.strokeStyle = '#444';
+            cmdmCtx.lineWidth = 1;
+            cmdmCtx.beginPath();
+            cmdmCtx.moveTo(100, centerY);
+            cmdmCtx.lineTo(400, centerY);
+            cmdmCtx.moveTo(centerX, 50);
+            cmdmCtx.lineTo(centerX, 300);
+            cmdmCtx.stroke();
+
+            // Draw reference circle
+            cmdmCtx.strokeStyle = '#333';
+            cmdmCtx.beginPath();
+            cmdmCtx.arc(centerX, centerY, vL * scale, 0, Math.PI * 2);
+            cmdmCtx.stroke();
+
+            // Draw V_L phasor (reference, along positive real axis)
+            cmdmCtx.strokeStyle = '#FFFF00';
+            cmdmCtx.lineWidth = 3;
+            cmdmCtx.beginPath();
+            cmdmCtx.moveTo(centerX, centerY);
+            cmdmCtx.lineTo(centerX + vL * scale, centerY);
+            cmdmCtx.stroke();
+            drawArrowhead(cmdmCtx, centerX + vL * scale, centerY, 0);
+
+            // Draw V_N phasor
+            cmdmCtx.strokeStyle = '#00FFFF';
+            cmdmCtx.beginPath();
+            cmdmCtx.moveTo(centerX, centerY);
+            cmdmCtx.lineTo(centerX + vNreal * scale, centerY - vNimag * scale);
+            cmdmCtx.stroke();
+            drawArrowhead(cmdmCtx, centerX + vNreal * scale, centerY - vNimag * scale,
+                -Math.atan2(vNimag, vNreal));
+
+            // Draw CM phasor (from origin)
+            cmdmCtx.strokeStyle = '#00FF00';
+            cmdmCtx.lineWidth = 2;
+            cmdmCtx.setLineDash([5, 3]);
+            cmdmCtx.beginPath();
+            cmdmCtx.moveTo(centerX, centerY);
+            cmdmCtx.lineTo(centerX + vCMreal * scale, centerY - vCMimag * scale);
+            cmdmCtx.stroke();
+            cmdmCtx.setLineDash([]);
+
+            // Draw DM phasor
+            cmdmCtx.strokeStyle = '#FF66FF';
+            cmdmCtx.setLineDash([5, 3]);
+            cmdmCtx.beginPath();
+            cmdmCtx.moveTo(centerX, centerY);
+            cmdmCtx.lineTo(centerX + vDMreal * scale, centerY - vDMimag * scale);
+            cmdmCtx.stroke();
+            cmdmCtx.setLineDash([]);
+
+            // Labels
+            cmdmCtx.font = '12px monospace';
+            cmdmCtx.textAlign = 'left';
+
+            cmdmCtx.fillStyle = '#FFFF00';
+            cmdmCtx.fillText('V_L = ' + vLine + ' dBμV', centerX + vL * scale + 10, centerY - 5);
+
+            cmdmCtx.fillStyle = '#00FFFF';
+            cmdmCtx.fillText('V_N = ' + vNeutral + ' dBμV ∠' + phase + '°',
+                centerX + vNreal * scale + 10, centerY - vNimag * scale - 5);
+
+            cmdmCtx.fillStyle = '#00FF00';
+            cmdmCtx.fillText('V_CM', centerX + vCMreal * scale + 5, centerY - vCMimag * scale + 15);
+
+            cmdmCtx.fillStyle = '#FF66FF';
+            cmdmCtx.fillText('V_DM', centerX + vDMreal * scale + 5, centerY - vDMimag * scale + 15);
+
+            // Bar chart on right side
+            const barX = 550;
+            const barW = 120;
+            const barMaxH = 200;
+            const maxDb = 70;
+
+            // CM bar
+            const cmH = (cmDb / maxDb) * barMaxH;
+            cmdmCtx.fillStyle = '#00FF00';
+            cmdmCtx.fillRect(barX, 270 - cmH, barW / 2 - 10, cmH);
+            cmdmCtx.strokeStyle = '#00FF00';
+            cmdmCtx.strokeRect(barX, 270 - cmH, barW / 2 - 10, cmH);
+
+            // DM bar
+            const dmH = (dmDb / maxDb) * barMaxH;
+            cmdmCtx.fillStyle = '#FF66FF';
+            cmdmCtx.fillRect(barX + barW / 2 + 10, 270 - dmH, barW / 2 - 10, dmH);
+            cmdmCtx.strokeStyle = '#FF66FF';
+            cmdmCtx.strokeRect(barX + barW / 2 + 10, 270 - dmH, barW / 2 - 10, dmH);
+
+            // Labels
+            cmdmCtx.fillStyle = '#CCC';
+            cmdmCtx.textAlign = 'center';
+            cmdmCtx.font = '11px monospace';
+            cmdmCtx.fillText('CM', barX + barW / 4 - 5, 290);
+            cmdmCtx.fillText(cmDb.toFixed(0) + 'dB', barX + barW / 4 - 5, 270 - cmH - 10);
+            cmdmCtx.fillText('DM', barX + 3 * barW / 4 + 5, 290);
+            cmdmCtx.fillText(dmDb.toFixed(0) + 'dB', barX + 3 * barW / 4 + 5, 270 - dmH - 10);
+
+            // Scale
+            cmdmCtx.textAlign = 'right';
+            cmdmCtx.fillStyle = '#888';
+            for (let db = 0; db <= 70; db += 10) {
+                const y = 270 - (db / maxDb) * barMaxH;
+                cmdmCtx.fillText(db + '', barX - 10, y + 4);
+                cmdmCtx.beginPath();
+                cmdmCtx.strokeStyle = '#444';
+                cmdmCtx.moveTo(barX, y);
+                cmdmCtx.lineTo(barX + barW, y);
+                cmdmCtx.stroke();
+            }
+
+            // Title
+            cmdmCtx.fillStyle = '#FFF';
+            cmdmCtx.font = 'bold 14px monospace';
+            cmdmCtx.textAlign = 'center';
+            cmdmCtx.fillText('Phasor Diagram', centerX, 30);
+            cmdmCtx.fillText('Mode Comparison', barX + barW / 2, 30);
+
+            // Diagram explanation
+            cmdmCtx.fillStyle = '#888';
+            cmdmCtx.font = '11px monospace';
+            cmdmCtx.textAlign = 'left';
+            cmdmCtx.fillText('V_CM = (V_L + V_N) / 2', 720, 100);
+            cmdmCtx.fillText('V_DM = (V_L - V_N) / 2', 720, 120);
+        }
+
+        function drawArrowhead(ctx, x, y, angle) {
+            const size = 10;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(-angle);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-size, -size / 2);
+            ctx.lineTo(-size, size / 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Canvas 4: EMI Filter Design
+        const filterCanvas = document.getElementById('filter-canvas');
+        const filterCtx = filterCanvas.getContext('2d');
+
+        const cmChoke = document.getElementById('cm-choke');
+        const xCap = document.getElementById('x-cap');
+        const yCap = document.getElementById('y-cap');
+        const leakageL = document.getElementById('leakage-l');
+
+        function drawFilterResponse() {
+            const Lcm = parseFloat(cmChoke.value) * 1e-3;
+            const Cx = parseFloat(xCap.value) * 1e-9;
+            const Cy = parseFloat(yCap.value) * 1e-9;
+            const Lleak = parseFloat(leakageL.value) * 1e-6;
+
+            document.getElementById('cm-choke-val').textContent = (Lcm * 1000).toFixed(1) + ' mH';
+            document.getElementById('x-cap-val').textContent = (Cx * 1e9).toFixed(0) + ' nF';
+            document.getElementById('y-cap-val').textContent = (Cy * 1e9).toFixed(1) + ' nF';
+            document.getElementById('leakage-l-val').textContent = (Lleak * 1e6).toFixed(0) + ' μH';
+
+            filterCtx.fillStyle = '#181818';
+            filterCtx.fillRect(0, 0, filterCanvas.width, filterCanvas.height);
+
+            const w = filterCanvas.width;
+            const h = filterCanvas.height;
+            const margin = { left: 80, right: 40, top: 50, bottom: 60 };
+            const plotW = w - margin.left - margin.right;
+            const plotH = h - margin.top - margin.bottom;
+
+            // Calculate corner frequencies
+            const fcDm = 1 / (2 * Math.PI * Math.sqrt(Lleak * Cx));
+            const fcCm = 1 / (2 * Math.PI * Math.sqrt(Lcm * 2 * Cy)); // 2*Cy for series Y caps
+
+            document.getElementById('dm-corner').textContent = AD.formatValue(fcDm, 'Hz');
+            document.getElementById('cm-corner').textContent = AD.formatValue(fcCm, 'Hz');
+
+            // Draw grid
+            const fMin = 1e3;
+            const fMax = 100e6;
+            const logFmin = Math.log10(fMin);
+            const logFmax = Math.log10(fMax);
+
+            filterCtx.strokeStyle = '#333';
+            filterCtx.lineWidth = 1;
+
+            for (let dec = 3; dec <= 8; dec++) {
+                const x = margin.left + ((dec - logFmin) / (logFmax - logFmin)) * plotW;
+                filterCtx.beginPath();
+                filterCtx.moveTo(x, margin.top);
+                filterCtx.lineTo(x, margin.top + plotH);
+                filterCtx.stroke();
+            }
+
+            for (let db = -80; db <= 0; db += 10) {
+                const y = margin.top + ((-db) / 80) * plotH;
+                filterCtx.beginPath();
+                filterCtx.moveTo(margin.left, y);
+                filterCtx.lineTo(margin.left + plotW, y);
+                filterCtx.stroke();
+            }
+
+            // Draw DM attenuation curve
+            filterCtx.strokeStyle = '#FF66FF';
+            filterCtx.lineWidth = 2;
+            filterCtx.beginPath();
+
+            let dmAtten1MHz = 0;
+            let cmAtten1MHz = 0;
+
+            for (let i = 0; i <= plotW; i++) {
+                const logF = logFmin + (i / plotW) * (logFmax - logFmin);
+                const f = Math.pow(10, logF);
+                const x = margin.left + i;
+
+                // DM filter: LC low-pass
+                let attenDm;
+                if (f < fcDm) {
+                    attenDm = 0;
+                } else {
+                    attenDm = -40 * Math.log10(f / fcDm);
+                }
+                attenDm = Math.max(attenDm, -80);
+
+                if (Math.abs(f - 1e6) < f * 0.01) dmAtten1MHz = attenDm;
+
+                const y = margin.top + ((-attenDm) / 80) * plotH;
+                if (i === 0) filterCtx.moveTo(x, Math.max(margin.top, Math.min(margin.top + plotH, y)));
+                else filterCtx.lineTo(x, Math.max(margin.top, Math.min(margin.top + plotH, y)));
+            }
+            filterCtx.stroke();
+
+            // Draw CM attenuation curve
+            filterCtx.strokeStyle = '#00FF00';
+            filterCtx.lineWidth = 2;
+            filterCtx.beginPath();
+
+            for (let i = 0; i <= plotW; i++) {
+                const logF = logFmin + (i / plotW) * (logFmax - logFmin);
+                const f = Math.pow(10, logF);
+                const x = margin.left + i;
+
+                // CM filter: CM choke + Y caps
+                let attenCm;
+                if (f < fcCm) {
+                    attenCm = 0;
+                } else {
+                    attenCm = -40 * Math.log10(f / fcCm);
+                }
+                attenCm = Math.max(attenCm, -80);
+
+                if (Math.abs(f - 1e6) < f * 0.01) cmAtten1MHz = attenCm;
+
+                const y = margin.top + ((-attenCm) / 80) * plotH;
+                if (i === 0) filterCtx.moveTo(x, Math.max(margin.top, Math.min(margin.top + plotH, y)));
+                else filterCtx.lineTo(x, Math.max(margin.top, Math.min(margin.top + plotH, y)));
+            }
+            filterCtx.stroke();
+
+            document.getElementById('dm-atten').textContent = dmAtten1MHz.toFixed(0) + ' dB';
+            document.getElementById('cm-atten').textContent = cmAtten1MHz.toFixed(0) + ' dB';
+
+            // Mark corner frequencies
+            filterCtx.setLineDash([5, 5]);
+            filterCtx.strokeStyle = '#FF66FF';
+            const xDm = margin.left + ((Math.log10(fcDm) - logFmin) / (logFmax - logFmin)) * plotW;
+            filterCtx.beginPath();
+            filterCtx.moveTo(xDm, margin.top);
+            filterCtx.lineTo(xDm, margin.top + plotH);
+            filterCtx.stroke();
+
+            filterCtx.strokeStyle = '#00FF00';
+            const xCm = margin.left + ((Math.log10(fcCm) - logFmin) / (logFmax - logFmin)) * plotW;
+            filterCtx.beginPath();
+            filterCtx.moveTo(xCm, margin.top);
+            filterCtx.lineTo(xCm, margin.top + plotH);
+            filterCtx.stroke();
+            filterCtx.setLineDash([]);
+
+            // Conducted emissions range
+            filterCtx.fillStyle = 'rgba(255, 255, 0, 0.1)';
+            const x150k = margin.left + ((Math.log10(150e3) - logFmin) / (logFmax - logFmin)) * plotW;
+            const x30M = margin.left + ((Math.log10(30e6) - logFmin) / (logFmax - logFmin)) * plotW;
+            filterCtx.fillRect(x150k, margin.top, x30M - x150k, plotH);
+
+            filterCtx.fillStyle = '#FFFF00';
+            filterCtx.font = '10px monospace';
+            filterCtx.textAlign = 'center';
+            filterCtx.fillText('CE Range', (x150k + x30M) / 2, margin.top + 15);
+
+            // Labels
+            filterCtx.fillStyle = '#CCC';
+            filterCtx.font = '14px monospace';
+            filterCtx.textAlign = 'center';
+            filterCtx.fillText('Frequency (Hz)', margin.left + plotW / 2, h - 15);
+
+            filterCtx.save();
+            filterCtx.translate(25, margin.top + plotH / 2);
+            filterCtx.rotate(-Math.PI / 2);
+            filterCtx.fillText('Attenuation (dB)', 0, 0);
+            filterCtx.restore();
+
+            // Frequency scale
+            filterCtx.font = '11px monospace';
+            filterCtx.fillStyle = '#888';
+            const freqTicks = ['1k', '10k', '100k', '1M', '10M', '100M'];
+            for (let dec = 3; dec <= 8; dec++) {
+                const x = margin.left + ((dec - logFmin) / (logFmax - logFmin)) * plotW;
+                filterCtx.fillText(freqTicks[dec - 3], x, margin.top + plotH + 25);
+            }
+
+            // Amplitude scale
+            filterCtx.textAlign = 'right';
+            for (let db = 0; db >= -80; db -= 20) {
+                const y = margin.top + ((-db) / 80) * plotH;
+                filterCtx.fillText(db + '', margin.left - 10, y + 4);
+            }
+
+            // Legend
+            filterCtx.textAlign = 'left';
+            filterCtx.fillStyle = '#FF66FF';
+            filterCtx.fillRect(margin.left + 10, margin.top + 35, 20, 3);
+            filterCtx.fillStyle = '#CCC';
+            filterCtx.fillText('DM Attenuation', margin.left + 35, margin.top + 40);
+
+            filterCtx.fillStyle = '#00FF00';
+            filterCtx.fillRect(margin.left + 180, margin.top + 35, 20, 3);
+            filterCtx.fillStyle = '#CCC';
+            filterCtx.fillText('CM Attenuation', margin.left + 205, margin.top + 40);
+
+            // Title
+            filterCtx.fillStyle = '#FFF';
+            filterCtx.font = 'bold 16px monospace';
+            filterCtx.textAlign = 'center';
+            filterCtx.fillText('EMI Filter Frequency Response', w / 2, 25);
+        }
+
+        // Event listeners
+        [noiseFreq, noiseLevel, emissionMode].forEach(el =>
+            el.addEventListener('input', drawLisnSystem));
+
+        [swFreq, riseTime, inputFilter].forEach(el =>
+            el.addEventListener('input', drawSpectrum));
+
+        [lineLevel, neutralLevel, phaseAngle].forEach(el =>
+            el.addEventListener('input', drawCmDm));
+
+        [cmChoke, xCap, yCap, leakageL].forEach(el =>
+            el.addEventListener('input', drawFilterResponse));
+
+        // Schematic
+        function createFilterSchematic() {
+            const container = document.getElementById('filter-schematic');
+            const svg = new SchematicSVG(750, 320);
+
+            // Input
+            svg.addText(30, 100, 'LINE', '11px', 'end');
+            svg.addText(30, 200, 'NEUTRAL', '11px', 'end');
+
+            svg.line(40, 100, 80, 100);
+            svg.line(40, 200, 80, 200);
+
+            // Input X capacitor
+            svg.addCapacitor(80, 150, 'vertical', 'Cx1', '100nF');
+            // Connect rails to capacitor terminals (avoid drawing a wire through the plates)
+            svg.line(80, 100, 80, 125);
+            svg.line(80, 175, 80, 200);
+
+            // Fuse
+            svg.addFuse(110, 100, 'F1', '');
+
+            // CM Choke (coupled inductors)
+            svg.line(140, 100, 180, 100);
+            svg.line(80, 200, 180, 200);
+
+            // Draw CM choke symbol
+            svg.rect(180, 80, 60, 140, '#181818', '#00FFFF');
+
+            // Top winding
+            for (let i = 0; i < 5; i++) {
+                svg.path(`M${185 + i * 10},100 A5,5 0 0,1 ${195 + i * 10},100`, '#00FFFF', 2);
+            }
+
+            // Bottom winding
+            for (let i = 0; i < 5; i++) {
+                svg.path(`M${185 + i * 10},200 A5,5 0 0,0 ${195 + i * 10},200`, '#00FFFF', 2);
+            }
+
+            // Coupling dots
+            svg.circle(188, 95, 3, '#00FFFF', '#00FFFF');
+            svg.circle(188, 205, 3, '#00FFFF', '#00FFFF');
+
+            svg.addText(210, 150, 'L_CM', '10px', 'middle', '#00FFFF');
+            svg.addText(210, 165, '1mH', '10px', 'middle');
+
+            svg.line(240, 100, 280, 100);
+            svg.line(240, 200, 280, 200);
+
+            // Y capacitors
+            svg.line(300, 100, 300, 120);
+            svg.addCapacitor(300, 140, 'vertical', 'Cy1', '2.2nF');
+            svg.line(300, 160, 300, 200);
+
+            // Ground connection for Y caps
+            svg.line(300, 150, 340, 150);
+            svg.addGround(340, 165);
+            svg.addText(360, 150, 'PE', '10px', 'start');
+
+            // Second Y cap (optional, shown with dashed)
+            svg.line(300, 200, 300, 220);
+
+            // Leakage inductance (DM)
+            svg.line(280, 100, 320, 100);
+            svg.addInductor(350, 100, 'horizontal', 'L_leak', '10μH');
+            svg.line(380, 100, 420, 100);
+            svg.line(300, 200, 420, 200);
+
+            // Output X capacitor
+            svg.addCapacitor(420, 150, 'vertical', 'Cx2', '100nF');
+            // Connect rails to capacitor terminals
+            svg.line(420, 100, 420, 125);
+            svg.line(420, 175, 420, 200);
+
+            // Output
+            svg.line(420, 100, 500, 100);
+            svg.line(420, 200, 500, 200);
+
+            // Load (SMPS)
+            svg.rect(500, 80, 100, 140, '#181818', '#FF6600');
+            svg.addText(550, 140, 'SMPS', '14px', 'middle', '#FF6600');
+            svg.addText(550, 160, 'Load', '12px', 'middle');
+
+            // Current flow arrows
+            svg.addText(110, 85, 'I_DM→', '9px', 'middle', '#FF66FF');
+            svg.addText(170, 70, 'I_CM→', '9px', 'middle', '#00FF00');
+
+            // Stage labels
+            svg.addText(130, 250, 'Stage 1', '11px', 'middle', '#888');
+            svg.addText(210, 250, 'CM Filter', '11px', 'middle', '#888');
+            svg.addText(350, 250, 'DM Filter', '11px', 'middle', '#888');
+            svg.addText(420, 250, 'Stage 2', '11px', 'middle', '#888');
+
+            container.appendChild(svg.svg);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            drawLisnSystem();
+            drawSpectrum();
+            drawCmDm();
+            drawFilterResponse();
+            createFilterSchematic();
+
+            // SPICE netlist
+            new SpiceNetlistWidget('ce-spice', {
+                title: 'EMI Filter Analysis',
+                description: 'AC analysis of conducted emissions filter',
+                netlist: `* EMI Input Filter for Conducted Emissions
+* Two-stage filter with CM choke and X/Y capacitors
+
+.PARAM Lcm=1m       ; CM choke inductance
+.PARAM Lleak=10u    ; Leakage inductance (DM)
+.PARAM Cx=100n      ; X capacitors
+.PARAM Cy=2.2n      ; Y capacitors
+
+* AC source (represents noise)
+Vnoise IN 0 AC 1
+
+* Input X capacitor
+Cx1 IN 0 {Cx}
+
+* CM Choke (coupled inductors)
+L1 IN N1 {Lcm}
+L2 0 N2 {Lcm}
+K1 L1 L2 0.99       ; Coupling coefficient
+
+* Y capacitors to ground
+Cy1 N1 GND {Cy}
+Cy2 N2 GND {Cy}
+Rg GND 0 0.1        ; Ground impedance
+
+* Leakage inductance (DM filtering)
+Lleak N1 N3 {Lleak}
+
+* Output X capacitor
+Cx2 N3 N2 {Cx}
+
+* Load
+Rload N3 N2 50
+
+* LISN equivalent (for measurement reference)
+Rlisn IN 0 50
+
+* AC Analysis
+.AC DEC 100 1k 100MEG
+
+* Plot insertion loss
+.PROBE V(N3) V(IN)
+
+.END`,
+                nodes: [
+                    { name: 'IN', description: 'Filter input (noise source)' },
+                    { name: 'N1', description: 'After CM choke (line)' },
+                    { name: 'N3', description: 'Filter output (to SMPS)' }
+                ]
+            });
+
+            // Design checklist
+            new ChecklistWidget('ce-checklist', {
+                title: 'Conducted Emissions Design',
+                items: [
+                    { text: 'Identify target standard (FCC/CISPR, Class A or B)', critical: true },
+                    { text: 'Measure emissions without filter to establish baseline', critical: true },
+                    { text: 'Separate CM and DM components (use current probe or math)', critical: false },
+                    { text: 'Select CM choke for required attenuation', critical: true },
+                    { text: 'Size Y capacitors (limited by leakage current)', critical: true },
+                    { text: 'Add X capacitors for DM filtering', critical: false },
+                    { text: 'Include bleeder resistor for X caps (safety)', critical: true },
+                    { text: 'Check filter resonances don\'t amplify noise', critical: false },
+                    { text: 'Verify adequate insertion loss at problem frequencies', critical: true },
+                    { text: 'Consider spread spectrum clocking for marginal cases', critical: false },
+                    { text: 'Minimize loop areas in filter layout', critical: true },
+                    { text: 'Keep filter components close to power entry', critical: false }
+                ]
+            });
+
+            // Exercises
+            new ExerciseWidget('ce-exercises', {
+                exercises: [
+                    {
+                        question: 'The LISN measures 58 dBμV on Line and 55 dBμV on Neutral at 1 MHz. Assuming in-phase noise, calculate the CM and DM components.',
+                        hint: 'Convert to linear, apply: V_CM = (V_L + V_N)/2, V_DM = (V_L - V_N)/2, convert back to dB.',
+                        answer: 'V_L = 10^(58/20) = 794 μV, V_N = 10^(55/20) = 562 μV. V_CM = (794+562)/2 = 678 μV = 56.6 dBμV. V_DM = (794-562)/2 = 116 μV = 41.3 dBμV. The dominant mode is CM (56.6 dB vs 41.3 dB).'
+                    },
+                    {
+                        question: 'A 100 kHz SMPS with 20ns rise time shows emissions 15 dB over the Class B limit at 5 MHz. Design a filter to provide 20 dB margin.',
+                        hint: 'Need 35 dB attenuation at 5 MHz. Use LC filter corner frequency relation.',
+                        answer: 'Required attenuation at 5 MHz: 15 dB + 20 dB margin = 35 dB. For -40 dB/decade LC filter: f_c = 5 MHz / 10^(35/40) = 5 MHz / 5.62 = 890 kHz. With L = 10 μH: C = 1/(4π²×(890k)²×10μ) = 3.2 nF. Use 10 μH + 4.7 nF for margin.'
+                    },
+                    {
+                        question: 'Why are Y capacitor values limited in EMI filters, and what is the typical maximum for Class I equipment?',
+                        hint: 'Consider ground fault current and safety standards.',
+                        answer: 'Y capacitors connect line/neutral to ground (PE). If ground connection fails, the capacitor\'s displacement current flows through the user. Safety standards limit touch current to <3.5 mA for Class I equipment. At 60 Hz: Cy_max = 3.5mA / (2π×60×120V) = 77 nF. Typical limit is 4.7 nF per cap for comfortable margin and UL/IEC compliance.'
+                    },
+                    {
+                        question: 'Explain why conducted emissions above 1 MHz are primarily common mode while lower frequencies are often differential mode.',
+                        hint: 'Consider the noise coupling mechanisms in SMPS and parasitic capacitances.',
+                        answer: 'At low frequencies, DM noise from switching currents through input capacitors dominates (the main power loop). Above 1 MHz, parasitic capacitance between switching node and chassis/heatsink creates CM currents. These parasitic paths (Cp ~10-50 pF) have lower impedance at high frequency (Xc = 1/(2πfC)). At 1 MHz with 30 pF: Xc = 5.3 kΩ; at 10 MHz: 530Ω. This creates significant CM current paths that bypass the main power loop.'
+                    }
+                ]
             });
         });
-
-        // Draw connections
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 2;
-        // Main power path
-        ctx.beginPath();
-        ctx.moveTo(130, 170); ctx.lineTo(150, 170);
-        ctx.moveTo(230, 170); ctx.lineTo(250, 170);
-        ctx.moveTo(330, 170); ctx.lineTo(350, 170);
-        ctx.moveTo(430, 170); ctx.lineTo(450, 170);
-        ctx.moveTo(530, 170); ctx.lineTo(550, 170);
-        ctx.stroke();
-
-        // Feedback path
-        ctx.strokeStyle = '#888';
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(550, 200); ctx.lineTo(550, 250);
-        ctx.moveTo(490, 280); ctx.lineTo(390, 280); ctx.lineTo(390, 200);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Aux winding (problem area)
-        ctx.strokeStyle = '#f44';
-        ctx.beginPath();
-        ctx.moveTo(490, 155); ctx.lineTo(490, 250);
-        ctx.stroke();
-        ctx.fillStyle = '#f44';
-        ctx.font = '10px monospace';
-        ctx.fillText('AUX', 505, 220);
-        ctx.fillText('← FAULT', 520, 280);
-
-        // AC/DC labels
-        ctx.fillStyle = '#888';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('AC', 20, 170);
-        ctx.fillText('DC', 650, 170);
-        ctx.fillText('Output', 650, 185);
-
-        // Title
-        ctx.fillStyle = '#fff';
-        ctx.font = '14px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('SMPS Block Diagram - Click blocks to diagnose', W/2, 30);
-
-        // Failure indicator
-        ctx.fillStyle = '#f44';
-        ctx.font = '12px monospace';
-        ctx.fillText('C15: High ESR capacitor on aux winding', W/2, H - 20);
-    }
-
-    ['smps-block', 'smps-test'].forEach(id => {
-        document.getElementById(id).addEventListener('change', update);
-    });
-
-    // Schematic
-    function drawSchematic() {
-        const container = document.getElementById('smps-schematic');
-        const svg = new SchematicSVG(600, 220);
-
-        // Simplified aux supply circuit
-        svg.text(30, 60, 'From Aux', {fontSize: 10});
-        svg.text(30, 75, 'Winding', {fontSize: 9, fill: '#888'});
-        svg.wire([[80, 65], [120, 65]]);
-
-        // Rectifier diode
-        svg.diode(140, 65, {horizontal: true});
-        svg.wire([[160, 65], [200, 65]]);
-
-        // Filter cap (failed)
-        svg.wire([[200, 65], [200, 90]]);
-        svg.capacitor(200, 110, {horizontal: false});
-        svg.wire([[200, 130], [200, 150]]);
-        svg.ground(200, 150);
-
-        // Red highlight on bad cap
-        svg.rect(185, 95, 30, 40, {fill: 'none', stroke: '#f44', strokeWidth: 2});
-        svg.text(225, 115, 'C15', {fontSize: 10, fill: '#f44'});
-        svg.text(225, 130, '47µF', {fontSize: 9});
-        svg.text(225, 145, 'HIGH ESR!', {fontSize: 9, fill: '#f44'});
-
-        // To PWM controller
-        svg.wire([[200, 65], [280, 65]]);
-        svg.rect(280, 45, 80, 50, {fill: 'none', stroke: '#4af'});
-        svg.text(320, 70, 'PWM', {fontSize: 10, fill: '#4af'});
-        svg.text(320, 85, 'Controller', {fontSize: 9});
-
-        // Vcc pin
-        svg.text(270, 55, 'Vcc', {fontSize: 9});
-
-        // UVLO threshold
-        svg.text(380, 60, 'UVLO: 12V', {fontSize: 9, fill: '#888'});
-        svg.text(380, 75, 'Actual: 8V', {fontSize: 9, fill: '#f44'});
-        svg.text(380, 90, '→ No Start!', {fontSize: 9, fill: '#f44'});
-
-        // ESR model
-        svg.text(100, 180, 'Capacitor ESR Model:', {fontSize: 10, fill: '#888'});
-        svg.wire([[220, 175], [250, 175]]);
-        svg.resistor(270, 175, {horizontal: true});
-        svg.text(270, 165, 'ESR', {fontSize: 9});
-        svg.wire([[290, 175], [310, 175]]);
-        svg.capacitor(330, 175, {horizontal: true});
-        svg.text(330, 165, 'C', {fontSize: 9});
-        svg.wire([[350, 175], [380, 175]]);
-
-        svg.text(420, 175, 'Good: ESR < 0.5Ω', {fontSize: 9, fill: '#4f4'});
-        svg.text(420, 190, 'Bad:  ESR = 8Ω', {fontSize: 9, fill: '#f44'});
-
-        container.innerHTML = svg.render();
-    }
-
-    // SPICE
-    function initSpice() {
-        new SpiceNetlistWidget('smps-spice', {
-            title: 'Aux Supply with ESR Effect',
-            netlist: `* Auxiliary Winding Supply
-* Shows effect of capacitor ESR on Vcc
-
-* Aux winding source (simplified)
-Vaux aux_ac 0 SIN(0 15 100k)
-
-* Rectifier
-D1 aux_ac vcc_raw 1N4148
-
-* Filter capacitor with ESR
-* Good cap: ESR = 0.1Ω
-* Bad cap: ESR = 8Ω
-Resr vcc_raw vcc_cap 8  ; <-- Change to 0.1 for good cap
-Cfilt vcc_cap 0 47u IC=0
-
-* Load (PWM controller)
-Rload vcc_cap 0 1k  ; ~12mA typical
-
-* UVLO threshold detector
-Buvlo uvlo_out 0 V = V(vcc_cap) > 12 ? 5 : 0
-
-.tran 1u 1m
-.probe V(vcc_cap) V(uvlo_out)
-
-* With ESR=8Ω:
-* Vcc cannot reach 12V UVLO threshold
-* Controller never starts
-* Results in "hiccup" mode
-.end`
-        });
-    }
-
-    // Checklist
-    function initChecklist() {
-        new ChecklistWidget('smps-checklist', {
-            title: 'SMPS Repair Checklist',
-            items: [
-                'SAFETY: Discharge main capacitor before work',
-                'Visual inspection for burn marks, swollen caps',
-                'Check fuse continuity and rating',
-                'Verify AC input and bulk DC voltage',
-                'Test standby supply (5VSB)',
-                'Check PWM controller Vcc supply',
-                'ESR test all electrolytic capacitors',
-                'Test output rectifiers for shorts',
-                'Verify optocoupler CTR if regulation issue',
-                'Load test all outputs after repair'
-            ]
-        });
-    }
-
-    // Exercises
-    function initExercises() {
-        new ExerciseWidget('smps-exercises', {
-            exercises: [
-                {
-                    question: 'A 47µF cap with 8Ω ESR at 100kHz. What ripple voltage for 10mA ripple current?',
-                    answer: '80mV',
-                    solution: 'V_ripple = I × ESR = 10mA × 8Ω = 80mV. With good cap (0.1Ω), it would be only 1mV.'
-                },
-                {
-                    question: 'PWM controller UVLO is 10V start, 8V stop. If aux supply droops to 9V during load, what happens?',
-                    answer: 'Hiccup mode (start-stop cycling)',
-                    solution: 'Controller starts at 10V, load increases, voltage drops below 8V stop threshold, controller stops, voltage recovers, cycle repeats.'
-                },
-                {
-                    question: 'Main bulk cap is 330µF. At 500W output and 85% efficiency, what ripple voltage at 120Hz?',
-                    answer: '14.5V',
-                    solution: 'Pin = 500/0.85 = 588W. I = 588/320 = 1.84A. ΔV = I/(2×f×C) = 1.84/(2×120×330µ) = 14.5V'
-                }
-            ]
-        });
-    }
-
-    update();
-    drawSchematic();
-    initSpice();
-    initChecklist();
-    initExercises();
-})();
-</script>
+    </script>
+</body>
+</html>

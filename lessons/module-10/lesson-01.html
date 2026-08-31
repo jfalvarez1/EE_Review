@@ -1,117 +1,1724 @@
-<!-- Module 10, Lesson 1: Speed vs Accuracy Trade-offs -->
+<!-- Module 10, Lesson 1: Oscilloscope Techniques -->
 <div class="lesson-content" data-module="10" data-lesson="1">
 
     <div class="card">
-        <h2>Speed vs Accuracy Trade-offs</h2>
-        <p>Every analog design involves fundamental trade-offs. Higher speed typically means more power, more noise, and less precision. Understanding these relationships helps make optimal choices.</p>
+        <h2>Oscilloscope Fundamentals & Measurement Techniques</h2>
+        <p>The oscilloscope is the most important tool for analog debugging. Mastering scope techniques reveals signal behavior that multimeters cannot show. This lesson covers specifications, probing, triggering, and measurement best practices from Tektronix, Keysight, and National Instruments methodologies.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">GBW Product</div>
-                <div class="v mono">Gain × Bandwidth = constant</div>
+                <div class="k">Bandwidth Rule</div>
+                <div class="v">Scope BW ≥ 5× highest signal frequency</div>
             </div>
             <div class="box">
-                <div class="k">Power vs Speed</div>
-                <div class="v mono">I<sub>bias</sub> ∝ f<sub>unity</sub> × C<sub>load</sub></div>
+                <div class="k">Rise Time</div>
+                <div class="v mono">t<sub>r</sub> ≈ 0.35/BW</div>
+            </div>
+            <div class="box">
+                <div class="k">Nyquist</div>
+                <div class="v">Sample Rate ≥ 2× BW (minimum)</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> The gain-bandwidth product is fixed by the op-amp's design. If you need 10× more bandwidth, you sacrifice 10× gain—or pick a faster op-amp with higher power.
+            <strong>Key Insight:</strong> A scope's measured rise time includes both the signal's actual rise time and the scope's own bandwidth limit. Use: t<sub>actual</sub>² = t<sub>measured</sub>² − t<sub>scope</sub>²
         </div>
     </div>
 
+    <!-- ============================================= -->
+    <!-- SECTION: Key Specifications -->
+    <!-- ============================================= -->
     <div class="card">
-        <h3>Interactive: GBW Trade-off</h3>
+        <h3>Oscilloscope Key Specifications</h3>
+        <p>Understanding scope specifications is critical for selecting the right instrument and interpreting measurements correctly.</p>
+
+        <h4>Interactive: Scope Spec Calculator</h4>
+        <div class="controls">
+            <div class="c3">
+                <label for="spec-bw">Bandwidth</label>
+                <input type="text" id="spec-bw" value="100M" min="1" max="100G">
+            </div>
+            <div class="c3">
+                <label for="spec-sr">Sample Rate</label>
+                <input type="text" id="spec-sr" value="1G">
+            </div>
+            <div class="c3">
+                <label for="spec-mem">Memory Depth</label>
+                <input type="text" id="spec-mem" value="10M">
+            </div>
+        </div>
+
+        <div class="kv" id="spec-results">
+            <div class="box">
+                <div class="k">Rise Time (t<sub>r</sub>)</div>
+                <div class="v mono" id="spec-tr">3.5ns</div>
+            </div>
+            <div class="box">
+                <div class="k">Max Freq @ 5× Rule</div>
+                <div class="v mono" id="spec-maxfreq">20MHz</div>
+            </div>
+            <div class="box">
+                <div class="k">Samples/Period @ BW</div>
+                <div class="v mono" id="spec-spp">10</div>
+            </div>
+            <div class="box">
+                <div class="k">Max Capture Time</div>
+                <div class="v mono" id="spec-captime">10ms</div>
+            </div>
+        </div>
+
+        <table class="table">
+            <tr>
+                <th>Specification</th>
+                <th>What It Means</th>
+                <th>Typical Range</th>
+            </tr>
+            <tr>
+                <td><strong>Bandwidth</strong></td>
+                <td>Frequency where signal attenuates to 70.7% (-3dB). Determines fastest edges you can measure accurately.</td>
+                <td>20MHz - 70GHz</td>
+            </tr>
+            <tr>
+                <td><strong>Sample Rate</strong></td>
+                <td>How many samples/second the ADC captures. Should be ≥2.5× BW (Nyquist), ideally 5-10×.</td>
+                <td>1GSa/s - 200GSa/s</td>
+            </tr>
+            <tr>
+                <td><strong>Memory Depth</strong></td>
+                <td>Total samples stored per acquisition. More memory = longer captures at full sample rate.</td>
+                <td>1kpts - 1Gpts</td>
+            </tr>
+            <tr>
+                <td><strong>Vertical Resolution</strong></td>
+                <td>ADC bits. More bits = finer amplitude resolution. 8-bit = 256 levels, 12-bit = 4096 levels.</td>
+                <td>8-bit - 16-bit</td>
+            </tr>
+            <tr>
+                <td><strong>ENOB</strong></td>
+                <td>Effective Number of Bits. Real-world resolution after noise. Typically 1-2 bits less than stated.</td>
+                <td>5.5 - 10 bits</td>
+            </tr>
+        </table>
+
+        <div class="notice">
+            <strong>Tektronix Tip:</strong> The 0.35 constant applies to scopes <1GHz with Gaussian response. For >1GHz with flat response, use 0.4-0.45.
+        </div>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SECTION: Virtual Oscilloscope -->
+    <!-- ============================================= -->
+    <div class="card">
+        <h3>Interactive: Virtual Oscilloscope</h3>
+        <p>Practice adjusting scope settings to properly view different signal types.</p>
 
         <div class="controls">
             <div class="c3">
-                <label for="gbw-gbw">GBW (MHz)</label>
-                <input type="range" id="gbw-gbw" min="1" max="100" step="1" value="10">
-                <span id="gbw-gbw-val" class="mono">10MHz</span>
+                <label for="scope-signal">Signal Type</label>
+                <select id="scope-signal">
+                    <option value="sine">Sine Wave</option>
+                    <option value="square">Square Wave</option>
+                    <option value="pulse">Short Pulse</option>
+                    <option value="ringing">Ringing/Oscillation</option>
+                    <option value="noisy">Noisy Signal</option>
+                    <option value="burst">Burst Signal</option>
+                </select>
             </div>
             <div class="c3">
-                <label for="gbw-gain">Closed-Loop Gain</label>
-                <input type="range" id="gbw-gain" min="1" max="100" step="1" value="10">
-                <span id="gbw-gain-val" class="mono">10</span>
+                <label for="scope-freq">Signal Freq</label>
+                <input type="text" id="scope-freq" value="1k">
             </div>
             <div class="c3">
-                <label for="gbw-margin">Phase Margin (°)</label>
-                <input type="range" id="gbw-margin" min="30" max="90" step="5" value="60">
-                <span id="gbw-margin-val" class="mono">60°</span>
+                <label for="scope-vpp">V<sub>pk-pk</sub></label>
+                <input type="text" id="scope-vpp" value="2">
+            </div>
+            <div class="c3">
+                <label for="scope-bw">Scope BW</label>
+                <select id="scope-bw">
+                    <option value="20e6">20 MHz</option>
+                    <option value="100e6" selected>100 MHz</option>
+                    <option value="500e6">500 MHz</option>
+                    <option value="1e9">1 GHz</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="scope-tdiv">Time/Div</label>
+                <select id="scope-tdiv">
+                    <option value="100e-9">100 ns</option>
+                    <option value="1e-6">1 µs</option>
+                    <option value="10e-6">10 µs</option>
+                    <option value="100e-6">100 µs</option>
+                    <option value="1e-3" selected>1 ms</option>
+                    <option value="10e-3">10 ms</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="scope-vdiv">V/Div</label>
+                <select id="scope-vdiv">
+                    <option value="0.1">100 mV</option>
+                    <option value="0.2">200 mV</option>
+                    <option value="0.5" selected>500 mV</option>
+                    <option value="1">1 V</option>
+                    <option value="2">2 V</option>
+                    <option value="5">5 V</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="scope-coupling">Coupling</label>
+                <select id="scope-coupling">
+                    <option value="dc" selected>DC</option>
+                    <option value="ac">AC</option>
+                    <option value="gnd">GND</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="scope-probe">Probe</label>
+                <select id="scope-probe">
+                    <option value="1">1× (Hi-C)</option>
+                    <option value="10" selected>10× (Lo-C)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="scope-trig-level">Trigger Level</label>
+                <input type="range" id="scope-trig-level" min="-100" max="100" step="5" value="0">
+                <span id="scope-trig-val" class="mono">0%</span>
+            </div>
+            <div class="c4">
+                <label for="scope-trig-edge">Trigger Edge</label>
+                <select id="scope-trig-edge">
+                    <option value="rising" selected>Rising ↑</option>
+                    <option value="falling">Falling ↓</option>
+                    <option value="either">Either</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="scope-dc-offset">DC Offset</label>
+                <input type="text" id="scope-dc-offset" value="0">
+            </div>
+        </div>
+
+        <div class="canvas-wrap" style="background: #1a1a2e; border-radius: 8px;">
+            <canvas id="scope-canvas" width="980" height="400"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Freq (measured)</div>
+                <div class="v mono" id="scope-freq-meas">—</div>
+            </div>
+            <div class="box">
+                <div class="k">V<sub>pk-pk</sub></div>
+                <div class="v mono" id="scope-vpp-meas">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Rise Time</div>
+                <div class="v mono" id="scope-tr-meas">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Status</div>
+                <div class="v mono" id="scope-status">—</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SECTION: Aliasing & Nyquist -->
+    <!-- ============================================= -->
+    <div class="card">
+        <h3>Aliasing & the Nyquist Theorem</h3>
+        <p>Aliasing occurs when the sample rate is insufficient to capture high-frequency components, causing them to appear as false lower frequencies.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Nyquist Frequency</div>
+                <div class="v mono">f<sub>Nyquist</sub> = Sample Rate / 2</div>
+            </div>
+            <div class="box">
+                <div class="k">Aliased Frequency</div>
+                <div class="v mono">f<sub>alias</sub> = |f<sub>signal</sub> - n × f<sub>sample</sub>|</div>
+            </div>
+        </div>
+
+        <h4>Interactive: Aliasing Demonstration</h4>
+        <div class="controls">
+            <div class="c3">
+                <label for="alias-freq">Signal Frequency</label>
+                <input type="text" id="alias-freq" value="7k">
+            </div>
+            <div class="c3">
+                <label for="alias-sr">Sample Rate</label>
+                <input type="text" id="alias-sr" value="10k">
+            </div>
+            <div class="c3">
+                <label>Nyquist Limit</label>
+                <div class="result mono" id="alias-nyquist">5kHz</div>
+            </div>
+            <div class="c3">
+                <label>Alias Appears At</label>
+                <div class="result mono" id="alias-result">3kHz</div>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="gbw-canvas" width="980" height="280"></canvas>
+            <canvas id="alias-canvas" width="800" height="300"></canvas>
+        </div>
+        <p class="caption">Yellow: True signal (continuous). Cyan dots: Sample points. Green: Reconstructed signal (what scope displays)</p>
+
+        <div class="warn">
+            <strong>NI Best Practice:</strong> Use sample rates at least 2.5× the oscilloscope bandwidth. For accurate rise time measurements, use 5× or higher. Anti-aliasing filters in most scopes automatically limit input bandwidth.
+        </div>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SECTION: Input Coupling -->
+    <!-- ============================================= -->
+    <div class="card">
+        <h3>Input Coupling Modes</h3>
+        <p>The coupling setting determines how the scope's input circuit handles DC components of your signal.</p>
+
+        <h4>Interactive: Coupling Comparison</h4>
+        <div class="controls">
+            <div class="c3">
+                <label for="coupling-dc">DC Offset</label>
+                <input type="range" id="coupling-dc" min="-3" max="3" step="0.1" value="1.5">
+                <span id="coupling-dc-val" class="mono">+1.5V</span>
+            </div>
+            <div class="c3">
+                <label for="coupling-freq">AC Frequency</label>
+                <input type="text" id="coupling-freq" value="1k">
+            </div>
+            <div class="c3">
+                <label for="coupling-amp">AC Amplitude</label>
+                <input type="text" id="coupling-amp" value="0.5">
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="coupling-canvas" width="800" height="250"></canvas>
+        </div>
+
+        <table class="table">
+            <tr>
+                <th>Mode</th>
+                <th>Circuit</th>
+                <th>Use Case</th>
+            </tr>
+            <tr>
+                <td><strong>DC Coupling</strong></td>
+                <td>Direct connection. Full signal (AC + DC).</td>
+                <td>Power supply ripple, DC levels, most measurements</td>
+            </tr>
+            <tr>
+                <td><strong>AC Coupling</strong></td>
+                <td>Series capacitor blocks DC. Shows only AC.</td>
+                <td>Small AC on large DC offset, audio signals, noise analysis</td>
+            </tr>
+            <tr>
+                <td><strong>GND</strong></td>
+                <td>Input grounded. Shows 0V reference.</td>
+                <td>Set vertical position, verify ground reference</td>
+            </tr>
+        </table>
+
+        <div class="notice">
+            <strong>Keysight Tip:</strong> AC coupling has a high-pass corner frequency (typically 10Hz-60Hz). Low-frequency signals may be attenuated or phase-shifted!
+        </div>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SECTION: Probe Compensation -->
+    <!-- ============================================= -->
+    <div class="card">
+        <h3>Probe Compensation</h3>
+        <p>10× probes must be compensated to match the scope input. The probe forms a compensated voltage divider where the RC time constants must match:</p>
+
+        <h4>10× Probe Circuit</h4>
+        <div id="probe-circuit-svg" style="width: 100%; min-height: 200px;"></div>
+        <p class="caption">The trimmer capacitor C<sub>trim</sub> adjusts to satisfy R<sub>probe</sub>×C<sub>trim</sub> = R<sub>scope</sub>×C<sub>scope</sub></p>
+
+        <h4>Compensation Waveforms</h4>
+        <p>Adjust the trimmer cap on the probe while viewing a 1kHz square wave:</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="probe-comp">Probe Compensation</label>
+                <input type="range" id="probe-comp" min="0" max="100" step="1" value="50">
+            </div>
+            <div class="c4">
+                <span class="mono" id="probe-comp-label">Properly Compensated</span>
+            </div>
+        </div>
+        <div class="canvas-wrap">
+            <canvas id="probe-comp-canvas" width="700" height="200"></canvas>
+        </div>
+
+        <table class="table">
+            <tr>
+                <th>Appearance</th>
+                <th>Cause</th>
+                <th>Action</th>
+            </tr>
+            <tr>
+                <td>Rounded corners, slow rise</td>
+                <td>Under-compensated (C<sub>trim</sub> too small)</td>
+                <td>Turn trimmer clockwise</td>
+            </tr>
+            <tr>
+                <td>Sharp square, flat top</td>
+                <td>Properly compensated</td>
+                <td>No adjustment needed</td>
+            </tr>
+            <tr>
+                <td>Overshoot, spikes at edges</td>
+                <td>Over-compensated (C<sub>trim</sub> too large)</td>
+                <td>Turn trimmer counter-clockwise</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Important:</strong> Always use 10× probes for analog debugging! 1× probes add 100-300pF capacitance that loads high-impedance circuits and affects rise times.
+        </div>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SECTION: Bandwidth vs Rise Time -->
+    <!-- ============================================= -->
+    <div class="card">
+        <h3>Bandwidth vs Rise Time</h3>
+        <p>A scope's bandwidth limits how fast of an edge it can accurately display. The fundamental relationship:</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Rise Time Formula</div>
+                <div class="v mono">t<sub>r</sub> = K / BW</div>
+            </div>
+            <div class="box">
+                <div class="k">K Factor (<1GHz)</div>
+                <div class="v mono">0.35 (Gaussian)</div>
+            </div>
+            <div class="box">
+                <div class="k">K Factor (>1GHz)</div>
+                <div class="v mono">0.40-0.45 (Flat)</div>
+            </div>
+        </div>
+
+        <h4>Interactive: Rise Time Calculator</h4>
+        <div class="controls">
+            <div class="c3">
+                <label for="rt-bw">Scope Bandwidth</label>
+                <input type="text" id="rt-bw" value="100M">
+            </div>
+            <div class="c3">
+                <label for="rt-meas">Measured Rise Time</label>
+                <input type="text" id="rt-meas" value="5n">
+            </div>
+            <div class="c3">
+                <label>Actual Signal Rise Time</label>
+                <div class="result mono" id="rt-actual">—</div>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="rt-canvas" width="700" height="250"></canvas>
+        </div>
+        <p class="caption">Cyan: actual signal edge. Green: what the scope displays (bandwidth limited)</p>
+
+        <h4>Measurement Error vs Bandwidth Ratio</h4>
+        <div class="canvas-wrap">
+            <canvas id="rt-error-canvas" width="700" height="200"></canvas>
+        </div>
+        <p class="caption">Rise time measurement error decreases as scope BW increases relative to signal BW</p>
+
+        <div class="notice">
+            <strong>Rule of Thumb:</strong> For <5% rise time error, scope BW should be ≥5× the signal's highest frequency content. For <2% error, use ≥10× BW.
+        </div>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SECTION: Ground Lead Effects -->
+    <!-- ============================================= -->
+    <div class="card">
+        <h3>Ground Lead Effects</h3>
+        <p>Never use the long ground lead for high-frequency measurements. It adds inductance that causes ringing.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Ground Lead Inductance</div>
+                <div class="v mono">~25 nH/inch of wire</div>
+            </div>
+            <div class="box">
+                <div class="k">6" Lead Resonance</div>
+                <div class="v mono">~50 MHz with 10pF probe</div>
+            </div>
+        </div>
+
+        <h4>Interactive: Ground Lead Ringing</h4>
+        <div class="controls">
+            <div class="c3">
+                <label for="gnd-lead">Ground Lead Length</label>
+                <select id="gnd-lead">
+                    <option value="0">Ground barrel (0")</option>
+                    <option value="1">Spring clip (1")</option>
+                    <option value="3">Short lead (3")</option>
+                    <option value="6" selected>Long lead (6")</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="gnd-edge">Signal Edge</label>
+                <input type="text" id="gnd-edge" value="5n">
+            </div>
+            <div class="c3">
+                <label>Resonant Frequency</label>
+                <div class="result mono" id="gnd-fres">—</div>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="gnd-canvas" width="700" height="200"></canvas>
+        </div>
+        <p class="caption">Longer ground leads cause more ringing on fast edges</p>
+
+        <p><strong>Solution:</strong> Use the ground spring or remove the probe ground lead and use the bare ground barrel directly on a nearby ground point.</p>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SECTION: Triggering -->
+    <!-- ============================================= -->
+    <div class="card">
+        <h3>Triggering Fundamentals</h3>
+        <p>The trigger system determines when the scope starts capturing data. Proper triggering is essential for stable displays and capturing specific events.</p>
+
+        <h4>Trigger Types</h4>
+        <table class="table">
+            <tr>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Use Case</th>
+            </tr>
+            <tr>
+                <td><strong>Edge</strong></td>
+                <td>Triggers on signal crossing threshold (rising/falling)</td>
+                <td>Most common - periodic signals, digital edges</td>
+            </tr>
+            <tr>
+                <td><strong>Pulse Width</strong></td>
+                <td>Triggers on pulses wider or narrower than threshold</td>
+                <td>Finding glitches, runt pulses</td>
+            </tr>
+            <tr>
+                <td><strong>Pattern</strong></td>
+                <td>Triggers when multiple channels match logic pattern</td>
+                <td>Digital debugging, bus analysis</td>
+            </tr>
+            <tr>
+                <td><strong>Video</strong></td>
+                <td>Syncs to video timing (line/frame)</td>
+                <td>NTSC, PAL, HDTV signals</td>
+            </tr>
+            <tr>
+                <td><strong>Serial</strong></td>
+                <td>Decodes and triggers on protocol content</td>
+                <td>I2C, SPI, UART, CAN debugging</td>
+            </tr>
+        </table>
+
+        <h4>Trigger Modes</h4>
+        <div class="kv">
+            <div class="box">
+                <div class="k">Auto Mode</div>
+                <div class="v">Triggers automatically if no trigger event occurs (shows signal even without trigger)</div>
+            </div>
+            <div class="box">
+                <div class="k">Normal Mode</div>
+                <div class="v">Only acquires when trigger condition is met (waits indefinitely)</div>
+            </div>
+            <div class="box">
+                <div class="k">Single Mode</div>
+                <div class="v">Arms once, captures one trigger event, then stops</div>
+            </div>
+        </div>
+
+        <h4>Interactive: Trigger Position Demo</h4>
+        <div class="controls">
+            <div class="c4">
+                <label for="trig-pos">Trigger Position</label>
+                <input type="range" id="trig-pos" min="0" max="100" step="5" value="50">
+                <span id="trig-pos-val" class="mono">50%</span>
+            </div>
+            <div class="c4">
+                <label for="trig-holdoff">Holdoff</label>
+                <input type="range" id="trig-holdoff" min="0" max="100" step="5" value="0">
+                <span id="trig-holdoff-val" class="mono">0%</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="trigger-canvas" width="700" height="200"></canvas>
+        </div>
+        <p class="caption">Trigger position determines how much pre-trigger vs post-trigger data is captured</p>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SECTION: Cursor Measurements -->
+    <!-- ============================================= -->
+    <div class="card">
+        <h3>Cursor Measurements</h3>
+        <p>Cursors allow precise manual measurements when automatic measurements are unreliable or unavailable.</p>
+
+        <h4>Interactive: Cursor Demo</h4>
+        <div class="controls">
+            <div class="c4">
+                <label for="cursor-x1">Cursor X1</label>
+                <input type="range" id="cursor-x1" min="0" max="100" step="1" value="20">
+            </div>
+            <div class="c4">
+                <label for="cursor-x2">Cursor X2</label>
+                <input type="range" id="cursor-x2" min="0" max="100" step="1" value="70">
+            </div>
+            <div class="c4">
+                <label for="cursor-y1">Cursor Y1</label>
+                <input type="range" id="cursor-y1" min="0" max="100" step="1" value="30">
+            </div>
+            <div class="c4">
+                <label for="cursor-y2">Cursor Y2</label>
+                <input type="range" id="cursor-y2" min="0" max="100" step="1" value="70">
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="cursor-canvas" width="700" height="250"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Bandwidth</div>
-                <div class="v mono" id="gbw-bw">—</div>
+                <div class="k">ΔTime (X2-X1)</div>
+                <div class="v mono" id="cursor-dt">—</div>
             </div>
             <div class="box">
-                <div class="k">Settling Time (0.1%)</div>
-                <div class="v mono" id="gbw-settle">—</div>
+                <div class="k">1/ΔTime (Freq)</div>
+                <div class="v mono" id="cursor-freq">—</div>
             </div>
             <div class="box">
-                <div class="k">Step Response Overshoot</div>
-                <div class="v mono" id="gbw-overshoot">—</div>
+                <div class="k">ΔV (Y2-Y1)</div>
+                <div class="v mono" id="cursor-dv">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Slope (ΔV/Δt)</div>
+                <div class="v mono" id="cursor-slope">—</div>
             </div>
         </div>
     </div>
 
+    <!-- ============================================= -->
+    <!-- SECTION: Measurement Best Practices -->
+    <!-- ============================================= -->
     <div class="card">
-        <h3>The Design Triangle</h3>
-        <p>You can optimize for two of these three, but not all:</p>
+        <h3>Measurement Best Practices</h3>
 
+        <h4>From Keysight & Tektronix Application Notes:</h4>
+        <ol>
+            <li><strong>Compensate probes</strong> before every measurement session using the scope's built-in cal signal</li>
+            <li><strong>Match probe BW to scope BW</strong> - a 100MHz probe on a 500MHz scope limits you to 100MHz</li>
+            <li><strong>Minimize ground lead length</strong> - use spring ground for anything above 10MHz</li>
+            <li><strong>Use 10× probes by default</strong> - only use 1× when you need the extra sensitivity</li>
+            <li><strong>Set vertical scale</strong> so signal uses 3-6 divisions (50-75% of screen height)</li>
+            <li><strong>Check for aliasing</strong> - if waveform looks strange, increase sample rate or add detail</li>
+            <li><strong>Use averaging</strong> to reduce noise on repetitive signals (8-64 averages typical)</li>
+            <li><strong>Use AC coupling carefully</strong> - it introduces low-frequency rolloff and phase shift</li>
+        </ol>
+
+        <h4>Common Measurement Errors</h4>
         <table class="table">
             <tr>
-                <th>Optimize For</th>
-                <th>Sacrifice</th>
-                <th>Example</th>
+                <th>Error</th>
+                <th>Cause</th>
+                <th>Solution</th>
             </tr>
             <tr>
-                <td>Speed + Low Power</td>
-                <td>Accuracy, Noise</td>
-                <td>Battery sensor, IoT</td>
+                <td>Ringing on edges</td>
+                <td>Ground lead inductance</td>
+                <td>Shorten ground connection</td>
             </tr>
             <tr>
-                <td>Speed + Accuracy</td>
-                <td>Power</td>
-                <td>High-speed DAC output</td>
+                <td>Slow rise times</td>
+                <td>Probe/scope bandwidth limit</td>
+                <td>Use higher BW scope, correct for tr</td>
             </tr>
             <tr>
-                <td>Accuracy + Low Power</td>
-                <td>Speed</td>
-                <td>Precision measurement</td>
+                <td>Weird waveform shapes</td>
+                <td>Aliasing from low sample rate</td>
+                <td>Increase time/div, check sample rate</td>
+            </tr>
+            <tr>
+                <td>Signal loading</td>
+                <td>1× probe capacitance</td>
+                <td>Switch to 10× probe</td>
+            </tr>
+            <tr>
+                <td>DC offset wrong</td>
+                <td>AC coupling or probe mis-calibration</td>
+                <td>Check coupling, re-compensate probe</td>
             </tr>
         </table>
     </div>
 
+    <!-- ============================================= -->
+    <!-- SECTION: Real-World Applications -->
+    <!-- ============================================= -->
     <div class="card">
-        <h3>Noise vs Power</h3>
+        <h3>Real-World Applications</h3>
+        <p>Oscilloscopes are essential for debugging across all areas of electronics. Here are practical scenarios you'll encounter:</p>
+
+        <h4>1. Power Supply Debugging</h4>
+        <div class="kv">
+            <div class="box">
+                <div class="k">What to Measure</div>
+                <div class="v">Output ripple, load transient response, startup sequence</div>
+            </div>
+            <div class="box">
+                <div class="k">Typical Setup</div>
+                <div class="v">AC coupling, 20MHz BW limit, 10-50mV/div</div>
+            </div>
+        </div>
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Technique</th>
+                <th>What to Look For</th>
+            </tr>
+            <tr>
+                <td><strong>Ripple Voltage</strong></td>
+                <td>AC coupling, BW limit ON to reduce noise, ground spring on output cap</td>
+                <td>Switching frequency ripple (typ. 100kHz-2MHz), should be <1% of Vout</td>
+            </tr>
+            <tr>
+                <td><strong>Load Transient</strong></td>
+                <td>Trigger on load step signal, capture voltage dip/overshoot</td>
+                <td>Recovery time <100µs, undershoot <5% typical</td>
+            </tr>
+            <tr>
+                <td><strong>Startup Sequence</strong></td>
+                <td>Single trigger, slow timebase (10-100ms/div), DC coupling</td>
+                <td>Soft-start ramp, no overshoot, proper sequencing</td>
+            </tr>
+            <tr>
+                <td><strong>Switch Node</strong></td>
+                <td>High BW, short ground, fast timebase (10-50ns/div)</td>
+                <td>Clean transitions, ringing <20% overshoot, proper dead time</td>
+            </tr>
+        </table>
+
+        <h4>2. Digital Signal Integrity</h4>
+        <div class="kv">
+            <div class="box">
+                <div class="k">What to Measure</div>
+                <div class="v">Rise/fall times, eye diagrams, clock jitter, reflections</div>
+            </div>
+            <div class="box">
+                <div class="k">Typical Setup</div>
+                <div class="v">Full BW, short ground, 50Ω termination for high-speed</div>
+            </div>
+        </div>
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Technique</th>
+                <th>What to Look For</th>
+            </tr>
+            <tr>
+                <td><strong>Clock Quality</strong></td>
+                <td>Infinite persistence, trigger on clock edge</td>
+                <td>Jitter (edge spread), duty cycle, overshoot/undershoot</td>
+            </tr>
+            <tr>
+                <td><strong>Setup/Hold Timing</strong></td>
+                <td>Two channels: clock and data, measure time difference</td>
+                <td>Data stable before clock edge (setup), stable after (hold)</td>
+            </tr>
+            <tr>
+                <td><strong>Reflections</strong></td>
+                <td>Probe at source, middle, and end of trace</td>
+                <td>Impedance mismatches show as steps/ringing after edge</td>
+            </tr>
+            <tr>
+                <td><strong>Eye Diagram</strong></td>
+                <td>Clock recovery trigger, infinite persistence, high sample rate</td>
+                <td>Eye opening height (noise margin), width (timing margin)</td>
+            </tr>
+        </table>
+
+        <h4>3. Analog Circuit Debugging</h4>
+        <div class="kv">
+            <div class="box">
+                <div class="k">What to Measure</div>
+                <div class="v">Gain, phase, distortion, noise, oscillation</div>
+            </div>
+            <div class="box">
+                <div class="k">Typical Setup</div>
+                <div class="v">10× probe, appropriate BW, matched channels for differential</div>
+            </div>
+        </div>
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Technique</th>
+                <th>What to Look For</th>
+            </tr>
+            <tr>
+                <td><strong>Amplifier Gain</strong></td>
+                <td>CH1=input, CH2=output, measure Vpp ratio</td>
+                <td>Gain matches design, no clipping at expected swing</td>
+            </tr>
+            <tr>
+                <td><strong>Op-Amp Stability</strong></td>
+                <td>Square wave input, look at output settling</td>
+                <td>Ringing indicates low phase margin, may need compensation</td>
+            </tr>
+            <tr>
+                <td><strong>Oscillation Detection</strong></td>
+                <td>No input signal, look for self-oscillation</td>
+                <td>High-frequency oscillation often at output or power pins</td>
+            </tr>
+            <tr>
+                <td><strong>Noise Floor</strong></td>
+                <td>Input shorted, AC coupling, averaged FFT</td>
+                <td>Broadband noise level, any spurious tones</td>
+            </tr>
+        </table>
+
+        <h4>4. Communication Protocols</h4>
+        <div class="kv">
+            <div class="box">
+                <div class="k">What to Measure</div>
+                <div class="v">Timing, voltage levels, protocol decode, bus errors</div>
+            </div>
+            <div class="box">
+                <div class="k">Typical Setup</div>
+                <div class="v">Protocol decoder enabled, trigger on address/data pattern</div>
+            </div>
+        </div>
+        <table class="table">
+            <tr>
+                <th>Protocol</th>
+                <th>Key Measurements</th>
+                <th>Common Issues</th>
+            </tr>
+            <tr>
+                <td><strong>I²C</strong></td>
+                <td>Rise time (RC limited), ACK/NACK, clock stretching</td>
+                <td>Slow rise time (add stronger pullup), missing ACK, bus contention</td>
+            </tr>
+            <tr>
+                <td><strong>SPI</strong></td>
+                <td>Clock phase/polarity, setup/hold times, CS timing</td>
+                <td>Mode mismatch, CS glitches, clock too fast for slave</td>
+            </tr>
+            <tr>
+                <td><strong>UART</strong></td>
+                <td>Baud rate accuracy, start/stop bits, framing</td>
+                <td>Baud rate mismatch (>3% causes errors), inverted logic</td>
+            </tr>
+            <tr>
+                <td><strong>CAN</strong></td>
+                <td>Differential voltage levels, bit timing, error frames</td>
+                <td>Termination issues, ground offset, bit stuffing errors</td>
+            </tr>
+        </table>
+
+        <h4>5. Motor Drive & Power Electronics</h4>
+        <div class="kv">
+            <div class="box">
+                <div class="k">What to Measure</div>
+                <div class="v">PWM waveforms, current sensing, gate drive, dead time</div>
+            </div>
+            <div class="box">
+                <div class="k">Safety</div>
+                <div class="v">Use isolated probes for high-side measurements, differential probes for floating</div>
+            </div>
+        </div>
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Technique</th>
+                <th>What to Look For</th>
+            </tr>
+            <tr>
+                <td><strong>Gate Drive</strong></td>
+                <td>Probe gate-source (not gate-ground!), fast timebase</td>
+                <td>Rise/fall <50ns typical, plateau at Miller voltage, no ringing</td>
+            </tr>
+            <tr>
+                <td><strong>Dead Time</strong></td>
+                <td>Two channels on high/low gate drives, zoom on transition</td>
+                <td>Both off simultaneously, typically 50-500ns</td>
+            </tr>
+            <tr>
+                <td><strong>Phase Current</strong></td>
+                <td>Current probe or shunt resistor with differential probe</td>
+                <td>Sinusoidal for BLDC/PMSM, triangular ripple on DC</td>
+            </tr>
+            <tr>
+                <td><strong>Shoot-Through</strong></td>
+                <td>DC bus current, look for spikes at switching</td>
+                <td>Should be zero during normal operation (indicates dead time failure)</td>
+            </tr>
+        </table>
+
+        <h4>6. EMI/EMC Pre-Compliance</h4>
+        <div class="kv">
+            <div class="box">
+                <div class="k">What to Measure</div>
+                <div class="v">Noise sources, coupling paths, frequency content</div>
+            </div>
+            <div class="box">
+                <div class="k">Typical Setup</div>
+                <div class="v">Near-field probe, FFT mode, high sample rate</div>
+            </div>
+        </div>
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Technique</th>
+                <th>What to Look For</th>
+            </tr>
+            <tr>
+                <td><strong>Switching Harmonics</strong></td>
+                <td>FFT of switch node or input current</td>
+                <td>Harmonics of switching frequency, spread-spectrum effectiveness</td>
+            </tr>
+            <tr>
+                <td><strong>Near-Field Scanning</strong></td>
+                <td>H-field or E-field probe moved over PCB</td>
+                <td>Hot spots indicate radiating traces/components</td>
+            </tr>
+            <tr>
+                <td><strong>Common-Mode Noise</strong></td>
+                <td>Current probe around all wires in cable bundle</td>
+                <td>High CM current correlates with radiated emissions</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SECTION: Computer/Phone Hardware Engineering -->
+    <!-- ============================================= -->
+    <div class="card">
+        <h3>Computer & Mobile Hardware Engineering Scenarios</h3>
+        <p>These are real-world debugging scenarios encountered by hardware systems engineers designing laptops, phones, tablets, and computers. Understanding these helps bridge the gap between textbook knowledge and production hardware.</p>
+
+        <h4>7. DDR4/DDR5 Memory Signal Integrity</h4>
+        <p>Memory interfaces are among the most challenging to debug due to bidirectional data buses and tight timing margins. Per <a href="https://www.keysight.com/us/en/solutions/test-DDR4-compliance.html" target="_blank">Keysight</a> and <a href="https://www.signalintegrityjournal.com/articles/335-accurate-statistical-based-ddr4-margin-estimation-using-ssn-induced-jitter-model" target="_blank">JEDEC specifications</a>:</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Thermal Noise</div>
-                <div class="v mono">e<sub>n</sub> ∝ √(kT/g<sub>m</sub>) ∝ 1/√I</div>
+                <div class="k">DDR4 Speed</div>
+                <div class="v">Up to 3200 MT/s (1.6 Gbps/pin)</div>
             </div>
             <div class="box">
-                <div class="k">Implication</div>
-                <div class="v">4× current = 2× less noise</div>
+                <div class="k">DDR5 Speed</div>
+                <div class="v">Up to 6400 MT/s (3.2 Gbps/pin)</div>
+            </div>
+            <div class="box">
+                <div class="k">BER Target</div>
+                <div class="v">10⁻¹⁶ (JEDEC mask)</div>
+            </div>
+            <div class="box">
+                <div class="k">Scope BW Needed</div>
+                <div class="v">≥20-30 GHz for DDR4</div>
             </div>
         </div>
 
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Setup & Technique</th>
+                <th>Key Parameters</th>
+            </tr>
+            <tr>
+                <td><strong>DQ Eye Diagram</strong></td>
+                <td>Trigger on DQS strobe, capture DQ data, overlay bits. Use interposer for probing near DRAM balls.</td>
+                <td>Eye height ≥70mV, eye width per JEDEC mask, ISI and RJ contributions</td>
+            </tr>
+            <tr>
+                <td><strong>Read/Write Separation</strong></td>
+                <td>DDR is bidirectional - scope must separate read bursts from write bursts for meaningful eye diagrams</td>
+                <td>Use DDR decode software (Keysight D9040DDRC, Tektronix DDR options)</td>
+            </tr>
+            <tr>
+                <td><strong>Setup/Hold Time</strong></td>
+                <td>Measure DQ-to-DQS timing at receiver threshold (VREF ± tolerance)</td>
+                <td>tDS(base) and tDH(base) per speed grade</td>
+            </tr>
+            <tr>
+                <td><strong>Address/Command</strong></td>
+                <td>Check CA bus timing relative to clock, verify command decode windows</td>
+                <td>tIS, tIH timing margins</td>
+            </tr>
+        </table>
+
         <div class="warn">
-            <strong>Diminishing Returns:</strong> To halve the noise, you need 4× the power. Going from 10nV to 1nV requires 100× power increase. Choose your noise budget carefully!
+            <strong>DDR5 Challenge:</strong> Eye diagrams are essentially closed at the DRAM solder balls above 4 GT/s. The spec requires a 4-tap Decision Feedback Equalizer (DFE) to open the eye - your scope's software must apply DFE to show what the receiver sees.
         </div>
+
+        <h4>8. Power Delivery Network (PDN) & VRM Analysis</h4>
+        <p>Modern CPUs/GPUs demand precise voltage (±1-3%) with huge current transients (100+ A/µs). PDN impedance must stay in the milliohm range. Reference: <a href="https://www.ti.com/lit/an/swpa222a/swpa222a.pdf" target="_blank">TI SWPA222A</a>, <a href="https://www.signalintegrityjournal.com/ext/resources/article-images-2017/4135/4135Chapter-1.pdf" target="_blank">Signal Integrity Journal</a>.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Target Impedance</div>
+                <div class="v mono">Z<sub>T</sub> = ΔV / ΔI</div>
+            </div>
+            <div class="box">
+                <div class="k">Typical Values</div>
+                <div class="v">0.5-5 mΩ for CPU core</div>
+            </div>
+            <div class="box">
+                <div class="k">Transient Response</div>
+                <div class="v"><5% droop during load step</div>
+            </div>
+        </div>
+
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Technique</th>
+                <th>What to Look For</th>
+            </tr>
+            <tr>
+                <td><strong>VRM Output Ripple</strong></td>
+                <td>10× probe tip-and-barrel directly on output cap. AC coupling, 20MHz BW limit.</td>
+                <td>Switching ripple <1% of Vout, no HF spikes from parasitics</td>
+            </tr>
+            <tr>
+                <td><strong>Load Transient Response</strong></td>
+                <td>Trigger on load step (current probe or GPIO). Capture voltage droop/overshoot.</td>
+                <td>Recovery <100µs, undershoot <3-5% of nominal</td>
+            </tr>
+            <tr>
+                <td><strong>PDN Impedance (2-port)</strong></td>
+                <td>VNA with Z←S21 shunt method. Calibrate to sub-mΩ accuracy.</td>
+                <td>Flat impedance profile from DC to 100+ MHz, no resonant peaks above target Z</td>
+            </tr>
+            <tr>
+                <td><strong>Decoupling Effectiveness</strong></td>
+                <td>Compare impedance with caps removed vs installed. Probe near CPU package pins.</td>
+                <td>Each cap stage covers its frequency range, proper ESL/ESR selection</td>
+            </tr>
+        </table>
+
+        <div class="notice">
+            <strong>Decoupling Rule:</strong> Bulk electrolytics (low freq) → Polymer/tantalum (mid freq) → MLCC ceramics (high freq) → Package caps (highest freq). Loop inductance matters more than capacitance value at high frequencies!
+        </div>
+
+        <h4>9. USB Type-C & Power Delivery Debugging</h4>
+        <p>USB-C combines power, data, and alternate modes with complex negotiation over the CC (Configuration Channel) line. Reference: <a href="https://www.embedded.com/debugging-usb-type-c-and-usb-power-delivery-system-designs/" target="_blank">Embedded.com USB-C Debug Guide</a>, <a href="https://www.keysight.com/us/en/solutions/test-usb-type-c-power-delivery.html" target="_blank">Keysight USB-C PD Testing</a>.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">PD Data Rate</div>
+                <div class="v">300 kHz BMC on CC line</div>
+            </div>
+            <div class="box">
+                <div class="k">Max Power (EPR)</div>
+                <div class="v">240W (48V @ 5A)</div>
+            </div>
+            <div class="box">
+                <div class="k">Scope BW</div>
+                <div class="v">≥500 MHz for CC decode</div>
+            </div>
+        </div>
+
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Setup</th>
+                <th>Common Issues</th>
+            </tr>
+            <tr>
+                <td><strong>PD Negotiation</strong></td>
+                <td>Probe CC1/CC2 lines with Type-C breakout board. Use PD protocol decoder.</td>
+                <td>Missing ACK, CRC errors, timeout before Source_Capabilities response</td>
+            </tr>
+            <tr>
+                <td><strong>CC Line Signal Quality</strong></td>
+                <td>Eye diagram on CC at 300 kHz BMC. Check rise/fall times, noise margin.</td>
+                <td>Slow edges from Rp/Rd mismatch, noise coupling from VBUS switching</td>
+            </tr>
+            <tr>
+                <td><strong>VBUS Transitions</strong></td>
+                <td>Differential probe on VBUS during voltage changes (5V→9V→20V).</td>
+                <td>Overshoot during transitions, droop during load connect, rise time compliance</td>
+            </tr>
+            <tr>
+                <td><strong>Cable Flip Detection</strong></td>
+                <td>Monitor CC1 and CC2 simultaneously to verify correct orientation detection.</td>
+                <td>Both CC lines driven (short), neither pulled (open cable), wrong Rd termination</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Common Failure Mode:</strong> If Source_Capabilities message gets no response, the source retries until timeout then issues Hard Reset. Debug by checking if sink PD controller is powered and if CC line has proper Rd pulldown (5.1kΩ for sink).
+        </div>
+
+        <h4>10. PCIe Gen4/Gen5 Signal Integrity</h4>
+        <p>PCIe speeds have reached the point where eyes are essentially closed at the receiver input. Reference: <a href="https://www.tek.com/en/solutions/application/high-speed-serial-communication/pcie" target="_blank">Tektronix PCIe Solutions</a>, <a href="https://www.edn.com/pcie-5-0-testing-ensures-accurate-ber-analysis/" target="_blank">EDN PCIe 5.0 Testing</a>.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Gen4 Rate</div>
+                <div class="v">16 GT/s (62.5 ps UI)</div>
+            </div>
+            <div class="box">
+                <div class="k">Gen5 Rate</div>
+                <div class="v">32 GT/s (31.25 ps UI)</div>
+            </div>
+            <div class="box">
+                <div class="k">Required BER</div>
+                <div class="v"><10⁻¹² at receiver</div>
+            </div>
+            <div class="box">
+                <div class="k">Channel Loss</div>
+                <div class="v">Up to 36 dB @ Nyquist</div>
+            </div>
+        </div>
+
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Technique</th>
+                <th>Key Considerations</th>
+            </tr>
+            <tr>
+                <td><strong>TX Eye Diagram</strong></td>
+                <td>Probe at TX pins with low-loading probe. Apply TX equalization (de-emphasis/preshoot).</td>
+                <td>Eye height >50mV, eye width per spec, measure at multiple presets (-3.5dB, -6dB)</td>
+            </tr>
+            <tr>
+                <td><strong>TX Equalization</strong></td>
+                <td>Measure applied de-emphasis and preshoot levels across compliance patterns.</td>
+                <td>Proper preset selection, coefficient accuracy, no overshoot on pre-cursor</td>
+            </tr>
+            <tr>
+                <td><strong>Jitter Components</strong></td>
+                <td>Decompose TIE into RJ, DJ, DDJ, PJ. Compare to jitter budget.</td>
+                <td>Total jitter at 10⁻¹² BER must fit within receiver tolerance mask</td>
+            </tr>
+            <tr>
+                <td><strong>Reference Clock</strong></td>
+                <td>Measure refclk jitter at PLL input. Phase noise or oscilloscope TIE method.</td>
+                <td>PCIe 5.0 requires common clock architecture; jitter <1 ps RMS typical</td>
+            </tr>
+        </table>
+
+        <div class="notice">
+            <strong>Equalization Chain:</strong> TX uses FFE (Feed-Forward Equalizer) with pre-cursor and post-cursor taps. RX uses CTLE (Continuous Time Linear Equalizer) + DFE (Decision Feedback Equalizer). Simulate with IBIS-AMI models before layout!
+        </div>
+
+        <h4>11. Clock Jitter & PLL Analysis</h4>
+        <p>Every digital system depends on clean clocks. Jitter directly impacts BER in serial links and timing margins in synchronous buses. Reference: <a href="https://www.tek.com/en/documents/application-note/measuring-digital-clock-stability-and-jitter-oscilloscope" target="_blank">Tektronix Clock Jitter App Note</a>, <a href="https://resources.altium.com/p/debugging-power-supply-noise-reduce-signal-and-clock-jitter" target="_blank">Altium Jitter Debug Guide</a>.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Period Jitter</div>
+                <div class="v">Variation in single clock period</div>
+            </div>
+            <div class="box">
+                <div class="k">Cycle-to-Cycle</div>
+                <div class="v">Difference between adjacent periods</div>
+            </div>
+            <div class="box">
+                <div class="k">TIE (Phase)</div>
+                <div class="v">Accumulated timing error vs ideal</div>
+            </div>
+        </div>
+
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Technique</th>
+                <th>What It Reveals</th>
+            </tr>
+            <tr>
+                <td><strong>Period Jitter</strong></td>
+                <td>Trigger on rising edge, measure next rising edge. Use histogram for distribution.</td>
+                <td>Random jitter (Gaussian) vs deterministic (spurs). RJ in ps RMS.</td>
+            </tr>
+            <tr>
+                <td><strong>Phase Noise</strong></td>
+                <td>FFT of clock signal or use signal source analyzer. Plot L(f) vs offset frequency.</td>
+                <td>Close-in phase noise from PLL loop BW, far-out from VCO/oscillator.</td>
+            </tr>
+            <tr>
+                <td><strong>Jitter Spectrum</strong></td>
+                <td>Take FFT of TIE trend. Look for periodic components.</td>
+                <td>Peaks indicate deterministic jitter sources (switching supplies, crosstalk).</td>
+            </tr>
+            <tr>
+                <td><strong>PLL Lock Time</strong></td>
+                <td>Monitor VCO control voltage during power-up or frequency change.</td>
+                <td>Lock acquisition time, overshoot, damping factor of loop.</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Power Supply Coupling:</strong> Clock jitter often traces back to power supply noise. Measure jitter while probing VDD - correlate noise spikes with jitter events. Adding local decoupling or LC filtering can dramatically reduce jitter.
+        </div>
+
+        <h4>12. Thermal Throttling & Power Limit Debugging</h4>
+        <p>Modern laptops/phones constantly balance performance vs thermals. CPU/GPU throttling can be thermal, power, or VRM limited. Reference: <a href="https://www.ultrabookreview.com/31385-the-throttlestop-guide/" target="_blank">ThrottleStop Guide</a>, <a href="https://blog.silverpc.hu/2025/10/17/unexplained-cpu-power-limit-throttling-lets-uncover-the-hidden-reasons/" target="_blank">Power Limit Throttling Analysis</a>.</p>
+
+        <table class="table">
+            <tr>
+                <th>Throttle Type</th>
+                <th>Typical Trigger</th>
+                <th>Debugging Approach</th>
+            </tr>
+            <tr>
+                <td><strong>Thermal (TjMax)</strong></td>
+                <td>CPU die temp approaches 100°C</td>
+                <td>Monitor CPU temp sensors, check thermal paste, heatsink contact, fan curves</td>
+            </tr>
+            <tr>
+                <td><strong>Power Limit (PL1/PL2)</strong></td>
+                <td>Sustained power exceeds TDP (PL1) or turbo limit (PL2)</td>
+                <td>Monitor package power, check BIOS settings, verify PL values match design</td>
+            </tr>
+            <tr>
+                <td><strong>VRM Current Limit</strong></td>
+                <td>VRM inductor current exceeds rating</td>
+                <td>Check VRM temps, current sense signals, phase shedding behavior</td>
+            </tr>
+            <tr>
+                <td><strong>VRM Thermal</strong></td>
+                <td>VRM MOSFETs/inductors overheat</td>
+                <td>Thermal camera on VRM, check heatsink attachment, airflow path</td>
+            </tr>
+        </table>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Tools</div>
+                <div class="v">HWiNFO64, ThrottleStop, Intel XTU</div>
+            </div>
+            <div class="box">
+                <div class="k">Key MSR</div>
+                <div class="v mono">0x690 (IA_PERF_LIMIT_REASONS)</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Oscilloscope Role:</strong> While software tools show throttle status, scope is needed to debug root cause - measure VRM switching waveforms, gate drive quality, thermal shutdown signals, PROCHOT# assertion timing.
+        </div>
+
+        <h4>13. Display Interface Debugging (MIPI DSI/eDP)</h4>
+        <p>Display interfaces like MIPI DSI (phones/tablets) and eDP (laptops) use high-speed differential signaling. Reference: <a href="https://www.mipi.org/specifications/dsi" target="_blank">MIPI DSI Specification</a>, <a href="https://www.keysight.com/us/en/product/D9010MCDP/mipi-csi-dsi-protocol-decode-trigger-software-c-phy-d-phy.html" target="_blank">Keysight MIPI Decode</a>.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">MIPI D-PHY 2.0</div>
+                <div class="v">Up to 4.5 Gbps/lane</div>
+            </div>
+            <div class="box">
+                <div class="k">eDP 1.4</div>
+                <div class="v">Up to 8.1 Gbps/lane</div>
+            </div>
+            <div class="box">
+                <div class="k">Lane Count</div>
+                <div class="v">1-4 data lanes + clock</div>
+            </div>
+        </div>
+
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Setup</th>
+                <th>Common Issues</th>
+            </tr>
+            <tr>
+                <td><strong>LP/HS Transitions</strong></td>
+                <td>Capture Low Power to High Speed mode transitions on data lane.</td>
+                <td>Incorrect timing, missing turnaround, LP escape mode failures</td>
+            </tr>
+            <tr>
+                <td><strong>Eye Diagram</strong></td>
+                <td>High-BW scope with D-PHY probe adapter. Overlay data bits for eye.</td>
+                <td>ISI from PCB traces, crosstalk between lanes, impedance mismatch</td>
+            </tr>
+            <tr>
+                <td><strong>Clock Quality</strong></td>
+                <td>Measure continuous clock or gated clock (HS-CLK). Check duty cycle, jitter.</td>
+                <td>Clock spreading into data eye, skew between clock and data lanes</td>
+            </tr>
+            <tr>
+                <td><strong>Power Sequencing</strong></td>
+                <td>Capture RESET, VDD, VDDIO, backlight during panel init.</td>
+                <td>Wrong power-up order, insufficient delay before commands, backlight before video</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Black Screen Debug:</strong> Start with BIST (Built-In Self Test) mode if panel supports it. If BIST works, issue is in DSI signaling. Check lane swap, clock polarity, LP timing, then command sequence.
+        </div>
+
+        <h4>14. WiFi/Bluetooth Coexistence</h4>
+        <p>Both WiFi 2.4GHz and Bluetooth operate in the 2.4 GHz ISM band, creating potential interference. Reference: <a href="https://www.teledynelecroy.com/protocolanalyzer/frontline-x500.aspx" target="_blank">Frontline X500 Coexistence Analyzer</a>, <a href="https://blog.silverpc.hu/2025/10/17/is-your-bluetooth-signal-causing-interference-with-your-wi-fi-connection/" target="_blank">WiFi/BT Interference Guide</a>.</p>
+
+        <table class="table">
+            <tr>
+                <th>Issue</th>
+                <th>Diagnosis Method</th>
+                <th>Typical Solution</th>
+            </tr>
+            <tr>
+                <td><strong>Throughput Drops During BT Audio</strong></td>
+                <td>Spectrum analyzer shows BT hopping through WiFi channel. Capture packet retries.</td>
+                <td>Enable coexistence arbitration, move WiFi to 5GHz, adjust BT TX power</td>
+            </tr>
+            <tr>
+                <td><strong>Audio Glitches During WiFi Transfer</strong></td>
+                <td>BT audio drops correlate with WiFi high-throughput periods.</td>
+                <td>Priority arbitration favoring audio, AFH (Adaptive Frequency Hopping)</td>
+            </tr>
+            <tr>
+                <td><strong>Antenna Isolation</strong></td>
+                <td>Near-field probe around antennas, measure coupling between WiFi and BT.</td>
+                <td>Increase physical separation, adjust antenna placement, add shielding</td>
+            </tr>
+            <tr>
+                <td><strong>Coex Signaling</strong></td>
+                <td>Probe coexistence interface signals (PTA, UART, or GPIO based).</td>
+                <td>Verify timing, check priority levels, ensure both radios respect grants</td>
+            </tr>
+        </table>
+
+        <div class="notice">
+            <strong>Quick Test:</strong> If Bluetooth headphones stutter only when laptop WiFi is active on 2.4GHz, switch to 5GHz WiFi - this completely separates the bands and confirms the coexistence issue.
+        </div>
+
+        <h4>15. Battery Fuel Gauge & Power Path</h4>
+        <p>Smartphones must accurately estimate remaining battery (SoC - State of Charge). Reference: <a href="https://www.batteryuniversity.com/article/bu-903-how-to-measure-state-of-charge/" target="_blank">Battery University SoC Guide</a>, <a href="https://blog.st.com/stc3117-battery-fuel-gauge-optimgauge/" target="_blank">ST Fuel Gauge</a>.</p>
+
+        <table class="table">
+            <tr>
+                <th>Measurement</th>
+                <th>Technique</th>
+                <th>What to Look For</th>
+            </tr>
+            <tr>
+                <td><strong>Coulomb Counting Current</strong></td>
+                <td>Current sense resistor voltage (typ 10-50 mΩ). Integrate over time for charge.</td>
+                <td>Sense resistor accuracy, ADC noise, integration drift over days</td>
+            </tr>
+            <tr>
+                <td><strong>OCV Calibration Points</strong></td>
+                <td>Measure battery voltage during rest periods (>30 min, no load).</td>
+                <td>OCV-SoC lookup table accuracy, temperature compensation</td>
+            </tr>
+            <tr>
+                <td><strong>Charge/Discharge Profiles</strong></td>
+                <td>Log voltage, current, temperature during full cycle.</td>
+                <td>CC→CV transition, full charge detection, capacity vs temperature</td>
+            </tr>
+            <tr>
+                <td><strong>Power Path Switching</strong></td>
+                <td>Probe VBAT, VSYS, charger output during plug/unplug.</td>
+                <td>Smooth handoff, no voltage dips, OVP/UVP response</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Accuracy Issue:</strong> Coulomb counting drifts over time - a 1% current measurement error accumulates. Fuel gauges must periodically recalibrate using OCV at full charge (100%) and near-empty voltage threshold. Check that your design allows these calibration points to be reached.
+        </div>
+
+        <h4>16. EMI Pre-Compliance Testing</h4>
+        <p>Before expensive lab testing for FCC/CE certification, pre-compliance testing catches major issues early. Reference: <a href="https://www.tek.com/en/documents/application-note/emi-pre-compliance-testing-and-troubleshooting-tektronix-emcvu" target="_blank">Tektronix EMI Pre-Compliance</a>, <a href="https://interferencetechnology.com/how-to-build-your-own-emi-troubleshooting-and-pre-compliance-kit/" target="_blank">DIY EMI Test Kit</a>.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">FCC Part 15 Class B</div>
+                <div class="v">Consumer devices (stricter)</div>
+            </div>
+            <div class="box">
+                <div class="k">CISPR 32</div>
+                <div class="v">IT equipment emissions</div>
+            </div>
+            <div class="box">
+                <div class="k">Failure Threshold</div>
+                <div class="v">~5-8 µA of HF current can fail!</div>
+            </div>
+        </div>
+
+        <table class="table">
+            <tr>
+                <th>Test Type</th>
+                <th>Equipment</th>
+                <th>What You Find</th>
+            </tr>
+            <tr>
+                <td><strong>Conducted Emissions</strong></td>
+                <td>LISN + spectrum analyzer. Measure CM/DM noise on power cord (150 kHz - 30 MHz).</td>
+                <td>Switching harmonics, poor input filtering, ground loop currents</td>
+            </tr>
+            <tr>
+                <td><strong>Near-Field H-Probe</strong></td>
+                <td>Magnetic loop probe scanned over PCB. Watch spectrum while moving probe.</td>
+                <td>Hot spots at switching regulators, high-speed clocks, unshielded traces</td>
+            </tr>
+            <tr>
+                <td><strong>Near-Field E-Probe</strong></td>
+                <td>Electric field probe for voltage-related emissions.</td>
+                <td>Unfiltered I/O lines, antenna-like traces, cable shield gaps</td>
+            </tr>
+            <tr>
+                <td><strong>Radiated (Approx)</strong></td>
+                <td>Antenna + spectrum analyzer at 3m. Not calibrated but shows relative levels.</td>
+                <td>Narrowband spurs vs broadband noise, worst-case frequencies</td>
+            </tr>
+        </table>
+
+        <div class="notice">
+            <strong>Cost-Effective Setup:</strong> Tektronix RSA306B USB spectrum analyzer (~$3k) + Tekbox near-field probe kit (~$200) + LISN (~$500) gives you a capable pre-compliance lab. Much cheaper than $2-3k/day at a certified test house!
+        </div>
+
+        <h4>17. Automotive CAN Bus Debugging</h4>
+        <p>CAN (Controller Area Network) runs at 500kbps-1Mbps in most vehicles, with CAN FD reaching 5-8Mbps. Scope debugging is essential for physical layer issues.</p>
+        <div class="kv">
+            <div class="box">
+                <div class="k">CAN High/Low</div>
+                <div class="v">Differential 2.5V ± 1V</div>
+            </div>
+            <div class="box">
+                <div class="k">Termination</div>
+                <div class="v">120Ω at each end</div>
+            </div>
+        </div>
+        <ul>
+            <li><strong>Ringing on edges:</strong> Missing termination resistors or stub lines cause reflections</li>
+            <li><strong>Common-mode issues:</strong> Verify CANH and CANL are symmetric around 2.5V</li>
+            <li><strong>Bit timing:</strong> Use scope to measure actual bit rate vs expected</li>
+            <li><strong>Eye diagram:</strong> Overlay many bits to assess signal integrity margins</li>
+        </ul>
+
+        <!-- Stylized CAN Bus Signal Diagram -->
+        <div class="diagram-container" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; padding: 20px; margin: 15px 0;">
+            <svg viewBox="0 0 500 120" style="width: 100%; max-width: 500px; display: block; margin: 0 auto;">
+                <!-- Grid lines -->
+                <defs>
+                    <pattern id="canGrid" width="25" height="20" patternUnits="userSpaceOnUse">
+                        <path d="M 25 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/>
+                    </pattern>
+                </defs>
+                <rect width="500" height="120" fill="url(#canGrid)"/>
+
+                <!-- Reference line at 2.5V -->
+                <line x1="50" y1="60" x2="450" y2="60" stroke="rgba(255,255,255,0.3)" stroke-dasharray="4,4"/>
+                <text x="45" y="63" fill="rgba(255,255,255,0.5)" font-size="10" text-anchor="end">2.5V</text>
+
+                <!-- CAN High signal -->
+                <polyline points="50,60 75,60 75,30 125,30 125,60 175,60 175,30 200,30 200,60 250,60 250,30 325,30 325,60 375,60 375,30 400,30 400,60 450,60"
+                    fill="none" stroke="#6ee7ff" stroke-width="2"/>
+                <text x="460" y="35" fill="#6ee7ff" font-size="10">CANH</text>
+
+                <!-- CAN Low signal -->
+                <polyline points="50,60 75,60 75,90 125,90 125,60 175,60 175,90 200,90 200,60 250,60 250,90 325,90 325,60 375,60 375,90 400,90 400,60 450,60"
+                    fill="none" stroke="#fb923c" stroke-width="2"/>
+                <text x="460" y="95" fill="#fb923c" font-size="10">CANL</text>
+
+                <!-- Bit labels -->
+                <text x="100" y="110" fill="rgba(255,255,255,0.6)" font-size="9" text-anchor="middle">1</text>
+                <text x="162" y="110" fill="rgba(255,255,255,0.6)" font-size="9" text-anchor="middle">0</text>
+                <text x="212" y="110" fill="rgba(255,255,255,0.6)" font-size="9" text-anchor="middle">1</text>
+                <text x="287" y="110" fill="rgba(255,255,255,0.6)" font-size="9" text-anchor="middle">0</text>
+            </svg>
+            <p class="caption" style="text-align: center; margin-top: 10px; color: rgba(255,255,255,0.6);">CAN Bus differential signaling: Dominant (1) = CANH high, CANL low; Recessive (0) = both at 2.5V</p>
+        </div>
+
+        <h4>18. Ethernet PHY Signal Quality</h4>
+        <p>Gigabit Ethernet uses complex modulation (PAM-5) that requires sophisticated scope analysis. Even 100BASE-TX (100Mbps) needs careful signal quality checks.</p>
+        <ul>
+            <li><strong>TX/RX amplitude:</strong> Check differential amplitude (0.95-1.05V for 100BASE-TX)</li>
+            <li><strong>Rise/fall symmetry:</strong> Asymmetric edges cause baseline wander</li>
+            <li><strong>Jitter:</strong> Use TIE (Time Interval Error) measurement for jitter analysis</li>
+            <li><strong>Link pulse:</strong> FLP (Fast Link Pulse) bursts during auto-negotiation</li>
+        </ul>
+
+        <h4>19. Motor Drive PWM & Current Waveforms</h4>
+        <p>BLDC and stepper motor drivers use high-power PWM that creates challenging measurement conditions.</p>
+        <div class="warn">
+            <strong>Safety:</strong> Motor drive voltages can exceed 400V in industrial systems. Use appropriately rated differential probes and isolated scope inputs. Ground clips can cause shorts!
+        </div>
+        <ul>
+            <li><strong>Gate drive:</strong> Check VGS waveform for proper turn-on/off times and Miller plateau</li>
+            <li><strong>Phase current:</strong> Use current probe on motor leads; expect quasi-sinusoidal waveform</li>
+            <li><strong>Dead time:</strong> Verify dead time between high/low side to prevent shoot-through</li>
+            <li><strong>Back-EMF:</strong> Sensorless BLDC requires measuring back-EMF zero crossings</li>
+        </ul>
+
+        <!-- Stylized PWM Waveform Diagram -->
+        <div class="diagram-container" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; padding: 20px; margin: 15px 0;">
+            <svg viewBox="0 0 500 150" style="width: 100%; max-width: 500px; display: block; margin: 0 auto;">
+                <!-- PWM Signal -->
+                <text x="30" y="25" fill="#6ee7ff" font-size="10">PWM</text>
+                <polyline points="50,40 50,20 100,20 100,40 150,40 150,20 225,20 225,40 275,40 275,20 375,20 375,40 425,40 425,20 475,20"
+                    fill="none" stroke="#6ee7ff" stroke-width="2"/>
+
+                <!-- Current waveform (triangular ripple) -->
+                <text x="30" y="85" fill="#34d399" font-size="10">I<tspan font-size="7" dy="2">L</tspan></text>
+                <polyline points="50,100 100,80 100,100 150,100 150,80 225,60 225,100 275,100 275,80 375,50 375,100 425,100 425,70 475,55"
+                    fill="none" stroke="#34d399" stroke-width="2"/>
+
+                <!-- Duty cycle annotation -->
+                <line x1="150" y1="45" x2="150" y2="55" stroke="rgba(255,255,255,0.5)" stroke-width="1"/>
+                <line x1="225" y1="45" x2="225" y2="55" stroke="rgba(255,255,255,0.5)" stroke-width="1"/>
+                <line x1="150" y1="50" x2="225" y2="50" stroke="rgba(255,255,255,0.5)" stroke-width="1" marker-start="url(#arrowStart)" marker-end="url(#arrowEnd)"/>
+                <text x="187" y="62" fill="rgba(255,255,255,0.6)" font-size="9" text-anchor="middle">Ton</text>
+
+                <!-- Labels -->
+                <text x="262" y="145" fill="rgba(255,255,255,0.5)" font-size="9" text-anchor="middle">Time →</text>
+            </svg>
+            <p class="caption" style="text-align: center; margin-top: 10px; color: rgba(255,255,255,0.6);">PWM duty cycle modulation with inductor current ripple</p>
+        </div>
+
+        <h4>20. Touch Screen Controller Debugging</h4>
+        <p>Capacitive touch controllers use high-frequency sensing (typically 100-300kHz) with very small signals (sub-mV changes).</p>
+        <ul>
+            <li><strong>TX drive:</strong> Check excitation signal amplitude and frequency on TX electrodes</li>
+            <li><strong>RX sensing:</strong> Measure charge transfer waveforms (requires active FET probes)</li>
+            <li><strong>Noise immunity:</strong> Inject noise on display, LCD backlight, and charger to check rejection</li>
+            <li><strong>Water/glove mode:</strong> Verify signal margins with wet finger or gloved touch</li>
+        </ul>
+
+        <h4>21. Audio DAC & ADC Characterization</h4>
+        <p>High-resolution audio (24-bit/192kHz) requires careful analog measurement techniques.</p>
+        <ul>
+            <li><strong>THD+N:</strong> Apply 1kHz sine, measure distortion products and noise floor</li>
+            <li><strong>SNR:</strong> Compare full-scale signal to noise with input grounded</li>
+            <li><strong>Channel crosstalk:</strong> Drive one channel, measure leakage to other</li>
+            <li><strong>DAC reconstruction:</strong> Check output filter response, no ultrasonic artifacts</li>
+        </ul>
+        <div class="notice">
+            <strong>Measurement Tip:</strong> Audio measurements require scopes with low noise floor. A typical 8-bit scope with 2mV/div noise can't measure 120dB SNR signals. Use 12-bit or higher resolution scope, or dedicated audio analyzers (Audio Precision, Prism Sound).
+        </div>
+
+        <h4>22. LED Driver & Dimming Waveforms</h4>
+        <p>LED drivers use either analog dimming (current control) or PWM dimming (duty cycle control), each with different scope signatures.</p>
+        <ul>
+            <li><strong>PWM dimming:</strong> Typical 200Hz-20kHz; check for flicker (visible below 100Hz)</li>
+            <li><strong>Analog dimming:</strong> Verify DC current vs dimming command linearity</li>
+            <li><strong>Inrush current:</strong> LED strings have low resistance when cold; check startup spike</li>
+            <li><strong>Thermal foldback:</strong> Monitor LED current as temperature rises</li>
+        </ul>
+
+        <h4>23. Wireless Charging (Qi) Debugging</h4>
+        <p>Qi wireless charging uses inductive coupling at 87-205kHz with communication via load modulation.</p>
+        <div class="kv">
+            <div class="box">
+                <div class="k">Operating Freq</div>
+                <div class="v">87-205 kHz</div>
+            </div>
+            <div class="box">
+                <div class="k">Power</div>
+                <div class="v">5-15W (BPP/EPP)</div>
+            </div>
+        </div>
+        <ul>
+            <li><strong>Coil current:</strong> Measure TX coil current waveform (should be sinusoidal)</li>
+            <li><strong>Load modulation:</strong> RX communicates by changing its load; visible as amplitude modulation on TX</li>
+            <li><strong>Foreign object detection:</strong> Q factor changes indicate metal between coils</li>
+            <li><strong>Alignment:</strong> Measure coupling efficiency vs coil offset</li>
+        </ul>
+
+        <h4>24. Crystal Oscillator Startup</h4>
+        <p>Crystal oscillator startup can take 1-10ms and is a common source of embedded system boot failures.</p>
+        <ul>
+            <li><strong>Startup time:</strong> Measure time from power-on to stable oscillation</li>
+            <li><strong>Negative resistance:</strong> Oscillation amplitude should grow smoothly, not abruptly</li>
+            <li><strong>Drive level:</strong> Excessive drive can damage crystal; check amplitude doesn't exceed spec</li>
+            <li><strong>Frequency pulling:</strong> Load capacitance affects frequency; verify with frequency counter</li>
+        </ul>
+
+        <!-- Crystal Oscillator Waveform Diagram -->
+        <div class="diagram-container" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; padding: 20px; margin: 15px 0;">
+            <svg viewBox="0 0 500 100" style="width: 100%; max-width: 500px; display: block; margin: 0 auto;">
+                <!-- Startup envelope -->
+                <path d="M 50 50 Q 100 50, 150 45 Q 200 35, 250 30 Q 300 25, 350 23 Q 400 22, 450 22"
+                    fill="none" stroke="rgba(110,231,255,0.3)" stroke-width="1" stroke-dasharray="3,3"/>
+                <path d="M 50 50 Q 100 50, 150 55 Q 200 65, 250 70 Q 300 75, 350 77 Q 400 78, 450 78"
+                    fill="none" stroke="rgba(110,231,255,0.3)" stroke-width="1" stroke-dasharray="3,3"/>
+
+                <!-- Growing oscillation -->
+                <path d="M 50 50
+                    Q 60 48, 70 50 Q 80 52, 90 50
+                    Q 100 46, 110 50 Q 120 54, 130 50
+                    Q 140 44, 150 50 Q 160 56, 170 50
+                    Q 180 42, 190 50 Q 200 58, 210 50
+                    Q 220 40, 230 50 Q 240 60, 250 50
+                    Q 260 38, 270 50 Q 280 62, 290 50
+                    Q 300 35, 310 50 Q 320 65, 330 50
+                    Q 340 32, 350 50 Q 360 68, 370 50
+                    Q 380 30, 390 50 Q 400 70, 410 50
+                    Q 420 28, 430 50 Q 440 72, 450 50"
+                    fill="none" stroke="#6ee7ff" stroke-width="2"/>
+
+                <!-- Time markers -->
+                <text x="100" y="95" fill="rgba(255,255,255,0.5)" font-size="9" text-anchor="middle">1ms</text>
+                <text x="200" y="95" fill="rgba(255,255,255,0.5)" font-size="9" text-anchor="middle">3ms</text>
+                <text x="350" y="95" fill="rgba(255,255,255,0.5)" font-size="9" text-anchor="middle">Stable</text>
+
+                <text x="50" y="15" fill="#6ee7ff" font-size="10">Crystal Startup</text>
+            </svg>
+            <p class="caption" style="text-align: center; margin-top: 10px; color: rgba(255,255,255,0.6);">Crystal oscillator startup: amplitude grows exponentially until limited by circuit nonlinearity</p>
+        </div>
+
+        <h4>25. JTAG/SWD Debug Interface</h4>
+        <p>Debug interfaces are often overlooked during hardware bring-up but cause many "it won't program" issues.</p>
+        <ul>
+            <li><strong>TCK frequency:</strong> Verify clock is within target's spec (often 1-10MHz max)</li>
+            <li><strong>Signal integrity:</strong> Long cables cause reflections; check for clean edges</li>
+            <li><strong>Reset timing:</strong> nRESET must be stable before debug connection</li>
+            <li><strong>SWD vs JTAG:</strong> SWD uses 2 wires (SWCLK, SWDIO) with bidirectional data line</li>
+        </ul>
+
+        <h4>26. HDMI/DisplayPort TMDS Signals</h4>
+        <p>HDMI 2.0 runs at 6Gbps per lane, requiring GHz-class scopes for eye diagram analysis.</p>
+        <ul>
+            <li><strong>Eye diagram:</strong> Use TMDS clock for trigger, overlay thousands of bits</li>
+            <li><strong>Pre-emphasis:</strong> Source may apply pre-emphasis to compensate for cable loss</li>
+            <li><strong>DDC/CEC:</strong> Low-speed control channels (100kHz I²C, CEC at 400bps)</li>
+            <li><strong>HDCP handshake:</strong> Authentication issues often cause blank screens</li>
+        </ul>
+
+        <h4>27. Sensor Fusion & IMU Debugging</h4>
+        <p>Accelerometers, gyroscopes, and magnetometers output data via SPI/I²C that must be correlated with physical motion.</p>
+        <ul>
+            <li><strong>Sample timing:</strong> Check actual sample rate matches configured rate</li>
+            <li><strong>Interrupt latency:</strong> Measure DRDY-to-read time for motion processing</li>
+            <li><strong>Cross-axis:</strong> Single-axis motion should not affect other axes significantly</li>
+            <li><strong>Bias stability:</strong> Long-term capture to measure gyro drift (°/hour)</li>
+        </ul>
     </div>
 
+    <!-- ============================================= -->
+    <!-- SECTION: Interactive Signal Chain Block Diagram -->
+    <!-- ============================================= -->
     <div class="card">
-        <h3>SPICE Netlist</h3>
-        <div id="spice-container"></div>
+        <h3>Scope Signal Chain Visualization</h3>
+        <p>Understanding the internal signal path helps interpret what the scope shows.</p>
+
+        <!-- CSS-styled block diagram -->
+        <div class="signal-chain" style="display: flex; align-items: center; justify-content: center; gap: 5px; flex-wrap: wrap; padding: 20px; background: linear-gradient(180deg, #0d1117 0%, #161b22 100%); border-radius: 8px; margin: 15px 0;">
+
+            <!-- Input stage -->
+            <div class="block" style="background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); border: 2px solid #6ee7ff; border-radius: 8px; padding: 12px 15px; text-align: center; min-width: 80px;">
+                <div style="font-size: 10px; color: rgba(255,255,255,0.6);">INPUT</div>
+                <div style="font-size: 12px; font-weight: bold; color: #6ee7ff;">1MΩ || 15pF</div>
+            </div>
+
+            <div style="color: #6ee7ff; font-size: 18px;">→</div>
+
+            <!-- Attenuator -->
+            <div class="block" style="background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); border: 2px solid #34d399; border-radius: 8px; padding: 12px 15px; text-align: center; min-width: 80px;">
+                <div style="font-size: 10px; color: rgba(255,255,255,0.6);">ATTEN</div>
+                <div style="font-size: 12px; font-weight: bold; color: #34d399;">÷1 to ÷1000</div>
+            </div>
+
+            <div style="color: #34d399; font-size: 18px;">→</div>
+
+            <!-- Preamp -->
+            <div class="block" style="background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); border: 2px solid #fb923c; border-radius: 8px; padding: 12px 15px; text-align: center; min-width: 80px;">
+                <div style="font-size: 10px; color: rgba(255,255,255,0.6);">PREAMP</div>
+                <div style="font-size: 12px; font-weight: bold; color: #fb923c;">Low Noise</div>
+            </div>
+
+            <div style="color: #fb923c; font-size: 18px;">→</div>
+
+            <!-- ADC -->
+            <div class="block" style="background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); border: 2px solid #f472b6; border-radius: 8px; padding: 12px 15px; text-align: center; min-width: 80px;">
+                <div style="font-size: 10px; color: rgba(255,255,255,0.6);">ADC</div>
+                <div style="font-size: 12px; font-weight: bold; color: #f472b6;">8-12 bit</div>
+            </div>
+
+            <div style="color: #f472b6; font-size: 18px;">→</div>
+
+            <!-- Memory -->
+            <div class="block" style="background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); border: 2px solid #a78bfa; border-radius: 8px; padding: 12px 15px; text-align: center; min-width: 80px;">
+                <div style="font-size: 10px; color: rgba(255,255,255,0.6);">MEMORY</div>
+                <div style="font-size: 12px; font-weight: bold; color: #a78bfa;">Deep Acq</div>
+            </div>
+
+            <div style="color: #a78bfa; font-size: 18px;">→</div>
+
+            <!-- Display -->
+            <div class="block" style="background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%); border: 2px solid #fbbf24; border-radius: 8px; padding: 12px 15px; text-align: center; min-width: 80px;">
+                <div style="font-size: 10px; color: rgba(255,255,255,0.6);">DSP</div>
+                <div style="font-size: 12px; font-weight: bold; color: #fbbf24;">Display</div>
+            </div>
+        </div>
+
+        <p class="caption">Oscilloscope signal chain from input to display. Each stage has bandwidth and noise contributions.</p>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- SECTION: Scope Selection Guide -->
+    <!-- ============================================= -->
+    <div class="card">
+        <h3>Oscilloscope Selection Guide</h3>
+        <p>Match your scope to your application. Here's a quick reference:</p>
+
+        <table class="table">
+            <tr>
+                <th>Application</th>
+                <th>Min Bandwidth</th>
+                <th>Sample Rate</th>
+                <th>Channels</th>
+                <th>Special Features</th>
+            </tr>
+            <tr>
+                <td>Audio & Low-Speed Analog</td>
+                <td>20-50 MHz</td>
+                <td>250 MSa/s</td>
+                <td>2</td>
+                <td>FFT, math functions</td>
+            </tr>
+            <tr>
+                <td>Embedded Systems (SPI/I²C/UART)</td>
+                <td>100-200 MHz</td>
+                <td>1 GSa/s</td>
+                <td>4</td>
+                <td>Protocol decode, logic analyzer</td>
+            </tr>
+            <tr>
+                <td>Switch-Mode Power Supply</td>
+                <td>200-500 MHz</td>
+                <td>2-5 GSa/s</td>
+                <td>4</td>
+                <td>High CMRR probes, power analysis</td>
+            </tr>
+            <tr>
+                <td>High-Speed Digital (DDR, PCIe)</td>
+                <td>1-4 GHz</td>
+                <td>10-20 GSa/s</td>
+                <td>4</td>
+                <td>Eye diagram, jitter analysis</td>
+            </tr>
+            <tr>
+                <td>RF & Wireless</td>
+                <td>4+ GHz</td>
+                <td>20+ GSa/s</td>
+                <td>4</td>
+                <td>Spectrum analysis, demodulation</td>
+            </tr>
+        </table>
+
+        <div class="notice">
+            <strong>Budget Recommendation:</strong> For most embedded and analog work, a 100-200MHz, 4-channel scope with protocol decode covers 90% of needs. Invest in good probes—they often matter more than extra bandwidth.
+        </div>
     </div>
 
     <div class="card">
@@ -128,253 +1735,1372 @@
 
 <script>
 (function() {
-    const canvas = document.getElementById('gbw-canvas');
-    const ctx = canvas.getContext('2d');
+    const TEK = AD.TEK_COLORS || {
+        ch1: '#FFD700',
+        ch2: '#00BFFF',
+        ch3: '#FF69B4',
+        ch4: '#32CD32',
+        grid: 'rgba(255, 255, 255, 0.08)',
+        gridBright: 'rgba(255, 255, 255, 0.25)',
+        text: 'rgba(255, 255, 255, 0.8)'
+    };
 
-    function update() {
-        const gbw = AD.num('gbw-gbw') * 1e6;
-        const gain = AD.num('gbw-gain');
-        const phaseMargin = AD.num('gbw-margin');
+    // ========================================
+    // Spec Calculator
+    // ========================================
+    (function() {
+        function updateSpecs() {
+            const bw = AD.num('spec-bw');
+            const sr = AD.num('spec-sr');
+            const mem = AD.num('spec-mem');
 
-        document.getElementById('gbw-gbw-val').textContent = (gbw/1e6) + 'MHz';
-        document.getElementById('gbw-gain-val').textContent = gain;
-        document.getElementById('gbw-margin-val').textContent = phaseMargin + '°';
+            if (!isFinite(bw) || !isFinite(sr) || !isFinite(mem)) return;
 
-        const bw = gbw / gain;
+            const tr = 0.35 / bw;
+            const maxFreq = bw / 5;
+            const spp = sr / bw;
+            const capTime = mem / sr;
 
-        // Settling time depends on phase margin
-        const dampingRatio = phaseMargin / 90; // Rough approximation
-        const wn = 2 * Math.PI * bw;
-        const settlingTime = 7 / (dampingRatio * wn); // To 0.1%
+            document.getElementById('spec-tr').textContent = AD.fmtUnit(tr, 's');
+            document.getElementById('spec-maxfreq').textContent = AD.fmtUnit(maxFreq, 'Hz');
+            document.getElementById('spec-spp').textContent = spp.toFixed(1);
+            document.getElementById('spec-captime').textContent = AD.fmtUnit(capTime, 's');
+        }
 
-        // Overshoot
-        const overshoot = Math.exp(-Math.PI * dampingRatio / Math.sqrt(1 - dampingRatio * dampingRatio));
-        const overshootPct = overshoot * 100;
+        ['spec-bw', 'spec-sr', 'spec-mem'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', updateSpecs);
+        });
+        updateSpecs();
+    })();
 
-        document.getElementById('gbw-bw').textContent = AD.fmtUnit(bw, 'Hz');
-        document.getElementById('gbw-settle').textContent = AD.fmtUnit(settlingTime, 's');
-        document.getElementById('gbw-overshoot').textContent = overshootPct.toFixed(1) + '%';
+    // ========================================
+    // Virtual Oscilloscope
+    // ========================================
+    (function() {
+        const canvas = document.getElementById('scope-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
 
-        plotBode(gbw, gain, bw);
-    }
+        function update() {
+            const signalType = document.getElementById('scope-signal').value;
+            const freq = AD.num('scope-freq');
+            const vpp = AD.num('scope-vpp');
+            const dcOffset = AD.num('scope-dc-offset') || 0;
+            const bw = AD.num('scope-bw');
+            const tdiv = AD.num('scope-tdiv');
+            const vdiv = AD.num('scope-vdiv');
+            const trigPct = AD.num('scope-trig-level');
+            const coupling = document.getElementById('scope-coupling').value;
+            const probe = AD.num('scope-probe');
 
-    function plotBode(gbw, clGain, bw) {
-        const w = canvas.width;
-        const h = canvas.height;
+            document.getElementById('scope-trig-val').textContent = trigPct + '%';
+
+            // Generate signal
+            const N = 1000;
+            const totalTime = tdiv * 10;
+            const dt = totalTime / N;
+
+            let signal = [];
+            const amp = vpp / 2;
+
+            for (let i = 0; i < N; i++) {
+                const t = i * dt;
+                let v = dcOffset;
+
+                switch (signalType) {
+                    case 'sine':
+                        v += amp * Math.sin(2 * Math.PI * freq * t);
+                        break;
+                    case 'square':
+                        v += amp * (((t * freq) % 1) < 0.5 ? 1 : -1);
+                        break;
+                    case 'pulse':
+                        const phase = (t * freq) % 1;
+                        v += amp * (phase < 0.1 ? 1 : -1);
+                        break;
+                    case 'ringing':
+                        const ph = (t * freq) % 1;
+                        v += amp * Math.sin(2 * Math.PI * freq * t);
+                        if (ph < 0.2) {
+                            v += amp * 0.3 * Math.sin(2 * Math.PI * freq * 10 * t) * Math.exp(-ph * 20);
+                        }
+                        break;
+                    case 'noisy':
+                        v += amp * Math.sin(2 * Math.PI * freq * t) + amp * 0.2 * (Math.random() - 0.5);
+                        break;
+                    case 'burst':
+                        const burstPhase = (t * freq / 5) % 1;
+                        if (burstPhase < 0.5) {
+                            v += amp * Math.sin(2 * Math.PI * freq * t);
+                        }
+                        break;
+                }
+                signal.push(v);
+            }
+
+            // Apply bandwidth limiting
+            const scopeTr = 0.35 / bw;
+            const tau = scopeTr / 2.2;
+            if (tau > dt) {
+                signal = AD.rcLowpass(signal, dt, tau);
+            }
+
+            // Apply coupling
+            if (coupling === 'ac') {
+                // Remove DC component
+                const mean = signal.reduce((a, b) => a + b, 0) / signal.length;
+                signal = signal.map(v => v - mean);
+            } else if (coupling === 'gnd') {
+                signal = signal.map(() => 0);
+            }
+
+            // Draw scope display
+            drawScope(signal, vdiv, tdiv, trigPct);
+
+            // Calculate measurements
+            const vppMeas = Math.max(...signal) - Math.min(...signal);
+            const trMeas = Math.max(scopeTr, 0.35 / (freq * 10));
+
+            document.getElementById('scope-freq-meas').textContent = AD.fmtUnit(freq, 'Hz');
+            document.getElementById('scope-vpp-meas').textContent = AD.fmtUnit(vppMeas, 'V');
+            document.getElementById('scope-tr-meas').textContent = AD.fmtUnit(trMeas, 's');
+
+            // Status check
+            const periodsVisible = totalTime * freq;
+            let status = 'OK';
+            let statusColor = 'var(--ok)';
+
+            if (periodsVisible < 1) {
+                status = 'Time/div too fast';
+                statusColor = 'var(--bad)';
+            } else if (periodsVisible > 20) {
+                status = 'Time/div too slow';
+                statusColor = 'var(--bad)';
+            } else if (vpp / vdiv > 8) {
+                status = 'Signal clipping!';
+                statusColor = 'var(--bad)';
+            } else if (vpp / vdiv < 1) {
+                status = 'Increase sensitivity';
+                statusColor = '#fb923c';
+            }
+
+            document.getElementById('scope-status').textContent = status;
+            document.getElementById('scope-status').style.color = statusColor;
+        }
+
+        function drawScope(signal, vdiv, tdiv, trigPct) {
+            const w = canvas.width;
+            const h = canvas.height;
+            const margin = 40;
+
+            // Dark scope background
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, w, h);
+
+            // Draw grid
+            ctx.save();
+            ctx.strokeStyle = 'rgba(100, 100, 120, 0.4)';
+            ctx.lineWidth = 1;
+
+            // Vertical grid (10 divisions)
+            for (let i = 0; i <= 10; i++) {
+                const x = margin + (i / 10) * (w - 2 * margin);
+                ctx.beginPath();
+                ctx.moveTo(x, margin);
+                ctx.lineTo(x, h - margin);
+                ctx.stroke();
+            }
+
+            // Horizontal grid (8 divisions)
+            for (let i = 0; i <= 8; i++) {
+                const y = margin + (i / 8) * (h - 2 * margin);
+                ctx.beginPath();
+                ctx.moveTo(margin, y);
+                ctx.lineTo(w - margin, y);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // Center lines (brighter)
+            ctx.save();
+            ctx.strokeStyle = 'rgba(100, 100, 120, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(margin, h / 2);
+            ctx.lineTo(w - margin, h / 2);
+            ctx.moveTo(w / 2, margin);
+            ctx.lineTo(w / 2, h - margin);
+            ctx.stroke();
+            ctx.restore();
+
+            // Plot signal
+            const plotW = w - 2 * margin;
+            const plotH = h - 2 * margin;
+            const vScale = plotH / (8 * vdiv);
+
+            ctx.save();
+            ctx.strokeStyle = TEK.ch1;
+            ctx.lineWidth = 2;
+            ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
+            ctx.shadowBlur = 3;
+            ctx.beginPath();
+
+            signal.forEach((v, i) => {
+                const x = margin + (i / signal.length) * plotW;
+                let y = h / 2 - v * vScale;
+                y = AD.clamp(y, margin, h - margin);
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+            ctx.restore();
+
+            // Trigger level line
+            const trigY = h / 2 - (trigPct / 100) * (plotH / 2);
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 100, 100, 0.6)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(margin, trigY);
+            ctx.lineTo(margin + 30, trigY);
+            ctx.stroke();
+            // Trigger arrow
+            ctx.fillStyle = 'rgba(255, 100, 100, 0.8)';
+            ctx.beginPath();
+            ctx.moveTo(margin + 35, trigY);
+            ctx.lineTo(margin + 25, trigY - 5);
+            ctx.lineTo(margin + 25, trigY + 5);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Labels and axis annotations
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.font = '11px monospace';
+            ctx.fillText(`${AD.fmt(vdiv)}V/div`, margin + 5, margin + 15);
+            ctx.fillText(`${AD.fmt(tdiv)}s/div`, w - margin - 80, margin + 15);
+
+            // Y-axis label (Voltage)
+            ctx.save();
+            ctx.translate(15, h / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText('Voltage (V)', 0, 0);
+            ctx.restore();
+
+            // X-axis label (Time)
+            ctx.textAlign = 'center';
+            ctx.fillText('Time (s)', w / 2, h - 5);
+
+            // Y-axis scale markers
+            ctx.textAlign = 'right';
+            ctx.font = '9px monospace';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            for (let i = 0; i <= 8; i += 2) {
+                const y = margin + (i / 8) * (h - 2 * margin);
+                const v = (4 - i) * vdiv;
+                ctx.fillText(AD.fmt(v) + 'V', margin - 5, y + 3);
+            }
+            ctx.restore();
+        }
+
+        // Bind events
+        ['scope-signal', 'scope-bw', 'scope-tdiv', 'scope-vdiv', 'scope-coupling', 'scope-probe', 'scope-trig-edge'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', update);
+        });
+        ['scope-freq', 'scope-vpp', 'scope-dc-offset'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', update);
+        });
+        const trigLevel = document.getElementById('scope-trig-level');
+        if (trigLevel) trigLevel.addEventListener('input', update);
+
+        update();
+    })();
+
+    // ========================================
+    // Aliasing Demonstration
+    // ========================================
+    (function() {
+        const canvas = document.getElementById('alias-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        function updateAliasing() {
+            const fSig = AD.num('alias-freq');
+            const fSample = AD.num('alias-sr');
+
+            if (!isFinite(fSig) || !isFinite(fSample)) return;
+
+            const fNyquist = fSample / 2;
+            document.getElementById('alias-nyquist').textContent = AD.fmtUnit(fNyquist, 'Hz');
+
+            // Calculate alias frequency
+            let fAlias = fSig;
+            if (fSig > fNyquist) {
+                // Fold around Nyquist
+                const n = Math.round(fSig / fSample);
+                fAlias = Math.abs(fSig - n * fSample);
+            }
+
+            const aliased = fSig > fNyquist;
+            document.getElementById('alias-result').textContent = aliased
+                ? AD.fmtUnit(fAlias, 'Hz') + ' (ALIASED!)'
+                : 'No aliasing';
+            document.getElementById('alias-result').style.color = aliased ? 'var(--bad)' : 'var(--ok)';
+
+            // Draw
+            const w = canvas.width, h = canvas.height;
+            const margin = 40;
+
+            ctx.fillStyle = '#0d1117';
+            ctx.fillRect(0, 0, w, h);
+
+            // Grid
+            AD.drawGrid(ctx, w, h, 10, 8);
+
+            const plotW = w - 2 * margin;
+            const plotH = h - 2 * margin;
+
+            // Time scale: show 3 periods of the lower frequency
+            const displayFreq = aliased ? Math.min(fAlias, fSig) : fSig;
+            const tTotal = 3 / displayFreq;
+            const N = 500;
+            const nSamples = Math.floor(tTotal * fSample);
+
+            // Draw continuous signal (yellow, dashed)
+            ctx.save();
+            ctx.strokeStyle = TEK.ch1;
+            ctx.lineWidth = 1.5;
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            for (let i = 0; i < N; i++) {
+                const t = (i / N) * tTotal;
+                const v = Math.sin(2 * Math.PI * fSig * t);
+                const x = margin + (i / N) * plotW;
+                const y = h / 2 - v * (plotH / 2 * 0.8);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw sample points (cyan dots)
+            ctx.save();
+            ctx.fillStyle = TEK.ch2;
+            for (let s = 0; s <= nSamples && s < 50; s++) {
+                const t = s / fSample;
+                if (t > tTotal) break;
+                const v = Math.sin(2 * Math.PI * fSig * t);
+                const x = margin + (t / tTotal) * plotW;
+                const y = h / 2 - v * (plotH / 2 * 0.8);
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            ctx.restore();
+
+            // Draw reconstructed signal (green)
+            if (aliased && nSamples >= 2) {
+                ctx.save();
+                ctx.strokeStyle = TEK.ch4;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let i = 0; i < N; i++) {
+                    const t = (i / N) * tTotal;
+                    const v = Math.sin(2 * Math.PI * fAlias * t);
+                    const x = margin + (i / N) * plotW;
+                    const y = h / 2 - v * (plotH / 2 * 0.8);
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // Legend
+            ctx.save();
+            ctx.font = '11px monospace';
+            ctx.fillStyle = TEK.ch1;
+            ctx.fillText('True signal: ' + AD.fmtUnit(fSig, 'Hz'), margin, margin + 15);
+            ctx.fillStyle = TEK.ch2;
+            ctx.fillText('Samples @ ' + AD.fmtUnit(fSample, 'Sa/s'), margin, margin + 30);
+            if (aliased) {
+                ctx.fillStyle = TEK.ch4;
+                ctx.fillText('Alias: ' + AD.fmtUnit(fAlias, 'Hz'), margin, margin + 45);
+            }
+            ctx.restore();
+
+            // Axis labels
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.font = '10px monospace';
+
+            // Y-axis label
+            ctx.save();
+            ctx.translate(12, h / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText('Amplitude (V)', 0, 0);
+            ctx.restore();
+
+            // X-axis label
+            ctx.textAlign = 'center';
+            ctx.fillText('Time (s)', w / 2, h - 5);
+            ctx.restore();
+        }
+
+        ['alias-freq', 'alias-sr'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', updateAliasing);
+        });
+        updateAliasing();
+    })();
+
+    // ========================================
+    // Coupling Demonstration
+    // ========================================
+    (function() {
+        const canvas = document.getElementById('coupling-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        function updateCoupling() {
+            const dcVal = AD.num('coupling-dc');
+            const freq = AD.num('coupling-freq');
+            const amp = AD.num('coupling-amp');
+
+            document.getElementById('coupling-dc-val').textContent = (dcVal >= 0 ? '+' : '') + dcVal.toFixed(1) + 'V';
+
+            const w = canvas.width, h = canvas.height;
+            const margin = 40;
+
+            AD.drawGrid(ctx, w, h, 10, 8);
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = '#0d1117';
+            ctx.fillRect(0, 0, w, h);
+            ctx.restore();
+
+            const plotW = w - 2 * margin;
+            const plotH = h - 2 * margin;
+            const N = 300;
+            const tTotal = 3 / freq;
+
+            // DC coupled signal
+            let dcCoupled = [];
+            let acCoupled = [];
+            for (let i = 0; i < N; i++) {
+                const t = (i / N) * tTotal;
+                const v = dcVal + amp * Math.sin(2 * Math.PI * freq * t);
+                dcCoupled.push(v);
+                acCoupled.push(amp * Math.sin(2 * Math.PI * freq * t)); // AC removes DC
+            }
+
+            const vScale = plotH / 8; // Assuming ±4V range
+
+            // Draw DC coupled (yellow)
+            ctx.save();
+            ctx.strokeStyle = TEK.ch1;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            dcCoupled.forEach((v, i) => {
+                const x = margin + (i / N) * plotW * 0.45;
+                const y = h / 2 - v * vScale;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw AC coupled (cyan)
+            ctx.save();
+            ctx.strokeStyle = TEK.ch2;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            acCoupled.forEach((v, i) => {
+                const x = margin + plotW * 0.55 + (i / N) * plotW * 0.45;
+                const y = h / 2 - v * vScale;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+            ctx.restore();
+
+            // Labels
+            ctx.save();
+            ctx.font = '12px monospace';
+            ctx.fillStyle = TEK.ch1;
+            ctx.fillText('DC Coupling', margin + plotW * 0.15, margin + 15);
+            ctx.fillStyle = TEK.ch2;
+            ctx.fillText('AC Coupling', margin + plotW * 0.7, margin + 15);
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.fillText('0V', margin - 25, h / 2 + 4);
+            ctx.restore();
+
+            // Zero line
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(margin, h / 2);
+            ctx.lineTo(w - margin, h / 2);
+            ctx.stroke();
+            ctx.restore();
+
+            // Axis labels
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.font = '10px monospace';
+            // Y-axis
+            ctx.save();
+            ctx.translate(12, h / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText('Voltage (V)', 0, 0);
+            ctx.restore();
+            // X-axis
+            ctx.textAlign = 'center';
+            ctx.fillText('Time (s)', w / 2, h - 5);
+            ctx.restore();
+        }
+
+        document.getElementById('coupling-dc').addEventListener('input', updateCoupling);
+        ['coupling-freq', 'coupling-amp'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', updateCoupling);
+        });
+        updateCoupling();
+    })();
+
+    // ========================================
+    // Probe Compensation Waveform
+    // ========================================
+    (function() {
+        const canvas = document.getElementById('probe-comp-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const slider = document.getElementById('probe-comp');
+        const label = document.getElementById('probe-comp-label');
+
+        function drawCompWaveform() {
+            const comp = parseFloat(slider.value);
+            const w = canvas.width, h = canvas.height;
+
+            AD.drawGrid(ctx, w, h, 10, 8);
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = '#0d1117';
+            ctx.fillRect(0, 0, w, h);
+            ctx.restore();
+
+            // Generate square wave with compensation effect
+            const N = 500;
+            const periods = 3;
+            let wave = [];
+
+            for (let i = 0; i < N; i++) {
+                const t = i / N * periods;
+                const phase = t % 1;
+                const isHigh = phase < 0.5;
+                let v = isHigh ? 1 : -1;
+
+                // Add compensation effects at edges
+                const edgeDist = isHigh ? phase : (phase - 0.5);
+                if (edgeDist < 0.1) {
+                    if (comp < 40) {
+                        // Under-compensated: slow rise, rounded
+                        const tau = (50 - comp) / 200;
+                        const factor = 1 - Math.exp(-edgeDist / tau);
+                        v = isHigh ? (-1 + 2 * factor) : (1 - 2 * factor);
+                    } else if (comp > 60) {
+                        // Over-compensated: overshoot
+                        const overshoot = (comp - 50) / 100;
+                        const ring = Math.exp(-edgeDist * 30) * Math.sin(edgeDist * 200);
+                        v += overshoot * ring * (isHigh ? 1 : -1);
+                    }
+                }
+
+                wave.push(v);
+            }
+
+            // Plot the wave
+            const margin = 30;
+            const plotW = w - 2 * margin;
+            const plotH = h - 2 * margin;
+
+            ctx.strokeStyle = TEK.ch1;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            wave.forEach((v, i) => {
+                const x = margin + (i / N) * plotW;
+                const y = h / 2 - v * (plotH / 3);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Update label
+            if (comp < 40) {
+                label.textContent = 'Under-compensated';
+                label.style.color = 'var(--bad)';
+            } else if (comp > 60) {
+                label.textContent = 'Over-compensated';
+                label.style.color = 'var(--bad)';
+            } else {
+                label.textContent = 'Properly Compensated';
+                label.style.color = 'var(--ok)';
+            }
+
+            // Axis labels
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.font = '10px monospace';
+            ctx.save();
+            ctx.translate(12, h / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText('Voltage (V)', 0, 0);
+            ctx.restore();
+            ctx.textAlign = 'center';
+            ctx.fillText('Time (1kHz square wave)', w / 2, h - 5);
+            ctx.restore();
+        }
+
+        slider.addEventListener('input', drawCompWaveform);
+        drawCompWaveform();
+    })();
+
+    // ========================================
+    // Probe Circuit SVG - Properly Routed
+    // ========================================
+    (function() {
+        const container = document.getElementById('probe-circuit-svg');
+        if (!container) return;
+
+        // Create probe circuit SVG with proper wire routing (no wires through components)
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '650');
+        svg.setAttribute('height', '220');
+        svg.setAttribute('viewBox', '0 0 650 220');
+        svg.innerHTML = `
+            <style>
+                .wire { stroke: rgba(110, 231, 255, 0.9); stroke-width: 2; fill: none; }
+                .wire-grn { stroke: rgba(52, 211, 153, 0.9); stroke-width: 2; fill: none; }
+                .comp { stroke: rgba(110, 231, 255, 0.9); stroke-width: 2; fill: none; }
+                .comp-grn { stroke: rgba(52, 211, 153, 0.9); stroke-width: 2; fill: none; }
+                .lbl { fill: rgba(110, 231, 255, 0.95); font: 11px ui-sans-serif; }
+                .lbl-grn { fill: rgba(52, 211, 153, 0.95); font: 11px ui-sans-serif; }
+                .val { fill: rgba(255,255,255,0.7); font: 10px ui-sans-serif; }
+                .junction { fill: rgba(110, 231, 255, 0.9); }
+                .junction-grn { fill: rgba(52, 211, 153, 0.9); }
+            </style>
+
+            <!-- Probe section box -->
+            <rect x="35" y="25" width="220" height="160" fill="rgba(110,231,255,0.03)" stroke="rgba(110,231,255,0.3)" stroke-dasharray="5,5" rx="5"/>
+            <text x="105" y="198" class="lbl">Probe (10×)</text>
+
+            <!-- Scope section box -->
+            <rect x="395" y="25" width="170" height="160" fill="rgba(52,211,153,0.03)" stroke="rgba(52,211,153,0.3)" stroke-dasharray="5,5" rx="5"/>
+            <text x="445" y="198" class="lbl-grn">Scope Input</text>
+
+            <!-- Cable section -->
+            <rect x="265" y="55" width="120" height="80" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.15)" stroke-dasharray="3,3" rx="3"/>
+            <text x="290" y="145" class="val">Coax Cable</text>
+
+            <!-- ===== PROBE TIP ===== -->
+            <text x="15" y="70" class="lbl">Tip</text>
+            <line x1="40" y1="65" x2="60" y2="65" class="wire"/>
+
+            <!-- Junction at probe input -->
+            <circle cx="60" cy="65" r="3" class="junction"/>
+
+            <!-- ===== RPROBE (horizontal, top path) ===== -->
+            <!-- Wire from junction to Rprobe -->
+            <line x1="60" y1="65" x2="80" y2="65" class="wire"/>
+            <!-- Rprobe resistor body (zigzag style) -->
+            <polyline points="80,65 85,55 95,75 105,55 115,75 125,55 135,75 140,65" class="comp" fill="none"/>
+            <!-- Wire from Rprobe to output junction -->
+            <line x1="140" y1="65" x2="160" y2="65" class="wire"/>
+            <text x="95" y="48" class="lbl">R_probe</text>
+            <text x="100" y="90" class="val">9MΩ</text>
+
+            <!-- ===== CTRIM (vertical, bottom path - routes AROUND Rprobe) ===== -->
+            <!-- Wire down from input junction -->
+            <line x1="60" y1="65" x2="60" y2="130" class="wire"/>
+            <!-- Ctrim capacitor (two plates) -->
+            <line x1="52" y1="130" x2="68" y2="130" class="comp" stroke-width="3"/>
+            <line x1="52" y1="140" x2="68" y2="140" class="comp" stroke-width="3"/>
+            <!-- Variable arrow for trimmer -->
+            <line x1="45" y1="125" x2="55" y2="145" class="comp" stroke-width="1.5"/>
+            <polygon points="55,145 48,143 51,138" fill="rgba(110,231,255,0.9)"/>
+            <!-- Wire from Ctrim down to ground bus -->
+            <line x1="60" y1="140" x2="60" y2="165" class="wire"/>
+            <text x="70" y="140" class="lbl">C_trim</text>
+            <text x="70" y="152" class="val">10-30pF</text>
+
+            <!-- Wire from Ctrim ground to output ground (horizontal bus) -->
+            <line x1="60" y1="165" x2="160" y2="165" class="wire"/>
+
+            <!-- Wire up from ground bus to output junction -->
+            <line x1="160" y1="165" x2="160" y2="130" class="wire"/>
+
+            <!-- ===== OUTPUT JUNCTION ===== -->
+            <circle cx="160" cy="65" r="3" class="junction"/>
+
+            <!-- ===== PROBE OUTPUT TO CABLE ===== -->
+            <line x1="160" y1="65" x2="280" y2="65" class="wire"/>
+
+            <!-- ===== CABLE CAPACITANCE ===== -->
+            <!-- Junction in cable -->
+            <circle cx="320" cy="65" r="3" fill="rgba(255,255,255,0.5)"/>
+            <line x1="280" y1="65" x2="320" y2="65" class="wire" stroke="rgba(255,255,255,0.6)"/>
+            <!-- Ccable down -->
+            <line x1="320" y1="65" x2="320" y2="95" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+            <line x1="312" y1="95" x2="328" y2="95" stroke="rgba(255,255,255,0.8)" stroke-width="3"/>
+            <line x1="312" y1="105" x2="328" y2="105" stroke="rgba(255,255,255,0.8)" stroke-width="3"/>
+            <line x1="320" y1="105" x2="320" y2="125" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+            <text x="332" y="100" class="val">C_cable</text>
+            <text x="332" y="112" class="val">~100pF</text>
+            <!-- Cable ground -->
+            <line x1="315" y1="125" x2="325" y2="125" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+            <line x1="317" y1="129" x2="323" y2="129" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+            <line x1="319" y1="133" x2="321" y2="133" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+
+            <!-- Cable to scope -->
+            <line x1="320" y1="65" x2="380" y2="65" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+            <line x1="380" y1="65" x2="420" y2="65" class="wire-grn"/>
+
+            <!-- ===== SCOPE INPUT JUNCTION ===== -->
+            <circle cx="420" cy="65" r="3" class="junction-grn"/>
+
+            <!-- ===== RSCOPE (left branch, down) ===== -->
+            <line x1="420" y1="65" x2="420" y2="80" class="wire-grn"/>
+            <!-- Rscope resistor (zigzag vertical) -->
+            <polyline points="420,80 410,85 430,95 410,105 430,115 410,125 430,135 420,140" class="comp-grn" fill="none"/>
+            <line x1="420" y1="140" x2="420" y2="160" class="wire-grn"/>
+            <text x="435" y="115" class="lbl-grn">R_scope</text>
+            <text x="435" y="127" class="val">1MΩ</text>
+
+            <!-- ===== CSCOPE (right branch, down) ===== -->
+            <line x1="420" y1="65" x2="500" y2="65" class="wire-grn"/>
+            <circle cx="500" cy="65" r="3" class="junction-grn"/>
+            <line x1="500" y1="65" x2="500" y2="95" class="wire-grn"/>
+            <!-- Cscope capacitor -->
+            <line x1="492" y1="95" x2="508" y2="95" class="comp-grn" stroke-width="3"/>
+            <line x1="492" y1="105" x2="508" y2="105" class="comp-grn" stroke-width="3"/>
+            <line x1="500" y1="105" x2="500" y2="160" class="wire-grn"/>
+            <text x="512" y="100" class="lbl-grn">C_scope</text>
+            <text x="512" y="112" class="val">~15pF</text>
+
+            <!-- Scope ground bus -->
+            <line x1="420" y1="160" x2="500" y2="160" class="wire-grn"/>
+
+            <!-- Ground symbols for scope -->
+            <line x1="455" y1="160" x2="465" y2="160" class="comp-grn" stroke-width="2"/>
+            <line x1="457" y1="164" x2="463" y2="164" stroke="rgba(52,211,153,0.8)" stroke-width="1.5"/>
+            <line x1="459" y1="168" x2="461" y2="168" stroke="rgba(52,211,153,0.6)" stroke-width="1"/>
+
+            <!-- Probe ground symbol -->
+            <line x1="105" y1="165" x2="115" y2="165" class="comp" stroke-width="2"/>
+            <line x1="107" y1="169" x2="113" y2="169" stroke="rgba(110,231,255,0.8)" stroke-width="1.5"/>
+            <line x1="109" y1="173" x2="111" y2="173" stroke="rgba(110,231,255,0.6)" stroke-width="1"/>
+
+            <!-- Annotations showing RC matching -->
+            <text x="85" y="178" fill="rgba(251,191,36,0.8)" style="font: italic 9px ui-sans-serif;">R₁C₁ = R₂C₂</text>
+        `;
+        container.appendChild(svg);
+    })();
+
+    // ========================================
+    // Rise Time Calculator
+    // ========================================
+    (function() {
+        const canvas = document.getElementById('rt-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        function updateRiseTime() {
+            const bw = AD.num('rt-bw');
+            const trMeas = AD.num('rt-meas');
+
+            if (!isFinite(bw) || !isFinite(trMeas)) return;
+
+            const trScope = 0.35 / bw;
+            let trActual = 0;
+
+            if (trMeas > trScope) {
+                trActual = Math.sqrt(trMeas * trMeas - trScope * trScope);
+            } else {
+                trActual = trMeas * 0.9;
+            }
+
+            document.getElementById('rt-actual').textContent = AD.fmtUnit(trActual, 's');
+
+            const w = canvas.width, h = canvas.height;
+            const margin = 40;
+
+            AD.drawGrid(ctx, w, h, 10, 8);
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = '#0d1117';
+            ctx.fillRect(0, 0, w, h);
+            ctx.restore();
+
+            const tTotal = trMeas * 5;
+            const N = 300;
+            const plotW = w - 2 * margin;
+            const plotH = h - 2 * margin;
+
+            // Actual signal (fast edge) - cyan
+            ctx.save();
+            ctx.strokeStyle = TEK.ch2;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let i = 0; i < N; i++) {
+                const t = (i / N) * tTotal;
+                let v = 0;
+                if (t < tTotal * 0.2) v = 0;
+                else if (t < tTotal * 0.2 + trActual) v = (t - tTotal * 0.2) / trActual;
+                else v = 1;
+
+                const x = margin + (i / N) * plotW;
+                const y = h - margin - v * plotH * 0.8;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            // Measured (scope-limited) - green
+            const tau = trMeas / 2.2;
+            ctx.save();
+            ctx.strokeStyle = TEK.ch4;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let i = 0; i < N; i++) {
+                const t = (i / N) * tTotal;
+                let v = 0;
+                if (t < tTotal * 0.2) v = 0;
+                else {
+                    const dt = t - tTotal * 0.2;
+                    v = 1 - Math.exp(-dt / tau);
+                }
+
+                const x = margin + (i / N) * plotW;
+                const y = h - margin - v * plotH * 0.8;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            // 10% and 90% lines
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.setLineDash([3, 3]);
+            ctx.lineWidth = 1;
+            [0.1, 0.9].forEach(v => {
+                const y = h - margin - v * plotH * 0.8;
+                ctx.beginPath();
+                ctx.moveTo(margin, y);
+                ctx.lineTo(w - margin, y);
+                ctx.stroke();
+            });
+            ctx.setLineDash([]);
+            ctx.restore();
+
+            // Labels
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.font = '11px monospace';
+            ctx.fillText('90%', margin - 30, h - margin - 0.9 * plotH * 0.8 + 4);
+            ctx.fillText('10%', margin - 30, h - margin - 0.1 * plotH * 0.8 + 4);
+            ctx.fillStyle = TEK.ch2;
+            ctx.fillText('Actual: ' + AD.fmtUnit(trActual, 's'), margin + 10, margin + 15);
+            ctx.fillStyle = TEK.ch4;
+            ctx.fillText('Measured: ' + AD.fmtUnit(trMeas, 's'), margin + 10, margin + 30);
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.fillText('Scope tr: ' + AD.fmtUnit(trScope, 's'), margin + 10, margin + 45);
+            ctx.restore();
+
+            // Axis labels
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.font = '10px monospace';
+            ctx.save();
+            ctx.translate(12, h / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText('Normalized Amplitude', 0, 0);
+            ctx.restore();
+            ctx.textAlign = 'center';
+            ctx.fillText('Time (s)', w / 2, h - 5);
+            ctx.restore();
+        }
+
+        ['rt-bw', 'rt-meas'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', updateRiseTime);
+        });
+        updateRiseTime();
+    })();
+
+    // ========================================
+    // Rise Time Error Canvas
+    // ========================================
+    (function() {
+        const canvas = document.getElementById('rt-error-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        const w = canvas.width, h = canvas.height;
+        const margin = 50;
 
         AD.drawGrid(ctx, w, h, 10, 8);
-
-        const N = 500;
-        const fMin = 1;
-        const fMax = gbw * 10;
-
-        const olGain = [];
-        const clGainArr = [];
-        const freqs = [];
-
-        for (let i = 0; i < N; i++) {
-            const f = fMin * Math.pow(fMax/fMin, i/N);
-            freqs.push(f);
-
-            // Open loop gain (single pole approximation)
-            const aol = gbw / f;
-            olGain.push(20 * Math.log10(Math.max(0.01, aol)));
-
-            // Closed loop gain
-            const acl = clGain / Math.sqrt(1 + Math.pow(f / bw, 2));
-            clGainArr.push(20 * Math.log10(Math.max(0.01, acl)));
-        }
-
-        const maxGain = 80;
-        const minGain = -20;
-
-        // Plot open-loop
         ctx.save();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        olGain.forEach((g, i) => {
-            const x = (i / N) * w;
-            const y = h * 0.1 + ((maxGain - g) / (maxGain - minGain)) * h * 0.8;
-            const yClamp = Math.max(h * 0.1, Math.min(h * 0.9, y));
-            if (i === 0) ctx.moveTo(x, yClamp);
-            else ctx.lineTo(x, yClamp);
-        });
-        ctx.stroke();
-        ctx.setLineDash([]);
+        ctx.globalCompositeOperation = 'destination-over';
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
         ctx.restore();
 
-        // Plot closed-loop
+        const plotW = w - 2 * margin;
+        const plotH = h - 2 * margin;
+
+        // Plot error curve
         ctx.save();
-        ctx.strokeStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.strokeStyle = TEK.ch1;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        clGainArr.forEach((g, i) => {
-            const x = (i / N) * w;
-            const y = h * 0.1 + ((maxGain - g) / (maxGain - minGain)) * h * 0.8;
-            const yClamp = Math.max(h * 0.1, Math.min(h * 0.9, y));
-            if (i === 0) ctx.moveTo(x, yClamp);
-            else ctx.lineTo(x, yClamp);
+
+        for (let i = 0; i < 100; i++) {
+            const bwRatio = 1 + i * 0.2; // 1× to 20×
+            // Error = sqrt(1 + (1/bwRatio)^2) - 1
+            const error = (Math.sqrt(1 + 1 / (bwRatio * bwRatio)) - 1) * 100;
+
+            const x = margin + (bwRatio - 1) / 19 * plotW;
+            const y = h - margin - (error / 50) * plotH;
+
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // Key points
+        ctx.save();
+        ctx.fillStyle = TEK.ch4;
+        [[3, 5.4], [5, 2], [10, 0.5]].forEach(([ratio, err]) => {
+            const x = margin + (ratio - 1) / 19 * plotW;
+            const y = h - margin - (err / 50) * plotH;
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, 2 * Math.PI);
+            ctx.fill();
         });
-        ctx.stroke();
         ctx.restore();
 
-        // Mark bandwidth
-        const xBw = Math.log10(bw/fMin) / Math.log10(fMax/fMin) * w;
+        // Axis labels
         ctx.save();
-        ctx.strokeStyle = 'rgba(52, 211, 153, 0.8)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '11px monospace';
+        ctx.fillText('Scope BW / Signal BW', w / 2 - 60, h - 5);
+        ctx.save();
+        ctx.translate(12, h / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText('Rise Time Error %', -40, 0);
+        ctx.restore();
+
+        // Reference lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
         ctx.setLineDash([3, 3]);
+        // 5× line
+        const x5 = margin + (5 - 1) / 19 * plotW;
         ctx.beginPath();
-        ctx.moveTo(xBw, 0);
-        ctx.lineTo(xBw, h);
+        ctx.moveTo(x5, margin);
+        ctx.lineTo(x5, h - margin);
         ctx.stroke();
-        ctx.restore();
+        ctx.fillText('5×', x5 - 5, h - margin + 15);
+        ctx.fillText('<2% error', x5 + 5, margin + 30);
 
-        // Labels
-        ctx.save();
-        ctx.font = '12px ui-sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.fillText('Open-loop gain', w - 130, 20);
-        ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
-        ctx.fillText('Closed-loop gain', w - 130, 35);
-        ctx.fillStyle = 'rgba(52, 211, 153, 0.8)';
-        ctx.fillText('BW = ' + AD.fmtUnit(bw, 'Hz'), xBw + 5, h - 10);
         ctx.restore();
+    })();
+
+    // ========================================
+    // Ground Lead Ringing
+    // ========================================
+    (function() {
+        const canvas = document.getElementById('gnd-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        function updateGndLead() {
+            const leadLen = AD.num('gnd-lead');
+            const edgeTime = AD.num('gnd-edge');
+
+            const L = leadLen * 25e-9;
+            const C = 10e-12;
+
+            let fRes = 0;
+            if (L > 0) {
+                fRes = 1 / (2 * Math.PI * Math.sqrt(L * C));
+            }
+
+            document.getElementById('gnd-fres').textContent = fRes > 0 ? AD.fmtUnit(fRes, 'Hz') : 'N/A';
+
+            const w = canvas.width, h = canvas.height;
+            const margin = 30;
+
+            AD.drawGrid(ctx, w, h, 10, 8);
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = '#0d1117';
+            ctx.fillRect(0, 0, w, h);
+            ctx.restore();
+
+            const N = 400;
+            const tTotal = edgeTime * 20;
+            const plotW = w - 2 * margin;
+            const plotH = h - 2 * margin;
+
+            const Q = leadLen > 0 ? 5 : 0;
+
+            // Color based on lead length
+            let color = TEK.ch4; // green = good
+            if (leadLen >= 3) color = '#fb923c'; // orange
+            if (leadLen >= 6) color = '#ef4444'; // red
+
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            for (let i = 0; i < N; i++) {
+                const t = (i / N) * tTotal;
+                let v = 0;
+
+                if (t < tTotal * 0.1) {
+                    v = 0;
+                } else {
+                    const dt = t - tTotal * 0.1;
+                    v = 1;
+                    if (fRes > 0 && leadLen > 0) {
+                        const damping = 1 / (Q * 2);
+                        const ringFreq = 2 * Math.PI * fRes;
+                        v += 0.5 * Math.exp(-damping * ringFreq * dt) * Math.sin(ringFreq * dt);
+                    }
+                }
+
+                const x = margin + (i / N) * plotW;
+                const y = h - margin - (v - 0.3) * plotH * 0.6;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            // Ideal (dashed cyan)
+            ctx.save();
+            ctx.strokeStyle = TEK.ch2;
+            ctx.globalAlpha = 0.5;
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i < N; i++) {
+                const t = (i / N) * tTotal;
+                const v = t < tTotal * 0.1 ? 0 : 1;
+                const x = margin + (i / N) * plotW;
+                const y = h - margin - (v - 0.3) * plotH * 0.6;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            // Axis labels
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.font = '10px monospace';
+            ctx.save();
+            ctx.translate(12, h / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText('Voltage (V)', 0, 0);
+            ctx.restore();
+            ctx.textAlign = 'center';
+            ctx.fillText('Time (s)', w / 2, h - 5);
+            ctx.restore();
+        }
+
+        document.getElementById('gnd-lead').addEventListener('change', updateGndLead);
+        const gndEdge = document.getElementById('gnd-edge');
+        if (gndEdge) gndEdge.addEventListener('input', updateGndLead);
+        updateGndLead();
+    })();
+
+    // ========================================
+    // Trigger Position Demo
+    // ========================================
+    (function() {
+        const canvas = document.getElementById('trigger-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        function updateTrigger() {
+            const trigPos = AD.num('trig-pos');
+            const holdoff = AD.num('trig-holdoff');
+
+            document.getElementById('trig-pos-val').textContent = trigPos + '%';
+            document.getElementById('trig-holdoff-val').textContent = holdoff + '%';
+
+            const w = canvas.width, h = canvas.height;
+            const margin = 30;
+
+            AD.drawGrid(ctx, w, h, 10, 8);
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = '#0d1117';
+            ctx.fillRect(0, 0, w, h);
+            ctx.restore();
+
+            const plotW = w - 2 * margin;
+            const plotH = h - 2 * margin;
+
+            // Draw acquisition window
+            const trigX = margin + (trigPos / 100) * plotW;
+
+            // Pre-trigger region (darker)
+            ctx.fillStyle = 'rgba(255, 200, 0, 0.1)';
+            ctx.fillRect(margin, margin, trigX - margin, plotH);
+
+            // Post-trigger region
+            ctx.fillStyle = 'rgba(0, 255, 128, 0.1)';
+            ctx.fillRect(trigX, margin, w - margin - trigX, plotH);
+
+            // Trigger point line
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 100, 100, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(trigX, margin);
+            ctx.lineTo(trigX, h - margin);
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw signal (bursts)
+            ctx.save();
+            ctx.strokeStyle = TEK.ch1;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const N = 300;
+            for (let i = 0; i < N; i++) {
+                const x = margin + (i / N) * plotW;
+                const phase = ((i / N) * 8) % 1;
+                let v = 0;
+                if (phase < 0.4) {
+                    v = Math.sin(phase * 10 * Math.PI);
+                }
+                const y = h / 2 - v * (plotH / 3);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            // Labels
+            ctx.save();
+            ctx.font = '11px monospace';
+            ctx.fillStyle = TEK.ch1;
+            ctx.fillText('Pre-trigger', margin + 10, margin + 15);
+            ctx.fillStyle = TEK.ch4;
+            ctx.fillText('Post-trigger', trigX + 10, margin + 15);
+            ctx.fillStyle = 'rgba(255,100,100,0.9)';
+            ctx.fillText('T', trigX - 4, h - margin + 15);
+            ctx.restore();
+
+            // Axis labels
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.font = '10px monospace';
+            ctx.save();
+            ctx.translate(12, h / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText('Voltage (V)', 0, 0);
+            ctx.restore();
+            ctx.textAlign = 'center';
+            ctx.fillText('Time (samples)', w / 2, h - 5);
+            ctx.restore();
+        }
+
+        document.getElementById('trig-pos').addEventListener('input', updateTrigger);
+        document.getElementById('trig-holdoff').addEventListener('input', updateTrigger);
+        updateTrigger();
+    })();
+
+    // ========================================
+    // Cursor Demo
+    // ========================================
+    (function() {
+        const canvas = document.getElementById('cursor-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        const tdiv = 1e-3; // 1ms/div
+        const vdiv = 0.5; // 500mV/div
+
+        function updateCursors() {
+            const x1 = AD.num('cursor-x1');
+            const x2 = AD.num('cursor-x2');
+            const y1 = AD.num('cursor-y1');
+            const y2 = AD.num('cursor-y2');
+
+            const w = canvas.width, h = canvas.height;
+            const margin = 40;
+
+            AD.drawGrid(ctx, w, h, 10, 8);
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = '#0d1117';
+            ctx.fillRect(0, 0, w, h);
+            ctx.restore();
+
+            const plotW = w - 2 * margin;
+            const plotH = h - 2 * margin;
+
+            // Draw signal
+            const N = 300;
+            const freq = 500; // 500Hz
+            ctx.save();
+            ctx.strokeStyle = TEK.ch1;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let i = 0; i < N; i++) {
+                const t = (i / N) * 10 * tdiv;
+                const v = 1.5 * Math.sin(2 * Math.PI * freq * t);
+                const x = margin + (i / N) * plotW;
+                const y = h / 2 - v * (plotH / (8 * vdiv));
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw cursors
+            const cx1 = margin + (x1 / 100) * plotW;
+            const cx2 = margin + (x2 / 100) * plotW;
+            const cy1 = margin + ((100 - y1) / 100) * plotH;
+            const cy2 = margin + ((100 - y2) / 100) * plotH;
+
+            // X cursors (vertical lines)
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 100, 100, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 3]);
+            ctx.beginPath();
+            ctx.moveTo(cx1, margin);
+            ctx.lineTo(cx1, h - margin);
+            ctx.moveTo(cx2, margin);
+            ctx.lineTo(cx2, h - margin);
+            ctx.stroke();
+            ctx.restore();
+
+            // Y cursors (horizontal lines)
+            ctx.save();
+            ctx.strokeStyle = 'rgba(100, 200, 255, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 3]);
+            ctx.beginPath();
+            ctx.moveTo(margin, cy1);
+            ctx.lineTo(w - margin, cy1);
+            ctx.moveTo(margin, cy2);
+            ctx.lineTo(w - margin, cy2);
+            ctx.stroke();
+            ctx.restore();
+
+            // Calculate measurements
+            const dt = Math.abs(x2 - x1) / 100 * 10 * tdiv;
+            const dv = Math.abs(y2 - y1) / 100 * 8 * vdiv;
+            const freq_meas = dt > 0 ? 1 / dt : Infinity;
+            const slope = dt > 0 ? dv / dt : Infinity;
+
+            document.getElementById('cursor-dt').textContent = AD.fmtUnit(dt, 's');
+            document.getElementById('cursor-freq').textContent = isFinite(freq_meas) ? AD.fmtUnit(freq_meas, 'Hz') : '—';
+            document.getElementById('cursor-dv').textContent = AD.fmtUnit(dv, 'V');
+            document.getElementById('cursor-slope').textContent = isFinite(slope) ? AD.fmtUnit(slope, 'V/s') : '—';
+
+            // Labels on cursors
+            ctx.save();
+            ctx.font = '10px monospace';
+            ctx.fillStyle = 'rgba(255,100,100,0.9)';
+            ctx.fillText('X1', cx1 - 8, h - margin + 12);
+            ctx.fillText('X2', cx2 - 8, h - margin + 12);
+            ctx.fillStyle = 'rgba(100,200,255,0.9)';
+            ctx.fillText('Y1', w - margin + 5, cy1 + 3);
+            ctx.fillText('Y2', w - margin + 5, cy2 + 3);
+            ctx.restore();
+
+            // Axis labels
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.font = '10px monospace';
+            ctx.save();
+            ctx.translate(12, h / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText('Voltage (V)', 0, 0);
+            ctx.restore();
+            ctx.textAlign = 'center';
+            ctx.fillText('Time (s)', w / 2, h - 5);
+            ctx.restore();
+        }
+
+        ['cursor-x1', 'cursor-x2', 'cursor-y1', 'cursor-y2'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', updateCursors);
+        });
+        updateCursors();
+    })();
+
+    // Checklist
+    if (typeof ChecklistWidget !== 'undefined') {
+        new ChecklistWidget('checklist-container', {
+            lessonKey: 'm4l1',
+            items: [
+                'Know BW rule: scope BW ≥ 5× signal freq',
+                'Understand rise time vs bandwidth: tr = 0.35/BW',
+                'Can calculate actual rise time from measured',
+                'Understand Nyquist theorem and aliasing',
+                'Know DC vs AC coupling and when to use each',
+                'Understand 10× probe compensation circuit',
+                'Can recognize under/over-compensated waveforms',
+                'Understand ground lead inductance effects',
+                'Know trigger types and modes',
+                'Can use cursors for manual measurements',
+                'Know probe bandwidth must match scope bandwidth',
+                'Understand vertical resolution (bits) vs ENOB'
+            ]
+        });
     }
 
-    ['gbw-gbw', 'gbw-gain', 'gbw-margin'].forEach(id => {
-        document.getElementById(id).addEventListener('input', update);
-    });
-
-    update();
-
-    new SpiceNetlistWidget('spice-container', {
-        title: 'Step Response vs Phase Margin',
-        netlist: `* Comparing phase margin effects
-
-.include opamp.sub
-
-* Well-damped amplifier (60° PM)
-X1 inP fb1 out1 0 vcc vee OPAMP
-R1 out1 fb1 9k
-R2 fb1 0 1k
-C1 out1 fb1 10p  ; Compensation
-
-* Under-damped amplifier (30° PM)
-X2 inP fb2 out2 0 vcc vee OPAMP
-R3 out2 fb2 9k
-R4 fb2 0 1k
-* No compensation cap
-
-VCC vcc 0 DC 5
-VEE vee 0 DC -5
-
-* Step input
-VIN inP 0 PULSE(0 0.1 1u 1n 1n 100u 200u)
-
-.TRAN 0.1u 50u
-
-.PROBE V(out1) V(out2) V(inP)
-.END
-
-* Compare settling and overshoot`
-    });
-
-    new ChecklistWidget('checklist-container', {
-        lessonKey: 'm9l1',
-        items: [
-            'Know GBW product is constant',
-            'Calculate bandwidth from GBW/gain',
-            'Understand phase margin affects settling',
-            'Know noise vs power trade-off',
-            'Recognize the design triangle'
-        ]
-    });
-
-    // Exercises - Design Trade-offs problems
-    const container = document.getElementById('exercise-container');
-    container.innerHTML = '<h4>Design Trade-offs Problems (6 exercises)</h4>';
-
-    const exercises = [
-        {
-            id: 'H1-1-1',
+    // Exercise
+    if (typeof ExerciseWidget !== 'undefined') {
+        new ExerciseWidget('exercise-container', {
+            id: 'C1-1',
             type: 'numeric',
-            question: 'An op-amp has GBW = 50MHz. At gain = 20, what is the bandwidth?',
-            hint: 'BW = GBW / Gain',
-            expected: 2.5,
-            tolerance: 0.01,
-            unit: 'MHz',
-            solution: 'BW = 50MHz / 20 = 2.5MHz',
-            explanation: 'The gain-bandwidth product is constant. Higher gain means lower bandwidth.'
-        },
-        {
-            id: 'H1-1-2',
-            type: 'choice',
-            question: 'You need both low noise AND high speed. Which trade-off is most fundamental?',
-            choices: [
-                { text: 'Noise vs power consumption', correct: true },
-                { text: 'Speed vs cost', correct: false },
-                { text: 'Size vs weight', correct: false },
-                { text: 'Accuracy vs resolution', correct: false }
-            ],
-            solution: 'Lower noise requires larger transistors and more current. Speed also needs more current. Both demand more power.',
-            explanation: 'The noise-power-bandwidth triangle is fundamental to analog design.'
-        },
-        {
-            id: 'H1-1-3',
-            type: 'numeric',
-            question: 'A resistor thermal noise is 4nV/√Hz at 25°C. At 125°C, what is the new noise?',
-            hint: 'Vn = √(4kTR). Temperature in Kelvin: T(K) = T(C) + 273',
-            expected: 4.6,
-            tolerance: 0.2,
-            unit: 'nV/√Hz',
-            solution: 'Ratio = √(398/298) = √1.336 = 1.16. New noise = 4 × 1.16 = 4.6 nV/√Hz',
-            explanation: 'Noise increases with temperature, but only as √T (not linearly).'
-        },
-        {
-            id: 'H1-1-4',
-            type: 'numeric',
-            question: 'Reducing input capacitance from 10pF to 2pF increases noise by what factor?',
-            hint: 'In a TIA, noise ∝ √(1 + Cpd/Cf). Assume Cf stays constant.',
-            expected: 2.2,
-            tolerance: 0.2,
-            unit: '×',
-            solution: 'If we reduce total capacitance 5×, we typically reduce Cf proportionally. Noise scales roughly as √Cpd.',
-            explanation: 'Smaller devices are faster but noisier - a fundamental trade-off.'
-        },
-        {
-            id: 'H1-1-5',
-            type: 'choice',
-            question: 'To improve a differential amplifier\'s CMRR from 60dB to 80dB, what is most important?',
-            choices: [
-                { text: 'Higher gain transistors', correct: false },
-                { text: 'Better resistor matching', correct: true },
-                { text: 'Lower supply voltage', correct: false },
-                { text: 'Higher frequency operation', correct: false }
-            ],
-            solution: 'CMRR depends critically on component matching. 0.1% resistors give ~60dB CMRR, 0.01% gives ~80dB.',
-            explanation: 'Matching is often the limiting factor in precision circuits.'
-        },
-        {
-            id: 'H1-1-6',
-            type: 'numeric',
-            question: 'Doubling bias current in a BJT stage improves gm by 2×. By how much does input-referred noise voltage decrease?',
-            hint: 'Voltage noise ∝ 1/√gm for shot noise limited case',
-            expected: 1.41,
+            question: 'A 100MHz scope measures a pulse with 5ns rise time. The scope\'s own rise time is 3.5ns. What is the actual signal rise time?',
+            hint: 'tr_actual² = tr_measured² - tr_scope²',
+            expected: 3.6,
             tolerance: 0.1,
-            unit: '×',
-            solution: 'Vn ∝ 1/√gm. If gm doubles, Vn decreases by √2 = 1.41× (≈3dB improvement)',
-            explanation: 'This is why low-noise amps run high bias current.'
-        }
-    ];
-
-    exercises.forEach((ex, i) => {
-        const div = document.createElement('div');
-        div.id = `exercise-m9l1-${i}`;
-        div.style.marginBottom = '15px';
-        container.appendChild(div);
-        new ExerciseWidget(`exercise-m9l1-${i}`, ex);
-    });
+            unit: 'ns',
+            solution: 'tr_actual = √(5² - 3.5²) = √(25 - 12.25) = √12.75 = 3.57 ns ≈ 3.6 ns',
+            explanation: 'The measured rise time includes the scope\'s limitation. Subtract in quadrature to get the true signal rise time.'
+        });
+    }
 })();
 </script>

@@ -1,1243 +1,1088 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Battery-Powered IoT Sensor - Complex Real-World Projects</title>
-</head>
-<body>
-    <div class="lesson-content" data-module="25" data-lesson="7">
-        <div class="card">
-            <h2>Battery-Powered IoT Sensor</h2>
-            <p>This project combines ultra-low-power design, energy harvesting, wireless communication, and
-            precision sensing to create a battery-powered IoT sensor node that can operate for years on a
-            single coin cell. Key challenges include managing sleep/wake cycles, minimizing quiescent
-            currents, and optimizing radio transmission efficiency.</p>
+<!-- Module 25, Lesson 7: LED Driver Design -->
+<div class="lesson-content" data-module="25" data-lesson="7">
 
-            <div class="kv">
-                <div class="kv-item"><span class="kv-label">Battery:</span><span class="kv-value">CR2032 (225mAh)</span></div>
-                <div class="kv-item"><span class="kv-label">Sleep Current:</span><span class="kv-value"><1 μA</span></div>
-                <div class="kv-item"><span class="kv-label">Target Life:</span><span class="kv-value">>5 years</span></div>
-                <div class="kv-item"><span class="kv-label">Transmission:</span><span class="kv-value">BLE/LoRa</span></div>
-            </div>
+    <div class="card">
+        <h2>LED Driver Design</h2>
+        <p>LEDs require constant current drive for consistent brightness and long life. This lesson covers LED driver topologies from simple linear regulators to high-efficiency switch-mode drivers for automotive, display, and general lighting applications.</p>
 
-            <div class="notice">
-                <strong>Design Philosophy:</strong> Every microamp counts. The key to long battery life is
-                aggressive power gating, efficient duty cycling, and careful selection of components with
-                ultra-low quiescent currents. The radio typically dominates power consumption.
-            </div>
-        </div>
-
-        <!-- System Architecture -->
-        <div class="card">
-            <h3>System Architecture</h3>
-            <div class="canvas-wrap">
-                <canvas id="iot-arch-canvas" width="980" height="300"></canvas>
-            </div>
-        </div>
-
-        <!-- Interactive 1: Battery Life Calculator -->
-        <div class="card">
-            <h3>Interactive: Battery Life Calculator</h3>
-            <p>Calculate expected battery life based on duty cycle and consumption:</p>
-
-            <div class="controls">
-                <label>Battery Capacity (mAh):
-                    <input type="range" id="battery-cap" min="50" max="3000" value="225" step="25">
-                    <span id="battery-cap-val">225 mAh</span>
-                </label>
-                <label>Sleep Current (μA):
-                    <input type="range" id="sleep-current" min="0.1" max="10" value="0.8" step="0.1">
-                    <span id="sleep-current-val">0.8 μA</span>
-                </label>
-                <label>Active Current (mA):
-                    <input type="range" id="active-current" min="1" max="50" value="15" step="1">
-                    <span id="active-current-val">15 mA</span>
-                </label>
-                <label>Wake Interval (min):
-                    <input type="range" id="wake-interval" min="1" max="60" value="15" step="1">
-                    <span id="wake-interval-val">15 min</span>
-                </label>
-                <label>Active Duration (ms):
-                    <input type="range" id="active-duration" min="10" max="1000" value="100" step="10">
-                    <span id="active-duration-val">100 ms</span>
-                </label>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="battery-life-canvas" width="980" height="350"></canvas>
-            </div>
-
-            <div class="kv">
-                <div class="kv-item"><span class="kv-label">Average Current:</span><span class="kv-value" id="avg-current">1.5 μA</span></div>
-                <div class="kv-item"><span class="kv-label">Battery Life:</span><span class="kv-value" id="battery-life">17 years</span></div>
-                <div class="kv-item"><span class="kv-label">Sleep Contribution:</span><span class="kv-value" id="sleep-contrib">53%</span></div>
-                <div class="kv-item"><span class="kv-label">Active Contribution:</span><span class="kv-value" id="active-contrib">47%</span></div>
-            </div>
-        </div>
-
-        <!-- Interactive 2: Power Budget Breakdown -->
-        <div class="card">
-            <h3>Interactive: Power Budget Analysis</h3>
-            <p>Analyze power consumption of each subsystem:</p>
-
-            <div class="controls">
-                <label>MCU Sleep (μA):
-                    <input type="range" id="mcu-sleep" min="0.1" max="5" value="0.5" step="0.1">
-                    <span id="mcu-sleep-val">0.5 μA</span>
-                </label>
-                <label>RTC (μA):
-                    <input type="range" id="rtc-current" min="0.1" max="2" value="0.3" step="0.1">
-                    <span id="rtc-current-val">0.3 μA</span>
-                </label>
-                <label>LDO Quiescent (μA):
-                    <input type="range" id="ldo-iq" min="0.1" max="10" value="1" step="0.1">
-                    <span id="ldo-iq-val">1 μA</span>
-                </label>
-                <label>Sensor Leakage (nA):
-                    <input type="range" id="sensor-leak" min="10" max="500" value="50" step="10">
-                    <span id="sensor-leak-val">50 nA</span>
-                </label>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="power-budget-canvas" width="980" height="350"></canvas>
-            </div>
-
-            <div class="kv">
-                <div class="kv-item"><span class="kv-label">Total Sleep:</span><span class="kv-value" id="total-sleep">1.85 μA</span></div>
-                <div class="kv-item"><span class="kv-label">Biggest Consumer:</span><span class="kv-value" id="biggest-consumer">LDO</span></div>
-                <div class="kv-item"><span class="kv-label">Room for Improvement:</span><span class="kv-value" id="improvement">54%</span></div>
-                <div class="kv-item"><span class="kv-label">Target Met:</span><span class="kv-value" id="target-met">No</span></div>
-            </div>
-        </div>
-
-        <!-- Interactive 3: Wireless Efficiency -->
-        <div class="card">
-            <h3>Interactive: Wireless Transmission Analysis</h3>
-            <p>Optimize radio power consumption vs range:</p>
-
-            <div class="controls">
-                <label>TX Power (dBm):
-                    <input type="range" id="tx-power" min="-20" max="20" value="4" step="1">
-                    <span id="tx-power-val">4 dBm</span>
-                </label>
-                <label>Data Rate:
-                    <select id="data-rate">
-                        <option value="125">125 kbps (LE Coded)</option>
-                        <option value="1000" selected>1 Mbps (BLE)</option>
-                        <option value="2000">2 Mbps (BLE)</option>
-                    </select>
-                </label>
-                <label>Packet Size (bytes):
-                    <input type="range" id="packet-size" min="10" max="200" value="50" step="10">
-                    <span id="packet-size-val">50 bytes</span>
-                </label>
-                <label>Protocol:
-                    <select id="protocol">
-                        <option value="ble">BLE 5.0</option>
-                        <option value="lora">LoRa</option>
-                        <option value="zigbee">Zigbee</option>
-                    </select>
-                </label>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="wireless-canvas" width="980" height="350"></canvas>
-            </div>
-
-            <div class="kv">
-                <div class="kv-item"><span class="kv-label">TX Current:</span><span class="kv-value" id="tx-current">8.5 mA</span></div>
-                <div class="kv-item"><span class="kv-label">TX Duration:</span><span class="kv-value" id="tx-duration">0.4 ms</span></div>
-                <div class="kv-item"><span class="kv-label">Energy/Packet:</span><span class="kv-value" id="energy-packet">20 μJ</span></div>
-                <div class="kv-item"><span class="kv-label">Est. Range:</span><span class="kv-value" id="est-range">50 m</span></div>
-            </div>
-        </div>
-
-        <!-- Interactive 4: Energy Harvesting -->
-        <div class="card">
-            <h3>Interactive: Solar Energy Harvesting</h3>
-            <p>Design a solar harvesting system to extend battery life:</p>
-
-            <div class="controls">
-                <label>Solar Cell Size (cm²):
-                    <input type="range" id="solar-size" min="1" max="20" value="5" step="1">
-                    <span id="solar-size-val">5 cm²</span>
-                </label>
-                <label>Light Level (lux):
-                    <input type="range" id="light-level" min="100" max="10000" value="500" step="100">
-                    <span id="light-level-val">500 lux</span>
-                </label>
-                <label>Hours of Light/Day:
-                    <input type="range" id="light-hours" min="2" max="12" value="6" step="1">
-                    <span id="light-hours-val">6 hrs</span>
-                </label>
-                <label>Harvester Efficiency (%):
-                    <input type="range" id="harvester-eff" min="50" max="95" value="80" step="5">
-                    <span id="harvester-eff-val">80%</span>
-                </label>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="harvest-canvas" width="980" height="350"></canvas>
-            </div>
-
-            <div class="kv">
-                <div class="kv-item"><span class="kv-label">Solar Power:</span><span class="kv-value" id="solar-power">1.25 mW</span></div>
-                <div class="kv-item"><span class="kv-label">Harvested Energy:</span><span class="kv-value" id="harvest-energy">6 mWh/day</span></div>
-                <div class="kv-item"><span class="kv-label">System Consumption:</span><span class="kv-value" id="sys-consumption">0.04 mWh/day</span></div>
-                <div class="kv-item"><span class="kv-label">Energy Positive:</span><span class="kv-value" id="energy-positive">Yes!</span></div>
-            </div>
-        </div>
-
-        <!-- Schematic -->
-        <div class="card">
-            <h3>Power Management Schematic</h3>
-            <div id="iot-schematic"></div>
-        </div>
-
-        <!-- Component Selection -->
-        <div class="card">
-            <h3>Ultra-Low-Power Component Selection</h3>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Component</th>
-                        <th>Key Spec</th>
-                        <th>Typical Value</th>
-                        <th>Example Part</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>MCU</td>
-                        <td>Sleep Current</td>
-                        <td>0.3-1 μA</td>
-                        <td>STM32L0, nRF52832</td>
-                    </tr>
-                    <tr>
-                        <td>LDO</td>
-                        <td>Quiescent Iq</td>
-                        <td><1 μA</td>
-                        <td>TPS7A02, AP2112</td>
-                    </tr>
-                    <tr>
-                        <td>Voltage Supervisor</td>
-                        <td>Supply Current</td>
-                        <td><100 nA</td>
-                        <td>TPS3839, MAX6457</td>
-                    </tr>
-                    <tr>
-                        <td>Temp/Humidity</td>
-                        <td>Sleep Current</td>
-                        <td><50 nA</td>
-                        <td>SHTC3, Si7021</td>
-                    </tr>
-                    <tr>
-                        <td>Load Switch</td>
-                        <td>Off Leakage</td>
-                        <td><10 nA</td>
-                        <td>TPS22916, SiP32431</td>
-                    </tr>
-                    <tr>
-                        <td>Energy Harvester</td>
-                        <td>Cold Start</td>
-                        <td>330mV, 0.5μW</td>
-                        <td>BQ25570, AEM10941</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Design Checklist -->
-        <div class="card">
-            <h3>Design Checklist</h3>
-            <div id="iot-checklist"></div>
-        </div>
-
-        <!-- Exercises -->
-        <div class="card">
-            <h3>Practice Exercises</h3>
-            <div id="iot-exercises"></div>
+        <div class="notice">
+            <strong>Industry Reference:</strong> Based on <a href="https://www.ti.com/lit/an/snva557/snva557.pdf" target="_blank">TI LED Driver Design Guide</a>, <a href="https://www.analog.com/en/resources/technical-articles/driving-leds-with-boost-converters.html" target="_blank">Analog Devices LED Driver Fundamentals</a>, and <a href="https://www.diodes.com/assets/Evaluation-Notes/AN1028.pdf" target="_blank">Diodes Inc. Application Notes</a>.
         </div>
     </div>
 
-    <script>
-        // Canvas 1: Battery Life Calculator
-        const batteryCanvas = document.getElementById('battery-life-canvas');
-        const batteryCtx = batteryCanvas.getContext('2d');
-
-        function drawBatteryLife() {
-            const capacity = AD.num('battery-cap');
-            const sleepI = AD.num('sleep-current');
-            const activeI = AD.num('active-current');
-            const wakeInt = AD.num('wake-interval');
-            const activeDur = AD.num('active-duration');
-
-            document.getElementById('battery-cap-val').textContent = capacity + ' mAh';
-            document.getElementById('sleep-current-val').textContent = sleepI + ' μA';
-            document.getElementById('active-current-val').textContent = activeI + ' mA';
-            document.getElementById('wake-interval-val').textContent = wakeInt + ' min';
-            document.getElementById('active-duration-val').textContent = activeDur + ' ms';
-
-            batteryCtx.fillStyle = '#181818';
-            batteryCtx.fillRect(0, 0, batteryCanvas.width, batteryCanvas.height);
-
-            const w = batteryCanvas.width;
-            const h = batteryCanvas.height;
-
-            // Calculate average current
-            const wakeIntMs = wakeInt * 60 * 1000;
-            const dutyCycle = activeDur / wakeIntMs;
-            const sleepContrib = sleepI * (1 - dutyCycle); // μA
-            const activeContrib = activeI * 1000 * dutyCycle; // μA
-            const avgCurrent = sleepContrib + activeContrib; // μA
-
-            document.getElementById('avg-current').textContent = avgCurrent.toFixed(2) + ' μA';
-
-            // Battery life in years
-            const lifeHours = (capacity * 1000) / avgCurrent; // mAh * 1000 / μA = hours
-            const lifeYears = lifeHours / (24 * 365);
-            document.getElementById('battery-life').textContent =
-                lifeYears > 10 ? lifeYears.toFixed(0) + ' years' :
-                lifeYears > 1 ? lifeYears.toFixed(1) + ' years' :
-                (lifeYears * 12).toFixed(0) + ' months';
-
-            // Contributions
-            const totalContrib = sleepContrib + activeContrib;
-            document.getElementById('sleep-contrib').textContent =
-                ((sleepContrib / totalContrib) * 100).toFixed(0) + '%';
-            document.getElementById('active-contrib').textContent =
-                ((activeContrib / totalContrib) * 100).toFixed(0) + '%';
-
-            // Draw waveform showing duty cycle
-            const margin = { left: 80, right: 40, top: 50, bottom: 60 };
-            const plotW = w - margin.left - margin.right;
-            const plotH = h - margin.top - margin.bottom;
-
-            // Draw current waveform over one cycle
-            batteryCtx.strokeStyle = '#00FF00';
-            batteryCtx.lineWidth = 2;
-            batteryCtx.beginPath();
-
-            const cycleW = Math.min(plotW * 0.6, 400);
-            const startX = margin.left + (plotW - cycleW) / 2;
-            const activeW = (activeDur / wakeIntMs) * cycleW;
-
-            // Sleep portion
-            const sleepY = margin.top + plotH - (sleepI / (activeI * 1000)) * plotH * 0.9;
-            batteryCtx.moveTo(startX, sleepY);
-            batteryCtx.lineTo(startX + cycleW - activeW - 5, sleepY);
-
-            // Transition to active
-            batteryCtx.lineTo(startX + cycleW - activeW, margin.top + plotH * 0.1);
-
-            // Active portion
-            batteryCtx.lineTo(startX + cycleW - 5, margin.top + plotH * 0.1);
-
-            // Back to sleep
-            batteryCtx.lineTo(startX + cycleW, sleepY);
-
-            batteryCtx.stroke();
-
-            // Labels
-            batteryCtx.fillStyle = '#CCC';
-            batteryCtx.font = '12px monospace';
-            batteryCtx.textAlign = 'center';
-
-            batteryCtx.fillText('Sleep: ' + sleepI + ' μA', startX + (cycleW - activeW) / 2, sleepY + 20);
-
-            if (activeW > 20) {
-                batteryCtx.fillText('Active', startX + cycleW - activeW / 2, margin.top + plotH * 0.05);
-                batteryCtx.fillText(activeI + ' mA', startX + cycleW - activeW / 2, margin.top + plotH * 0.05 + 15);
-            }
-
-            // Time axis
-            batteryCtx.fillStyle = '#888';
-            batteryCtx.fillText('One Wake Cycle (' + wakeInt + ' min)', margin.left + plotW / 2, h - 20);
-
-            // Draw pie chart for contributions
-            const pieX = 150;
-            const pieY = 180;
-            const pieR = 80;
-
-            // Sleep portion
-            const sleepAngle = (sleepContrib / totalContrib) * 2 * Math.PI;
-            batteryCtx.fillStyle = '#00FFFF';
-            batteryCtx.beginPath();
-            batteryCtx.moveTo(pieX, pieY);
-            batteryCtx.arc(pieX, pieY, pieR, -Math.PI / 2, -Math.PI / 2 + sleepAngle);
-            batteryCtx.closePath();
-            batteryCtx.fill();
-
-            // Active portion
-            batteryCtx.fillStyle = '#FF6600';
-            batteryCtx.beginPath();
-            batteryCtx.moveTo(pieX, pieY);
-            batteryCtx.arc(pieX, pieY, pieR, -Math.PI / 2 + sleepAngle, -Math.PI / 2 + 2 * Math.PI);
-            batteryCtx.closePath();
-            batteryCtx.fill();
-
-            // Legend
-            batteryCtx.fillStyle = '#00FFFF';
-            batteryCtx.fillRect(50, 290, 20, 15);
-            batteryCtx.fillStyle = '#CCC';
-            batteryCtx.textAlign = 'left';
-            batteryCtx.fillText('Sleep', 75, 302);
-
-            batteryCtx.fillStyle = '#FF6600';
-            batteryCtx.fillRect(140, 290, 20, 15);
-            batteryCtx.fillStyle = '#CCC';
-            batteryCtx.fillText('Active', 165, 302);
-
-            // Battery life display
-            batteryCtx.fillStyle = lifeYears >= 5 ? '#00FF00' : lifeYears >= 2 ? '#FFFF00' : '#FF0000';
-            batteryCtx.font = 'bold 24px monospace';
-            batteryCtx.textAlign = 'center';
-            batteryCtx.fillText('Battery Life: ' + (lifeYears > 1 ? lifeYears.toFixed(1) + ' years' : (lifeYears * 12).toFixed(0) + ' months'),
-                               margin.left + plotW / 2 + 150, 50);
-
-            // Target line
-            const targetLife = 5; // years
-            batteryCtx.fillStyle = '#00FF00';
-            batteryCtx.font = '12px monospace';
-            batteryCtx.fillText('Target: 5+ years', margin.left + plotW / 2 + 150, 75);
-        }
-
-        // Canvas 2: Power Budget
-        const powerCanvas = document.getElementById('power-budget-canvas');
-        const powerCtx = powerCanvas.getContext('2d');
-
-        function drawPowerBudget() {
-            const mcuSleep = AD.num('mcu-sleep');
-            const rtc = AD.num('rtc-current');
-            const ldoIq = AD.num('ldo-iq');
-            const sensorLeak = AD.num('sensor-leak') / 1000;
-
-            document.getElementById('mcu-sleep-val').textContent = mcuSleep + ' μA';
-            document.getElementById('rtc-current-val').textContent = rtc + ' μA';
-            document.getElementById('ldo-iq-val').textContent = ldoIq + ' μA';
-            document.getElementById('sensor-leak-val').textContent = (sensorLeak * 1000).toFixed(0) + ' nA';
-
-            powerCtx.fillStyle = '#181818';
-            powerCtx.fillRect(0, 0, powerCanvas.width, powerCanvas.height);
-
-            const w = powerCanvas.width;
-            const h = powerCanvas.height;
-
-            const components = [
-                { name: 'MCU Sleep', value: mcuSleep, color: '#00FFFF' },
-                { name: 'RTC', value: rtc, color: '#FFFF00' },
-                { name: 'LDO Quiescent', value: ldoIq, color: '#FF6600' },
-                { name: 'Sensor Leakage', value: sensorLeak, color: '#FF66FF' },
-                { name: 'PCB Leakage (est)', value: 0.05, color: '#888' }
-            ];
-
-            const total = components.reduce((sum, c) => sum + c.value, 0);
-            document.getElementById('total-sleep').textContent = total.toFixed(2) + ' μA';
-
-            // Find biggest consumer
-            const biggest = components.reduce((max, c) => c.value > max.value ? c : max, components[0]);
-            document.getElementById('biggest-consumer').textContent = biggest.name;
-
-            // Target is 1 μA
-            const target = 1;
-            const improvement = ((total - target) / total * 100);
-            document.getElementById('improvement').textContent = improvement > 0 ? improvement.toFixed(0) + '%' : 'N/A';
-            document.getElementById('target-met').textContent = total <= target ? 'Yes' : 'No';
-            document.getElementById('target-met').style.color = total <= target ? '#00FF00' : '#FF0000';
-
-            // Draw horizontal bar chart
-            const margin = { left: 150, right: 150, top: 50, bottom: 40 };
-            const plotW = w - margin.left - margin.right;
-            const plotH = h - margin.top - margin.bottom;
-
-            const maxVal = Math.max(total * 1.2, target * 2);
-            const barH = plotH / components.length - 10;
-
-            components.forEach((comp, i) => {
-                const y = margin.top + i * (plotH / components.length) + 5;
-                const barW = (comp.value / maxVal) * plotW;
-
-                powerCtx.fillStyle = comp.color;
-                powerCtx.fillRect(margin.left, y, barW, barH);
-
-                // Label
-                powerCtx.fillStyle = '#CCC';
-                powerCtx.font = '12px monospace';
-                powerCtx.textAlign = 'right';
-                powerCtx.fillText(comp.name, margin.left - 10, y + barH / 2 + 4);
-
-                // Value
-                powerCtx.textAlign = 'left';
-                powerCtx.fillStyle = comp.color;
-                powerCtx.fillText(comp.value.toFixed(2) + ' μA', margin.left + barW + 10, y + barH / 2 + 4);
-            });
-
-            // Total bar
-            const totalY = margin.top + plotH + 10;
-            const totalBarW = (total / maxVal) * plotW;
-
-            powerCtx.fillStyle = '#333';
-            powerCtx.fillRect(margin.left, totalY, totalBarW, 25);
-            powerCtx.strokeStyle = '#FFF';
-            powerCtx.strokeRect(margin.left, totalY, totalBarW, 25);
-
-            powerCtx.fillStyle = '#FFF';
-            powerCtx.textAlign = 'right';
-            powerCtx.fillText('TOTAL', margin.left - 10, totalY + 17);
-            powerCtx.textAlign = 'left';
-            powerCtx.fillText(total.toFixed(2) + ' μA', margin.left + totalBarW + 10, totalY + 17);
-
-            // Target line
-            const targetX = margin.left + (target / maxVal) * plotW;
-            powerCtx.strokeStyle = '#00FF00';
-            powerCtx.setLineDash([5, 5]);
-            powerCtx.beginPath();
-            powerCtx.moveTo(targetX, margin.top - 10);
-            powerCtx.lineTo(targetX, totalY + 35);
-            powerCtx.stroke();
-            powerCtx.setLineDash([]);
-
-            powerCtx.fillStyle = '#00FF00';
-            powerCtx.font = 'bold 12px monospace';
-            powerCtx.textAlign = 'center';
-            powerCtx.fillText('Target: 1 μA', targetX, margin.top - 20);
-
-            // Pie chart
-            const pieX = w - 100;
-            const pieY = margin.top + plotH / 2;
-            const pieR = 80;
-
-            let startAngle = -Math.PI / 2;
-            components.forEach(comp => {
-                const angle = (comp.value / total) * 2 * Math.PI;
-                powerCtx.fillStyle = comp.color;
-                powerCtx.beginPath();
-                powerCtx.moveTo(pieX, pieY);
-                powerCtx.arc(pieX, pieY, pieR, startAngle, startAngle + angle);
-                powerCtx.closePath();
-                powerCtx.fill();
-                startAngle += angle;
-            });
-
-            powerCtx.fillStyle = '#FFF';
-            powerCtx.font = 'bold 14px monospace';
-            powerCtx.textAlign = 'center';
-            powerCtx.fillText('Power', pieX, pieY - 5);
-            powerCtx.fillText('Budget', pieX, pieY + 12);
-        }
-
-        // Canvas 3: Wireless Efficiency
-        const wirelessCanvas = document.getElementById('wireless-canvas');
-        const wirelessCtx = wirelessCanvas.getContext('2d');
-
-        function drawWireless() {
-            const txPower = AD.num('tx-power');
-            const dataRate = AD.num('data-rate');
-            const packetSize = AD.num('packet-size');
-            const protocol = document.getElementById('protocol').value;
-
-            document.getElementById('tx-power-val').textContent = txPower + ' dBm';
-            document.getElementById('packet-size-val').textContent = packetSize + ' bytes';
-
-            wirelessCtx.fillStyle = '#181818';
-            wirelessCtx.fillRect(0, 0, wirelessCanvas.width, wirelessCanvas.height);
-
-            const w = wirelessCanvas.width;
-            const h = wirelessCanvas.height;
-
-            // Calculate TX current based on power level and protocol
-            let baseCurrent = 5; // mA at 0 dBm
-            switch(protocol) {
-                case 'ble':
-                    baseCurrent = 5 + txPower * 0.5;
-                    break;
-                case 'lora':
-                    baseCurrent = 20 + txPower * 1;
-                    break;
-                case 'zigbee':
-                    baseCurrent = 15 + txPower * 0.8;
-                    break;
-            }
-            const txCurrent = Math.max(3, baseCurrent);
-            document.getElementById('tx-current').textContent = txCurrent.toFixed(1) + ' mA';
-
-            // TX duration
-            const bitsToSend = (packetSize + 10) * 8; // Add overhead
-            const txDuration = bitsToSend / (dataRate * 1000); // seconds
-            document.getElementById('tx-duration').textContent = (txDuration * 1000).toFixed(2) + ' ms';
-
-            // Energy per packet
-            const voltage = 3; // Typical coin cell voltage
-            const energyJ = voltage * (txCurrent / 1000) * txDuration;
-            document.getElementById('energy-packet').textContent = (energyJ * 1e6).toFixed(1) + ' μJ';
-
-            // Estimated range (simplified path loss model)
-            const txPowerMw = Math.pow(10, txPower / 10);
-            const rxSensitivity = protocol === 'lora' ? -137 : -96; // dBm
-            const pathLoss = txPower - rxSensitivity;
-            const range = Math.pow(10, (pathLoss - 40) / (10 * 2.5)); // n=2.5 for indoor
-            document.getElementById('est-range').textContent = range.toFixed(0) + ' m';
-
-            // Draw TX power vs current graph
-            const margin = { left: 80, right: 200, top: 50, bottom: 60 };
-            const plotW = w - margin.left - margin.right;
-            const plotH = h - margin.top - margin.bottom;
-
-            // Grid
-            wirelessCtx.strokeStyle = '#333';
-            wirelessCtx.lineWidth = 1;
-            for (let i = 0; i <= 5; i++) {
-                const x = margin.left + (i / 5) * plotW;
-                wirelessCtx.beginPath();
-                wirelessCtx.moveTo(x, margin.top);
-                wirelessCtx.lineTo(x, margin.top + plotH);
-                wirelessCtx.stroke();
-            }
-
-            // Draw current vs TX power curves for each protocol
-            const protocols = [
-                { name: 'BLE', color: '#00FFFF', base: 5, slope: 0.5 },
-                { name: 'Zigbee', color: '#FFFF00', base: 15, slope: 0.8 },
-                { name: 'LoRa', color: '#FF6600', base: 20, slope: 1.0 }
-            ];
-
-            protocols.forEach(p => {
-                wirelessCtx.strokeStyle = p.color;
-                wirelessCtx.lineWidth = p.name.toLowerCase() === protocol ? 3 : 1;
-                wirelessCtx.beginPath();
-
-                for (let pwr = -20; pwr <= 20; pwr++) {
-                    const curr = Math.max(3, p.base + pwr * p.slope);
-                    const x = margin.left + ((pwr + 20) / 40) * plotW;
-                    const y = margin.top + plotH - (curr / 40) * plotH;
-
-                    if (pwr === -20) wirelessCtx.moveTo(x, y);
-                    else wirelessCtx.lineTo(x, y);
-                }
-                wirelessCtx.stroke();
-            });
-
-            // Current operating point
-            const opX = margin.left + ((txPower + 20) / 40) * plotW;
-            const opY = margin.top + plotH - (txCurrent / 40) * plotH;
-
-            wirelessCtx.fillStyle = '#00FF00';
-            wirelessCtx.beginPath();
-            wirelessCtx.arc(opX, opY, 8, 0, Math.PI * 2);
-            wirelessCtx.fill();
-
-            // Labels
-            wirelessCtx.fillStyle = '#CCC';
-            wirelessCtx.font = '14px monospace';
-            wirelessCtx.textAlign = 'center';
-            wirelessCtx.fillText('TX Power (dBm)', margin.left + plotW / 2, h - 15);
-
-            wirelessCtx.save();
-            wirelessCtx.translate(25, margin.top + plotH / 2);
-            wirelessCtx.rotate(-Math.PI / 2);
-            wirelessCtx.fillText('Current (mA)', 0, 0);
-            wirelessCtx.restore();
-
-            // TX power scale
-            wirelessCtx.font = '11px monospace';
-            wirelessCtx.fillStyle = '#888';
-            for (let pwr = -20; pwr <= 20; pwr += 10) {
-                const x = margin.left + ((pwr + 20) / 40) * plotW;
-                wirelessCtx.fillText(pwr.toString(), x, margin.top + plotH + 20);
-            }
-
-            // Current scale
-            wirelessCtx.textAlign = 'right';
-            for (let curr = 0; curr <= 40; curr += 10) {
-                const y = margin.top + plotH - (curr / 40) * plotH;
-                wirelessCtx.fillText(curr.toString(), margin.left - 10, y + 4);
-            }
-
-            // Legend
-            const legX = w - 180;
-            wirelessCtx.textAlign = 'left';
-            protocols.forEach((p, i) => {
-                wirelessCtx.fillStyle = p.color;
-                wirelessCtx.fillRect(legX, margin.top + 20 + i * 25, 20, 3);
-                wirelessCtx.fillStyle = '#CCC';
-                wirelessCtx.fillText(p.name, legX + 30, margin.top + 25 + i * 25);
-            });
-
-            // Energy efficiency text
-            wirelessCtx.fillStyle = '#FFF';
-            wirelessCtx.font = 'bold 14px monospace';
-            wirelessCtx.fillText('Energy/Packet:', legX, margin.top + 120);
-            wirelessCtx.fillStyle = '#00FF00';
-            wirelessCtx.fillText((energyJ * 1e6).toFixed(1) + ' μJ', legX, margin.top + 140);
-
-            wirelessCtx.fillStyle = '#FFF';
-            wirelessCtx.fillText('Est. Range:', legX, margin.top + 170);
-            wirelessCtx.fillStyle = '#00FF00';
-            wirelessCtx.fillText(range.toFixed(0) + ' m', legX, margin.top + 190);
-        }
-
-        // Canvas 4: Energy Harvesting
-        const harvestCanvas = document.getElementById('harvest-canvas');
-        const harvestCtx = harvestCanvas.getContext('2d');
-
-        function drawHarvesting() {
-            const solarSize = AD.num('solar-size');
-            const lightLevel = AD.num('light-level');
-            const lightHours = AD.num('light-hours');
-            const harvesterEff = AD.num('harvester-eff');
-
-            document.getElementById('solar-size-val').textContent = solarSize + ' cm²';
-            document.getElementById('light-level-val').textContent = lightLevel + ' lux';
-            document.getElementById('light-hours-val').textContent = lightHours + ' hrs';
-            document.getElementById('harvester-eff-val').textContent = harvesterEff + '%';
-
-            harvestCtx.fillStyle = '#181818';
-            harvestCtx.fillRect(0, 0, harvestCanvas.width, harvestCanvas.height);
-
-            const w = harvestCanvas.width;
-            const h = harvestCanvas.height;
-
-            // Solar cell power calculation
-            // Typical indoor solar cell: ~10 μW/cm² at 200 lux
-            const powerPerCm2 = (lightLevel / 200) * 10; // μW/cm² at given lux
-            const solarPower = solarSize * powerPerCm2 / 1000; // mW
-            document.getElementById('solar-power').textContent = solarPower.toFixed(2) + ' mW';
-
-            // Harvested energy per day
-            const harvestedPerDay = solarPower * lightHours * (harvesterEff / 100); // mWh
-            document.getElementById('harvest-energy').textContent = harvestedPerDay.toFixed(2) + ' mWh/day';
-
-            // System consumption (assume 1.5 μA average at 3V)
-            const avgCurrent = 1.5; // μA
-            const voltage = 3; // V
-            const consumptionPerDay = (avgCurrent / 1000) * voltage * 24; // mWh
-            document.getElementById('sys-consumption').textContent = consumptionPerDay.toFixed(3) + ' mWh/day';
-
-            // Energy positive?
-            const energyPositive = harvestedPerDay > consumptionPerDay;
-            document.getElementById('energy-positive').textContent = energyPositive ? 'Yes!' : 'No';
-            document.getElementById('energy-positive').style.color = energyPositive ? '#00FF00' : '#FF0000';
-
-            // Draw energy flow diagram
-            const margin = { left: 50, right: 50, top: 60, bottom: 50 };
-
-            // Solar panel
-            harvestCtx.fillStyle = '#4444AA';
-            harvestCtx.fillRect(80, 100, 100, 60);
-            harvestCtx.strokeStyle = '#6666FF';
-            harvestCtx.lineWidth = 2;
-            harvestCtx.strokeRect(80, 100, 100, 60);
-
-            // Grid lines on panel
-            harvestCtx.strokeStyle = '#333';
-            harvestCtx.lineWidth = 1;
-            for (let i = 1; i < 4; i++) {
-                harvestCtx.beginPath();
-                harvestCtx.moveTo(80 + i * 25, 100);
-                harvestCtx.lineTo(80 + i * 25, 160);
-                harvestCtx.stroke();
-            }
-            for (let i = 1; i < 3; i++) {
-                harvestCtx.beginPath();
-                harvestCtx.moveTo(80, 100 + i * 20);
-                harvestCtx.lineTo(180, 100 + i * 20);
-                harvestCtx.stroke();
-            }
-
-            harvestCtx.fillStyle = '#CCC';
-            harvestCtx.font = '12px monospace';
-            harvestCtx.textAlign = 'center';
-            harvestCtx.fillText('Solar Cell', 130, 180);
-            harvestCtx.fillText(solarSize + ' cm²', 130, 195);
-
-            // Harvester IC
-            harvestCtx.fillStyle = '#333';
-            harvestCtx.fillRect(230, 100, 100, 60);
-            harvestCtx.strokeStyle = '#00FF00';
-            harvestCtx.strokeRect(230, 100, 100, 60);
-
-            harvestCtx.fillStyle = '#00FF00';
-            harvestCtx.fillText('Harvester', 280, 125);
-            harvestCtx.fillText('MPPT', 280, 145);
-            harvestCtx.fillStyle = '#CCC';
-            harvestCtx.fillText('η=' + harvesterEff + '%', 280, 195);
-
-            // Arrow from solar to harvester
-            harvestCtx.strokeStyle = '#FFFF00';
-            harvestCtx.lineWidth = 3;
-            harvestCtx.beginPath();
-            harvestCtx.moveTo(180, 130);
-            harvestCtx.lineTo(225, 130);
-            harvestCtx.stroke();
-            harvestCtx.fillStyle = '#FFFF00';
-            harvestCtx.beginPath();
-            harvestCtx.moveTo(225, 130);
-            harvestCtx.lineTo(215, 125);
-            harvestCtx.lineTo(215, 135);
-            harvestCtx.closePath();
-            harvestCtx.fill();
-
-            harvestCtx.font = '10px monospace';
-            harvestCtx.fillText(solarPower.toFixed(2) + ' mW', 200, 115);
-
-            // Storage capacitor/battery
-            harvestCtx.fillStyle = '#333';
-            harvestCtx.fillRect(380, 100, 80, 60);
-            harvestCtx.strokeStyle = '#FF6600';
-            harvestCtx.strokeRect(380, 100, 80, 60);
-
-            harvestCtx.fillStyle = '#FF6600';
-            harvestCtx.font = '12px monospace';
-            harvestCtx.fillText('Storage', 420, 125);
-            harvestCtx.fillText('Cap/Bat', 420, 145);
-
-            // Arrow from harvester to storage
-            harvestCtx.strokeStyle = '#00FF00';
-            harvestCtx.beginPath();
-            harvestCtx.moveTo(330, 130);
-            harvestCtx.lineTo(375, 130);
-            harvestCtx.stroke();
-            harvestCtx.fillStyle = '#00FF00';
-            harvestCtx.beginPath();
-            harvestCtx.moveTo(375, 130);
-            harvestCtx.lineTo(365, 125);
-            harvestCtx.lineTo(365, 135);
-            harvestCtx.closePath();
-            harvestCtx.fill();
-
-            harvestCtx.font = '10px monospace';
-            harvestCtx.fillText(harvestedPerDay.toFixed(2) + ' mWh/day', 350, 90);
-
-            // Load (system)
-            harvestCtx.fillStyle = '#333';
-            harvestCtx.fillRect(510, 100, 80, 60);
-            harvestCtx.strokeStyle = '#00FFFF';
-            harvestCtx.strokeRect(510, 100, 80, 60);
-
-            harvestCtx.fillStyle = '#00FFFF';
-            harvestCtx.font = '12px monospace';
-            harvestCtx.fillText('IoT', 550, 125);
-            harvestCtx.fillText('System', 550, 145);
-
-            // Arrow from storage to load
-            harvestCtx.strokeStyle = '#FF0000';
-            harvestCtx.beginPath();
-            harvestCtx.moveTo(460, 130);
-            harvestCtx.lineTo(505, 130);
-            harvestCtx.stroke();
-            harvestCtx.fillStyle = '#FF0000';
-            harvestCtx.beginPath();
-            harvestCtx.moveTo(505, 130);
-            harvestCtx.lineTo(495, 125);
-            harvestCtx.lineTo(495, 135);
-            harvestCtx.closePath();
-            harvestCtx.fill();
-
-            harvestCtx.font = '10px monospace';
-            harvestCtx.fillText(consumptionPerDay.toFixed(3) + ' mWh/day', 480, 90);
-
-            // Energy balance bar chart
-            const barY = 250;
-            const maxEnergy = Math.max(harvestedPerDay, consumptionPerDay) * 1.5;
-
-            // Harvested
-            const harvestBarW = (harvestedPerDay / maxEnergy) * 300;
-            harvestCtx.fillStyle = '#00FF00';
-            harvestCtx.fillRect(200, barY, harvestBarW, 30);
-
-            // Consumed
-            const consumeBarW = (consumptionPerDay / maxEnergy) * 300;
-            harvestCtx.fillStyle = '#FF0000';
-            harvestCtx.fillRect(200, barY + 40, consumeBarW, 30);
-
-            harvestCtx.fillStyle = '#CCC';
-            harvestCtx.font = '12px monospace';
-            harvestCtx.textAlign = 'right';
-            harvestCtx.fillText('Harvested:', 190, barY + 20);
-            harvestCtx.fillText('Consumed:', 190, barY + 60);
-
-            harvestCtx.textAlign = 'left';
-            harvestCtx.fillStyle = '#00FF00';
-            harvestCtx.fillText(harvestedPerDay.toFixed(3) + ' mWh/day', 210 + harvestBarW, barY + 20);
-            harvestCtx.fillStyle = '#FF0000';
-            harvestCtx.fillText(consumptionPerDay.toFixed(3) + ' mWh/day', 210 + consumeBarW, barY + 60);
-
-            // Net result
-            const net = harvestedPerDay - consumptionPerDay;
-            harvestCtx.fillStyle = net > 0 ? '#00FF00' : '#FF0000';
-            harvestCtx.font = 'bold 16px monospace';
-            harvestCtx.textAlign = 'center';
-            harvestCtx.fillText('Net: ' + (net > 0 ? '+' : '') + net.toFixed(3) + ' mWh/day',
-                               350, 330);
-
-            if (net > 0) {
-                harvestCtx.fillStyle = '#00FF00';
-                harvestCtx.fillText('Energy Autonomous!', 350, 350);
-            } else {
-                harvestCtx.fillStyle = '#FF0000';
-                harvestCtx.fillText('Battery backup needed', 350, 350);
-            }
-
-            // Sun icon
-            harvestCtx.fillStyle = '#FFFF00';
-            harvestCtx.beginPath();
-            harvestCtx.arc(130, 50, 20, 0, Math.PI * 2);
-            harvestCtx.fill();
-
-            // Sun rays
-            for (let i = 0; i < 8; i++) {
-                const angle = i * Math.PI / 4;
-                harvestCtx.strokeStyle = '#FFFF00';
-                harvestCtx.lineWidth = 2;
-                harvestCtx.beginPath();
-                harvestCtx.moveTo(130 + 25 * Math.cos(angle), 50 + 25 * Math.sin(angle));
-                harvestCtx.lineTo(130 + 35 * Math.cos(angle), 50 + 35 * Math.sin(angle));
-                harvestCtx.stroke();
-            }
-
-            harvestCtx.fillStyle = '#888';
-            harvestCtx.font = '10px monospace';
-            harvestCtx.fillText(lightLevel + ' lux', 130, 70);
-        }
-
-        // Canvas 0: System Architecture
-        const iotArchCanvas = document.getElementById('iot-arch-canvas');
-        const iotArchCtx = iotArchCanvas.getContext('2d');
-
-        function drawIotArchitecture() {
-            iotArchCtx.fillStyle = '#181818';
-            iotArchCtx.fillRect(0, 0, iotArchCanvas.width, iotArchCanvas.height);
-
-            const w = iotArchCanvas.width;
-            const h = iotArchCanvas.height;
-
-            // Title
-            iotArchCtx.fillStyle = '#FFF';
-            iotArchCtx.font = 'bold 16px monospace';
-            iotArchCtx.textAlign = 'center';
-            iotArchCtx.fillText('BATTERY-POWERED IoT SENSOR', w / 2, 25);
-
-            // Battery block
-            iotArchCtx.fillStyle = '#222';
-            iotArchCtx.fillRect(30, 60, 100, 60);
-            iotArchCtx.strokeStyle = '#FF6600';
-            iotArchCtx.lineWidth = 2;
-            iotArchCtx.strokeRect(30, 60, 100, 60);
-            iotArchCtx.fillStyle = '#FF6600';
-            iotArchCtx.font = 'bold 12px monospace';
-            iotArchCtx.fillText('BATTERY', 80, 85);
-            iotArchCtx.font = '10px monospace';
-            iotArchCtx.fillText('CR2032 225mAh', 80, 105);
-
-            // Solar harvester (optional)
-            iotArchCtx.fillStyle = '#222';
-            iotArchCtx.fillRect(30, 150, 100, 50);
-            iotArchCtx.strokeStyle = '#FFFF00';
-            iotArchCtx.setLineDash([4, 4]);
-            iotArchCtx.strokeRect(30, 150, 100, 50);
-            iotArchCtx.setLineDash([]);
-            iotArchCtx.fillStyle = '#FFFF00';
-            iotArchCtx.font = '11px monospace';
-            iotArchCtx.fillText('SOLAR', 80, 172);
-            iotArchCtx.font = '9px monospace';
-            iotArchCtx.fillText('(Optional)', 80, 188);
-
-            // Power Management block
-            iotArchCtx.fillStyle = '#222';
-            iotArchCtx.fillRect(180, 50, 200, 80);
-            iotArchCtx.strokeStyle = '#00FF00';
-            iotArchCtx.lineWidth = 2;
-            iotArchCtx.strokeRect(180, 50, 200, 80);
-            iotArchCtx.fillStyle = '#00FF00';
-            iotArchCtx.font = 'bold 12px monospace';
-            iotArchCtx.fillText('POWER MANAGEMENT', 280, 75);
-            iotArchCtx.font = '10px monospace';
-            iotArchCtx.fillStyle = '#CCC';
-            iotArchCtx.fillText('[PMIC] [LDO 1.8V]', 280, 95);
-            iotArchCtx.fillText('[Buck 3.3V] [Load SW]', 280, 110);
-
-            // Arrows from battery/solar to power
-            iotArchCtx.strokeStyle = '#888';
-            iotArchCtx.lineWidth = 2;
-            iotArchCtx.fillStyle = '#888';
-            iotArchCtx.beginPath();
-            iotArchCtx.moveTo(130, 90);
-            iotArchCtx.lineTo(172, 90);
-            iotArchCtx.stroke();
-            iotArchCtx.beginPath();
-            iotArchCtx.moveTo(172, 90);
-            iotArchCtx.lineTo(165, 85);
-            iotArchCtx.lineTo(165, 95);
-            iotArchCtx.closePath();
-            iotArchCtx.fill();
-
-            iotArchCtx.setLineDash([4, 4]);
-            iotArchCtx.beginPath();
-            iotArchCtx.moveTo(130, 175);
-            iotArchCtx.lineTo(160, 175);
-            iotArchCtx.lineTo(160, 110);
-            iotArchCtx.lineTo(172, 110);
-            iotArchCtx.stroke();
-            iotArchCtx.setLineDash([]);
-
-            // MCU block
-            iotArchCtx.fillStyle = '#222';
-            iotArchCtx.fillRect(430, 50, 180, 100);
-            iotArchCtx.strokeStyle = '#00FFFF';
-            iotArchCtx.lineWidth = 2;
-            iotArchCtx.strokeRect(430, 50, 180, 100);
-            iotArchCtx.fillStyle = '#00FFFF';
-            iotArchCtx.font = 'bold 12px monospace';
-            iotArchCtx.fillText('MCU (Cortex-M0+)', 520, 75);
-            iotArchCtx.font = '9px monospace';
-            iotArchCtx.fillStyle = '#CCC';
-            iotArchCtx.fillText('Ultra-low power: 0.5μA', 520, 95);
-            iotArchCtx.fillText('RTC wakeup / GPIO int', 520, 110);
-            iotArchCtx.fillText('ADC, I2C, SPI', 520, 125);
-
-            // Arrow from power to MCU
-            iotArchCtx.strokeStyle = '#888';
-            iotArchCtx.beginPath();
-            iotArchCtx.moveTo(380, 90);
-            iotArchCtx.lineTo(422, 90);
-            iotArchCtx.stroke();
-            iotArchCtx.fillStyle = '#888';
-            iotArchCtx.beginPath();
-            iotArchCtx.moveTo(422, 90);
-            iotArchCtx.lineTo(415, 85);
-            iotArchCtx.lineTo(415, 95);
-            iotArchCtx.closePath();
-            iotArchCtx.fill();
-
-            // Sensors block
-            iotArchCtx.fillStyle = '#222';
-            iotArchCtx.fillRect(430, 180, 160, 100);
-            iotArchCtx.strokeStyle = '#FF66FF';
-            iotArchCtx.lineWidth = 2;
-            iotArchCtx.strokeRect(430, 180, 160, 100);
-            iotArchCtx.fillStyle = '#FF66FF';
-            iotArchCtx.font = 'bold 12px monospace';
-            iotArchCtx.fillText('SENSORS', 510, 200);
-            iotArchCtx.font = '9px monospace';
-            iotArchCtx.fillStyle = '#CCC';
-            iotArchCtx.fillText('Temp/Humidity (I2C)', 510, 220);
-            iotArchCtx.fillText('Accelerometer (SPI)', 510, 235);
-            iotArchCtx.fillText('Light sensor (Analog)', 510, 250);
-            iotArchCtx.fillStyle = '#888';
-            iotArchCtx.fillText('Power gated', 510, 268);
-
-            // Wireless block
-            iotArchCtx.fillStyle = '#222';
-            iotArchCtx.fillRect(650, 50, 140, 100);
-            iotArchCtx.strokeStyle = '#FFFF00';
-            iotArchCtx.lineWidth = 2;
-            iotArchCtx.strokeRect(650, 50, 140, 100);
-            iotArchCtx.fillStyle = '#FFFF00';
-            iotArchCtx.font = 'bold 12px monospace';
-            iotArchCtx.fillText('WIRELESS', 720, 75);
-            iotArchCtx.font = '9px monospace';
-            iotArchCtx.fillStyle = '#CCC';
-            iotArchCtx.fillText('BLE 5.0', 720, 95);
-            iotArchCtx.fillText('LoRa (optional)', 720, 110);
-            iotArchCtx.fillText('TX: +4dBm, 15mA', 720, 125);
-
-            // Antenna symbol
-            iotArchCtx.strokeStyle = '#FFFF00';
-            iotArchCtx.lineWidth = 2;
-            iotArchCtx.beginPath();
-            iotArchCtx.moveTo(810, 80);
-            iotArchCtx.lineTo(830, 80);
-            iotArchCtx.lineTo(830, 60);
-            iotArchCtx.moveTo(830, 80);
-            iotArchCtx.lineTo(830, 100);
-            iotArchCtx.stroke();
-
-            // Connections from MCU
-            iotArchCtx.strokeStyle = '#888';
-            iotArchCtx.lineWidth = 1;
-            iotArchCtx.beginPath();
-            iotArchCtx.moveTo(520, 150);
-            iotArchCtx.lineTo(520, 172);
-            iotArchCtx.stroke();
-            iotArchCtx.fillStyle = '#888';
-            iotArchCtx.beginPath();
-            iotArchCtx.moveTo(520, 172);
-            iotArchCtx.lineTo(515, 165);
-            iotArchCtx.lineTo(525, 165);
-            iotArchCtx.closePath();
-            iotArchCtx.fill();
-
-            iotArchCtx.beginPath();
-            iotArchCtx.moveTo(610, 100);
-            iotArchCtx.lineTo(642, 100);
-            iotArchCtx.stroke();
-            iotArchCtx.beginPath();
-            iotArchCtx.moveTo(642, 100);
-            iotArchCtx.lineTo(635, 95);
-            iotArchCtx.lineTo(635, 105);
-            iotArchCtx.closePath();
-            iotArchCtx.fill();
-
-            // Labels for connections
-            iotArchCtx.fillStyle = '#666';
-            iotArchCtx.font = '8px monospace';
-            iotArchCtx.fillText('I2C/SPI', 520, 165);
-            iotArchCtx.fillText('SPI', 625, 95);
-        }
-
-        // Event listeners
-        ['battery-cap', 'sleep-current', 'active-current', 'wake-interval', 'active-duration'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawBatteryLife);
+    <div class="card">
+        <h3>LED Driver Topologies</h3>
+
+        <canvas id="led-topology-canvas" width="980" height="520" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Buck ICs</div>
+                <div class="v">LM3414, TPS92515, AL8860</div>
+            </div>
+            <div class="box">
+                <div class="k">Boost ICs</div>
+                <div class="v">LT3755, TPS61169, MAX16832</div>
+            </div>
+            <div class="box">
+                <div class="k">Buck-Boost ICs</div>
+                <div class="v">LT3756, TPS92692, LM3423</div>
+            </div>
+            <div class="box">
+                <div class="k">Linear ICs</div>
+                <div class="v">CAT4101, BCR421, TLC5917</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 1: LED Characteristics</h3>
+
+        <p>LEDs are current-driven devices with an exponential V-I relationship:</p>
+
+        <table class="table">
+            <tr>
+                <th>LED Type</th>
+                <th>Forward Voltage</th>
+                <th>Typical Current</th>
+                <th>Luminous Efficacy</th>
+            </tr>
+            <tr>
+                <td>Red (AlGaInP)</td>
+                <td>1.8 - 2.2V</td>
+                <td>20mA - 1A</td>
+                <td>50-100 lm/W</td>
+            </tr>
+            <tr>
+                <td>Green (InGaN)</td>
+                <td>2.9 - 3.5V</td>
+                <td>20mA - 1A</td>
+                <td>100-150 lm/W</td>
+            </tr>
+            <tr>
+                <td>Blue (InGaN)</td>
+                <td>2.8 - 3.4V</td>
+                <td>20mA - 1A</td>
+                <td>30-50 lm/W</td>
+            </tr>
+            <tr>
+                <td>White (Blue + Phosphor)</td>
+                <td>2.9 - 3.6V</td>
+                <td>20mA - 3A</td>
+                <td>150-200+ lm/W</td>
+            </tr>
+            <tr>
+                <td>High-Power (Cree, Lumileds)</td>
+                <td>2.7 - 3.5V</td>
+                <td>350mA - 3A</td>
+                <td>150-200 lm/W</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Temperature Coefficient:</strong> LED V<sub>F</sub> decreases ~2-4mV/°C. This means constant voltage drive causes thermal runaway! Always use constant current drive.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 2: Current Regulation</h3>
+
+        <div class="subsection">
+            <h4>Interactive: LED Current Regulator Calculator</h4>
+
+            <div class="controls">
+                <div class="c3">
+                    <label for="led-vin">Input Voltage (V)</label>
+                    <input type="range" id="led-vin" min="3" max="48" step="0.5" value="12">
+                    <span id="led-vin-val" class="mono">12V</span>
+                </div>
+                <div class="c3">
+                    <label for="led-vf">LED V<sub>F</sub> per LED (V)</label>
+                    <input type="range" id="led-vf" min="1.8" max="3.6" step="0.1" value="3.2">
+                    <span id="led-vf-val" class="mono">3.2V</span>
+                </div>
+                <div class="c3">
+                    <label for="led-num">Number of LEDs in Series</label>
+                    <input type="range" id="led-num" min="1" max="12" step="1" value="3">
+                    <span id="led-num-val" class="mono">3</span>
+                </div>
+                <div class="c3">
+                    <label for="led-if">LED Current (mA)</label>
+                    <input type="range" id="led-if" min="10" max="1000" step="10" value="350">
+                    <span id="led-if-val" class="mono">350mA</span>
+                </div>
+                <div class="c3">
+                    <label for="led-eff">Driver Efficiency (%)</label>
+                    <input type="range" id="led-eff" min="70" max="98" step="1" value="90">
+                    <span id="led-eff-val" class="mono">90%</span>
+                </div>
+            </div>
+
+            <div class="kv">
+                <div class="box">
+                    <div class="k">Total LED Voltage</div>
+                    <div class="v mono" id="led-vled">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Recommended Topology</div>
+                    <div class="v mono" id="led-topology">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">LED Power</div>
+                    <div class="v mono" id="led-pled">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Input Power</div>
+                    <div class="v mono" id="led-pin">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Sense Resistor (100mV)</div>
+                    <div class="v mono" id="led-rsense">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Sense Resistor Power</div>
+                    <div class="v mono" id="led-prsense">--</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="subsection">
+            <h4>Current Sensing Methods</h4>
+
+            <canvas id="current-sense-canvas" width="700" height="380" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 3: Dimming Methods</h3>
+
+        <table class="table">
+            <tr>
+                <th>Method</th>
+                <th>Range</th>
+                <th>Color Shift</th>
+                <th>EMI</th>
+                <th>Use Case</th>
+            </tr>
+            <tr>
+                <td>PWM Dimming</td>
+                <td>1000:1 or better</td>
+                <td>None (constant I<sub>F</sub>)</td>
+                <td>Can cause issues at low frequency</td>
+                <td>Display backlights, general</td>
+            </tr>
+            <tr>
+                <td>Analog (DC) Dimming</td>
+                <td>~10:1</td>
+                <td>Yes (chromaticity shifts)</td>
+                <td>Low</td>
+                <td>Simple, cost-sensitive</td>
+            </tr>
+            <tr>
+                <td>Hybrid</td>
+                <td>1000:1+</td>
+                <td>Minimal</td>
+                <td>Medium</td>
+                <td>High-end displays</td>
+            </tr>
+        </table>
+
+        <div class="info">
+            <strong>PWM Frequency Selection:</strong>
+            <ul>
+                <li><strong>&lt;100Hz:</strong> Visible flicker (unacceptable)</li>
+                <li><strong>100-400Hz:</strong> Minimal flicker, some video artifacts</li>
+                <li><strong>1-2kHz:</strong> Good for most applications</li>
+                <li><strong>&gt;20kHz:</strong> Above audible range, no flicker concerns</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 4: Automotive LED Driver</h3>
+
+        <p>Automotive applications require robust protection against load dump (up to 40V), reverse polarity, and wide temperature range:</p>
+
+        <canvas id="automotive-led-canvas" width="780" height="500" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+// ==================== LED TOPOLOGY CANVAS ====================
+(function() {
+    const canvas = document.getElementById('led-topology-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    // Background
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('LED DRIVER TOPOLOGY SELECTION', W/2, 28);
+
+    ctx.font = '12px monospace';
+    ctx.fillStyle = TEK.ch1;
+    ctx.fillText('INPUT VOLTAGE vs LED STRING VOLTAGE DETERMINES TOPOLOGY', W/2, 52);
+
+    // Draw three main topologies
+    const topY = 80;
+    const boxW = 280;
+    const boxH = 170;
+    const gap = 30;
+    const startX = (W - (3 * boxW + 2 * gap)) / 2;
+
+    const topologies = [
+        { name: 'BUCK', condition: 'VLED < VIN', example: '12V → 3V LED\n(car → 1 LED)', color: TEK.ch2 },
+        { name: 'BUCK-BOOST\nor SEPIC', condition: 'VLED ≈ VIN', example: '5V → 3-7V LED\n(battery app)', color: TEK.ch3 },
+        { name: 'BOOST', condition: 'VLED > VIN', example: '3.3V → 12V LED\n(white LED string)', color: TEK.ch4 }
+    ];
+
+    topologies.forEach((topo, i) => {
+        const x = startX + i * (boxW + gap);
+        const y = topY;
+
+        // Box background
+        ctx.fillStyle = '#1a2332';
+        AD.roundRect(ctx, x, y, boxW, boxH, 8, { fill: '#1a2332', stroke: topo.color, lineWidth: 2 });
+
+        // Condition header
+        ctx.fillStyle = topo.color;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(topo.condition, x + boxW/2, y + 25);
+
+        // Topology name
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 15px monospace';
+        const lines = topo.name.split('\n');
+        lines.forEach((line, li) => {
+            ctx.fillText(line, x + boxW/2, y + 55 + li * 18);
         });
 
-        ['mcu-sleep', 'rtc-current', 'ldo-iq', 'sensor-leak'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawPowerBudget);
-        });
+        // Simple circuit representation
+        const circY = y + 95;
+        ctx.strokeStyle = topo.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + 40, circY);
+        ctx.lineTo(x + 80, circY);
+        ctx.stroke();
 
-        ['tx-power', 'data-rate', 'packet-size', 'protocol'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawWireless);
-        });
+        // Switch symbol
+        ctx.beginPath();
+        ctx.moveTo(x + 80, circY);
+        ctx.lineTo(x + 100, circY - 15);
+        ctx.stroke();
 
-        ['solar-size', 'light-level', 'light-hours', 'harvester-eff'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawHarvesting);
-        });
+        // Inductor symbol (zigzag)
+        ctx.beginPath();
+        ctx.moveTo(x + 105, circY);
+        for (let j = 0; j < 4; j++) {
+            ctx.lineTo(x + 115 + j * 12, circY - 8);
+            ctx.lineTo(x + 121 + j * 12, circY + 8);
+        }
+        ctx.lineTo(x + 160, circY);
+        ctx.stroke();
 
-        // Schematic
-        function createIotSchematic() {
-            const container = document.getElementById('iot-schematic');
-            const svg = new SchematicSVG(700, 280);
+        // LED symbol
+        const ledX = x + 175;
+        ctx.beginPath();
+        ctx.moveTo(x + 160, circY);
+        ctx.lineTo(ledX, circY);
+        ctx.stroke();
 
-            // Battery
-            svg.addText(30, 100, '+', '14px', 'end', '#FF0000');
-            svg.line(40, 100, 70, 100, '#FF0000');
-            svg.rect(70, 85, 40, 30, '#181818', '#FF0000');
-            svg.addText(90, 105, 'BAT', '10px', 'middle');
-            svg.line(110, 100, 140, 100);
-            svg.addText(30, 130, '-', '14px', 'end');
-            svg.line(40, 130, 140, 130);
+        // LED triangle
+        ctx.beginPath();
+        ctx.moveTo(ledX, circY - 10);
+        ctx.lineTo(ledX, circY + 10);
+        ctx.lineTo(ledX + 15, circY);
+        ctx.closePath();
+        ctx.fillStyle = topo.color;
+        ctx.fill();
+        ctx.stroke();
 
-            // LDO
-            svg.rect(150, 80, 70, 60, '#181818', '#00FF00');
-            svg.addText(185, 105, 'LDO', '12px', 'middle', '#00FF00');
-            svg.addText(185, 120, '1.8V', '10px', 'middle');
+        // LED bar
+        ctx.beginPath();
+        ctx.moveTo(ledX + 18, circY - 10);
+        ctx.lineTo(ledX + 18, circY + 10);
+        ctx.stroke();
 
-            svg.line(140, 100, 150, 100);
-            svg.line(220, 100, 260, 100);
-
-            // Load switch
-            svg.rect(270, 80, 60, 60, '#181818', '#FFFF00');
-            svg.addText(300, 105, 'Load', '10px', 'middle', '#FFFF00');
-            svg.addText(300, 120, 'Switch', '10px', 'middle');
-
-            svg.line(330, 100, 360, 100);
-
-            // Sensor
-            svg.rect(370, 80, 70, 60, '#181818', '#00FFFF');
-            svg.addText(405, 105, 'Sensor', '11px', 'middle', '#00FFFF');
-            svg.addText(405, 120, 'T/H', '10px', 'middle');
-
-            // MCU
-            svg.rect(480, 60, 100, 120, '#181818', '#FF6600');
-            svg.addText(530, 95, 'MCU', '14px', 'middle', '#FF6600');
-            svg.addText(530, 115, 'Cortex', '10px', 'middle');
-            svg.addText(530, 130, 'M0+', '10px', 'middle');
-
-            // Connections
-            svg.line(440, 100, 480, 100);
-            svg.addText(460, 95, 'I2C', '9px', 'middle', '#888');
-
-            // Enable signal
-            svg.line(530, 60, 530, 40);
-            svg.line(530, 40, 300, 40);
-            svg.line(300, 40, 300, 80);
-            svg.addText(415, 35, 'EN', '9px', 'middle', '#888');
-
-            // Radio
-            svg.rect(610, 80, 70, 60, '#181818', '#FF66FF');
-            svg.addText(645, 100, 'BLE', '12px', 'middle', '#FF66FF');
-            svg.addText(645, 118, 'Radio', '10px', 'middle');
-
-            svg.line(580, 110, 610, 110);
-            svg.addText(595, 100, 'SPI', '9px', 'middle', '#888');
-
-            // Antenna
-            svg.line(680, 100, 700, 100);
-            svg.line(700, 85, 700, 115);
-
-            // Ground
-            svg.line(185, 140, 185, 180);
-            svg.line(300, 140, 300, 180);
-            svg.line(405, 140, 405, 180);
-            svg.line(530, 180, 530, 200);
-            svg.line(645, 140, 645, 180);
-
-            svg.line(140, 180, 645, 180);
-            svg.addGround(400, 200);
-
-            // Power annotations
-            svg.addText(90, 75, '3V', '10px', 'middle', '#888');
-            svg.addText(185, 165, 'Iq<1μA', '9px', 'middle', '#888');
-            svg.addText(300, 165, '<10nA off', '9px', 'middle', '#888');
-
-            container.appendChild(svg.svg);
+        // Ground
+        ctx.beginPath();
+        ctx.moveTo(ledX + 18, circY);
+        ctx.lineTo(ledX + 35, circY);
+        ctx.lineTo(ledX + 35, circY + 15);
+        ctx.stroke();
+        // Ground symbol
+        for (let g = 0; g < 3; g++) {
+            const gw = 12 - g * 4;
+            ctx.beginPath();
+            ctx.moveTo(ledX + 35 - gw/2, circY + 18 + g * 4);
+            ctx.lineTo(ledX + 35 + gw/2, circY + 18 + g * 4);
+            ctx.stroke();
         }
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            drawIotArchitecture();
-            drawBatteryLife();
-            drawPowerBudget();
-            drawWireless();
-            drawHarvesting();
-            createIotSchematic();
+        // VIN label
+        ctx.fillStyle = '#aaa';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('VIN', x + 42, circY - 8);
 
-            // Design checklist
-            new ChecklistWidget('iot-checklist', {
-                title: 'Battery-Powered IoT Design',
-                items: [
-                    { text: 'Select MCU with <1μA sleep current', critical: true },
-                    { text: 'Use LDO with <1μA quiescent current', critical: true },
-                    { text: 'Power-gate sensors when not in use', critical: true },
-                    { text: 'Minimize wake duration (process data in sleep if possible)', critical: false },
-                    { text: 'Optimize radio packet size for efficiency', critical: true },
-                    { text: 'Use low-power RTC for scheduled wakeups', critical: false },
-                    { text: 'Implement adaptive duty cycling based on events', critical: false },
-                    { text: 'Add brownout detection with graceful shutdown', critical: true },
-                    { text: 'Consider energy harvesting for extended life', critical: false },
-                    { text: 'Minimize PCB leakage (flux residue, moisture)', critical: false },
-                    { text: 'Select battery with low self-discharge', critical: true },
-                    { text: 'Include fuel gauge or voltage monitoring', critical: false }
+        // Example
+        ctx.fillStyle = '#888';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        const exLines = topo.example.split('\n');
+        exLines.forEach((line, li) => {
+            ctx.fillText(line, x + boxW/2, y + boxH - 25 + li * 14);
+        });
+    });
+
+    // Special topologies section
+    const specY = topY + boxH + 40;
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SPECIAL TOPOLOGIES', W/2, specY);
+
+    const specTopologies = [
+        { name: 'LINEAR REGULATOR', desc: 'VIN → [Rset] → LED', pros: 'Simple, low cost', cons: 'Low efficiency', color: '#6b7280' },
+        { name: 'CHARGE PUMP', desc: 'VIN → [2x Doubler] → LED', pros: 'No inductor', cons: 'Low power only', color: '#8b5cf6' },
+        { name: 'FLYBACK (Isolated)', desc: 'VIN → [Transformer] → LED', pros: 'Safety isolation', cons: 'High power lighting', color: '#f59e0b' }
+    ];
+
+    const specBoxW = 290;
+    const specBoxH = 130;
+    const specStartX = (W - (3 * specBoxW + 2 * 20)) / 2;
+
+    specTopologies.forEach((topo, i) => {
+        const x = specStartX + i * (specBoxW + 20);
+        const y = specY + 20;
+
+        AD.roundRect(ctx, x, y, specBoxW, specBoxH, 6, { fill: '#141922', stroke: topo.color, lineWidth: 1.5 });
+
+        // Name
+        ctx.fillStyle = topo.color;
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(topo.name, x + specBoxW/2, y + 22);
+
+        // Description
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '11px monospace';
+        ctx.fillText(topo.desc, x + specBoxW/2, y + 48);
+
+        // Pros/Cons
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = '10px monospace';
+        ctx.fillText('✓ ' + topo.pros, x + specBoxW/2, y + 78);
+
+        ctx.fillStyle = '#f87171';
+        ctx.fillText('• ' + topo.cons, x + specBoxW/2, y + 98);
+    });
+
+})();
+
+// ==================== CURRENT SENSING CANVAS ====================
+(function() {
+    const canvas = document.getElementById('current-sense-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('LOW-SIDE CURRENT SENSING (Most Common)', W/2, 25);
+
+    // Main circuit layout
+    const startX = 80, startY = 60;
+
+    // VIN rail
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(startX + 400, startY);
+    ctx.stroke();
+
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('VIN', startX - 30, startY + 4);
+
+    // Switch
+    const swX = startX + 80, swY = startY + 50;
+    ctx.strokeStyle = TEK.ch2;
+    ctx.beginPath();
+    ctx.moveTo(swX, startY);
+    ctx.lineTo(swX, swY - 20);
+    ctx.stroke();
+
+    // Switch symbol (open contact)
+    ctx.beginPath();
+    ctx.arc(swX, swY - 20, 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(swX, swY - 16);
+    ctx.lineTo(swX + 15, swY - 30);
+    ctx.stroke();
+
+    AD.roundRect(ctx, swX - 25, swY, 50, 25, 4, { fill: '#1a2332', stroke: TEK.ch2, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Switch', swX, swY + 16);
+
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('← PWM controlled', swX + 35, swY + 12);
+
+    // Inductor
+    const indX = swX, indY = swY + 55;
+    ctx.strokeStyle = TEK.ch3;
+    ctx.beginPath();
+    ctx.moveTo(indX, swY + 25);
+    ctx.lineTo(indX, indY);
+    ctx.stroke();
+
+    AD.roundRect(ctx, indX - 25, indY, 50, 25, 4, { fill: '#1a2332', stroke: TEK.ch3, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Inductor', indX, indY + 16);
+
+    // Junction after inductor
+    const juncX = indX, juncY = indY + 50;
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(indX, indY + 25);
+    ctx.lineTo(indX, juncY);
+    ctx.stroke();
+
+    // Junction dot
+    ctx.beginPath();
+    ctx.arc(juncX, juncY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = TEK.ch1;
+    ctx.fill();
+
+    // LED string branch (to right)
+    const ledStartX = juncX + 100;
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(juncX, juncY);
+    ctx.lineTo(ledStartX, juncY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.fillText('LED+', ledStartX - 40, juncY - 8);
+
+    // Draw 3 LEDs in series
+    const ledColors = [TEK.ch1, TEK.ch1, TEK.ch1];
+    for (let i = 0; i < 3; i++) {
+        const lx = ledStartX + i * 70;
+        // LED triangle
+        ctx.fillStyle = '#f59e0b';
+        ctx.strokeStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.moveTo(lx, juncY - 8);
+        ctx.lineTo(lx, juncY + 8);
+        ctx.lineTo(lx + 15, juncY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // LED bar
+        ctx.beginPath();
+        ctx.moveTo(lx + 17, juncY - 8);
+        ctx.lineTo(lx + 17, juncY + 8);
+        ctx.stroke();
+
+        // Connecting wire
+        if (i < 2) {
+            ctx.strokeStyle = TEK.ch1;
+            ctx.beginPath();
+            ctx.moveTo(lx + 17, juncY);
+            ctx.lineTo(lx + 70, juncY);
+            ctx.stroke();
+        }
+
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('LED' + (i + 1), lx + 8, juncY + 22);
+    }
+
+    // LED string continues down
+    const ledEndX = ledStartX + 2 * 70 + 17;
+    const ledEndY = juncY + 80;
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(ledEndX, juncY);
+    ctx.lineTo(ledEndX + 40, juncY);
+    ctx.lineTo(ledEndX + 40, ledEndY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('LED- (Cathode)', ledEndX + 50, ledEndY - 30);
+
+    // Freewheeling diode (below junction)
+    const diodeY = juncY + 40;
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(juncX, juncY);
+    ctx.lineTo(juncX, diodeY);
+    ctx.stroke();
+
+    // Diode symbol
+    ctx.beginPath();
+    ctx.moveTo(juncX - 10, diodeY);
+    ctx.lineTo(juncX + 10, diodeY);
+    ctx.lineTo(juncX, diodeY + 15);
+    ctx.closePath();
+    ctx.fillStyle = '#6b7280';
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(juncX - 10, diodeY + 15);
+    ctx.lineTo(juncX + 10, diodeY + 15);
+    ctx.stroke();
+
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('← Freewheeling diode', juncX + 20, diodeY + 8);
+
+    // Ground under diode
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(juncX, diodeY + 15);
+    ctx.lineTo(juncX, diodeY + 35);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('GND', juncX, diodeY + 50);
+
+    // Rsense
+    const rsX = ledEndX + 40, rsY = ledEndY + 20;
+    AD.roundRect(ctx, rsX - 20, rsY, 40, 30, 3, { fill: '#2a3a52', stroke: TEK.ch5, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Rsense', rsX, rsY + 19);
+
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(rsX, ledEndY);
+    ctx.lineTo(rsX, rsY);
+    ctx.stroke();
+
+    // Ground under Rsense
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(rsX, rsY + 30);
+    ctx.lineTo(rsX, rsY + 50);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('GND', rsX, rsY + 65);
+
+    // FB line
+    const fbY = ledEndY + 15;
+    ctx.strokeStyle = TEK.ch3;
+    ctx.setLineDash([5, 3]);
+    ctx.beginPath();
+    ctx.moveTo(20, fbY);
+    ctx.lineTo(rsX - 25, fbY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('FB ←', 55, fbY + 4);
+
+    // Notes box
+    AD.roundRect(ctx, 30, H - 100, 280, 80, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('To comparator:', 45, H - 80);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('When V_sense = V_ref,', 45, H - 62);
+    ctx.fillText('current is at setpoint', 45, H - 48);
+    ctx.fillStyle = TEK.ch4;
+    ctx.fillText('Typical V_sense = 100-200mV', 45, H - 30);
+
+})();
+
+// ==================== AUTOMOTIVE LED CANVAS ====================
+(function() {
+    const canvas = document.getElementById('automotive-led-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 15px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('AUTOMOTIVE LED DRIVER (Tail Light)', W/2, 25);
+
+    // VBAT input at top
+    const vbatX = 100, vbatY = 55;
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('VBAT (9-16V, 40V transient)', vbatX, vbatY);
+
+    // Vertical line down from VBAT
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(vbatX + 30, vbatY + 10);
+    ctx.lineTo(vbatX + 30, vbatY + 35);
+    ctx.stroke();
+
+    // TVS Diode
+    AD.roundRect(ctx, vbatX + 5, vbatY + 35, 50, 25, 3, { fill: '#2a2a4a', stroke: '#8b5cf6', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('TVS', vbatX + 30, vbatY + 51);
+
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('← Transient suppression (SMBJ24CA)', vbatX + 60, vbatY + 51);
+
+    // Line to reverse polarity
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(vbatX + 30, vbatY + 60);
+    ctx.lineTo(vbatX + 30, vbatY + 80);
+    ctx.stroke();
+
+    // Reverse polarity protection
+    AD.roundRect(ctx, vbatX - 30, vbatY + 80, 120, 22, 3, { fill: '#2a3a2a', stroke: TEK.ch4, lineWidth: 1 });
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Reverse polarity protection', vbatX + 30, vbatY + 94);
+
+    // Main IC box
+    const icX = 60, icY = vbatY + 120, icW = 550, icH = 190;
+    AD.roundRect(ctx, icX, icY, icW, icH, 8, { fill: '#1a2332', stroke: TEK.ch2, lineWidth: 2 });
+
+    // IC Title
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BUCK LED DRIVER IC', icX + icW/2, icY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '11px monospace';
+    ctx.fillText('(TPS92515, LM3409)', icX + icW/2, icY + 38);
+
+    // Internal LDO path
+    ctx.strokeStyle = TEK.ch3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(icX + 30, icY + 55);
+    ctx.lineTo(icX + 80, icY + 55);
+    ctx.stroke();
+    AD.drawArrow(ctx, icX + 80, icY + 55, icX + 130, icY + 55, { color: TEK.ch3, headSize: 6 });
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('VIN', icX + 35, icY + 52);
+
+    AD.roundRect(ctx, icX + 135, icY + 45, 80, 22, 3, { fill: '#1f2937', stroke: TEK.ch3, lineWidth: 1 });
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Internal LDO', icX + 175, icY + 59);
+
+    AD.drawArrow(ctx, icX + 220, icY + 55, icX + 270, icY + 55, { color: TEK.ch3, headSize: 6 });
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Logic Supply', icX + 275, icY + 59);
+
+    // PWM Controller block
+    const pwmX = icX + 80, pwmY = icY + 80;
+    AD.roundRect(ctx, pwmX, pwmY, 120, 45, 4, { fill: '#2a2a4a', stroke: '#a78bfa', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('PWM Controller', pwmX + 60, pwmY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('with OVP/UVP', pwmX + 60, pwmY + 36);
+
+    // Gate Driver block
+    const gateX = pwmX + 160, gateY = pwmY;
+    AD.roundRect(ctx, gateX, gateY, 100, 45, 4, { fill: '#2a4a4a', stroke: TEK.ch2, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Gate Driver', gateX + 50, gateY + 28);
+
+    // Connect PWM to Gate Driver
+    ctx.strokeStyle = '#a78bfa';
+    ctx.beginPath();
+    ctx.moveTo(pwmX + 120, pwmY + 22);
+    ctx.lineTo(gateX, gateY + 22);
+    ctx.stroke();
+
+    // SW output from Gate Driver
+    AD.drawArrow(ctx, gateX + 100, gateY + 22, gateX + 150, gateY + 22, { color: TEK.ch2, headSize: 8 });
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('SW (FET)', gateX + 155, gateY + 26);
+
+    // Control pins (left side)
+    const pinY = icY + 145;
+    const pins = [
+        { name: 'DIM', desc: 'PWM Input (100Hz - 1kHz)', dir: 'in' },
+        { name: 'IADJ', desc: 'Analog current adjust', dir: 'in' },
+        { name: 'FAULT', desc: 'Open LED / short detection', dir: 'out' }
+    ];
+
+    pins.forEach((pin, i) => {
+        const py = pinY + i * 22;
+        ctx.fillStyle = pin.dir === 'in' ? TEK.ch3 : TEK.ch5;
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(pin.name, icX + 30, py);
+
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText((pin.dir === 'in' ? '← ' : '→ ') + pin.desc, icX + 80, py);
+    });
+
+    // External circuit below IC
+    const extY = icY + icH + 20;
+
+    // SW node from IC
+    ctx.strokeStyle = TEK.ch2;
+    ctx.lineWidth = 2;
+    const swNodeX = icX + 420;
+    ctx.beginPath();
+    ctx.moveTo(swNodeX, icY + icH);
+    ctx.lineTo(swNodeX, extY);
+    ctx.stroke();
+
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SW', swNodeX, icY + icH + 12);
+
+    // Inductor
+    AD.roundRect(ctx, swNodeX + 20, extY - 12, 60, 24, 3, { fill: '#2a3a52', stroke: TEK.ch3, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('L 47µH', swNodeX + 50, extY + 4);
+
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(swNodeX, extY);
+    ctx.lineTo(swNodeX + 20, extY);
+    ctx.stroke();
+
+    // Junction after inductor
+    const juncX2 = swNodeX + 100;
+    ctx.beginPath();
+    ctx.moveTo(swNodeX + 80, extY);
+    ctx.lineTo(juncX2, extY);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(juncX2, extY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = TEK.ch1;
+    ctx.fill();
+
+    // LED+ and LED string
+    ctx.strokeStyle = TEK.ch1;
+    AD.drawArrow(ctx, juncX2, extY, juncX2 + 40, extY, { color: TEK.ch1, headSize: 6 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('LED+', juncX2 + 45, extY + 4);
+
+    // LED string box
+    AD.roundRect(ctx, juncX2 + 75, extY - 12, 100, 24, 3, { fill: '#3a2a2a', stroke: '#f59e0b', lineWidth: 1.5 });
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('LEDs in series', juncX2 + 125, extY + 4);
+
+    // LED string continues down
+    const ledEndX2 = juncX2 + 175;
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(ledEndX2, extY);
+    ctx.lineTo(ledEndX2 + 30, extY);
+    ctx.lineTo(ledEndX2 + 30, extY + 60);
+    ctx.stroke();
+
+    // Diode below junction
+    const diodeY2 = extY + 35;
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(juncX2, extY);
+    ctx.lineTo(juncX2, diodeY2 - 10);
+    ctx.stroke();
+
+    // Diode symbol
+    AD.roundRect(ctx, juncX2 - 12, diodeY2 - 10, 24, 20, 2, { fill: '#2a2a3a', stroke: '#6b7280', lineWidth: 1 });
+    ctx.fillStyle = '#888';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('D', juncX2, diodeY2 + 4);
+
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(juncX2, diodeY2 + 10);
+    ctx.lineTo(juncX2, diodeY2 + 25);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('GND', juncX2, diodeY2 + 38);
+
+    // Rsense and ISNS
+    const rsX2 = ledEndX2 + 30, rsY2 = extY + 65;
+    AD.roundRect(ctx, rsX2 - 20, rsY2, 40, 25, 3, { fill: '#2a3a52', stroke: TEK.ch5, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Rsense', rsX2, rsY2 + 16);
+
+    // Ground under Rsense
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(rsX2, rsY2 + 25);
+    ctx.lineTo(rsX2, rsY2 + 40);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('GND', rsX2, rsY2 + 52);
+
+    // ISNS feedback line
+    ctx.strokeStyle = TEK.ch5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(icX + 30, rsY2 + 10);
+    ctx.lineTo(rsX2 - 25, rsY2 + 10);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('ISNS ←', icX + 5, rsY2 + 14);
+
+    // Protection features box
+    const protX = 30, protY = H - 110;
+    AD.roundRect(ctx, protX, protY, 280, 100, 6, { fill: '#1a1a2e', stroke: '#374151', lineWidth: 1 });
+
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Protection features:', protX + 15, protY + 20);
+
+    const features = [
+        '• Input OVP: Shuts down above 42V',
+        '• Thermal shutdown: 150°C',
+        '• LED open/short detection',
+        '• Soft-start: Limits inrush'
+    ];
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    features.forEach((f, i) => {
+        ctx.fillText(f, protX + 20, protY + 40 + i * 16);
+    });
+
+})();
+
+(function() {
+    // LED Driver Calculator
+    function updateLED() {
+        const vin = AD.num('led-vin');
+        const vf = AD.num('led-vf');
+        const num = parseInt(document.getElementById('led-num').value);
+        const iF = AD.num('led-if') / 1000; // A
+        const eff = AD.num('led-eff') / 100;
+
+        document.getElementById('led-vin-val').textContent = vin + 'V';
+        document.getElementById('led-vf-val').textContent = vf.toFixed(1) + 'V';
+        document.getElementById('led-num-val').textContent = num;
+        document.getElementById('led-if-val').textContent = (iF * 1000).toFixed(0) + 'mA';
+        document.getElementById('led-eff-val').textContent = (eff * 100).toFixed(0) + '%';
+
+        const vled = vf * num;
+        const pled = vled * iF;
+        const pin = pled / eff;
+
+        // Topology selection
+        let topology;
+        const ratio = vled / vin;
+        if (ratio < 0.8) {
+            topology = 'Buck';
+        } else if (ratio > 1.2) {
+            topology = 'Boost';
+        } else {
+            topology = 'Buck-Boost';
+        }
+
+        // Sense resistor for 100mV
+        const rsense = 0.1 / iF;
+        const prsense = iF * iF * rsense * 1000; // mW
+
+        document.getElementById('led-vled').textContent = vled.toFixed(1) + 'V';
+        document.getElementById('led-topology').textContent = topology;
+        document.getElementById('led-pled').textContent = (pled * 1000).toFixed(0) + 'mW';
+        document.getElementById('led-pin').textContent = (pin * 1000).toFixed(0) + 'mW';
+        document.getElementById('led-rsense').textContent = rsense.toFixed(2) + 'Ω';
+        document.getElementById('led-prsense').textContent = prsense.toFixed(1) + 'mW';
+    }
+
+    ['led-vin', 'led-vf', 'led-num', 'led-if', 'led-eff'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateLED);
+    });
+    updateLED();
+
+    // SPICE netlist
+    if (typeof SpiceNetlistWidget !== 'undefined') {
+        new SpiceNetlistWidget('spice-container', {
+            title: 'Buck LED Driver',
+            netlist: `* Buck LED Driver - Constant Current
+.param VIN=12 ILED=0.35 VLED=9.6 L=47u
+
+* Input
+VIN vin 0 DC {VIN}
+
+* Simplified buck with current mode control
+* (Behavioral model)
+Vctrl ctrl 0 DC 0.5  ; Duty cycle control
+S1 vin sw ctrl 0 SMOD
+.model SMOD VSWITCH (RON=0.1 ROFF=1MEG VON=0.6 VOFF=0.4)
+
+* Output filter
+L1 sw led_a {L} IC=0
+D1 0 sw DSCHOTTKY
+.model DSCHOTTKY D (IS=1u RS=0.1 N=1.5)
+
+* LED string (3 LEDs in series)
+DLED1 led_a led_b LEDMODEL
+DLED2 led_b led_c LEDMODEL
+DLED3 led_c led_cathode LEDMODEL
+.model LEDMODEL D (IS=1e-20 N=2 RS=0.5)
+
+* Current sense resistor
+Rsense led_cathode 0 0.286  ; 0.1V / 0.35A
+
+.tran 1u 1m
+.probe V(sw) V(led_a) I(L1)
+.end`
+        });
+    }
+
+    // Checklist
+    if (typeof ChecklistWidget !== 'undefined') {
+        new ChecklistWidget('checklist-container', {
+            lessonKey: 'm23l7',
+            items: [
+                'Understand why LEDs need constant current drive',
+                'Select appropriate topology based on VIN vs VLED',
+                'Calculate sense resistor for target current',
+                'Know difference between PWM and analog dimming',
+                'Understand automotive LED driver requirements'
+            ]
+        });
+    }
+
+    // Exercises
+    const container = document.getElementById('exercise-container');
+    if (typeof ExerciseWidget !== 'undefined') {
+        const exercises = [
+            {
+                id: 'M23-7-L1',
+                type: 'numeric',
+                question: 'Calculate the sense resistor for 500mA LED current with 100mV sense voltage.',
+                hint: 'R = V/I',
+                expected: 0.2,
+                tolerance: 0.01,
+                unit: 'Ω'
+            },
+            {
+                id: 'M23-7-L2',
+                type: 'choice',
+                question: 'You have 12V input and need to drive 4 white LEDs (3.2V each) in series. What topology?',
+                choices: [
+                    { text: 'Buck (step-down)', correct: false },
+                    { text: 'Boost (step-up)', correct: true },
+                    { text: 'Linear regulator', correct: false },
+                    { text: 'Charge pump', correct: false }
+                ],
+                solution: '4 LEDs × 3.2V = 12.8V > 12V input, so boost is needed.'
+            },
+            {
+                id: 'M23-7-L3',
+                type: 'choice',
+                question: 'Why does analog dimming cause color shift in white LEDs?',
+                choices: [
+                    { text: 'The phosphor changes color at different temperatures', correct: false },
+                    { text: 'Blue and red chips have different current-efficacy curves', correct: true },
+                    { text: 'The driver introduces harmonic distortion', correct: false },
+                    { text: 'The sense resistor changes value', correct: false }
                 ]
-            });
-
-            // Exercises
-            new ExerciseWidget('iot-exercises', {
-                exercises: [
-                    {
-                        question: 'A sensor wakes every 15 minutes, takes a reading in 50ms at 5mA, and transmits for 10ms at 15mA. Sleep current is 1μA. Calculate average current and battery life with a 225mAh CR2032.',
-                        hint: 'Average I = (sleep_I × sleep_time + active_I × active_time) / total_time',
-                        answer: 'Wake interval = 15 min = 900,000 ms. Active time = 60 ms. Sleep time = 899,940 ms. Active current (weighted) = (50ms×5mA + 10ms×15mA)/60ms = 5.83mA. Avg I = (1μA × 899940 + 5830μA × 60) / 900000 = (899.94 + 349.8) / 900 = 1.39 μA. Battery life = 225mAh / 0.00139mA = 162,000 hours = 18.5 years. (In practice, battery self-discharge limits to ~10 years)'
-                    },
-                    {
-                        question: 'A BLE advertisement packet is 31 bytes. At 1 Mbps with 15mA TX current, what is the energy per packet?',
-                        hint: 'Energy = V × I × t, time = bits / rate',
-                        answer: 'Packet = 31 bytes + ~15 bytes overhead = 46 bytes = 368 bits. TX time = 368 bits / 1,000,000 bps = 368 μs. Assume 3V supply. Energy = 3V × 15mA × 368μs = 16.6 μJ per packet. If advertising 3 times per event (typical BLE), total = 50 μJ per advertisement event.'
-                    },
-                    {
-                        question: 'Design a power budget for 5-year life from a 225mAh coin cell. Maximum average current?',
-                        hint: '5 years = 43,800 hours',
-                        answer: 'Required life = 5 years × 8760 hours/year = 43,800 hours. Max average current = 225 mAh / 43,800 hours = 5.14 μA. This must include: MCU sleep (<0.5μA), LDO quiescent (<1μA), RTC (<0.5μA), sensor leakage (<0.1μA), and active duty cycle contribution. Budget: ~2μA for sleep, ~3μA for activity averaged over time.'
-                    },
-                    {
-                        question: 'A 5 cm² indoor solar cell generates 0.5mW at 500 lux. If the system consumes 5 μW average, is it energy autonomous? What size capacitor is needed for 12 hours of darkness?',
-                        hint: 'Compare power levels. Energy storage E = P × t, C = 2E/V²',
-                        answer: 'Harvested: 500μW (in light). Consumed: 5μW. Ratio: 100:1 - definitely energy positive in light! Energy for 12 hours darkness: 5μW × 12h = 60μWh = 0.216J. For supercap at 3V initial, 2V minimum: E = 0.5×C×(3²-2²) = 2.5C. Need C = 0.216J / 2.5 = 86mF. Use 100mF supercap. With 80% harvester efficiency and 6 hours sunlight: 500μW × 0.8 × 6h = 2.4mWh stored >> 60μWh needed.'
-                    }
-                ]
-            });
+            }
+        ];
+        exercises.forEach((ex, i) => {
+            const div = document.createElement('div');
+            div.id = `ex-m23l7-${i}`;
+            container.appendChild(div);
+            new ExerciseWidget(`ex-m23l7-${i}`, ex);
         });
-    </script>
-</body>
-</html>
+    }
+})();
+</script>

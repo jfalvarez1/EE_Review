@@ -1,176 +1,224 @@
-<!-- Module 23, Lesson 9: Signal Integrity Issues -->
+<!-- Module 23, Lesson 9: Power Supply Failure Analysis -->
 <div class="lesson-content" data-module="23" data-lesson="9">
 
     <div class="card">
-        <h2>Debugging Signal Integrity Issues</h2>
-        <p>Signal integrity problems cause data errors, timing failures, and mysterious glitches. Learn to identify and fix reflections, crosstalk, and transmission line effects.</p>
+        <h2>Case Study: Switching Power Supply Failure</h2>
+        <p>Investigate a failed ATX power supply with no output. This scenario covers systematic SMPS troubleshooting, from input protection through the control loop, identifying common failure modes.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Reflections</div>
-                <div class="v">Impedance mismatch</div>
+                <div class="k">Symptom</div>
+                <div class="v">No output, fan dead</div>
             </div>
             <div class="box">
-                <div class="k">Crosstalk</div>
-                <div class="v">Coupling between traces</div>
+                <div class="k">Input</div>
+                <div class="v">AC mains present</div>
             </div>
             <div class="box">
-                <div class="k">Ringing</div>
-                <div class="v">Underdamped response</div>
+                <div class="k">Fuse</div>
+                <div class="v">Intact (not blown)</div>
             </div>
             <div class="box">
-                <div class="k">Ground Bounce</div>
-                <div class="v">Simultaneous switching</div>
+                <div class="k">Age</div>
+                <div class="v">~5 years service</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Debug Insight:</strong> When rise time < 2× propagation delay, treat traces as transmission lines. For FR4, rule of thumb: traces > 2" at rise times < 1ns need controlled impedance.
+            <strong>Safety Warning:</strong> SMPS contain lethal voltages even when unplugged. The main filter capacitor can hold charge >300V. Always discharge and verify before touching. Use isolation transformer when testing under power.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Transmission Line Reflections</h3>
+        <h3>The Scenario</h3>
+        <div style="background:#111; padding:15px; border-radius:4px;">
+            <p><strong>Equipment:</strong> 500W ATX PC power supply</p>
+            <ul style="margin-top:10px; color:#aaa;">
+                <li>Reported: Computer suddenly died, won't turn on</li>
+                <li>No burning smell, no visible damage</li>
+                <li>Fuse OK, bridge rectifier OK, main cap charges to 320V</li>
+                <li>Standby 5V present at motherboard connector</li>
+                <li>PS_ON signal present but no 12V, 5V, 3.3V outputs</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: SMPS Block Diagnosis</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="si-z0">Line Z₀ (Ω)</label>
-                <input type="range" id="si-z0" min="25" max="150" step="5" value="50">
-                <span id="si-z0-val" class="mono">50Ω</span>
+                <label for="smps-block">Stage Under Test</label>
+                <select id="smps-block">
+                    <option value="input">Input/EMI Filter</option>
+                    <option value="rectifier">Bridge Rectifier</option>
+                    <option value="pfc">PFC Stage</option>
+                    <option value="primary">Primary Switch</option>
+                    <option value="transformer">Transformer</option>
+                    <option value="secondary">Secondary Rectifier</option>
+                    <option value="feedback">Feedback/Control</option>
+                    <option value="standby">Standby Supply</option>
+                </select>
             </div>
             <div class="c3">
-                <label for="si-zl">Load Z (Ω)</label>
-                <input type="range" id="si-zl" min="10" max="500" step="10" value="150">
-                <span id="si-zl-val" class="mono">150Ω</span>
-            </div>
-            <div class="c3">
-                <label for="si-len">Trace Length (cm)</label>
-                <input type="range" id="si-len" min="1" max="50" step="1" value="15">
-                <span id="si-len-val" class="mono">15cm</span>
+                <label for="smps-test">Test Method</label>
+                <select id="smps-test">
+                    <option value="dc">DC Voltage</option>
+                    <option value="diode">Diode Mode</option>
+                    <option value="scope">Oscilloscope</option>
+                    <option value="esr">ESR Meter</option>
+                </select>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="si-canvas" width="980" height="320"></canvas>
+            <canvas id="smps-canvas" width="980" height="360"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Reflection Coef (ρ)</div>
-                <div class="v mono" id="si-rho">—</div>
+                <div class="k">Block Status</div>
+                <div class="v mono" id="smps-status">—</div>
             </div>
             <div class="box">
-                <div class="k">Propagation Delay</div>
-                <div class="v mono" id="si-td">—</div>
+                <div class="k">Expected</div>
+                <div class="v mono" id="smps-expect">—</div>
             </div>
             <div class="box">
-                <div class="k">Overshoot</div>
-                <div class="v mono" id="si-overshoot">—</div>
+                <div class="k">Measured</div>
+                <div class="v mono" id="smps-meas">—</div>
             </div>
             <div class="box">
-                <div class="k">Status</div>
-                <div class="v mono" id="si-status">—</div>
+                <div class="k">Diagnosis</div>
+                <div class="v mono" id="smps-diag">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Signal Integrity Problems</h3>
+        <h3>Systematic Troubleshooting</h3>
 
         <table class="table">
             <tr>
-                <th>Symptom</th>
-                <th>Cause</th>
-                <th>Measurement</th>
-                <th>Fix</th>
+                <th>Test Point</th>
+                <th>Expected</th>
+                <th>Measured</th>
+                <th>Verdict</th>
             </tr>
             <tr>
-                <td>Ringing on edges</td>
-                <td>Unterminated T-line</td>
-                <td>Scope at source/load</td>
-                <td>Add termination resistor</td>
+                <td>AC Input</td>
+                <td>120/240V AC</td>
+                <td>120V AC</td>
+                <td style="color:#4f4;">PASS</td>
             </tr>
             <tr>
-                <td>Stair-step waveform</td>
-                <td>Multiple reflections</td>
-                <td>TDR measurement</td>
-                <td>Match impedances</td>
+                <td>Main Fuse</td>
+                <td><1Ω</td>
+                <td>0.3Ω</td>
+                <td style="color:#4f4;">PASS</td>
             </tr>
             <tr>
-                <td>Glitches on adjacent signals</td>
-                <td>Crosstalk</td>
-                <td>Probe victim with aggressor active</td>
-                <td>Increase spacing, add ground</td>
+                <td>Bulk Cap Voltage</td>
+                <td>~320V DC</td>
+                <td>318V</td>
+                <td style="color:#4f4;">PASS</td>
             </tr>
             <tr>
-                <td>Intermittent data errors</td>
-                <td>Eye closure</td>
-                <td>Eye diagram</td>
-                <td>Reduce ISI, improve termination</td>
+                <td>Standby 5V</td>
+                <td>5V ±5%</td>
+                <td>5.1V</td>
+                <td style="color:#4f4;">PASS</td>
             </tr>
             <tr>
-                <td>Ground shift on switching</td>
-                <td>Ground bounce (SSO)</td>
-                <td>Measure Vss pin</td>
-                <td>More Vss pins, slower edges</td>
+                <td>PS_ON Signal</td>
+                <td>0V when active</td>
+                <td>0V</td>
+                <td style="color:#4f4;">PASS</td>
             </tr>
             <tr>
-                <td>Clock jitter</td>
-                <td>Power/ground noise</td>
-                <td>Histogram/phase noise</td>
-                <td>Better decoupling, isolation</td>
+                <td>PWM Controller Vcc</td>
+                <td>12-15V</td>
+                <td>8V</td>
+                <td style="color:#f44;">FAIL</td>
+            </tr>
+            <tr>
+                <td>Aux Winding Cap</td>
+                <td>Low ESR</td>
+                <td>High ESR</td>
+                <td style="color:#f44;">FAIL</td>
             </tr>
         </table>
     </div>
 
     <div class="card">
-        <h3>Key Formulas</h3>
-        <pre style="color:#4af; background:#111; padding:15px; border-radius:4px; font-size:11px;">
-Reflection Coefficient:
-    ρ = (ZL - Z0) / (ZL + Z0)
-
-    ρ = 0: Perfect match (no reflection)
-    ρ = +1: Open circuit (full positive reflection)
-    ρ = -1: Short circuit (full negative reflection)
-
-Propagation Delay (FR4):
-    tpd ≈ 6.4 ns/m (microstrip)
-    tpd ≈ 7.0 ns/m (stripline)
-    Or: tpd = √(εr) / c × length
-
-Critical Length:
-    Lcrit = tr / (2 × tpd)
-
-    If trace > Lcrit, termination needed
-
-Crosstalk (NEXT):
-    Near-end: Vne ≈ (Cm + Lm/Z0²) × dV/dt × len
-    Reduce: spacing, ground plane, shorter parallel run
-
-Eye Opening:
-    Vopen = Vhigh - ISI - crosstalk - noise
-    Topen = Tbit - jitter - rise/fall time
-        </pre>
+        <h3>SMPS Block Diagram</h3>
+        <div id="smps-schematic"></div>
     </div>
 
     <div class="card">
-        <h3>Termination Schemes</h3>
-        <div id="si-schematic"></div>
+        <h3>Root Cause: Failed Electrolytic Capacitor</h3>
+        <div style="background:#111; padding:15px; border-radius:4px;">
+            <p><strong>Finding:</strong> Aux winding filter capacitor (C15, 47µF/25V) has high ESR.</p>
+            <ul style="margin-top:10px; color:#aaa;">
+                <li>ESR measured: 8Ω (expected: <0.5Ω)</li>
+                <li>Ripple prevents PWM controller from reaching UVLO threshold</li>
+                <li>Controller tries to start, drops out, oscillates at ~2Hz</li>
+                <li>Classic capacitor "hiccup" failure mode</li>
+            </ul>
+            <p style="margin-top:15px; color:#4af;"><strong>Repair:</strong> Replace C15 with 47µF/35V 105°C low-ESR capacitor. Also replace nearby electrolytics as preventive maintenance.</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Common SMPS Failure Modes</h3>
+
+        <table class="table">
+            <tr>
+                <th>Component</th>
+                <th>Failure Mode</th>
+                <th>Symptom</th>
+            </tr>
+            <tr>
+                <td>Electrolytic Caps</td>
+                <td>High ESR, low capacitance</td>
+                <td>Hiccup, ripple, instability</td>
+            </tr>
+            <tr>
+                <td>Primary MOSFET</td>
+                <td>Short circuit</td>
+                <td>Blown fuse, smoke</td>
+            </tr>
+            <tr>
+                <td>Schottky Rectifiers</td>
+                <td>Short or open</td>
+                <td>No output or shorted rail</td>
+            </tr>
+            <tr>
+                <td>PWM Controller IC</td>
+                <td>EOS/Latchup</td>
+                <td>No switching, overheating</td>
+            </tr>
+            <tr>
+                <td>Optocoupler</td>
+                <td>CTR degradation</td>
+                <td>Poor regulation, overshoot</td>
+            </tr>
+        </table>
     </div>
 
     <div class="card">
         <h3>SPICE Netlist</h3>
-        <div id="si-spice"></div>
+        <div id="smps-spice"></div>
     </div>
 
     <div class="card">
-        <h3>Debug Checklist</h3>
-        <div id="si-checklist"></div>
+        <h3>Repair Checklist</h3>
+        <div id="smps-checklist"></div>
     </div>
 
     <div class="card">
         <h3>Practice Exercises</h3>
-        <div id="si-exercises"></div>
+        <div id="smps-exercises"></div>
     </div>
 
 </div>
@@ -179,341 +227,246 @@ Eye Opening:
 (function() {
     const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
 
-    const canvas = document.getElementById('si-canvas');
+    const canvas = document.getElementById('smps-canvas');
+    const blockEl = document.getElementById('smps-block');
+    const testEl = document.getElementById('smps-test');
+    if (!canvas || !blockEl || !testEl) return;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     const W = canvas.width, H = canvas.height;
-    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    const blocks = {
+        input: {x: 50, y: 140, w: 80, h: 60, label: 'Input\nFilter', status: 'PASS', expected: '120V AC', measured: '120V AC', diag: 'Normal'},
+        rectifier: {x: 150, y: 140, w: 80, h: 60, label: 'Bridge\nRect', status: 'PASS', expected: '320V DC', measured: '318V DC', diag: 'Normal'},
+        pfc: {x: 250, y: 140, w: 80, h: 60, label: 'PFC\nBoost', status: 'PASS', expected: '390V DC', measured: '385V DC', diag: 'Normal'},
+        primary: {x: 350, y: 140, w: 80, h: 60, label: 'Primary\nSwitch', status: 'WARN', expected: 'Switching', measured: 'Hiccup', diag: 'Check Vcc'},
+        transformer: {x: 450, y: 140, w: 80, h: 60, label: 'Xfmr', status: 'PASS', expected: 'Isolation', measured: 'OK', diag: 'Normal'},
+        secondary: {x: 550, y: 140, w: 80, h: 60, label: 'Output\nRect', status: 'PASS', expected: '12V, 5V, 3.3V', measured: '0V all', diag: 'No input'},
+        feedback: {x: 450, y: 250, w: 80, h: 60, label: 'Feedback\nControl', status: 'WARN', expected: '12V Vcc', measured: '8V', diag: 'Low Vcc'},
+        standby: {x: 550, y: 250, w: 80, h: 60, label: 'Standby\n5V', status: 'PASS', expected: '5V', measured: '5.1V', diag: 'Normal'}
+    };
 
     function update() {
-        const Z0 = AD.num('si-z0') || 50;
-        const ZL = AD.num('si-zl') || 150;
-        const len = AD.num('si-len') || 15;
+        const block = blockEl.value || 'input';
+        const test = testEl.value;
 
-        document.getElementById('si-z0-val').textContent = Z0 + 'Ω';
-        document.getElementById('si-zl-val').textContent = ZL + 'Ω';
-        document.getElementById('si-len-val').textContent = len + 'cm';
+        const b = blocks[block] || blocks.input;
+        let statusColor = b.status === 'PASS' ? '#4f4' : (b.status === 'FAIL' ? '#f44' : '#fa4');
 
-        const rho = (ZL - Z0) / (ZL + Z0);
-        const tpd = len * 0.064; // ns for FR4 microstrip (6.4 ns/m)
-        const overshoot = Math.abs(rho) * 100;
+        document.getElementById('smps-status').innerHTML = '<span style="color:' + statusColor + '">' + b.status + '</span>';
+        document.getElementById('smps-expect').textContent = b.expected;
+        document.getElementById('smps-meas').textContent = b.measured;
+        document.getElementById('smps-diag').textContent = b.diag;
 
-        let status, statusColor;
-        if (Math.abs(rho) < 0.1) {
-            status = 'GOOD - Well matched';
-            statusColor = '#4f4';
-        } else if (Math.abs(rho) < 0.3) {
-            status = 'OK - Minor reflections';
-            statusColor = '#fa4';
-        } else {
-            status = 'PROBLEM - Significant reflections';
-            statusColor = '#f44';
-        }
-
-        document.getElementById('si-rho').textContent = rho.toFixed(3);
-        document.getElementById('si-td').textContent = tpd.toFixed(2) + 'ns';
-        document.getElementById('si-overshoot').textContent = overshoot.toFixed(0) + '%';
-        document.getElementById('si-status').innerHTML = '<span style="color:' + statusColor + '">' + status + '</span>';
-
-        // Draw waveform
+        // Draw block diagram
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, W, H);
 
-        const plotW = W - mL - mR;
-        const plotH = H - mT - mB;
+        // Draw all blocks
+        Object.entries(blocks).forEach(([key, bl]) => {
+            const isSelected = key === block;
+            ctx.strokeStyle = isSelected ? '#fff' : '#666';
+            ctx.lineWidth = isSelected ? 3 : 1;
 
-        // Grid
-        ctx.strokeStyle = TEK.grid;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(mL, mT, plotW, plotH);
+            let fillColor = bl.status === 'PASS' ? 'rgba(68,255,68,0.2)' :
+                           (bl.status === 'FAIL' ? 'rgba(255,68,68,0.3)' : 'rgba(255,170,68,0.2)');
+            ctx.fillStyle = fillColor;
+            ctx.fillRect(bl.x, bl.y, bl.w, bl.h);
+            ctx.strokeRect(bl.x, bl.y, bl.w, bl.h);
 
-        // Draw zero and 1V reference lines
-        ctx.strokeStyle = TEK.ref;
-        ctx.setLineDash([3, 3]);
-        const y0 = mT + plotH * 0.8;
-        const y1 = mT + plotH * 0.2;
+            ctx.fillStyle = '#fff';
+            ctx.font = '11px monospace';
+            ctx.textAlign = 'center';
+            const lines = bl.label.split('\n');
+            lines.forEach((line, i) => {
+                ctx.fillText(line, bl.x + bl.w/2, bl.y + 25 + i * 14);
+            });
+        });
+
+        // Draw connections
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 2;
+        // Main power path
         ctx.beginPath();
-        ctx.moveTo(mL, y0);
-        ctx.lineTo(mL + plotW, y0);
-        ctx.moveTo(mL, y1);
-        ctx.lineTo(mL + plotW, y1);
+        ctx.moveTo(130, 170); ctx.lineTo(150, 170);
+        ctx.moveTo(230, 170); ctx.lineTo(250, 170);
+        ctx.moveTo(330, 170); ctx.lineTo(350, 170);
+        ctx.moveTo(430, 170); ctx.lineTo(450, 170);
+        ctx.moveTo(530, 170); ctx.lineTo(550, 170);
+        ctx.stroke();
+
+        // Feedback path
+        ctx.strokeStyle = '#888';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(550, 200); ctx.lineTo(550, 250);
+        ctx.moveTo(490, 280); ctx.lineTo(390, 280); ctx.lineTo(390, 200);
         ctx.stroke();
         ctx.setLineDash([]);
 
+        // Aux winding (problem area)
+        ctx.strokeStyle = '#f44';
+        ctx.beginPath();
+        ctx.moveTo(490, 155); ctx.lineTo(490, 250);
+        ctx.stroke();
+        ctx.fillStyle = '#f44';
+        ctx.font = '10px monospace';
+        ctx.fillText('AUX', 505, 220);
+        ctx.fillText('← FAULT', 520, 280);
+
+        // AC/DC labels
         ctx.fillStyle = '#888';
         ctx.font = '10px monospace';
-        ctx.textAlign = 'right';
-        ctx.fillText('1V', mL - 5, y1 + 4);
-        ctx.fillText('0V', mL - 5, y0 + 4);
-
-        // Draw source waveform
-        ctx.strokeStyle = TEK.ch1;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-
-        const Vs = 1; // Source voltage
-        const totalTime = tpd * 10; // Show several round trips
-        const tRise = 0.5; // ns
-
-        for (let i = 0; i <= plotW; i++) {
-            const t = i / plotW * totalTime;
-            let v = 0;
-
-            // Initial step
-            if (t < tRise) {
-                v = (t / tRise) * Vs * 0.5; // Initial wave (half if matched source)
-            } else {
-                v = Vs * 0.5;
-            }
-
-            // Add reflections
-            let delay = 2 * tpd; // Round trip time
-            let amplitude = Vs * 0.5 * rho;
-            let numReflections = 5;
-
-            for (let n = 0; n < numReflections; n++) {
-                if (t > delay * (n + 1)) {
-                    const reflTime = t - delay * (n + 1);
-                    if (reflTime < tRise) {
-                        v += (reflTime / tRise) * amplitude * Math.pow(-rho, n);
-                    } else {
-                        v += amplitude * Math.pow(-rho, n);
-                    }
-                }
-            }
-
-            // Clamp and scale
-            v = Math.max(0, Math.min(1.5, v));
-            const y = y0 - (v / 1.5) * (y0 - y1 + 40);
-
-            if (i === 0) ctx.moveTo(mL + i, y);
-            else ctx.lineTo(mL + i, y);
-        }
-        ctx.stroke();
-
-        // Draw load waveform (delayed)
-        ctx.strokeStyle = TEK.ch2;
-        ctx.beginPath();
-
-        for (let i = 0; i <= plotW; i++) {
-            const t = i / plotW * totalTime;
-            let v = 0;
-
-            // Delayed by tpd
-            const tLoad = t - tpd;
-            if (tLoad > 0) {
-                // Transmitted wave
-                const tau = 2 * ZL / (ZL + Z0);
-                if (tLoad < tRise) {
-                    v = (tLoad / tRise) * Vs * 0.5 * tau;
-                } else {
-                    v = Vs * 0.5 * tau;
-                }
-
-                // Add reflected components arriving back at load
-                let delay = 2 * tpd;
-                for (let n = 1; n < 5; n++) {
-                    if (tLoad > delay * n) {
-                        const reflTime = tLoad - delay * n;
-                        const amp = Vs * 0.5 * tau * Math.pow(rho, n) * Math.pow(-rho, n-1);
-                        if (reflTime < tRise) {
-                            v += (reflTime / tRise) * amp;
-                        } else {
-                            v += amp;
-                        }
-                    }
-                }
-            }
-
-            v = Math.max(0, Math.min(1.5, v));
-            const y = y0 - (v / 1.5) * (y0 - y1 + 40);
-
-            if (i === 0) ctx.moveTo(mL + i, y);
-            else ctx.lineTo(mL + i, y);
-        }
-        ctx.stroke();
-
-        // Legend
-        ctx.font = '11px monospace';
-        ctx.fillStyle = TEK.ch1;
         ctx.textAlign = 'left';
-        ctx.fillText('Source end', mL + 10, mT + 20);
-        ctx.fillStyle = TEK.ch2;
-        ctx.fillText('Load end', mL + 10, mT + 35);
+        ctx.fillText('AC', 20, 170);
+        ctx.fillText('DC', 650, 170);
+        ctx.fillText('Output', 650, 185);
 
-        // Time scale
-        ctx.fillStyle = '#888';
-        ctx.textAlign = 'center';
-        ctx.fillText('Time (total: ' + totalTime.toFixed(1) + 'ns)', mL + plotW/2, H - 10);
-
-        // Impedance diagram
-        ctx.fillStyle = '#444';
-        ctx.fillRect(W - 200, mT + 10, 150, 60);
-        ctx.strokeStyle = '#888';
-        ctx.strokeRect(W - 200, mT + 10, 150, 60);
-
+        // Title
         ctx.fillStyle = '#fff';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('Z₀ = ' + Z0 + 'Ω', W - 190, mT + 30);
-        ctx.fillText('ZL = ' + ZL + 'Ω', W - 190, mT + 45);
-        ctx.fillText('ρ = ' + rho.toFixed(2), W - 190, mT + 60);
+        ctx.font = '14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('SMPS Block Diagram - Click blocks to diagnose', W/2, 30);
+
+        // Failure indicator
+        ctx.fillStyle = '#f44';
+        ctx.font = '12px monospace';
+        ctx.fillText('C15: High ESR capacitor on aux winding', W/2, H - 20);
     }
 
-    ['si-z0', 'si-zl', 'si-len'].forEach(id => {
-        document.getElementById(id).addEventListener('input', update);
+    ['smps-block', 'smps-test'].forEach(id => {
+        document.getElementById(id).addEventListener('change', update);
     });
 
-    // Schematic - termination options
+    // Schematic
     function drawSchematic() {
-        const container = document.getElementById('si-schematic');
-        const svg = new SchematicSVG(700, 280);
+        const container = document.getElementById('smps-schematic');
+        const svg = new SchematicSVG(600, 220);
 
-        // Parallel termination
-        svg.text(50, 25, '1. Parallel Termination:', {fontSize: 11, fill: '#4af'});
-        svg.wire([[50, 50], [100, 50]]);
-        svg.text(70, 40, 'Driver', {fontSize: 9});
-        svg.wire([[100, 50], [200, 50]]);
-        svg.text(150, 40, 'Z₀', {fontSize: 9});
-        svg.wire([[200, 50], [250, 50]]);
-        svg.resistor(250, 50, {horizontal: true});
-        svg.text(250, 35, 'Rt=Z₀', {fontSize: 9});
-        svg.wire([[270, 50], [270, 70]]);
-        svg.ground(270, 70);
-        svg.wire([[250, 50], [320, 50]]);
-        svg.text(300, 40, 'Receiver', {fontSize: 9});
+        // Simplified aux supply circuit
+        svg.text(30, 60, 'From Aux', {fontSize: 10});
+        svg.text(30, 75, 'Winding', {fontSize: 9, fill: '#888'});
+        svg.wire([[80, 65], [120, 65]]);
 
-        // Series termination
-        svg.text(380, 25, '2. Series Termination:', {fontSize: 11, fill: '#4af'});
-        svg.wire([[380, 50], [410, 50]]);
-        svg.resistor(430, 50, {horizontal: true});
-        svg.text(430, 35, 'Rs', {fontSize: 9});
-        svg.wire([[450, 50], [550, 50]]);
-        svg.text(500, 40, 'Z₀', {fontSize: 9});
-        svg.wire([[550, 50], [620, 50]]);
-        svg.text(600, 40, 'Receiver', {fontSize: 9});
-        svg.text(430, 70, 'Rs + Zdriver = Z₀', {fontSize: 9, fill: '#888'});
+        // Rectifier diode
+        svg.diode(140, 65, {horizontal: true});
+        svg.wire([[160, 65], [200, 65]]);
 
-        // AC termination
-        svg.text(50, 120, '3. AC Termination:', {fontSize: 11, fill: '#4af'});
-        svg.wire([[50, 145], [150, 145]]);
-        svg.text(100, 135, 'Z₀', {fontSize: 9});
-        svg.wire([[150, 145], [200, 145]]);
-        svg.capacitor(220, 145, {horizontal: true});
-        svg.text(220, 130, 'C', {fontSize: 9});
-        svg.wire([[240, 145], [260, 145]]);
-        svg.resistor(280, 145, {horizontal: true});
-        svg.text(280, 130, 'Rt', {fontSize: 9});
-        svg.wire([[300, 145], [300, 165]]);
-        svg.ground(300, 165);
-        svg.wire([[200, 145], [350, 145]]);
-        svg.text(330, 135, 'Rcvr', {fontSize: 9});
-        svg.text(200, 185, 'Saves DC power', {fontSize: 9, fill: '#888'});
+        // Filter cap (failed)
+        svg.wire([[200, 65], [200, 90]]);
+        svg.capacitor(200, 110, {horizontal: false});
+        svg.wire([[200, 130], [200, 150]]);
+        svg.ground(200, 150);
 
-        // Thevenin termination
-        svg.text(380, 120, '4. Thevenin Termination:', {fontSize: 11, fill: '#4af'});
-        svg.wire([[380, 145], [480, 145]]);
-        svg.text(430, 135, 'Z₀', {fontSize: 9});
+        // Red highlight on bad cap
+        svg.rect(185, 95, 30, 40, {fill: 'none', stroke: '#f44', strokeWidth: 2});
+        svg.text(225, 115, 'C15', {fontSize: 10, fill: '#f44'});
+        svg.text(225, 130, '47µF', {fontSize: 9});
+        svg.text(225, 145, 'HIGH ESR!', {fontSize: 9, fill: '#f44'});
 
-        svg.wire([[480, 145], [520, 145]]);
-        svg.wire([[520, 145], [520, 125]]);
-        svg.resistor(520, 105, {horizontal: false});
-        svg.wire([[520, 85], [520, 75]]);
-        svg.text(535, 80, 'Vcc', {fontSize: 9});
+        // To PWM controller
+        svg.wire([[200, 65], [280, 65]]);
+        svg.rect(280, 45, 80, 50, {fill: 'none', stroke: '#4af'});
+        svg.text(320, 70, 'PWM', {fontSize: 10, fill: '#4af'});
+        svg.text(320, 85, 'Controller', {fontSize: 9});
 
-        svg.wire([[520, 145], [520, 165]]);
-        svg.resistor(520, 185, {horizontal: false});
-        svg.wire([[520, 205], [520, 215]]);
-        svg.ground(520, 215);
+        // Vcc pin
+        svg.text(270, 55, 'Vcc', {fontSize: 9});
 
-        svg.text(540, 105, 'R1', {fontSize: 9});
-        svg.text(540, 185, 'R2', {fontSize: 9});
+        // UVLO threshold
+        svg.text(380, 60, 'UVLO: 12V', {fontSize: 9, fill: '#888'});
+        svg.text(380, 75, 'Actual: 8V', {fontSize: 9, fill: '#f44'});
+        svg.text(380, 90, '→ No Start!', {fontSize: 9, fill: '#f44'});
 
-        svg.wire([[520, 145], [600, 145]]);
-        svg.text(580, 135, 'Rcvr', {fontSize: 9});
+        // ESR model
+        svg.text(100, 180, 'Capacitor ESR Model:', {fontSize: 10, fill: '#888'});
+        svg.wire([[220, 175], [250, 175]]);
+        svg.resistor(270, 175, {horizontal: true});
+        svg.text(270, 165, 'ESR', {fontSize: 9});
+        svg.wire([[290, 175], [310, 175]]);
+        svg.capacitor(330, 175, {horizontal: true});
+        svg.text(330, 165, 'C', {fontSize: 9});
+        svg.wire([[350, 175], [380, 175]]);
 
-        svg.text(480, 235, 'R1||R2 = Z₀', {fontSize: 9, fill: '#888'});
+        svg.text(420, 175, 'Good: ESR < 0.5Ω', {fontSize: 9, fill: '#4f4'});
+        svg.text(420, 190, 'Bad:  ESR = 8Ω', {fontSize: 9, fill: '#f44'});
 
         container.innerHTML = svg.render();
     }
 
     // SPICE
     function initSpice() {
-        new SpiceNetlistWidget('si-spice', {
-            title: 'Transmission Line Simulation',
-            netlist: `* Transmission Line Reflections
-* Compare terminated vs unterminated
+        new SpiceNetlistWidget('smps-spice', {
+            title: 'Aux Supply with ESR Effect',
+            netlist: `* Auxiliary Winding Supply
+* Shows effect of capacitor ESR on Vcc
 
-* Driver (50 ohm source)
-Vdrv drv 0 PULSE(0 3.3 1n 0.5n 0.5n 10n 25n)
-Rsrc drv src 25
+* Aux winding source (simplified)
+Vaux aux_ac 0 SIN(0 15 100k)
 
-* Transmission line (50 ohm, 1ns delay)
-T1 src 0 load 0 Z0=50 TD=1n
+* Rectifier
+D1 aux_ac vcc_raw 1N4148
 
-* Load options (uncomment one):
+* Filter capacitor with ESR
+* Good cap: ESR = 0.1Ω
+* Bad cap: ESR = 8Ω
+Resr vcc_raw vcc_cap 8  ; <-- Change to 0.1 for good cap
+Cfilt vcc_cap 0 47u IC=0
 
-* Unterminated (high-Z):
-Rload load 0 1MEG
+* Load (PWM controller)
+Rload vcc_cap 0 1k  ; ~12mA typical
 
-* Parallel termination:
-* Rterm load 0 50
+* UVLO threshold detector
+Buvlo uvlo_out 0 V = V(vcc_cap) > 12 ? 5 : 0
 
-* Series termination (at source):
-* Rseries drv src 25  ; Instead of Rsrc
+.tran 1u 1m
+.probe V(vcc_cap) V(uvlo_out)
 
-.tran 0.1n 30n
-
-.probe V(src) V(load)
-.end
-
-* Observations:
-* Unterminated: See reflections, ringing
-* Terminated: Clean step, no overshoot
-*
-* ρ = (ZL - Z0)/(ZL + Z0)
-* Open: ρ = +1 (full reflection)
-* Matched: ρ = 0 (no reflection)
-* Short: ρ = -1 (inverted reflection)`
+* With ESR=8Ω:
+* Vcc cannot reach 12V UVLO threshold
+* Controller never starts
+* Results in "hiccup" mode
+.end`
         });
     }
 
     // Checklist
     function initChecklist() {
-        new ChecklistWidget('si-checklist', {
-            title: 'Signal Integrity Debug Checklist',
+        new ChecklistWidget('smps-checklist', {
+            title: 'SMPS Repair Checklist',
             items: [
-                'Measure rise/fall times at source',
-                'Calculate critical trace length',
-                'Check impedance with TDR if available',
-                'Probe at both ends of trace',
-                'Look for reflections/ringing on scope',
-                'Check termination resistor values',
-                'Measure crosstalk on adjacent signals',
-                'Verify ground plane continuity',
-                'Check via count for return path',
-                'Test at max data rate and temperature'
+                'SAFETY: Discharge main capacitor before work',
+                'Visual inspection for burn marks, swollen caps',
+                'Check fuse continuity and rating',
+                'Verify AC input and bulk DC voltage',
+                'Test standby supply (5VSB)',
+                'Check PWM controller Vcc supply',
+                'ESR test all electrolytic capacitors',
+                'Test output rectifiers for shorts',
+                'Verify optocoupler CTR if regulation issue',
+                'Load test all outputs after repair'
             ]
         });
     }
 
     // Exercises
     function initExercises() {
-        new ExerciseWidget('si-exercises', {
+        new ExerciseWidget('smps-exercises', {
             exercises: [
                 {
-                    question: '50Ω trace is terminated with 75Ω. What is the reflection coefficient?',
-                    answer: 'ρ = 0.2',
-                    solution: 'ρ = (ZL - Z0)/(ZL + Z0) = (75 - 50)/(75 + 50) = 25/125 = 0.2. 20% of signal reflects.'
+                    question: 'A 47µF cap with 8Ω ESR at 100kHz. What ripple voltage for 10mA ripple current?',
+                    answer: '80mV',
+                    solution: 'V_ripple = I × ESR = 10mA × 8Ω = 80mV. With good cap (0.1Ω), it would be only 1mV.'
                 },
                 {
-                    question: 'Clock has 500ps rise time. What is critical trace length on FR4?',
-                    answer: '~4cm',
-                    solution: 'Lcrit = tr/(2×tpd). tpd ≈ 6.4ns/m = 64ps/cm. Lcrit = 500ps/(2×64ps/cm) ≈ 3.9cm. Traces longer than this need termination.'
+                    question: 'PWM controller UVLO is 10V start, 8V stop. If aux supply droops to 9V during load, what happens?',
+                    answer: 'Hiccup mode (start-stop cycling)',
+                    solution: 'Controller starts at 10V, load increases, voltage drops below 8V stop threshold, controller stops, voltage recovers, cycle repeats.'
                 },
                 {
-                    question: 'You see 50% overshoot at receiver. What is the approximate load impedance if Z0=50Ω?',
-                    answer: '~150Ω or open',
-                    solution: 'Overshoot of 50% means ρ ≈ 0.5. From ρ = (ZL-Z0)/(ZL+Z0), solving: ZL = Z0(1+ρ)/(1-ρ) = 50(1.5)/(0.5) = 150Ω. Open circuit gives ρ=1 (100% overshoot).'
+                    question: 'Main bulk cap is 330µF. At 500W output and 85% efficiency, what ripple voltage at 120Hz?',
+                    answer: '14.5V',
+                    solution: 'Pin = 500/0.85 = 588W. I = 588/320 = 1.84A. ΔV = I/(2×f×C) = 1.84/(2×120×330µ) = 14.5V'
                 }
             ]
         });

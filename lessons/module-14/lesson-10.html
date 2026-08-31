@@ -1,1559 +1,814 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lesson 10: BMS Integration - Module 19</title>
-</head>
-<body>
-    <div class="lesson-content" data-module="14" data-lesson="10">
-        <div class="card">
-            <h2>Battery Management System Integration</h2>
-            <p>
-                A Battery Management System (BMS) is the brain of any Li-ion battery pack. It monitors
-                cell voltages, temperatures, and currents; performs cell balancing; provides protection
-                against abuse conditions; estimates state of charge; and communicates with the host system.
-                This lesson covers complete BMS design and system integration.
-            </p>
+<!-- Module 14, Lesson 10: Power Sequencing -->
+<div class="lesson-content" data-module="14" data-lesson="10">
 
-            <div class="kv">
-                <div class="kv-item"><span>Core Functions</span><span>Monitor, Protect, Balance, Communicate</span></div>
-                <div class="kv-item"><span>Key Measurements</span><span>Cell V, Pack I, Temperature</span></div>
-                <div class="kv-item"><span>Protection Types</span><span>OVP, UVP, OCP, SCP, OTP</span></div>
-                <div class="kv-item"><span>Communication</span><span>SMBus, CAN, I2C, UART</span></div>
+    <div class="card">
+        <h2>Power Sequencing Design</h2>
+        <p>Modern systems require multiple voltage rails to power up and down in specific order. Learn sequencing strategies, timing requirements, and implementation methods to prevent damage and ensure reliable operation.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Sequential</div>
+                <div class="v">One rail at a time</div>
             </div>
-
-            <div class="notice">
-                <strong>Safety Critical:</strong> The BMS is the last line of defense against thermal
-                runaway. Design with redundancy: hardware protection should function even if the
-                microcontroller fails. Never rely solely on software for safety-critical functions.
+            <div class="box">
+                <div class="k">Ratiometric</div>
+                <div class="v">Fixed voltage ratio</div>
+            </div>
+            <div class="box">
+                <div class="k">Simultaneous</div>
+                <div class="v">All rails together</div>
+            </div>
+            <div class="box">
+                <div class="k">PGOOD</div>
+                <div class="v">Power good signal</div>
             </div>
         </div>
 
-        <div class="card">
-            <h3>BMS Architecture Overview</h3>
-            <div class="canvas-wrap">
-                <canvas id="bms-arch-canvas" width="980" height="520"></canvas>
+        <div class="notice">
+            <strong>Critical:</strong> Check IC datasheets for power sequencing requirements. Violating sequence order can cause latch-up, excess current, or permanent damage. FPGA, CPU, and DDR memory are particularly sensitive.
+        </note>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Sequencing Simulator</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="seq-mode">Sequencing Mode</label>
+                <select id="seq-mode">
+                    <option value="sequential">Sequential (1→2→3)</option>
+                    <option value="ratiometric">Ratiometric</option>
+                    <option value="simultaneous">Simultaneous</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="seq-delay">Delay Between Rails (ms)</label>
+                <input type="range" id="seq-delay" min="0" max="50" step="1" value="10">
+                <span id="seq-delay-val" class="mono">10ms</span>
+            </div>
+            <div class="c3">
+                <label for="seq-ramp">Ramp Time (ms)</label>
+                <input type="range" id="seq-ramp" min="1" max="20" step="1" value="5">
+                <span id="seq-ramp-val" class="mono">5ms</span>
             </div>
         </div>
 
-        <div class="card">
-            <h3>Interactive: BMS System Simulator</h3>
-            <p>Simulate a 4S Li-ion pack with BMS. Adjust load current and observe cell voltages, SOC, and protection states.</p>
-
-            <div class="controls">
-                <label>
-                    Load Current:
-                    <input type="range" id="bms-load" min="-5" max="20" value="0" step="0.5">
-                    <span id="bms-load-val">0.0 A</span>
-                </label>
-                <label>
-                    Initial SOC:
-                    <input type="range" id="bms-soc" min="0" max="100" value="80">
-                    <span id="bms-soc-val">80%</span>
-                </label>
-                <label>
-                    Temperature:
-                    <input type="range" id="bms-temp" min="-20" max="60" value="25">
-                    <span id="bms-temp-val">25°C</span>
-                </label>
-                <button id="bms-start">Start Simulation</button>
-                <button id="bms-stop">Stop</button>
-                <button id="bms-reset">Reset</button>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="bms-canvas" width="980" height="500"></canvas>
-            </div>
-
-            <div class="kv" id="bms-results">
-                <div class="kv-item"><span>Pack Voltage</span><span id="pack-voltage">14.80 V</span></div>
-                <div class="kv-item"><span>Cell Imbalance</span><span id="cell-imbalance">0 mV</span></div>
-                <div class="kv-item"><span>SOC (Fuel Gauge)</span><span id="fuel-gauge-soc">80%</span></div>
-                <div class="kv-item"><span>Protection State</span><span id="prot-state" style="color:#0f0;">NORMAL</span></div>
-                <div class="kv-item"><span>CHG FET</span><span id="chg-fet" style="color:#0f0;">ON</span></div>
-                <div class="kv-item"><span>DSG FET</span><span id="dsg-fet" style="color:#0f0;">ON</span></div>
-            </div>
+        <div class="canvas-wrap">
+            <canvas id="seq-canvas" width="980" height="360"></canvas>
         </div>
 
-        <div class="card">
-            <h3>Analog Front-End (AFE) Selection</h3>
-            <p>
-                The AFE is the interface between the battery cells and the digital controller.
-                Key specifications include measurement accuracy, number of cells supported, and
-                integrated protection features.
-            </p>
-
-            <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
-                <thead>
-                    <tr style="background:#333;">
-                        <th style="padding:0.5rem; border:1px solid #555;">AFE IC</th>
-                        <th style="padding:0.5rem; border:1px solid #555;">Cells</th>
-                        <th style="padding:0.5rem; border:1px solid #555;">Accuracy</th>
-                        <th style="padding:0.5rem; border:1px solid #555;">Features</th>
-                        <th style="padding:0.5rem; border:1px solid #555;">Interface</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td style="padding:0.5rem; border:1px solid #555;">BQ76940</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">9-15S</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">±5mV</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Balance, Coulomb counter, HW protection</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">I2C</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:0.5rem; border:1px solid #555;">BQ76952</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">3-16S</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">±2mV</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Stackable, SHA-256, FET drivers</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">I2C/SPI/HDQ</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:0.5rem; border:1px solid #555;">LTC6813</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">18S</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">±1.2mV</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Daisy-chain, isoSPI, GPIOs</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">SPI</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:0.5rem; border:1px solid #555;">MAX17853</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">12-16S</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">±0.5mV</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Automotive grade, ASIL-D</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">UART</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <div class="notice">
-                <strong>Design Tip:</strong> For EV and grid storage applications, use daisy-chainable
-                AFEs (like LTC6813) to scale to hundreds of cells. Each AFE monitors up to 18 cells
-                and communicates via isolated serial bus.
+        <div class="kv">
+            <div class="box">
+                <div class="k">Total Sequence Time</div>
+                <div class="v mono" id="seq-total">—</div>
             </div>
-        </div>
-
-        <div class="card">
-            <h3>BMS Schematic: 4S Li-ion Pack</h3>
-            <div id="bms-schematic"></div>
-        </div>
-
-        <div class="card">
-            <h3>Protection FET Configuration</h3>
-            <div class="canvas-wrap">
-                <canvas id="fet-config-canvas" width="980" height="380"></canvas>
+            <div class="box">
+                <div class="k">Power Good Delay</div>
+                <div class="v mono" id="seq-pgood">—</div>
             </div>
-            <div class="kv" style="margin-top:1rem;">
-                <div class="box">
-                    <div class="k">Discharge Mode</div>
-                    <div class="v">Pack+ → Q1 (body diode) → Q2 (channel) → Load. Q2 must be ON.</div>
-                </div>
-                <div class="box">
-                    <div class="k">Charge Mode</div>
-                    <div class="v">Charger+ → Q2 (body diode) → Q1 (channel) → Pack+. Q1 must be ON.</div>
-                </div>
-                <div class="box">
-                    <div class="k">Fault Protection</div>
-                    <div class="v">Both FETs OFF = no current in either direction.</div>
-                </div>
+            <div class="box">
+                <div class="k">Min Rail Separation</div>
+                <div class="v mono" id="seq-sep">—</div>
             </div>
-        </div>
-
-        <div class="card">
-            <h3>Interactive: Protection Threshold Configuration</h3>
-            <p>Configure BMS protection thresholds for a specific application. See how thresholds affect usable capacity and safety margin.</p>
-
-            <div class="controls">
-                <label>
-                    OVP Threshold:
-                    <input type="range" id="prot-ovp" min="4000" max="4350" value="4200" step="10">
-                    <span id="prot-ovp-val">4.20 V</span>
-                </label>
-                <label>
-                    UVP Threshold:
-                    <input type="range" id="prot-uvp" min="2500" max="3200" value="2800" step="50">
-                    <span id="prot-uvp-val">2.80 V</span>
-                </label>
-                <label>
-                    OCP (Discharge):
-                    <input type="range" id="prot-ocp-d" min="5" max="50" value="20" step="1">
-                    <span id="prot-ocp-d-val">20 A</span>
-                </label>
-                <label>
-                    SCP (Short Circuit):
-                    <input type="range" id="prot-scp" min="50" max="200" value="100" step="10">
-                    <span id="prot-scp-val">100 A</span>
-                </label>
-                <label>
-                    OTP Threshold:
-                    <input type="range" id="prot-otp" min="45" max="70" value="55" step="1">
-                    <span id="prot-otp-val">55°C</span>
-                </label>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="prot-canvas" width="980" height="350"></canvas>
-            </div>
-
-            <div class="kv" id="prot-results">
-                <div class="kv-item"><span>Usable Capacity</span><span id="usable-cap">90%</span></div>
-                <div class="kv-item"><span>Safety Margin (OVP)</span><span id="safety-ovp">100 mV</span></div>
-                <div class="kv-item"><span>Cycle Life Impact</span><span id="cycle-impact">100%</span></div>
-                <div class="kv-item"><span>Protection Response Time</span><span id="prot-response">--</span></div>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Communication Interface Design</h3>
-            <div class="canvas-wrap">
-                <canvas id="smbus-canvas" width="980" height="200"></canvas>
-            </div>
-            <table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:0.9rem;">
-                <thead>
-                    <tr style="background:#333;">
-                        <th style="padding:0.5rem; border:1px solid #555; text-align:left;">Command</th>
-                        <th style="padding:0.5rem; border:1px solid #555;">Code</th>
-                        <th style="padding:0.5rem; border:1px solid #555;">Data</th>
-                        <th style="padding:0.5rem; border:1px solid #555; text-align:left;">Description</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td style="padding:0.4rem; border:1px solid #444;">Voltage()</td><td style="padding:0.4rem; border:1px solid #444; text-align:center; font-family:monospace;">0x09</td><td style="padding:0.4rem; border:1px solid #444; text-align:center;">mV</td><td style="padding:0.4rem; border:1px solid #444;">Pack voltage</td></tr>
-                    <tr><td style="padding:0.4rem; border:1px solid #444;">Current()</td><td style="padding:0.4rem; border:1px solid #444; text-align:center; font-family:monospace;">0x0A</td><td style="padding:0.4rem; border:1px solid #444; text-align:center;">mA (signed)</td><td style="padding:0.4rem; border:1px solid #444;">Discharge/charge current</td></tr>
-                    <tr><td style="padding:0.4rem; border:1px solid #444;">RelativeSOC()</td><td style="padding:0.4rem; border:1px solid #444; text-align:center; font-family:monospace;">0x0D</td><td style="padding:0.4rem; border:1px solid #444; text-align:center;">%</td><td style="padding:0.4rem; border:1px solid #444;">State of charge</td></tr>
-                    <tr><td style="padding:0.4rem; border:1px solid #444;">RemainingCapacity()</td><td style="padding:0.4rem; border:1px solid #444; text-align:center; font-family:monospace;">0x0F</td><td style="padding:0.4rem; border:1px solid #444; text-align:center;">mAh</td><td style="padding:0.4rem; border:1px solid #444;">Remaining capacity</td></tr>
-                    <tr><td style="padding:0.4rem; border:1px solid #444;">Temperature()</td><td style="padding:0.4rem; border:1px solid #444; text-align:center; font-family:monospace;">0x08</td><td style="padding:0.4rem; border:1px solid #444; text-align:center;">0.1K</td><td style="padding:0.4rem; border:1px solid #444;">Pack temperature</td></tr>
-                    <tr><td style="padding:0.4rem; border:1px solid #444;">BatteryStatus()</td><td style="padding:0.4rem; border:1px solid #444; text-align:center; font-family:monospace;">0x16</td><td style="padding:0.4rem; border:1px solid #444; text-align:center;">Flags</td><td style="padding:0.4rem; border:1px solid #444;">Error/status flags</td></tr>
-                    <tr><td style="padding:0.4rem; border:1px solid #444;">CycleCount()</td><td style="padding:0.4rem; border:1px solid #444; text-align:center; font-family:monospace;">0x17</td><td style="padding:0.4rem; border:1px solid #444; text-align:center;">Cycles</td><td style="padding:0.4rem; border:1px solid #444;">Accumulated cycles</td></tr>
-                </tbody>
-            </table>
-            <pre class="code-block" style="background:#1a1a2e; padding:1rem; border-radius:4px; font-size:0.85rem; overflow-x:auto;">
-<span style="color:#888;">// Example: Read pack voltage</span>
-uint16_t readVoltage(void) {
-    uint8_t cmd = <span style="color:#00FFFF;">0x09</span>;
-    uint8_t data[2];
-    i2c_write(<span style="color:#00FFFF;">0x0B</span>, &amp;cmd, 1);    <span style="color:#888;">// Address 0x0B, command 0x09</span>
-    i2c_read(<span style="color:#00FFFF;">0x0B</span>, data, 2);      <span style="color:#888;">// Read 2 bytes</span>
-    return (data[1] &lt;&lt; 8) | data[0];  <span style="color:#888;">// mV</span>
-}</pre>
-        </div>
-
-        <div class="card">
-            <h3>Fuel Gauge Integration</h3>
-            <div class="canvas-wrap">
-                <canvas id="fuelgauge-canvas" width="980" height="320"></canvas>
-            </div>
-            <div class="kv" style="margin-top:1rem;">
-                <div class="box">
-                    <div class="k">Learning Algorithm</div>
-                    <div class="v">
-                        <ul style="margin:0 0 0 1rem; padding:0;">
-                            <li>Track Q_full (full charge capacity) over cycles</li>
-                            <li>Compensate for temperature, aging, discharge rate (Peukert)</li>
-                            <li>Update Q_full when full charge detected</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Cell Balancing Integration</h3>
-            <p>
-                Balancing algorithm integrates with the overall BMS state machine. Active balancing
-                only during charging or idle (never during discharge).
-            </p>
-            <div class="canvas-wrap">
-                <canvas id="balance-canvas" width="980" height="320"></canvas>
-            </div>
-            <pre class="code-block" style="background:#1a1a2e; padding:1rem; border-radius:4px; font-size:0.85rem; overflow-x:auto; margin-top:1rem;">
-<span style="color:#888;">// Balance Algorithm (Passive)</span>
-void balance_cells(void) {
-    float v_max = max(cell_voltages);
-    float v_min = min(cell_voltages);
-
-    if (v_max - v_min > <span style="color:#FFFF00;">BALANCE_THRESHOLD</span>) {
-        for (int i = 0; i &lt; NUM_CELLS; i++) {
-            if (cell_voltages[i] > v_min + <span style="color:#FFFF00;">BALANCE_HYSTERESIS</span>) {
-                enable_balance_resistor(i);  <span style="color:#888;">// Bleed high cell</span>
-            } else {
-                disable_balance_resistor(i);
-            }
-        }
-    }
-}</pre>
-        </div>
-
-        <div class="card">
-            <h3>SPICE Netlist</h3>
-            <div id="bms-spice"></div>
-        </div>
-
-        <div class="card">
-            <h3>BMS Integration Checklist</h3>
-            <div id="bms-checklist"></div>
-        </div>
-
-        <div class="card">
-            <h3>Practice Exercises</h3>
-            <div id="bms-exercises"></div>
         </div>
     </div>
 
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ch5:'#FF6600', bg:'#001000', grid:'#004000'};
-
-        // ===== BMS Architecture Block Diagram =====
-        (function() {
-            const canvas = document.getElementById('bms-arch-canvas');
-            if (!canvas || typeof AD === 'undefined') return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Helper functions using AD
-            const drawBlock = AD.drawBlock;
-            const drawArrow = AD.drawArrow;
-
-            // Host System
-            drawBlock(ctx, 350, 20, 280, 50, 'HOST SYSTEM (MCU, Display, Charger)', { stroke: TEK.ch1, fontSize: 11 });
-
-            // Communication bus label
-            ctx.fillStyle = '#888';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('SMBus / CAN / I2C', 490, 85);
-            drawArrow(ctx, 490, 70, 490, 100, { color: TEK.ch1 });
-
-            // BMS Controller (large box)
-            AD.roundRect(ctx, 280, 105, 420, 120, 6, { fill: 'rgba(20,40,60,0.9)', stroke: TEK.ch2, lineWidth: 2 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '13px ui-sans-serif, system-ui, sans-serif';
-            ctx.fillText('BMS CONTROLLER', 490, 125);
-
-            // Sub-blocks inside controller
-            drawBlock(ctx, 295, 140, 90, 35, 'Fuel Gauge', { stroke: TEK.ch4, fontSize: 10 });
-            drawBlock(ctx, 400, 140, 90, 35, 'Balance Ctrl', { stroke: TEK.ch4, fontSize: 10 });
-            drawBlock(ctx, 505, 140, 180, 35, 'Protection FSM (OVP/UVP/OCP)', { stroke: '#ff6666', fontSize: 10 });
-            drawBlock(ctx, 350, 185, 200, 30, 'State Machine & Comm Interface', { stroke: '#888', fontSize: 9 });
-
-            // Three sensing branches
-            const branchY = 250;
-            drawArrow(ctx, 360, 225, 360, branchY, { color: TEK.ch2 });
-            drawArrow(ctx, 490, 225, 490, branchY, { color: TEK.ch2 });
-            drawArrow(ctx, 620, 225, 620, branchY, { color: TEK.ch2 });
-
-            // Cell Monitor (AFE)
-            drawBlock(ctx, 80, branchY, 140, 90, '', { stroke: TEK.ch3 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px ui-sans-serif';
-            ctx.fillText('Cell Monitor', 150, branchY + 18);
-            ctx.fillText('(AFE)', 150, branchY + 32);
-            ctx.font = '9px monospace';
-            ctx.fillStyle = '#888';
-            ctx.textAlign = 'left';
-            ctx.fillText('V1 ──┤', 90, branchY + 50);
-            ctx.fillText('V2 ──┤ MUX', 90, branchY + 62);
-            ctx.fillText('V3 ──┤  ↓', 90, branchY + 74);
-            ctx.fillText('V4 ──┤ ADC', 90, branchY + 86);
-            ctx.textAlign = 'center';
-
-            // Current Sense
-            drawBlock(ctx, 260, branchY, 140, 90, '', { stroke: TEK.ch1 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px ui-sans-serif';
-            ctx.fillText('Current Sense', 330, branchY + 18);
-            ctx.font = '9px monospace';
-            ctx.fillStyle = '#888';
-            ctx.fillText('Rshunt → ADC', 330, branchY + 45);
-            ctx.fillText('Coulomb Counter', 330, branchY + 65);
-            ctx.fillText('∫I·dt', 330, branchY + 80);
-
-            // Thermistors
-            drawBlock(ctx, 440, branchY, 140, 90, '', { stroke: TEK.ch5 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px ui-sans-serif';
-            ctx.fillText('Thermistors', 510, branchY + 18);
-            ctx.fillText('(NTC)', 510, branchY + 32);
-            ctx.font = '9px monospace';
-            ctx.fillStyle = '#888';
-            ctx.fillText('T1 ──┐', 470, branchY + 55);
-            ctx.fillText('T2 ──┤ ADC', 470, branchY + 70);
-            ctx.fillText('T3 ──┘', 470, branchY + 85);
-
-            // Connect to controller
-            drawArrow(ctx, 150, branchY, 360, 225, { color: TEK.ch3 });
-            drawArrow(ctx, 330, branchY, 490, 225, { color: TEK.ch1 });
-            drawArrow(ctx, 510, branchY, 620, 225, { color: TEK.ch5 });
-
-            // Bus line
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(50, 360);
-            ctx.lineTo(630, 360);
-            ctx.stroke();
-            ctx.lineWidth = 1;
-
-            // Battery Pack (large box at bottom)
-            AD.roundRect(ctx, 50, 380, 880, 130, 6, { fill: 'rgba(40,30,20,0.9)', stroke: '#996633', lineWidth: 2 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '13px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('BATTERY PACK', 490, 400);
-
-            // Cells
-            const cellW = 80, cellH = 45, cellY = 415;
-            for (let i = 0; i < 4; i++) {
-                const cx = 120 + i * 100;
-                AD.roundRect(ctx, cx, cellY, cellW, cellH, 4, { fill: '#2a4a2a', stroke: TEK.ch4 });
-                ctx.fillStyle = '#fff';
-                ctx.font = '10px monospace';
-                ctx.fillText('Cell' + (i + 1), cx + cellW/2, cellY + 28);
-            }
-            // Cell connections
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            for (let i = 0; i < 3; i++) {
-                ctx.beginPath();
-                ctx.moveTo(200 + i * 100, cellY + cellH/2);
-                ctx.lineTo(220 + i * 100, cellY + cellH/2);
-                ctx.stroke();
-            }
-            ctx.fillStyle = '#888';
-            ctx.font = '9px monospace';
-            ctx.fillText('Balance Resistors/MOSFETs', 280, cellY + cellH + 18);
-
-            // Pack+ label
-            ctx.fillStyle = '#ff6666';
-            ctx.fillText('Pack+', 450, cellY + 28);
-            drawArrow(ctx, 420, cellY + cellH/2, 500, cellY + cellH/2, { color: '#ff6666' });
-
-            // Protection FETs box
-            AD.roundRect(ctx, 520, 410, 380, 55, 4, { fill: 'rgba(30,30,40,0.95)', stroke: '#666' });
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px ui-sans-serif';
-            ctx.fillText('Protection FETs', 710, 425);
-            ctx.font = '9px monospace';
-            ctx.fillStyle = '#888';
-            ctx.fillText('Pack+ ──[CHG FET]──[DSG FET]──[Rshunt]── Pack-', 710, 448);
-
-            // Pack- label
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = '10px monospace';
-            ctx.fillText('Pack-', 910, cellY + 28);
-        })();
-
-        // ===== Protection FET Configuration Diagram =====
-        (function() {
-            const canvas = document.getElementById('fet-config-canvas');
-            if (!canvas || typeof AD === 'undefined') return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Title
-            ctx.fillStyle = '#fff';
-            ctx.font = '14px ui-sans-serif, system-ui, sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText('P-Channel High-Side Configuration', 50, 30);
-
-            // Main circuit
-            const y1 = 80, y2 = 200;
-            const x1 = 80, x2 = 220, x3 = 400, x4 = 580, x5 = 750, x6 = 880;
-
-            // Pack+ rail
-            ctx.strokeStyle = '#ff6666';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x6, y1);
-            ctx.stroke();
-            ctx.fillStyle = '#ff6666';
-            ctx.font = '12px monospace';
-            ctx.fillText('Pack+', x1 - 10, y1 - 10);
-
-            // Pack- rail
-            ctx.strokeStyle = TEK.ch2;
-            ctx.beginPath();
-            ctx.moveTo(x1, y2);
-            ctx.lineTo(x6, y2);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillText('Pack-', x1 - 10, y2 + 20);
-
-            // CHG FET
-            AD.roundRect(ctx, x2, y1 - 25, 100, 50, 4, { fill: '#003322', stroke: TEK.ch4 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('CHG FET', x2 + 50, y1 - 5);
-            ctx.fillText('(P-ch)', x2 + 50, y1 + 10);
-            // Gate drive arrow
-            AD.drawArrow(ctx, x2 + 50, y1 + 25, x2 + 50, y1 + 60, { color: TEK.ch1, headSize: 6 });
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '9px monospace';
-            ctx.fillText('CHG_DRV', x2 + 50, y1 + 75);
-
-            // DSG FET
-            AD.roundRect(ctx, x3, y1 - 25, 100, 50, 4, { fill: '#003322', stroke: TEK.ch4 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px ui-sans-serif';
-            ctx.fillText('DSG FET', x3 + 50, y1 - 5);
-            ctx.fillText('(P-ch)', x3 + 50, y1 + 10);
-            AD.drawArrow(ctx, x3 + 50, y1 + 25, x3 + 50, y1 + 60, { color: TEK.ch1, headSize: 6 });
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '9px monospace';
-            ctx.fillText('DSG_DRV', x3 + 50, y1 + 75);
-
-            // Rshunt
-            AD.roundRect(ctx, x4 + 50, y2 - 25, 80, 35, 4, { fill: '#333', stroke: '#888' });
-            ctx.fillStyle = '#fff';
-            ctx.font = '10px ui-sans-serif';
-            ctx.fillText('Rshunt', x4 + 90, y2 - 5);
-            ctx.fillStyle = '#888';
-            ctx.font = '9px monospace';
-            ctx.fillText('(1-10mΩ)', x4 + 90, y2 + 8);
-
-            // Load labels
-            ctx.fillStyle = '#00ff00';
-            ctx.font = '12px monospace';
-            ctx.fillText('LOAD+', x6 + 10, y1 - 10);
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillText('LOAD-', x6 + 10, y2 + 20);
-
-            // N-Channel alternative (bottom section)
-            ctx.fillStyle = '#fff';
-            ctx.font = '14px ui-sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText('N-Channel Low-Side (Alternative)', 50, 260);
-
-            const y3 = 290, y4 = 340;
-
-            // Top rail (Pack+)
-            ctx.strokeStyle = '#ff6666';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(x1, y3);
-            ctx.lineTo(x5, y3);
-            ctx.stroke();
-            ctx.fillStyle = '#ff6666';
-            ctx.font = '11px monospace';
-            ctx.fillText('Pack+', x1 - 10, y3 - 8);
-
-            // Bottom rail (Pack-)
-            ctx.strokeStyle = TEK.ch2;
-            ctx.beginPath();
-            ctx.moveTo(x1, y4);
-            ctx.lineTo(x5, y4);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillText('Pack-', x1 - 10, y4 + 15);
-
-            // N-ch FETs on low side
-            AD.roundRect(ctx, x2, y4 - 18, 80, 36, 4, { fill: '#222233', stroke: TEK.ch3 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '9px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('DSG FET', x2 + 40, y4 - 2);
-            ctx.fillText('(N-ch)', x2 + 40, y4 + 10);
-
-            AD.roundRect(ctx, x3 - 40, y4 - 18, 80, 36, 4, { fill: '#222233', stroke: TEK.ch3 });
-            ctx.fillStyle = '#fff';
-            ctx.fillText('CHG FET', x3, y4 - 2);
-            ctx.fillText('(N-ch)', x3, y4 + 10);
-
-            AD.roundRect(ctx, x4 - 30, y4 - 18, 70, 36, 4, { fill: '#333', stroke: '#888' });
-            ctx.fillStyle = '#fff';
-            ctx.fillText('Rshunt', x4 + 5, y4 + 2);
-
-            // Labels
-            ctx.fillStyle = '#888';
-            ctx.font = '10px ui-sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText('Advantage: Simpler gate drive', x5 + 30, y3 + 10);
-            ctx.fillText('Disadvantage: Pack- not common ref', x5 + 30, y3 + 28);
-
-            ctx.fillStyle = '#00ff00';
-            ctx.font = '11px monospace';
-            ctx.fillText('LOAD+', x5 + 10, y3 - 8);
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillText('LOAD-', x5 + 10, y4 + 15);
-        })();
-
-        // ===== SMBus Communication Diagram =====
-        (function() {
-            const canvas = document.getElementById('smbus-canvas');
-            if (!canvas || typeof AD === 'undefined') return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Host MCU block
-            AD.drawBlock(ctx, 100, 40, 160, 100, '', { stroke: TEK.ch1 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '13px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('HOST MCU', 180, 70);
-
-            // BMS/Fuel Gauge block
-            AD.drawBlock(ctx, 620, 40, 160, 100, '', { stroke: TEK.ch4 });
-            ctx.fillStyle = '#fff';
-            ctx.fillText('BMS', 700, 65);
-            ctx.fillText('(Fuel Gauge)', 700, 85);
-
-            // Signal lines
-            const lineY = [75, 100, 125];
-            const lineLabels = ['SDA', 'SCL', 'SMBALERT'];
-            const colors = [TEK.ch2, TEK.ch1, '#ff6666'];
-
-            lineLabels.forEach((label, i) => {
-                ctx.strokeStyle = colors[i];
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(260, lineY[i]);
-                ctx.lineTo(620, lineY[i]);
-                ctx.stroke();
-
-                ctx.fillStyle = colors[i];
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'left';
-                ctx.fillText(label, 270, lineY[i] - 5);
-                ctx.textAlign = 'right';
-                ctx.fillText(label, 610, lineY[i] - 5);
-            });
-
-            // Pull-up resistors
-            ctx.fillStyle = '#888';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('4.7kΩ', 430, 65);
-            ctx.fillText('4.7kΩ', 460, 90);
-
-            // VCC arrows
-            ctx.strokeStyle = '#ff6666';
-            ctx.lineWidth = 1;
-            [430, 460].forEach((x, i) => {
-                ctx.beginPath();
-                ctx.moveTo(x, lineY[i]);
-                ctx.lineTo(x, lineY[i] - 20);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(x - 3, lineY[i] - 17);
-                ctx.lineTo(x, lineY[i] - 20);
-                ctx.lineTo(x + 3, lineY[i] - 17);
-                ctx.stroke();
-            });
-            ctx.fillStyle = '#ff6666';
-            ctx.font = '8px monospace';
-            ctx.fillText('VCC', 430, 50);
-            ctx.fillText('VCC', 460, 50);
-
-            // Title
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px ui-sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText('SMBus Communication (Smart Battery Standard)', 100, 175);
-        })();
-
-        // ===== Fuel Gauge Integration Diagram =====
-        (function() {
-            const canvas = document.getElementById('fuelgauge-canvas');
-            if (!canvas || typeof AD === 'undefined') return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Main container
-            AD.roundRect(ctx, 80, 30, 450, 260, 8, { fill: 'rgba(20,30,40,0.9)', stroke: TEK.ch2 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '14px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('Coulomb Counter', 305, 55);
-
-            // Input (current integral)
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Σ∫I·dt', 100, 95);
-            AD.drawArrow(ctx, 160, 90, 230, 90, { color: TEK.ch1 });
-
-            // SOC Accumulator block
-            AD.roundRect(ctx, 230, 70, 280, 70, 6, { fill: 'rgba(0,60,0,0.8)', stroke: TEK.ch4 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('SOC Accumulator', 370, 95);
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '11px monospace';
-            ctx.fillText('SOC(t) = SOC(t-1) + ∫I·dt / Q_full', 370, 120);
-
-            // Arrow down to correction
-            AD.drawArrow(ctx, 370, 140, 370, 165, { color: TEK.ch4 });
-
-            // Voltage-Based Correction block
-            AD.roundRect(ctx, 130, 170, 380, 100, 6, { fill: 'rgba(60,40,0,0.8)', stroke: TEK.ch5 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('Voltage-Based Correction', 320, 195);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('If V > V_full && I ≈ 0: SOC = 100%', 150, 220);
-            ctx.fillText('If V < V_empty && I > 0: SOC = 0%', 150, 238);
-            ctx.fillText('OCV lookup for relaxed battery', 150, 256);
-
-            // Arrow back up
-            AD.drawArrow(ctx, 140, 170, 140, 100, { color: TEK.ch5 });
-            ctx.beginPath();
-            ctx.moveTo(140, 100);
-            ctx.lineTo(230, 100);
-            ctx.strokeStyle = TEK.ch5;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Output
-            AD.drawArrow(ctx, 510, 105, 580, 105, { color: TEK.ch4 });
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('SOC %', 590, 110);
-
-            // Right side: compensation factors
-            AD.roundRect(ctx, 600, 150, 340, 130, 6, { fill: 'rgba(40,30,50,0.9)', stroke: TEK.ch3 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('Compensation Factors', 770, 175);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px ui-sans-serif';
-            ctx.textAlign = 'left';
-            ctx.fillText('• Temperature (capacity ↓ at low temp)', 620, 200);
-            ctx.fillText('• Aging (capacity fades over time)', 620, 220);
-            ctx.fillText('• Discharge rate (Peukert effect)', 620, 240);
-            ctx.fillText('• Update Q_full on full charge detect', 620, 260);
-        })();
-
-        // ===== Balance State Machine Diagram =====
-        (function() {
-            const canvas = document.getElementById('balance-canvas');
-            if (!canvas || typeof AD === 'undefined') return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Title
-            ctx.fillStyle = '#fff';
-            ctx.font = '14px ui-sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('Balance State Machine', 490, 25);
-
-            // IDLE state (top)
-            AD.roundRect(ctx, 420, 45, 140, 50, 6, { fill: 'rgba(30,30,60,0.9)', stroke: TEK.ch2 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '12px ui-sans-serif';
-            ctx.fillText('IDLE', 490, 65);
-            ctx.fillStyle = '#888';
-            ctx.font = '10px ui-sans-serif';
-            ctx.fillText('(No Balance)', 490, 82);
-
-            // Three branches down
-            AD.drawArrow(ctx, 420, 95, 220, 140, { color: '#888' });
-            AD.drawArrow(ctx, 490, 95, 490, 140, { color: '#888' });
-            AD.drawArrow(ctx, 560, 95, 760, 140, { color: '#888' });
-
-            // Condition labels
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Charging?', 300, 120);
-            ctx.fillStyle = TEK.ch4;
-            ctx.fillText('V_diff > 10mV', 490, 120);
-            ctx.fillStyle = '#ff6666';
-            ctx.fillText('Discharging?', 680, 120);
-
-            // CHARGE BALANCE state
-            AD.roundRect(ctx, 130, 150, 140, 60, 6, { fill: 'rgba(0,60,0,0.8)', stroke: TEK.ch4 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px ui-sans-serif';
-            ctx.fillText('CHARGE', 200, 170);
-            ctx.fillText('BALANCE', 200, 185);
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '9px ui-sans-serif';
-            ctx.fillText('(Active)', 200, 200);
-
-            // BALANCE IDLE state
-            AD.roundRect(ctx, 420, 150, 140, 60, 6, { fill: 'rgba(40,40,0,0.8)', stroke: TEK.ch1 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px ui-sans-serif';
-            ctx.fillText('BALANCE', 490, 170);
-            ctx.fillText('IDLE', 490, 185);
-
-            // DISCHARGE state
-            AD.roundRect(ctx, 710, 150, 140, 60, 6, { fill: 'rgba(60,30,30,0.8)', stroke: '#ff6666' });
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px ui-sans-serif';
-            ctx.fillText('DISCHARGE', 780, 170);
-            ctx.fillStyle = '#888';
-            ctx.font = '9px ui-sans-serif';
-            ctx.fillText('(No Balance)', 780, 190);
-
-            // Arrows to BALANCED state
-            AD.drawArrow(ctx, 200, 210, 200, 250, { color: TEK.ch4 });
-            AD.drawArrow(ctx, 490, 210, 490, 250, { color: TEK.ch4 });
-
-            // Condition for balanced
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('V_diff < 5mV', 350, 240);
-
-            // BALANCED state
-            AD.roundRect(ctx, 280, 260, 180, 50, 6, { fill: 'rgba(0,80,0,0.9)', stroke: TEK.ch4 });
-            ctx.fillStyle = '#fff';
-            ctx.font = '13px ui-sans-serif';
-            ctx.fillText('BALANCED', 370, 282);
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '10px ui-sans-serif';
-            ctx.fillText('All cells matched', 370, 300);
-
-            // Connect lines
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.setLineDash([4, 4]);
-            ctx.beginPath();
-            ctx.moveTo(200, 250);
-            ctx.lineTo(200, 285);
-            ctx.lineTo(280, 285);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        })();
-
-        // BMS Simulator
-        const bmsCanvas = document.getElementById('bms-canvas');
-        const bmsCtx = bmsCanvas.getContext('2d');
-
-        let simRunning = false;
-        let simTime = 0;
-        let simInterval = null;
-
-        // Cell states
-        let cells = [
-            {voltage: 3.70, soc: 80, capacity: 2600},  // mAh
-            {voltage: 3.72, soc: 82, capacity: 2600},
-            {voltage: 3.68, soc: 78, capacity: 2600},
-            {voltage: 3.70, soc: 80, capacity: 2600}
-        ];
-
-        let packState = {
-            current: 0,
-            temperature: 25,
-            chgFet: true,
-            dsgFet: true,
-            protection: 'NORMAL',
-            coulombCount: 0
-        };
-
-        function socToVoltage(soc) {
-            // Simplified OCV curve for Li-ion
-            if (soc <= 0) return 2.8;
-            if (soc >= 100) return 4.2;
-            // Piecewise linear approximation
-            if (soc < 10) return 2.8 + soc * 0.05;
-            if (soc < 90) return 3.3 + (soc - 10) * 0.008;
-            return 3.94 + (soc - 90) * 0.026;
+    <div class="card">
+        <h3>Common Sequencing Requirements</h3>
+
+        <table class="table">
+            <tr>
+                <th>Device Type</th>
+                <th>Typical Requirement</th>
+                <th>Reason</th>
+            </tr>
+            <tr>
+                <td>FPGA</td>
+                <td>Vccint → Vccaux → Vcco</td>
+                <td>Core first, then I/O, prevents latch-up</td>
+            </tr>
+            <tr>
+                <td>DDR Memory</td>
+                <td>VDD → VDDQ → VTT</td>
+                <td>Core stable before I/O, termination last</td>
+            </tr>
+            <tr>
+                <td>CPU/SoC</td>
+                <td>Core → I/O → Peripherals</td>
+                <td>Internal regulators need stable input</td>
+            </tr>
+            <tr>
+                <td>High-speed SerDes</td>
+                <td>AVDD → DVDD → VTT</td>
+                <td>PLL stability before digital</td>
+            </tr>
+            <tr>
+                <td>Op-amps (±supply)</td>
+                <td>±V simultaneous or V+ first</td>
+                <td>Prevent output swing to rail</td>
+            </tr>
+            <tr>
+                <td>Mixed-signal</td>
+                <td>Analog → Digital</td>
+                <td>Stable reference before ADC/DAC</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Sequencing Implementation</h3>
+        <canvas id="seq-methods-canvas" width="900" height="380"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Sequencing Circuit</h3>
+        <div id="seq-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="seq-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="seq-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="seq-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('seq-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 80;
+
+    const rails = [
+        {name: 'Vcore (1.0V)', voltage: 1.0, color: TEK.ch1},
+        {name: 'Vio (1.8V)', voltage: 1.8, color: TEK.ch2},
+        {name: 'Vaux (3.3V)', voltage: 3.3, color: TEK.ch3}
+    ];
+
+    function update() {
+        const mode = document.getElementById('seq-mode').value;
+        const delay = AD.num('seq-delay') || 10;
+        const ramp = AD.num('seq-ramp') || 5;
+
+        document.getElementById('seq-delay-val').textContent = delay + 'ms';
+        document.getElementById('seq-ramp-val').textContent = ramp + 'ms';
+
+        let totalTime, pgoodDelay;
+
+        if (mode === 'sequential') {
+            totalTime = ramp + (rails.length - 1) * delay + ramp;
+            pgoodDelay = totalTime;
+        } else if (mode === 'ratiometric') {
+            totalTime = ramp;
+            pgoodDelay = ramp;
+        } else {
+            totalTime = ramp;
+            pgoodDelay = ramp;
         }
 
-        function updateSimulation(dt) {
-            const loadCurrent = AD.num('bms-load');
-            const temperature = AD.num('bms-temp');
+        document.getElementById('seq-total').textContent = totalTime.toFixed(0) + 'ms';
+        document.getElementById('seq-pgood').textContent = pgoodDelay.toFixed(0) + 'ms';
+        document.getElementById('seq-sep').textContent = mode === 'sequential' ? delay + 'ms' : '0ms';
 
-            packState.current = loadCurrent;
-            packState.temperature = temperature;
+        // Draw waveforms
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
 
-            // Check protection conditions
-            let minVoltage = Math.min(...cells.map(c => c.voltage));
-            let maxVoltage = Math.max(...cells.map(c => c.voltage));
+        const plotW = W - mL - mR;
+        const plotH = H - mT - mB;
 
-            // OVP check
-            if (maxVoltage > 4.25) {
-                packState.protection = 'OVP';
-                packState.chgFet = false;
-            }
-            // UVP check
-            else if (minVoltage < 2.7) {
-                packState.protection = 'UVP';
-                packState.dsgFet = false;
-            }
-            // OCP check
-            else if (loadCurrent > 25) {
-                packState.protection = 'OCP';
-                packState.dsgFet = false;
-            }
-            // OTP check
-            else if (temperature > 55) {
-                packState.protection = 'OTP';
-                packState.chgFet = false;
-                packState.dsgFet = false;
-            }
-            else {
-                packState.protection = 'NORMAL';
-                if (minVoltage > 2.8) packState.dsgFet = true;
-                if (maxVoltage < 4.2) packState.chgFet = true;
-            }
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
 
-            // Update cell SOC based on current
-            if ((loadCurrent > 0 && packState.dsgFet) || (loadCurrent < 0 && packState.chgFet)) {
-                const currentPerCell = loadCurrent; // Assuming same current through all cells
-                const deltaSoc = (currentPerCell / 2600) * dt / 3.6; // Convert to % change
+        // Time axis
+        const displayTime = Math.max(50, totalTime * 1.5);
 
-                cells.forEach((cell, i) => {
-                    // Add some imbalance
-                    const imbalanceFactor = 1 + (i - 1.5) * 0.02;
-                    cell.soc = Math.max(0, Math.min(100, cell.soc - deltaSoc * imbalanceFactor));
-                    cell.voltage = socToVoltage(cell.soc);
-                });
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
 
-                packState.coulombCount += currentPerCell * dt / 3.6;
-            }
+        for (let t = 0; t <= displayTime; t += 10) {
+            const x = mL + (t / displayTime) * plotW;
+            ctx.beginPath();
+            ctx.moveTo(x, mT + plotH);
+            ctx.lineTo(x, mT + plotH + 5);
+            ctx.stroke();
+            ctx.fillText(t + 'ms', x, mT + plotH + 18);
+        }
+        ctx.fillText('Time', mL + plotW/2, mT + plotH + 40);
 
-            simTime += dt;
+        // Voltage scale
+        const Vmax = 4;
+        ctx.textAlign = 'right';
+        for (let v = 0; v <= Vmax; v++) {
+            const y = mT + plotH - (v / Vmax) * plotH;
+            ctx.fillText(v + 'V', mL - 5, y + 4);
         }
 
-        function drawBMSDisplay() {
-            const W = bmsCanvas.width, H = bmsCanvas.height;
-            bmsCtx.fillStyle = TEK.bg;
-            bmsCtx.fillRect(0, 0, W, H);
+        // Draw each rail
+        rails.forEach((rail, idx) => {
+            ctx.strokeStyle = rail.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
 
-            // Draw pack diagram
-            const packX = 50, packY = 50;
-            const cellW = 100, cellH = 150;
+            for (let i = 0; i <= plotW; i++) {
+                const t = (i / plotW) * displayTime;
+                let V = 0;
 
-            // Pack outline
-            bmsCtx.strokeStyle = '#666';
-            bmsCtx.lineWidth = 2;
-            bmsCtx.strokeRect(packX, packY, cellW * 4 + 60, cellH + 80);
+                if (mode === 'sequential') {
+                    const startTime = idx * delay;
+                    const rampEnd = startTime + ramp;
 
-            // Draw cells
-            cells.forEach((cell, i) => {
-                const cx = packX + 20 + i * (cellW + 10);
-                const cy = packY + 30;
+                    if (t >= startTime && t < rampEnd) {
+                        V = rail.voltage * (t - startTime) / ramp;
+                    } else if (t >= rampEnd) {
+                        V = rail.voltage;
+                    }
+                } else if (mode === 'ratiometric') {
+                    if (t < ramp) {
+                        V = rail.voltage * t / ramp;
+                    } else {
+                        V = rail.voltage;
+                    }
+                } else { // simultaneous
+                    if (t < ramp) {
+                        V = rail.voltage * t / ramp;
+                    } else {
+                        V = rail.voltage;
+                    }
+                }
 
-                // Cell body
-                bmsCtx.fillStyle = '#333';
-                bmsCtx.fillRect(cx, cy, cellW, cellH);
+                const x = mL + i;
+                const y = mT + plotH - (V / Vmax) * plotH;
 
-                // SOC fill
-                const fillHeight = cellH * (cell.soc / 100);
-                let fillColor = TEK.ch4; // Green
-                if (cell.soc < 20) fillColor = '#ff0000';
-                else if (cell.soc < 50) fillColor = TEK.ch1;
-
-                bmsCtx.fillStyle = fillColor + '88';
-                bmsCtx.fillRect(cx + 2, cy + cellH - fillHeight + 2, cellW - 4, fillHeight - 4);
-
-                // Cell border
-                bmsCtx.strokeStyle = cell.voltage > 4.2 ? '#ff0000' : cell.voltage < 2.8 ? '#ff0000' : TEK.ch2;
-                bmsCtx.lineWidth = 2;
-                bmsCtx.strokeRect(cx, cy, cellW, cellH);
-
-                // Labels
-                bmsCtx.fillStyle = '#fff';
-                bmsCtx.font = '12px monospace';
-                bmsCtx.textAlign = 'center';
-                bmsCtx.fillText('Cell ' + (i + 1), cx + cellW / 2, cy - 8);
-                bmsCtx.fillText(cell.voltage.toFixed(3) + ' V', cx + cellW / 2, cy + cellH / 2 - 10);
-                bmsCtx.fillText(cell.soc.toFixed(1) + '%', cx + cellW / 2, cy + cellH / 2 + 10);
-            });
-
-            // Draw FETs
-            const fetY = packY + cellH + 50;
-            const fetW = 60, fetH = 30;
-
-            // CHG FET
-            bmsCtx.fillStyle = packState.chgFet ? '#004400' : '#440000';
-            bmsCtx.fillRect(packX + 100, fetY, fetW, fetH);
-            bmsCtx.strokeStyle = packState.chgFet ? TEK.ch4 : '#ff0000';
-            bmsCtx.strokeRect(packX + 100, fetY, fetW, fetH);
-            bmsCtx.fillStyle = '#fff';
-            bmsCtx.fillText('CHG', packX + 130, fetY + 20);
-
-            // DSG FET
-            bmsCtx.fillStyle = packState.dsgFet ? '#004400' : '#440000';
-            bmsCtx.fillRect(packX + 250, fetY, fetW, fetH);
-            bmsCtx.strokeStyle = packState.dsgFet ? TEK.ch4 : '#ff0000';
-            bmsCtx.strokeRect(packX + 250, fetY, fetW, fetH);
-            bmsCtx.fillStyle = '#fff';
-            bmsCtx.fillText('DSG', packX + 280, fetY + 20);
-
-            // Draw current flow
-            bmsCtx.strokeStyle = TEK.ch1;
-            bmsCtx.lineWidth = 2;
-            bmsCtx.setLineDash([5, 5]);
-            bmsCtx.beginPath();
-            bmsCtx.moveTo(packX + 470, packY + cellH / 2);
-            bmsCtx.lineTo(packX + 470 + 80, packY + cellH / 2);
-            bmsCtx.stroke();
-            bmsCtx.setLineDash([]);
-
-            // Current value
-            bmsCtx.fillStyle = packState.current > 0 ? TEK.ch1 : TEK.ch2;
-            bmsCtx.font = '16px monospace';
-            bmsCtx.textAlign = 'left';
-            bmsCtx.fillText(packState.current.toFixed(1) + ' A', packX + 560, packY + cellH / 2 + 5);
-            bmsCtx.fillText(packState.current > 0 ? 'DISCHARGE' : packState.current < 0 ? 'CHARGE' : 'IDLE', packX + 560, packY + cellH / 2 + 25);
-
-            // Status panel
-            const statX = 600, statY = 50;
-            bmsCtx.fillStyle = '#222';
-            bmsCtx.fillRect(statX, statY, 350, 200);
-            bmsCtx.strokeStyle = '#555';
-            bmsCtx.strokeRect(statX, statY, 350, 200);
-
-            bmsCtx.fillStyle = '#fff';
-            bmsCtx.font = '14px monospace';
-            bmsCtx.textAlign = 'left';
-
-            const packVoltage = cells.reduce((sum, c) => sum + c.voltage, 0);
-            const avgSoc = cells.reduce((sum, c) => sum + c.soc, 0) / 4;
-            const imbalance = (Math.max(...cells.map(c => c.voltage)) - Math.min(...cells.map(c => c.voltage))) * 1000;
-
-            let y = statY + 25;
-            bmsCtx.fillText('Pack Voltage: ' + packVoltage.toFixed(2) + ' V', statX + 15, y); y += 25;
-            bmsCtx.fillText('Average SOC:  ' + avgSoc.toFixed(1) + '%', statX + 15, y); y += 25;
-            bmsCtx.fillText('Imbalance:    ' + imbalance.toFixed(0) + ' mV', statX + 15, y); y += 25;
-            bmsCtx.fillText('Temperature:  ' + packState.temperature + '°C', statX + 15, y); y += 25;
-            bmsCtx.fillText('Sim Time:     ' + simTime.toFixed(1) + ' s', statX + 15, y); y += 25;
-
-            // Protection state
-            bmsCtx.fillStyle = packState.protection === 'NORMAL' ? TEK.ch4 : '#ff0000';
-            bmsCtx.fillText('Status: ' + packState.protection, statX + 15, y);
-
-            // Update displays
-            document.getElementById('pack-voltage').textContent = packVoltage.toFixed(2) + ' V';
-            document.getElementById('cell-imbalance').textContent = imbalance.toFixed(0) + ' mV';
-            document.getElementById('fuel-gauge-soc').textContent = avgSoc.toFixed(1) + '%';
-            document.getElementById('prot-state').textContent = packState.protection;
-            document.getElementById('prot-state').style.color = packState.protection === 'NORMAL' ? TEK.ch4 : '#ff0000';
-            document.getElementById('chg-fet').textContent = packState.chgFet ? 'ON' : 'OFF';
-            document.getElementById('chg-fet').style.color = packState.chgFet ? TEK.ch4 : '#ff0000';
-            document.getElementById('dsg-fet').textContent = packState.dsgFet ? 'ON' : 'OFF';
-            document.getElementById('dsg-fet').style.color = packState.dsgFet ? TEK.ch4 : '#ff0000';
-
-            // Voltage history (simplified - just show current values as bars)
-            const histX = 600, histY = 280;
-            bmsCtx.fillStyle = '#222';
-            bmsCtx.fillRect(histX, histY, 350, 200);
-            bmsCtx.strokeStyle = '#555';
-            bmsCtx.strokeRect(histX, histY, 350, 200);
-
-            bmsCtx.fillStyle = '#fff';
-            bmsCtx.fillText('Cell Voltages', histX + 130, histY + 20);
-
-            const barW = 60;
-            cells.forEach((cell, i) => {
-                const bx = histX + 30 + i * 80;
-                const by = histY + 40;
-                const bh = 130;
-
-                // Scale: 2.5V to 4.3V
-                const fill = (cell.voltage - 2.5) / 1.8 * bh;
-
-                bmsCtx.fillStyle = '#333';
-                bmsCtx.fillRect(bx, by, barW, bh);
-
-                bmsCtx.fillStyle = cell.voltage > 4.2 ? '#ff0000' : cell.voltage < 2.8 ? '#ff0000' : TEK.ch2;
-                bmsCtx.fillRect(bx + 2, by + bh - fill + 2, barW - 4, fill - 4);
-
-                bmsCtx.strokeStyle = '#666';
-                bmsCtx.strokeRect(bx, by, barW, bh);
-
-                bmsCtx.fillStyle = '#ccc';
-                bmsCtx.font = '10px monospace';
-                bmsCtx.textAlign = 'center';
-                bmsCtx.fillText('C' + (i + 1), bx + barW / 2, by + bh + 15);
-            });
-        }
-
-        document.getElementById('bms-start').addEventListener('click', function() {
-            if (!simRunning) {
-                simRunning = true;
-                simInterval = setInterval(() => {
-                    updateSimulation(0.1);
-                    drawBMSDisplay();
-                }, 100);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
             }
+            ctx.stroke();
+
+            // Rail label
+            ctx.fillStyle = rail.color;
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'left';
+            const labelY = mT + 20 + idx * 15;
+            ctx.fillText(rail.name, mL + 10, labelY);
         });
 
-        document.getElementById('bms-stop').addEventListener('click', function() {
-            simRunning = false;
-            if (simInterval) clearInterval(simInterval);
-        });
+        // Draw PGOOD signal
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
 
-        document.getElementById('bms-reset').addEventListener('click', function() {
-            simRunning = false;
-            if (simInterval) clearInterval(simInterval);
-            simTime = 0;
-            const initSoc = AD.num('bms-soc');
-            cells = [
-                {voltage: socToVoltage(initSoc), soc: initSoc, capacity: 2600},
-                {voltage: socToVoltage(initSoc + 2), soc: initSoc + 2, capacity: 2600},
-                {voltage: socToVoltage(initSoc - 2), soc: initSoc - 2, capacity: 2600},
-                {voltage: socToVoltage(initSoc), soc: initSoc, capacity: 2600}
-            ];
-            packState = {
-                current: 0,
-                temperature: 25,
-                chgFet: true,
-                dsgFet: true,
-                protection: 'NORMAL',
-                coulombCount: 0
-            };
-            drawBMSDisplay();
-        });
+        for (let i = 0; i <= plotW; i++) {
+            const t = (i / plotW) * displayTime;
+            let pgood = 0;
 
-        // Update value displays
-        ['bms-load', 'bms-soc', 'bms-temp'].forEach(id => {
-            document.getElementById(id).addEventListener('input', function() {
-                if (id === 'bms-load') {
-                    document.getElementById('bms-load-val').textContent = parseFloat(this.value).toFixed(1) + ' A';
-                } else if (id === 'bms-soc') {
-                    document.getElementById('bms-soc-val').textContent = this.value + '%';
-                } else if (id === 'bms-temp') {
-                    document.getElementById('bms-temp-val').textContent = this.value + '°C';
+            if (t >= pgoodDelay) {
+                pgood = 0.5; // Show as low voltage for visibility
+            }
+
+            const x = mL + i;
+            const y = mT + plotH - 20 - (pgood * 30);
+
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('PGOOD', mL + 10, mT + plotH - 10);
+
+        // Timing annotations for sequential mode
+        if (mode === 'sequential') {
+            ctx.strokeStyle = '#888';
+            ctx.setLineDash([3, 3]);
+
+            rails.forEach((rail, idx) => {
+                if (idx > 0) {
+                    const startX = mL + ((idx * delay) / displayTime) * plotW;
+                    ctx.beginPath();
+                    ctx.moveTo(startX, mT);
+                    ctx.lineTo(startX, mT + plotH);
+                    ctx.stroke();
                 }
             });
-        });
-
-        // Protection threshold visualization
-        const protCanvas = document.getElementById('prot-canvas');
-        const protCtx = protCanvas.getContext('2d');
-
-        function drawProtectionChart() {
-            const W = protCanvas.width, H = protCanvas.height;
-            protCtx.fillStyle = TEK.bg;
-            protCtx.fillRect(0, 0, W, H);
-
-            const ovp = AD.num('prot-ovp');
-            const uvp = AD.num('prot-uvp');
-            const ocp = AD.num('prot-ocp-d');
-            const scp = AD.num('prot-scp');
-            const otp = AD.num('prot-otp');
-
-            document.getElementById('prot-ovp-val').textContent = (ovp / 1000).toFixed(2) + ' V';
-            document.getElementById('prot-uvp-val').textContent = (uvp / 1000).toFixed(2) + ' V';
-            document.getElementById('prot-ocp-d-val').textContent = ocp + ' A';
-            document.getElementById('prot-scp-val').textContent = scp + ' A';
-            document.getElementById('prot-otp-val').textContent = otp + '°C';
-
-            // Draw voltage window
-            const vMin = 2500, vMax = 4400;
-            const vScale = (W - 200) / (vMax - vMin);
-            const voltX = v => 100 + (v - vMin) * vScale;
-
-            // Operating window
-            protCtx.fillStyle = '#003300';
-            protCtx.fillRect(voltX(uvp), 40, voltX(ovp) - voltX(uvp), 80);
-
-            // UVP zone
-            protCtx.fillStyle = '#330000';
-            protCtx.fillRect(voltX(vMin), 40, voltX(uvp) - voltX(vMin), 80);
-
-            // OVP zone
-            protCtx.fillStyle = '#330000';
-            protCtx.fillRect(voltX(ovp), 40, voltX(vMax) - voltX(ovp), 80);
-
-            // Threshold lines
-            protCtx.strokeStyle = '#ff0000';
-            protCtx.lineWidth = 2;
-            protCtx.setLineDash([5, 5]);
-
-            protCtx.beginPath();
-            protCtx.moveTo(voltX(uvp), 35);
-            protCtx.lineTo(voltX(uvp), 125);
-            protCtx.stroke();
-
-            protCtx.beginPath();
-            protCtx.moveTo(voltX(ovp), 35);
-            protCtx.lineTo(voltX(ovp), 125);
-            protCtx.stroke();
-
-            protCtx.setLineDash([]);
-
-            // Labels
-            protCtx.fillStyle = '#fff';
-            protCtx.font = '12px monospace';
-            protCtx.textAlign = 'center';
-            protCtx.fillText('UVP: ' + (uvp / 1000).toFixed(2) + 'V', voltX(uvp), 30);
-            protCtx.fillText('OVP: ' + (ovp / 1000).toFixed(2) + 'V', voltX(ovp), 30);
-            protCtx.fillText('Operating Window', (voltX(uvp) + voltX(ovp)) / 2, 85);
-
-            protCtx.fillStyle = '#ff6666';
-            protCtx.fillText('SHUTDOWN', voltX((vMin + uvp) / 2), 85);
-            protCtx.fillText('SHUTDOWN', voltX((ovp + vMax) / 2), 85);
-
-            // Voltage axis
-            protCtx.strokeStyle = '#666';
-            protCtx.lineWidth = 1;
-            protCtx.beginPath();
-            protCtx.moveTo(100, 130);
-            protCtx.lineTo(W - 100, 130);
-            protCtx.stroke();
-
-            for (let v = 2600; v <= 4400; v += 200) {
-                protCtx.fillStyle = '#888';
-                protCtx.fillText((v / 1000).toFixed(1) + 'V', voltX(v), 145);
-            }
-
-            // Current protection
-            const iMax = 250;
-            const iScale = (W - 200) / iMax;
-            const currX = i => 100 + i * iScale;
-
-            // Normal operation
-            protCtx.fillStyle = '#003300';
-            protCtx.fillRect(100, 180, currX(ocp) - 100, 60);
-
-            // OCP zone
-            protCtx.fillStyle = '#333300';
-            protCtx.fillRect(currX(ocp), 180, currX(scp) - currX(ocp), 60);
-
-            // SCP zone
-            protCtx.fillStyle = '#330000';
-            protCtx.fillRect(currX(scp), 180, W - 100 - currX(scp), 60);
-
-            protCtx.strokeStyle = TEK.ch1;
-            protCtx.setLineDash([5, 5]);
-            protCtx.beginPath();
-            protCtx.moveTo(currX(ocp), 175);
-            protCtx.lineTo(currX(ocp), 245);
-            protCtx.stroke();
-
-            protCtx.strokeStyle = '#ff0000';
-            protCtx.beginPath();
-            protCtx.moveTo(currX(scp), 175);
-            protCtx.lineTo(currX(scp), 245);
-            protCtx.stroke();
-            protCtx.setLineDash([]);
-
-            protCtx.fillStyle = '#fff';
-            protCtx.fillText('OCP: ' + ocp + 'A', currX(ocp), 170);
-            protCtx.fillText('SCP: ' + scp + 'A', currX(scp), 170);
-            protCtx.fillText('Normal', currX(ocp / 2), 215);
-            protCtx.fillStyle = '#ffff00';
-            protCtx.fillText('Warning', (currX(ocp) + currX(scp)) / 2, 215);
-            protCtx.fillStyle = '#ff6666';
-            protCtx.fillText('SHUTDOWN', currX(scp) + 50, 215);
-
-            // Temperature bar
-            const tMin = -30, tMax = 80;
-            const tScale = (W - 200) / (tMax - tMin);
-            const tempX = t => 100 + (t - tMin) * tScale;
-
-            protCtx.fillStyle = '#003300';
-            protCtx.fillRect(tempX(0), 280, tempX(otp) - tempX(0), 50);
-
-            protCtx.fillStyle = '#330000';
-            protCtx.fillRect(tempX(otp), 280, W - 100 - tempX(otp), 50);
-
-            protCtx.fillStyle = '#000033';
-            protCtx.fillRect(100, 280, tempX(0) - 100, 50);
-
-            protCtx.strokeStyle = '#ff0000';
-            protCtx.setLineDash([5, 5]);
-            protCtx.beginPath();
-            protCtx.moveTo(tempX(otp), 275);
-            protCtx.lineTo(tempX(otp), 335);
-            protCtx.stroke();
-            protCtx.setLineDash([]);
-
-            protCtx.fillStyle = '#fff';
-            protCtx.fillText('OTP: ' + otp + '°C', tempX(otp), 270);
-
-            // Calculate metrics
-            const usableCap = ((ovp - uvp) / (4200 - 2800)) * 100;
-            const safetyMargin = 4300 - ovp;
-            const cycleImpact = ovp > 4150 ? Math.round(100 - (ovp - 4150) * 0.5) : 100;
-
-            document.getElementById('usable-cap').textContent = usableCap.toFixed(0) + '%';
-            document.getElementById('safety-ovp').textContent = safetyMargin + ' mV';
-            document.getElementById('cycle-impact').textContent = cycleImpact + '%';
-            document.getElementById('prot-response').textContent = scp > 150 ? '10μs' : scp > 100 ? '50μs' : '100μs';
+            ctx.setLineDash([]);
         }
 
-        ['prot-ovp', 'prot-uvp', 'prot-ocp-d', 'prot-scp', 'prot-otp'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawProtectionChart);
-        });
+        // Mode description
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
 
-        // Initialize
-        drawBMSDisplay();
-        drawProtectionChart();
+        const modeDesc = {
+            sequential: 'Sequential: Each rail waits for previous to complete. Safe for strict requirements.',
+            ratiometric: 'Ratiometric: All rails ramp together maintaining ratio. Good for tracking requirements.',
+            simultaneous: 'Simultaneous: All rails start together. Fastest but may violate some device specs.'
+        };
 
-        // Schematic
-        document.addEventListener('SchematicSVGReady', function() {
-            const container = document.getElementById('bms-schematic');
-            if (!container || typeof SchematicSVG === 'undefined') return;
+        ctx.fillText(modeDesc[mode], mL, mT + plotH + 60);
+    }
 
-            const svg = new SchematicSVG(950, 450);
-
-            // Cell stack
-            const cellX = 80;
-            for (let i = 0; i < 4; i++) {
-                const y = 80 + i * 90;
-                // Battery cell symbol
-                svg.line(cellX, y, cellX, y + 30);
-                svg.line(cellX - 15, y + 30, cellX + 15, y + 30);
-                svg.line(cellX - 8, y + 38, cellX + 8, y + 38);
-                svg.line(cellX, y + 38, cellX, y + 70);
-
-                svg.text(cellX + 30, y + 40, 'Cell ' + (4 - i), '10px');
-                svg.text(cellX + 30, y + 55, '3.7V', '9px');
-
-                // Balance connection
-                svg.line(cellX, y, cellX + 60, y);
-                svg.circle(cellX + 60, y, 2);
-                svg.text(cellX + 65, y + 3, 'BAL' + (4 - i), '8px');
-            }
-
-            // Pack connections
-            svg.line(cellX, 80, cellX, 50);
-            svg.text(cellX - 25, 55, 'PACK+', '10px');
-
-            svg.line(cellX, 440, cellX, 410);
-            svg.text(cellX - 25, 420, 'PACK-', '10px');
-
-            // AFE IC block
-            const afeX = 200, afeY = 120;
-            svg.rect(afeX, afeY, 120, 180);
-            svg.text(afeX + 60, afeY + 20, 'AFE IC', '12px', '#fff', 'middle');
-            svg.text(afeX + 60, afeY + 40, 'BQ76940', '10px', '#888', 'middle');
-
-            // AFE connections
-            for (let i = 0; i < 5; i++) {
-                const y = afeY + 60 + i * 25;
-                svg.line(cellX + 60, 80 + i * 90, afeX, y);
-                svg.text(afeX + 10, y + 3, 'VC' + (4 - i), '8px');
-            }
-
-            // I2C bus
-            svg.line(afeX + 120, afeY + 80, afeX + 180, afeY + 80);
-            svg.line(afeX + 120, afeY + 100, afeX + 180, afeY + 100);
-            svg.text(afeX + 140, afeY + 75, 'SDA', '8px');
-            svg.text(afeX + 140, afeY + 95, 'SCL', '8px');
-
-            // MCU block
-            const mcuX = 400, mcuY = 100;
-            svg.rect(mcuX, mcuY, 120, 120);
-            svg.text(mcuX + 60, mcuY + 20, 'MCU', '12px', '#fff', 'middle');
-
-            svg.line(afeX + 180, afeY + 80, mcuX, mcuY + 50);
-            svg.line(afeX + 180, afeY + 100, mcuX, mcuY + 70);
-
-            // Protection FETs
-            const fetY = 350;
-
-            // CHG FET
-            svg.rect(300, fetY, 60, 40);
-            svg.text(330, fetY + 25, 'CHG', '10px', '#fff', 'middle');
-            svg.line(cellX, 50, 250, 50);
-            svg.line(250, 50, 250, fetY + 20);
-            svg.line(250, fetY + 20, 300, fetY + 20);
-
-            // DSG FET
-            svg.rect(400, fetY, 60, 40);
-            svg.text(430, fetY + 25, 'DSG', '10px', '#fff', 'middle');
-            svg.line(360, fetY + 20, 400, fetY + 20);
-            svg.line(460, fetY + 20, 520, fetY + 20);
-
-            // Shunt resistor
-            svg.resistor(550, fetY + 20, 'h', 'Rsh', '5mΩ');
-            svg.line(600, fetY + 20, 650, fetY + 20);
-            svg.text(660, fetY + 25, 'LOAD+', '10px');
-
-            // Current sense
-            svg.line(575, fetY + 20, 575, mcuY + 100);
-            svg.line(575, mcuY + 100, mcuX, mcuY + 100);
-            svg.text(500, mcuY + 95, 'I_SENSE', '8px');
-
-            // FET gate drives
-            svg.line(afeX + 120, afeY + 140, 330, afeY + 140);
-            svg.line(330, afeY + 140, 330, fetY);
-            svg.text(335, afeY + 150, 'CHG_DRV', '8px');
-
-            svg.line(afeX + 120, afeY + 160, 350, afeY + 160);
-            svg.line(350, afeY + 160, 350, 320);
-            svg.line(350, 320, 430, 320);
-            svg.line(430, 320, 430, fetY);
-            svg.text(355, afeY + 170, 'DSG_DRV', '8px');
-
-            // Thermistor
-            svg.circle(180, 380, 3);
-            svg.text(165, 395, 'NTC', '8px');
-            svg.line(180, 383, 180, 410);
-            svg.line(180, 410, afeX + 30, 410);
-            svg.line(afeX + 30, 410, afeX + 30, afeY + 180);
-            svg.text(afeX + 35, 400, 'TEMP', '8px');
-
-            // Communication out
-            svg.line(mcuX + 120, mcuY + 40, mcuX + 180, mcuY + 40);
-            svg.line(mcuX + 120, mcuY + 60, mcuX + 180, mcuY + 60);
-            svg.text(mcuX + 130, mcuY + 35, 'TX', '8px');
-            svg.text(mcuX + 130, mcuY + 55, 'RX', '8px');
-
-            const hostX = 620, hostY = 80;
-            svg.rect(hostX, hostY, 100, 80);
-            svg.text(hostX + 50, hostY + 20, 'HOST', '12px', '#fff', 'middle');
-            svg.text(hostX + 50, hostY + 45, 'SYSTEM', '10px', '#888', 'middle');
-            svg.line(mcuX + 180, mcuY + 40, hostX, hostY + 40);
-            svg.line(mcuX + 180, mcuY + 60, hostX, hostY + 60);
-
-            // PACK- connection
-            svg.line(cellX, 410, 250, 410);
-            svg.line(250, 410, 650, 410);
-            svg.text(660, 415, 'LOAD-', '10px');
-
-            container.appendChild(svg.svg);
-        });
-
-        // Trigger schematic
-        if (typeof SchematicSVG !== 'undefined') {
-            document.dispatchEvent(new Event('SchematicSVGReady'));
-        }
-
-        // SPICE widget
-        if (typeof SpiceNetlistWidget !== 'undefined') {
-            new SpiceNetlistWidget('bms-spice', {
-                title: 'BMS Protection Circuit',
-                description: '4S Li-ion pack with protection FETs and current sense',
-                netlist: `* BMS Protection Circuit - 4S Li-ion Pack
-* Demonstrates OVP, UVP, OCP protection logic
-
-* Battery cells (simplified model)
-V_cell1 pack_plus n1 DC 3.7
-R_int1 n1 n1a 0.030
-
-V_cell2 n1a n2 DC 3.7
-R_int2 n2 n2a 0.030
-
-V_cell3 n2a n3 DC 3.7
-R_int3 n3 n3a 0.030
-
-V_cell4 n3a pack_minus DC 3.7
-R_int4 pack_minus pack_gnd 0.030
-
-* Protection FETs (P-channel)
-* Using behavioral model for simplicity
-M_chg pack_plus chg_mid chg_gate chg_gate PMOS
-M_dsg chg_mid load_plus dsg_gate dsg_gate PMOS
-
-.model PMOS PMOS (VTO=-2 KP=50 RD=0.010)
-
-* Current sense shunt
-R_shunt load_plus load_out 0.005
-
-* Load
-R_load load_out pack_gnd 2
-
-* Protection control (simplified)
-* In real design, this is the BMS IC
-V_chg_ctrl chg_gate pack_plus DC 0   ; CHG on (Vgs = 0 for P-ch)
-V_dsg_ctrl dsg_gate pack_plus DC 0   ; DSG on
-
-* Transient analysis
-.tran 0.1m 100m
-
-* Measure current
-.measure tran I_pack avg I(R_shunt)
-
-.end`
-            });
-        }
-
-        // Checklist widget
-        if (typeof ChecklistWidget !== 'undefined') {
-            new ChecklistWidget('bms-checklist', {
-                title: 'BMS Integration Checklist',
-                items: [
-                    {id: 'afe-sel', text: 'Select AFE IC for cell count and accuracy requirements', category: 'Component Selection'},
-                    {id: 'mcu-sel', text: 'Choose MCU with adequate ADC channels and communication', category: 'Component Selection'},
-                    {id: 'fet-sel', text: 'Size protection FETs for max current (Rds_on, Vds_max)', category: 'Component Selection'},
-                    {id: 'shunt', text: 'Select current shunt (low TCR, adequate power rating)', category: 'Component Selection'},
-                    {id: 'therm', text: 'Position thermistors at cell hot spots', category: 'Component Selection'},
-                    {id: 'ovp', text: 'Set OVP threshold with margin below max cell voltage', category: 'Protection Setup'},
-                    {id: 'uvp', text: 'Set UVP threshold above minimum safe cell voltage', category: 'Protection Setup'},
-                    {id: 'ocp', text: 'Configure OCP with appropriate delay for inrush', category: 'Protection Setup'},
-                    {id: 'scp', text: 'Set SCP threshold and fast response (<100μs)', category: 'Protection Setup'},
-                    {id: 'otp', text: 'Configure temperature limits for charge and discharge', category: 'Protection Setup'},
-                    {id: 'balance', text: 'Configure balancing threshold and current', category: 'Balance Setup'},
-                    {id: 'fuel', text: 'Calibrate fuel gauge with actual cell capacity', category: 'Fuel Gauge'},
-                    {id: 'learn', text: 'Enable capacity learning algorithm', category: 'Fuel Gauge'},
-                    {id: 'comm', text: 'Implement host communication protocol (SBS/CAN)', category: 'Communication'},
-                    {id: 'alert', text: 'Configure alert/interrupt outputs for host', category: 'Communication'},
-                    {id: 'layout', text: 'Route high-current paths with adequate copper', category: 'PCB Layout'},
-                    {id: 'kelvin', text: 'Use Kelvin sensing for shunt connections', category: 'PCB Layout'},
-                    {id: 'iso', text: 'Isolate analog sensing from digital/switching noise', category: 'PCB Layout'}
-                ]
-            });
-        }
-
-        // Exercises widget
-        if (typeof ExerciseWidget !== 'undefined') {
-            new ExerciseWidget('bms-exercises', {
-                exercises: [
-                    {
-                        id: 'ex1',
-                        title: 'FET Selection',
-                        problem: 'A 10S6P battery pack needs protection FETs for 30A continuous and 80A peak (5 second) discharge. Pack voltage is 36V nominal (42V max). Select appropriate N-channel MOSFETs specifying: Vds rating, Id rating, Rds(on), and calculate power dissipation at full load.',
-                        hints: [
-                            'Vds must exceed max pack voltage with margin (1.5x typical)',
-                            'Id rating should exceed peak current with margin',
-                            'Back-to-back FETs: both FETs carry full current',
-                            'Power = I² × Rds(on) for each FET'
-                        ],
-                        answer: 'Required: Vds > 42V × 1.5 = 63V (use 80V or 100V rated). Id > 80A (use 100A+ rated). For 30A continuous with Rds(on) = 3mΩ: P = 30² × 0.003 = 2.7W per FET. For 80A peak: P = 80² × 0.003 = 19.2W (brief). Select IRFB4310 (100V, 140A, 5.6mΩ) or similar. Total power at 30A: 2 × 30² × 0.0056 = 10W - needs heatsinking. Consider paralleling FETs to reduce Rds(on).'
-                    },
-                    {
-                        id: 'ex2',
-                        title: 'Balancing Time',
-                        problem: 'A 4S pack has cells with the following capacities: Cell1=2600mAh, Cell2=2580mAh, Cell3=2620mAh, Cell4=2550mAh. Using passive balancing with 100mA balance current, calculate: (a) Maximum imbalance in mAh, (b) Time to balance from full charge, (c) Energy wasted in balance resistors.',
-                        hints: [
-                            'Imbalance = capacity difference from minimum cell',
-                            'Balance time = imbalance / balance current',
-                            'Energy = capacity × voltage (assume 3.7V average)',
-                            'All energy above minimum goes into resistors as heat'
-                        ],
-                        answer: 'Min capacity = 2550mAh. Imbalances: Cell1 = 50mAh, Cell2 = 30mAh, Cell3 = 70mAh, Cell4 = 0mAh. Total imbalance to remove = 50 + 30 + 70 = 150mAh. Max single cell balance time = 70mAh / 100mA = 0.7h = 42 minutes. Energy wasted = 0.150Ah × 3.7V = 0.555Wh. If balancing all cells simultaneously, still 42 minutes but higher instantaneous power dissipation.'
-                    },
-                    {
-                        id: 'ex3',
-                        title: 'Coulomb Counting Error',
-                        problem: 'A fuel gauge uses a 5mΩ shunt with ±0.5% accuracy and 16-bit ADC (±32768 counts for ±50mV full scale). The pack is 10Ah. Calculate: (a) Current resolution, (b) Coulomb counting error after 10 full cycles, (c) How often voltage-based SOC correction is needed.',
-                        hints: [
-                            'Current resolution = (full scale range) / (2^bits)',
-                            'Shunt voltage = I × R_shunt',
-                            'Accumulated error compounds with each cycle',
-                            'Correction needed when error exceeds SOC tolerance (typically 5%)'
-                        ],
-                        answer: 'Full scale = 50mV / 5mΩ = 10A. Resolution = 20A / 65536 = 0.305mA per count. Excellent! Shunt error: 0.5% × 10A = 50mA systematic. Per cycle (charge + discharge = 20Ah): error = 0.5% × 20Ah = 100mAh = 1% of capacity. After 10 cycles: 10% accumulated error (worst case). With 5% SOC tolerance, need voltage correction every 5 cycles minimum. In practice, OCV correction at full charge and near-empty provides sync points every cycle.'
-                    }
-                ]
-            });
-        }
+    ['seq-mode', 'seq-delay', 'seq-ramp'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', update);
+        el.addEventListener('change', update);
     });
-    </script>
-</body>
-</html>
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('seq-schematic');
+        const svg = new SchematicSVG(700, 240);
+
+        svg.text(50, 25, 'PGOOD Daisy Chain Sequencing:', {fontSize: 12, fill: '#4af'});
+
+        // First regulator
+        svg.rect(50, 50, 80, 60, {fill: 'none', stroke: '#888'});
+        svg.text(90, 75, 'VREG1', {fontSize: 10});
+        svg.text(90, 90, '1.0V', {fontSize: 9});
+
+        svg.wire([[50, 70], [30, 70]]);
+        svg.text(20, 65, 'Vin', {fontSize: 9});
+
+        svg.wire([[130, 70], [160, 70]]);
+        svg.text(145, 60, '1.0V', {fontSize: 9});
+
+        // PGOOD output
+        svg.wire([[130, 90], [170, 90]]);
+        svg.text(140, 100, 'PGOOD', {fontSize: 8});
+
+        // RC delay to second regulator
+        svg.wire([[170, 90], [190, 90]]);
+        svg.resistor(210, 90, {horizontal: true});
+        svg.text(210, 80, 'R', {fontSize: 9});
+        svg.wire([[230, 90], [250, 90]]);
+
+        svg.wire([[240, 90], [240, 110]]);
+        svg.capacitor(240, 125, {horizontal: false});
+        svg.text(255, 125, 'C', {fontSize: 9});
+        svg.wire([[240, 145], [240, 160]]);
+        svg.ground(240, 160);
+
+        // Second regulator
+        svg.rect(270, 50, 80, 60, {fill: 'none', stroke: '#888'});
+        svg.text(310, 75, 'VREG2', {fontSize: 10});
+        svg.text(310, 90, '1.8V', {fontSize: 9});
+
+        svg.wire([[250, 90], [270, 75]]);
+        svg.text(260, 65, 'EN', {fontSize: 8});
+
+        svg.wire([[270, 70], [200, 70], [200, 50], [130, 50], [130, 70]]);
+
+        svg.wire([[350, 70], [380, 70]]);
+        svg.text(365, 60, '1.8V', {fontSize: 9});
+
+        // PGOOD to third
+        svg.wire([[350, 90], [410, 90]]);
+
+        // Third regulator
+        svg.rect(430, 50, 80, 60, {fill: 'none', stroke: '#888'});
+        svg.text(470, 75, 'VREG3', {fontSize: 10});
+        svg.text(470, 90, '3.3V', {fontSize: 9});
+
+        svg.wire([[410, 90], [430, 75]]);
+        svg.text(420, 65, 'EN', {fontSize: 8});
+
+        svg.wire([[430, 70], [400, 70], [400, 50], [350, 50], [350, 70]]);
+
+        svg.wire([[510, 70], [540, 70]]);
+        svg.text(525, 60, '3.3V', {fontSize: 9});
+
+        // Final PGOOD
+        svg.wire([[510, 90], [560, 90]]);
+        svg.text(570, 95, 'System PGOOD', {fontSize: 9});
+
+        // Notes
+        svg.text(50, 150, 'Timing:', {fontSize: 11, fill: '#4af'});
+        svg.text(50, 170, 't1 = VREG1 soft start', {fontSize: 9, fill: '#888'});
+        svg.text(50, 185, 't2 = R×C delay + VREG2 soft start', {fontSize: 9, fill: '#888'});
+        svg.text(50, 200, 't3 = VREG2 PGOOD + VREG3 soft start', {fontSize: 9, fill: '#888'});
+
+        svg.text(350, 150, 'RC delay:', {fontSize: 11, fill: '#fa4'});
+        svg.text(350, 170, 'tdelay ≈ 0.7 × R × C', {fontSize: 9, fill: '#888'});
+        svg.text(350, 185, 'For 10ms: R=100k, C=100nF', {fontSize: 9, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('seq-spice', {
+            title: 'Power Sequencing Simulation',
+            netlist: `* Power Sequencing - 3 Rails with PGOOD Chain
+
+* Input supply
+Vin vin 0 DC 5
+
+* Regulator 1 (1.0V core)
+* Simple model with soft start
+Xreg1 vin en1 v1 pgood1 reg_model
+.subckt reg_model vin en vout pgood
+Vref ref 0 DC 1
+Sen vin sw en 0 SMOD
+Lsoft sw vout 1u
+Rload vout 0 10
+Css en 0 100n IC=0
+Bpgood pgood 0 V=V(vout)>0.9 ? 5 : 0
+.ends
+
+* Enable rail 1 immediately
+Ven1 en1 0 PULSE(0 5 1m 1u 1u 100m 200m)
+
+* RC delay for rail 2
+Rdelay1 pgood1 en2_rc 100k
+Cdelay1 en2_rc 0 100n IC=0
+Sen2 vin en2 en2_rc 0 SMOD
+Xreg2 vin en2 v2 pgood2 reg_model
+
+* RC delay for rail 3
+Rdelay2 pgood2 en3_rc 100k
+Cdelay2 en3_rc 0 100n IC=0
+Sen3 vin en3 en3_rc 0 SMOD
+Xreg3 vin en3 v3 pgood3 reg_model
+
+* Switch model for enables
+.model SMOD SW(Ron=0.01 Roff=1MEG Vt=2.5)
+
+.tran 100u 100m
+
+.probe V(v1) V(v2) V(v3) V(pgood1) V(pgood2) V(pgood3)
+.end
+
+* Expected results:
+* V1 ramps first after en1
+* V2 follows ~10ms after V1 reaches 90%
+* V3 follows ~10ms after V2 reaches 90%
+* Total sequence time ~30ms`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('seq-checklist', {
+            title: 'Power Sequencing Checklist',
+            items: [
+                'Review all IC datasheets for sequence requirements',
+                'Identify required sequence order (power-up and down)',
+                'Determine timing between rails',
+                'Select sequencing method for application',
+                'Calculate RC delays or configure sequencer',
+                'Verify PGOOD thresholds match requirements',
+                'Test sequence at temperature extremes',
+                'Verify power-down sequence if required',
+                'Check behavior during brownout/glitch',
+                'Verify fault handling and recovery'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('seq-exercises', {
+            exercises: [
+                {
+                    question: 'FPGA requires Vcore up before Vio with 5ms minimum delay. Soft start is 2ms. What RC delay needed?',
+                    answer: '3ms',
+                    solution: 'Total delay needed: 5ms. Soft start provides 2ms. RC delay = 5ms - 2ms = 3ms. Use R=43k, C=100nF gives t=0.7×43k×100n=3ms.'
+                },
+                {
+                    question: 'Ratiometric tracking requires V1/V2 = 0.556 at all times. V1=1.0V, V2=1.8V. Is the ratio maintained?',
+                    answer: 'Yes',
+                    solution: 'Ratio = 1.0/1.8 = 0.556. During ramp-up both voltages increase proportionally, maintaining ratio. This is the purpose of ratiometric tracking.'
+                },
+                {
+                    question: 'Power-down sequence often required to be reverse of power-up. Why?',
+                    answer: 'Prevent latch-up',
+                    solution: 'During power-down, I/O pins may still be driven while core loses power. This can inject current into substrate, causing latch-up. Powering down I/O before core prevents this. Some devices require simultaneous power-down instead.'
+                }
+            ]
+        });
+    }
+
+    // ==================== SEQUENCING METHODS CANVAS ====================
+    function drawSequencingMethods() {
+        const canvas = document.getElementById('seq-methods-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Helper for rounded rect
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        const methods = [
+            {
+                title: 'Method 1: PGOOD Daisy Chain',
+                color: TEK.ch1,
+                items: ['Simple, low cost', 'Uses PGOOD → EN chain', 'Delay = soft start time'],
+                diagram: 'daisy'
+            },
+            {
+                title: 'Method 2: RC Delay on Enable',
+                color: TEK.ch2,
+                items: ['Fixed delay, no feedback', 'R-C time constant', 'May vary with temp'],
+                diagram: 'rc'
+            },
+            {
+                title: 'Method 3: Sequencer IC',
+                color: TEK.ch3,
+                items: ['Precise timing', 'Voltage monitoring', 'Fault handling', 'Higher cost'],
+                diagram: 'ic'
+            },
+            {
+                title: 'Method 4: MCU/CPLD Control',
+                color: TEK.ch4,
+                items: ['Maximum flexibility', 'Complex logic OK', 'Fault recovery', 'Needs firmware'],
+                diagram: 'mcu'
+            }
+        ];
+
+        const boxW = 210;
+        const boxH = 165;
+        const gap = 12;
+        const startY = 10;
+
+        methods.forEach((m, i) => {
+            const x = 10 + i * (boxW + gap);
+
+            // Box
+            ctx.strokeStyle = m.color;
+            ctx.lineWidth = 2;
+            roundRect(x, startY, boxW, boxH, 8);
+            ctx.stroke();
+
+            // Title
+            ctx.fillStyle = m.color;
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(m.title, x + boxW/2, startY + 18);
+
+            // Items
+            ctx.fillStyle = '#888';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'left';
+            m.items.forEach((item, j) => {
+                ctx.fillText('• ' + item, x + 10, startY + 38 + j * 13);
+            });
+
+            // Draw mini diagram
+            const diagY = startY + 95;
+            ctx.strokeStyle = m.color;
+            ctx.lineWidth = 1;
+
+            if (m.diagram === 'daisy') {
+                // VREG1 → VREG2 → VREG3
+                for (let r = 0; r < 3; r++) {
+                    const rx = x + 20 + r * 60;
+                    ctx.fillStyle = '#1a1a2e';
+                    ctx.fillRect(rx, diagY, 45, 25);
+                    ctx.strokeRect(rx, diagY, 45, 25);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '8px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('VREG' + (r + 1), rx + 22, diagY + 15);
+                    if (r < 2) {
+                        ctx.strokeStyle = m.color;
+                        ctx.beginPath();
+                        ctx.moveTo(rx + 45, diagY + 12);
+                        ctx.lineTo(rx + 60, diagY + 12);
+                        ctx.stroke();
+                        ctx.fillStyle = '#888';
+                        ctx.font = '7px monospace';
+                        ctx.fillText('PG', rx + 52, diagY + 8);
+                    }
+                }
+            } else if (m.diagram === 'rc') {
+                // EN → R → T junction with C to GND
+                ctx.beginPath();
+                ctx.moveTo(x + 30, diagY + 15);
+                ctx.lineTo(x + 60, diagY + 15);
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '8px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('EN', x + 25, diagY + 18);
+
+                // R symbol
+                ctx.fillStyle = '#333';
+                ctx.fillRect(x + 62, diagY + 10, 30, 10);
+                ctx.strokeRect(x + 62, diagY + 10, 30, 10);
+                ctx.fillStyle = '#fff';
+                ctx.fillText('R', x + 77, diagY + 18);
+
+                // Junction
+                ctx.beginPath();
+                ctx.moveTo(x + 92, diagY + 15);
+                ctx.lineTo(x + 120, diagY + 15);
+                ctx.stroke();
+
+                // C to ground
+                ctx.beginPath();
+                ctx.moveTo(x + 105, diagY + 15);
+                ctx.lineTo(x + 105, diagY + 35);
+                ctx.stroke();
+                ctx.fillRect(x + 95, diagY + 35, 20, 3);
+                ctx.fillRect(x + 98, diagY + 40, 14, 3);
+                ctx.fillStyle = '#fff';
+                ctx.fillText('C', x + 115, diagY + 42);
+
+                // To next EN
+                ctx.fillStyle = '#888';
+                ctx.font = '7px monospace';
+                ctx.fillText('→EN(next)', x + 155, diagY + 18);
+            } else if (m.diagram === 'ic') {
+                // Central sequencer IC with arrows
+                ctx.fillStyle = '#2a2a4a';
+                ctx.fillRect(x + 60, diagY, 80, 55);
+                ctx.strokeRect(x + 60, diagY, 80, 55);
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('Sequencer', x + 100, diagY + 20);
+                ctx.fillText('IC', x + 100, diagY + 35);
+
+                // EN outputs
+                ctx.strokeStyle = m.color;
+                for (let e = 0; e < 3; e++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + 140, diagY + 10 + e * 15);
+                    ctx.lineTo(x + 170, diagY + 10 + e * 15);
+                    ctx.stroke();
+                }
+                ctx.fillStyle = '#888';
+                ctx.font = '7px monospace';
+                ctx.fillText('EN1-3', x + 180, diagY + 30);
+
+                // PG inputs
+                ctx.beginPath();
+                ctx.moveTo(x + 30, diagY + 25);
+                ctx.lineTo(x + 60, diagY + 25);
+                ctx.stroke();
+                ctx.fillText('PG', x + 40, diagY + 45);
+            } else if (m.diagram === 'mcu') {
+                // MCU box
+                ctx.fillStyle = '#2a3a2a';
+                ctx.fillRect(x + 30, diagY, 60, 50);
+                ctx.strokeRect(x + 30, diagY, 60, 50);
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('MCU', x + 60, diagY + 30);
+
+                // GPIO outputs
+                ctx.strokeStyle = m.color;
+                ctx.beginPath();
+                ctx.moveTo(x + 90, diagY + 15);
+                ctx.lineTo(x + 130, diagY + 15);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x + 90, diagY + 25);
+                ctx.lineTo(x + 130, diagY + 25);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x + 90, diagY + 35);
+                ctx.lineTo(x + 130, diagY + 35);
+                ctx.stroke();
+                ctx.fillStyle = '#888';
+                ctx.font = '7px monospace';
+                ctx.fillText('GPIO→EN', x + 160, diagY + 28);
+
+                // ADC input
+                ctx.strokeStyle = '#888';
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(x + 60, diagY + 50);
+                ctx.lineTo(x + 60, diagY + 65);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillText('ADC←V', x + 60, diagY + 58);
+            }
+        });
+
+        // Bottom section: Ratiometric timing
+        const ratioY = 195;
+        ctx.strokeStyle = '#fa4';
+        ctx.lineWidth = 2;
+        roundRect(10, ratioY, W - 20, 85, 6);
+        ctx.stroke();
+
+        ctx.fillStyle = '#fa4';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Ratiometric Timing:', 25, ratioY + 22);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText('V1(t) / V2(t) = constant during ramp', 25, ratioY + 45);
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.fillText('• Requires synchronized soft start', 25, ratioY + 65);
+        ctx.fillText('• Some ICs have tracking pin (TRACK, SS)', 280, ratioY + 65);
+
+        // Draw ratiometric waveform
+        const waveX = 550, waveY = ratioY + 25, waveW = 320, waveH = 50;
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(waveX, waveY, waveW, waveH);
+
+        // V1 ramp
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(waveX, waveY + waveH);
+        ctx.lineTo(waveX + waveW * 0.4, waveY + waveH * 0.7);
+        ctx.lineTo(waveX + waveW, waveY + waveH * 0.7);
+        ctx.stroke();
+
+        // V2 ramp (proportional)
+        ctx.strokeStyle = TEK.ch2;
+        ctx.beginPath();
+        ctx.moveTo(waveX, waveY + waveH);
+        ctx.lineTo(waveX + waveW * 0.4, waveY + waveH * 0.3);
+        ctx.lineTo(waveX + waveW, waveY + waveH * 0.3);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '9px monospace';
+        ctx.fillText('V1 (1.0V)', waveX + waveW + 5, waveY + waveH * 0.7 + 3);
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('V2 (1.8V)', waveX + waveW + 5, waveY + waveH * 0.3 + 3);
+
+        // Key comparison box
+        const compY = 295;
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(10, compY, W - 20, 75);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Method Comparison:', 25, compY + 18);
+
+        const comparisons = [
+            {method: 'Daisy Chain', cost: 'Low', flex: 'Low', prec: 'Medium'},
+            {method: 'RC Delay', cost: 'Low', flex: 'Low', prec: 'Low'},
+            {method: 'Sequencer IC', cost: 'Medium', flex: 'Medium', prec: 'High'},
+            {method: 'MCU Control', cost: 'High', flex: 'High', prec: 'High'}
+        ];
+
+        ctx.font = '9px monospace';
+        ctx.fillStyle = '#888';
+        ctx.fillText('Method', 30, compY + 38);
+        ctx.fillText('Cost', 160, compY + 38);
+        ctx.fillText('Flexibility', 230, compY + 38);
+        ctx.fillText('Precision', 340, compY + 38);
+
+        comparisons.forEach((c, i) => {
+            const cx = 450 + i * 110;
+            ctx.fillStyle = '#666';
+            ctx.fillText(c.method.split(' ')[0], cx, compY + 38);
+        });
+
+        // Recommendation
+        ctx.fillStyle = '#4f4';
+        ctx.font = '10px monospace';
+        ctx.fillText('Recommendation: Start with PGOOD daisy chain. Add sequencer IC if timing is critical or fault handling needed.', 30, compY + 60);
+    }
+
+    update();
+    drawSchematic();
+    drawSequencingMethods();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

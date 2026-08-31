@@ -1,990 +1,1221 @@
-<lesson-content>
-<section class="card">
-    <h2>Capacitive Touch Sensing</h2>
-    <p>
-        Capacitive touch sensing is ubiquitous in smartphones, laptops, appliances, and automotive
-        interfaces. Understanding the <strong>analog front-end (AFE)</strong> that detects tiny
-        capacitance changes (femtofarads to picofarads) is essential for embedded design.
-    </p>
+<!-- Module 25, Lesson 3: USB-C Power Delivery System Design -->
+<div class="lesson-content" data-module="25" data-lesson="3">
 
-    <div class="notice">
-        <strong>What You'll Learn:</strong>
-        <ul>
-            <li>Self-capacitance vs mutual-capacitance sensing</li>
-            <li>Capacitance-to-voltage conversion circuits</li>
-            <li>Charge transfer measurement technique</li>
-            <li>Noise filtering and parasitic rejection</li>
-            <li>Touch detection algorithm basics</li>
-        </ul>
-    </div>
-</section>
+    <div class="card">
+        <h2>USB-C Power Delivery System Design</h2>
+        <p>USB Type-C with Power Delivery (USB PD) has become the universal standard for device charging, supporting up to 240W (USB PD 3.1 EPR). This lesson covers the complete analog design from connector to power conversion.</p>
 
-<!-- Sensing Principles -->
-<section class="card">
-    <h3>Capacitive Sensing Fundamentals</h3>
-    <p>
-        A touch sensor electrode has a <strong>baseline capacitance</strong> (Cp) to ground.
-        When a finger approaches, it adds <strong>touch capacitance</strong> (Ct) in parallel,
-        increasing total capacitance by 0.1-5pF typically.
-    </p>
-
-    <!-- SVG: Touch Sensing Model -->
-    <div class="diagram-container">
-        <svg viewBox="0 0 550 280" class="circuit-svg" style="max-width: 550px; background: var(--panel);">
-            <!-- Title -->
-            <text x="275" y="25" fill="#e6edf3" font-size="14" text-anchor="middle" font-weight="bold">
-                Self-Capacitance Touch Model
-            </text>
-
-            <!-- No Touch State -->
-            <g id="no-touch">
-                <text x="130" y="55" fill="#6ee7ff" font-size="12" text-anchor="middle">No Touch</text>
-
-                <!-- Electrode -->
-                <rect x="80" y="80" width="100" height="10" fill="#fbbf24" fill-opacity="0.3" stroke="#fbbf24" stroke-width="2"/>
-                <text x="130" y="77" fill="#fbbf24" font-size="10" text-anchor="middle">Electrode</text>
-
-                <!-- Parasitic capacitance -->
-                <line x1="130" y1="90" x2="130" y2="140" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="115" y1="140" x2="145" y2="140" stroke="#a78bfa" stroke-width="3"/>
-                <line x1="115" y1="150" x2="145" y2="150" stroke="#a78bfa" stroke-width="3"/>
-                <text x="160" y="150" fill="#a78bfa" font-size="10">Cp</text>
-                <text x="160" y="162" fill="#a78bfa" font-size="9">(5-50pF)</text>
-                <line x1="130" y1="150" x2="130" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
-
-                <!-- Ground -->
-                <line x1="110" y1="180" x2="150" y2="180" stroke="#6ee7ff" stroke-width="2"/>
-                <line x1="115" y1="185" x2="145" y2="185" stroke="#6ee7ff" stroke-width="1.5"/>
-                <line x1="120" y1="190" x2="140" y2="190" stroke="#6ee7ff" stroke-width="1"/>
-
-                <!-- Formula -->
-                <text x="130" y="220" fill="#e6edf3" font-size="11" text-anchor="middle">C_total = Cp</text>
-            </g>
-
-            <!-- With Touch State -->
-            <g id="with-touch">
-                <text x="400" y="55" fill="#34d399" font-size="12" text-anchor="middle">Finger Touch</text>
-
-                <!-- Finger -->
-                <ellipse cx="400" cy="60" rx="25" ry="15" fill="#fb7185" fill-opacity="0.3" stroke="#fb7185" stroke-width="1"/>
-                <text x="430" y="58" fill="#fb7185" font-size="9">Finger</text>
-
-                <!-- Electrode -->
-                <rect x="350" y="80" width="100" height="10" fill="#fbbf24" fill-opacity="0.3" stroke="#fbbf24" stroke-width="2"/>
-                <text x="400" y="77" fill="#fbbf24" font-size="10" text-anchor="middle">Electrode</text>
-
-                <!-- Touch capacitance -->
-                <line x1="400" y1="75" x2="400" y2="60" stroke="#fb7185" stroke-width="1" stroke-dasharray="3,2"/>
-                <line x1="385" y1="60" x2="415" y2="60" stroke="#fb7185" stroke-width="2"/>
-                <line x1="385" y1="52" x2="415" y2="52" stroke="#fb7185" stroke-width="2"/>
-                <text x="430" y="70" fill="#fb7185" font-size="10">Ct</text>
-                <text x="460" y="70" fill="#fb7185" font-size="9">(0.5-5pF)</text>
-
-                <!-- Parasitic capacitance -->
-                <line x1="400" y1="90" x2="400" y2="140" stroke="#e6edf3" stroke-width="1.5"/>
-                <line x1="385" y1="140" x2="415" y2="140" stroke="#a78bfa" stroke-width="3"/>
-                <line x1="385" y1="150" x2="415" y2="150" stroke="#a78bfa" stroke-width="3"/>
-                <text x="430" y="150" fill="#a78bfa" font-size="10">Cp</text>
-                <line x1="400" y1="150" x2="400" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
-
-                <!-- Ground -->
-                <line x1="380" y1="180" x2="420" y2="180" stroke="#6ee7ff" stroke-width="2"/>
-                <line x1="385" y1="185" x2="415" y2="185" stroke="#6ee7ff" stroke-width="1.5"/>
-                <line x1="390" y1="190" x2="410" y2="190" stroke="#6ee7ff" stroke-width="1"/>
-
-                <!-- Human body model -->
-                <line x1="400" y1="52" x2="400" y2="35" stroke="#fb7185" stroke-width="1" stroke-dasharray="2,2"/>
-                <text x="400" y="30" fill="#fb7185" font-size="8" text-anchor="middle">Body → Earth</text>
-
-                <!-- Formula -->
-                <text x="400" y="220" fill="#34d399" font-size="11" text-anchor="middle">C_total = Cp + Ct</text>
-            </g>
-
-            <!-- Delta annotation -->
-            <text x="275" y="250" fill="#fbbf24" font-size="12" text-anchor="middle" font-weight="bold">
-                ΔC = Ct = 0.5 - 5 pF (typically ~2pF)
-            </text>
-            <text x="275" y="270" fill="#e6edf3" font-size="10" text-anchor="middle">
-                Detection requires resolving ΔC/Cp = 2-10% change
-            </text>
-        </svg>
-    </div>
-
-    <h4>Self vs Mutual Capacitance</h4>
-    <table>
-        <thead>
-            <tr>
-                <th>Parameter</th>
-                <th>Self-Capacitance</th>
-                <th>Mutual-Capacitance</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Electrodes</td>
-                <td>Single electrode per sensor</td>
-                <td>TX/RX electrode pairs</td>
-            </tr>
-            <tr>
-                <td>Measurement</td>
-                <td>Capacitance to ground increases</td>
-                <td>Coupling between TX/RX decreases</td>
-            </tr>
-            <tr>
-                <td>Multi-touch</td>
-                <td>Limited (ghosting issues)</td>
-                <td>Full multi-touch support</td>
-            </tr>
-            <tr>
-                <td>Sensitivity</td>
-                <td>Higher (larger signal)</td>
-                <td>Lower (fringe field only)</td>
-            </tr>
-            <tr>
-                <td>Water Immunity</td>
-                <td>Poor (water adds capacitance)</td>
-                <td>Better (can distinguish)</td>
-            </tr>
-            <tr>
-                <td>Application</td>
-                <td>Buttons, sliders, proximity</td>
-                <td>Touchscreens</td>
-            </tr>
-        </tbody>
-    </table>
-</section>
-
-<!-- Charge Transfer Method -->
-<section class="card">
-    <h3>Charge Transfer Measurement</h3>
-    <p>
-        The most common self-capacitance measurement technique is <strong>charge transfer</strong>
-        (also called "charge acquisition"). It repeatedly transfers charge from the sensor
-        capacitor to a known integration capacitor.
-    </p>
-
-    <!-- SVG: Charge Transfer Circuit -->
-    <div class="diagram-container">
-        <svg viewBox="0 0 600 350" class="circuit-svg" style="max-width: 600px; background: var(--panel);">
-            <!-- VDD -->
-            <line x1="100" y1="50" x2="300" y2="50" stroke="#ef4444" stroke-width="2"/>
-            <text x="80" y="55" fill="#ef4444" font-size="11">VDD</text>
-
-            <!-- Charge Switch (S1) -->
-            <line x1="150" y1="50" x2="150" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
-            <rect x="135" y="80" width="30" height="20" fill="none" stroke="#fbbf24" stroke-width="2"/>
-            <text x="150" y="95" fill="#fbbf24" font-size="9" text-anchor="middle">S1</text>
-            <line x1="150" y1="100" x2="150" y2="130" stroke="#e6edf3" stroke-width="1.5"/>
-
-            <!-- Sensor Capacitor (Cx) -->
-            <circle cx="150" cy="130" r="3" fill="#34d399"/>
-            <text x="115" y="135" fill="#34d399" font-size="10">Sensor</text>
-            <line x1="150" y1="130" x2="150" y2="170" stroke="#e6edf3" stroke-width="1.5"/>
-            <line x1="135" y1="170" x2="165" y2="170" stroke="#a78bfa" stroke-width="3"/>
-            <line x1="135" y1="180" x2="165" y2="180" stroke="#a78bfa" stroke-width="3"/>
-            <text x="175" y="180" fill="#a78bfa" font-size="10">Cx</text>
-            <text x="175" y="192" fill="#a78bfa" font-size="9">(Cp+Ct)</text>
-            <line x1="150" y1="180" x2="150" y2="220" stroke="#e6edf3" stroke-width="1.5"/>
-
-            <!-- Transfer Switch (S2) -->
-            <line x1="150" y1="130" x2="230" y2="130" stroke="#e6edf3" stroke-width="1.5"/>
-            <rect x="230" y="115" width="30" height="20" fill="none" stroke="#fbbf24" stroke-width="2"/>
-            <text x="245" y="130" fill="#fbbf24" font-size="9" text-anchor="middle">S2</text>
-            <line x1="260" y1="125" x2="320" y2="125" stroke="#e6edf3" stroke-width="1.5"/>
-
-            <!-- Integration Capacitor (Cint) -->
-            <circle cx="320" cy="125" r="3" fill="#6ee7ff"/>
-            <text x="340" y="120" fill="#6ee7ff" font-size="10">Vint</text>
-            <line x1="320" y1="125" x2="320" y2="170" stroke="#e6edf3" stroke-width="1.5"/>
-            <line x1="305" y1="170" x2="335" y2="170" stroke="#6ee7ff" stroke-width="3"/>
-            <line x1="305" y1="180" x2="335" y2="180" stroke="#6ee7ff" stroke-width="3"/>
-            <text x="345" y="180" fill="#6ee7ff" font-size="10">Cint</text>
-            <text x="345" y="192" fill="#6ee7ff" font-size="9">(~10×Cx)</text>
-            <line x1="320" y1="180" x2="320" y2="220" stroke="#e6edf3" stroke-width="1.5"/>
-
-            <!-- Discharge Switch (S3) -->
-            <line x1="320" y1="125" x2="400" y2="125" stroke="#e6edf3" stroke-width="1.5"/>
-            <rect x="400" y="115" width="30" height="20" fill="none" stroke="#fbbf24" stroke-width="2"/>
-            <text x="415" y="130" fill="#fbbf24" font-size="9" text-anchor="middle">S3</text>
-            <line x1="430" y1="125" x2="430" y2="220" stroke="#e6edf3" stroke-width="1.5"/>
-
-            <!-- GND -->
-            <line x1="100" y1="220" x2="480" y2="220" stroke="#6ee7ff" stroke-width="2"/>
-            <text x="80" y="225" fill="#6ee7ff" font-size="11">GND</text>
-
-            <!-- To ADC -->
-            <line x1="320" y1="125" x2="320" y2="90" stroke="#34d399" stroke-width="1.5"/>
-            <rect x="290" y="60" width="60" height="30" fill="none" stroke="#34d399" stroke-width="2" rx="3"/>
-            <text x="320" y="80" fill="#34d399" font-size="10" text-anchor="middle">ADC</text>
-
-            <!-- Timing Diagram -->
-            <rect x="50" y="245" width="500" height="95" fill="none" stroke="#374151" stroke-width="1" rx="5"/>
-            <text x="300" y="265" fill="#e6edf3" font-size="11" text-anchor="middle" font-weight="bold">
-                Charge Transfer Timing (N cycles)
-            </text>
-
-            <!-- S1 waveform -->
-            <text x="60" y="290" fill="#fbbf24" font-size="9">S1:</text>
-            <polyline points="100,295 100,280 130,280 130,295 180,295 180,280 210,280 210,295 260,295 260,280 290,280 290,295 340,295"
-                      fill="none" stroke="#fbbf24" stroke-width="1.5"/>
-
-            <!-- S2 waveform -->
-            <text x="60" y="315" fill="#a78bfa" font-size="9">S2:</text>
-            <polyline points="100,320 130,320 130,305 160,305 160,320 210,320 210,305 240,305 240,320 290,320 290,305 320,305 320,320 340,320"
-                      fill="none" stroke="#a78bfa" stroke-width="1.5"/>
-
-            <!-- Vint ramp -->
-            <text x="360" y="295" fill="#6ee7ff" font-size="9">Vint:</text>
-            <polyline points="400,320 420,312 440,306 460,302 480,298 500,295"
-                      fill="none" stroke="#6ee7ff" stroke-width="1.5"/>
-            <text x="510" y="300" fill="#6ee7ff" font-size="8">→ADC</text>
-        </svg>
-    </div>
-
-    <h4>Charge Transfer Equations</h4>
-    <div class="diagram-container">
-        <canvas id="charge-transfer-canvas" width="650" height="320" style="width:100%;max-width:650px;background:#0d1117;border-radius:8px;"></canvas>
-    </div>
-
-    <h4>Charge Transfer Calculator</h4>
-    <div class="controls">
-        <div class="c3">
-            <label>Parasitic Cap Cp (pF)</label>
-            <input type="text" id="ct-cp" value="20" min="0.1" max="1000">
-        </div>
-        <div class="c3">
-            <label>Touch Cap Ct (pF)</label>
-            <input type="text" id="ct-ct" value="2" min="0" max="1000">
-        </div>
-        <div class="c3">
-            <label>Integration Cap (pF)</label>
-            <input type="text" id="ct-cint" value="200" min="1" max="100000">
-        </div>
-        <div class="c3">
-            <label>Charge Cycles N</label>
-            <input type="text" id="ct-n" value="10" min="1" max="1000">
-        </div>
-    </div>
-    <div class="controls">
-        <div class="c3">
-            <label>VDD (V)</label>
-            <input type="text" id="ct-vdd" value="3.3" min="0.5" max="20">
-        </div>
-        <div class="c6">
-            <button onclick="calcChargeTransfer()">Calculate</button>
+        <div class="notice">
+            <strong>Industry Reference:</strong> Based on <a href="https://www.analog.com/en/resources/analog-dialogue/articles/simplify-your-usb-c-pd-design-using-a-standalone-pd-controller.html" target="_blank">Analog Devices USB-C PD Guide</a>, <a href="https://www.analog.com/en/products/max77958.html" target="_blank">MAX77958 Datasheet</a>, and <a href="https://www.analog.com/en/products/lt8253.html" target="_blank">LT8253 Buck-Boost Controller</a>.
         </div>
     </div>
 
-    <div id="ct-results" class="results">
-        <div class="result-grid">
-            <div class="result-item">
-                <span class="label">Vint (no touch)</span>
-                <span class="value" id="ct-vbase">—</span>
+    <div class="card">
+        <h3>USB PD Power Levels</h3>
+
+        <table class="table">
+            <tr>
+                <th>Standard</th>
+                <th>Max Power</th>
+                <th>Voltages</th>
+                <th>Applications</th>
+            </tr>
+            <tr>
+                <td>USB BC 1.2</td>
+                <td>7.5W</td>
+                <td>5V @ 1.5A</td>
+                <td>Legacy charging</td>
+            </tr>
+            <tr>
+                <td>USB Type-C 1.2</td>
+                <td>15W</td>
+                <td>5V @ 3A</td>
+                <td>Phones, accessories</td>
+            </tr>
+            <tr>
+                <td>USB PD 3.0 (SPR)</td>
+                <td>100W</td>
+                <td>5/9/15/20V @ 5A</td>
+                <td>Laptops, monitors</td>
+            </tr>
+            <tr>
+                <td>USB PD 3.1 (EPR)</td>
+                <td>240W</td>
+                <td>28/36/48V @ 5A</td>
+                <td>Gaming laptops, workstations</td>
+            </tr>
+            <tr>
+                <td>PPS (Programmable)</td>
+                <td>100W</td>
+                <td>3.3-21V in 20mV steps</td>
+                <td>Fast charging (Samsung, etc.)</td>
+            </tr>
+        </table>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">CC Line Function</div>
+                <div class="v">Configuration Channel - orientation, PD negotiation</div>
             </div>
-            <div class="result-item">
-                <span class="label">Vint (with touch)</span>
-                <span class="value" id="ct-vtouch">—</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Delta Voltage</span>
-                <span class="value" id="ct-delta">—</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Sensitivity (%)</span>
-                <span class="value" id="ct-sens">—</span>
+            <div class="box">
+                <div class="k">VBUS Range</div>
+                <div class="v">5-48V (EPR), 5-20V (SPR)</div>
             </div>
         </div>
     </div>
 
-    <script>
-    function calcChargeTransfer() {
-        // Every field goes through AD.num, which falls back to the input's own
-        // default and then clamps to its min/max. The burst count used to be
-        // read with parseInt straight off .value, so clearing that box made it
-        // NaN and every readout below became "NaN".
-        const cp = AD.num('ct-cp') * 1e-12;
-        const ct = AD.num('ct-ct') * 1e-12;
-        const cint = AD.num('ct-cint') * 1e-12;
-        const n = Math.round(AD.num('ct-n'));
-        const vdd = AD.num('ct-vdd');
+    <div class="card">
+        <h3>System Architecture: USB-C PD Sink (Device Side)</h3>
 
-        // Cint is a divisor and Vbase is the reference the sensitivity is
-        // measured against; neither can be zero.
-        if (!(cint > 0) || !(cp > 0) || !(vdd > 0) || !(n > 0)) {
-            ['ct-vbase', 'ct-vtouch', 'ct-delta', 'ct-sens']
-                .forEach(id => { document.getElementById(id).textContent = '—'; });
-            return;
-        }
-
-        const vbase = n * cp * vdd / cint;
-        const vtouch = n * (cp + ct) * vdd / cint;
-        const delta = vtouch - vbase;
-        const sens = (delta / vbase) * 100;
-
-        document.getElementById('ct-vbase').textContent = vbase.toFixed(3) + 'V';
-        document.getElementById('ct-vtouch').textContent = vtouch.toFixed(3) + 'V';
-        document.getElementById('ct-delta').textContent = (delta * 1000).toFixed(1) + 'mV';
-        document.getElementById('ct-sens').textContent = sens.toFixed(1) + '%';
-    }
-    </script>
-</section>
-
-<!-- Analog Front-End -->
-<section class="card">
-    <h3>Capacitance-to-Voltage AFE</h3>
-    <p>
-        A typical capacitive sensing AFE uses a <strong>switched-capacitor integrator</strong>
-        with synchronous demodulation to reject noise.
-    </p>
-
-    <!-- SVG: AFE Block Diagram -->
-    <div class="diagram-container">
-        <svg viewBox="0 0 600 300" class="circuit-svg" style="max-width: 600px; background: var(--panel);">
-            <!-- Sensor -->
-            <rect x="30" y="110" width="60" height="80" fill="none" stroke="#fbbf24" stroke-width="2" rx="5"/>
-            <text x="60" y="145" fill="#fbbf24" font-size="10" text-anchor="middle">Sensor</text>
-            <text x="60" y="160" fill="#fbbf24" font-size="10" text-anchor="middle">Electrode</text>
-            <text x="60" y="175" fill="#fbbf24" font-size="9" text-anchor="middle">Cx</text>
-
-            <!-- Excitation -->
-            <line x1="60" y1="110" x2="60" y2="70" stroke="#e6edf3" stroke-width="1.5"/>
-            <rect x="40" y="40" width="40" height="30" fill="none" stroke="#a78bfa" stroke-width="2" rx="3"/>
-            <text x="60" y="60" fill="#a78bfa" font-size="9" text-anchor="middle">Exc.</text>
-            <text x="60" y="35" fill="#a78bfa" font-size="8" text-anchor="middle">f = 100kHz</text>
-
-            <!-- To C-V converter -->
-            <line x1="90" y1="150" x2="150" y2="150" stroke="#e6edf3" stroke-width="1.5"/>
-
-            <!-- C-to-V Block -->
-            <rect x="150" y="120" width="80" height="60" fill="none" stroke="#34d399" stroke-width="2" rx="5"/>
-            <text x="190" y="145" fill="#34d399" font-size="10" text-anchor="middle">C-to-V</text>
-            <text x="190" y="160" fill="#34d399" font-size="10" text-anchor="middle">Converter</text>
-
-            <!-- To demod -->
-            <line x1="230" y1="150" x2="280" y2="150" stroke="#e6edf3" stroke-width="1.5"/>
-
-            <!-- Demodulator -->
-            <rect x="280" y="120" width="70" height="60" fill="none" stroke="#6ee7ff" stroke-width="2" rx="5"/>
-            <text x="315" y="145" fill="#6ee7ff" font-size="10" text-anchor="middle">Sync</text>
-            <text x="315" y="160" fill="#6ee7ff" font-size="10" text-anchor="middle">Demod</text>
-
-            <!-- To LPF -->
-            <line x1="350" y1="150" x2="390" y2="150" stroke="#e6edf3" stroke-width="1.5"/>
-
-            <!-- LPF -->
-            <rect x="390" y="120" width="60" height="60" fill="none" stroke="#fb7185" stroke-width="2" rx="5"/>
-            <text x="420" y="145" fill="#fb7185" font-size="10" text-anchor="middle">LPF</text>
-            <text x="420" y="160" fill="#fb7185" font-size="10" text-anchor="middle">10Hz</text>
-
-            <!-- To ADC -->
-            <line x1="450" y1="150" x2="490" y2="150" stroke="#e6edf3" stroke-width="1.5"/>
-
-            <!-- ADC -->
-            <rect x="490" y="120" width="60" height="60" fill="none" stroke="#fbbf24" stroke-width="2" rx="5"/>
-            <text x="520" y="145" fill="#fbbf24" font-size="10" text-anchor="middle">ADC</text>
-            <text x="520" y="160" fill="#fbbf24" font-size="10" text-anchor="middle">12-16b</text>
-
-            <!-- Clock distribution -->
-            <rect x="200" y="220" width="100" height="40" fill="none" stroke="#a78bfa" stroke-width="2" rx="3"/>
-            <text x="250" y="245" fill="#a78bfa" font-size="10" text-anchor="middle">Clock Gen</text>
-
-            <line x1="60" y1="70" x2="60" y2="50" stroke="#a78bfa" stroke-width="1" stroke-dasharray="3,2"/>
-            <line x1="60" y1="50" x2="200" y2="50" stroke="#a78bfa" stroke-width="1" stroke-dasharray="3,2"/>
-            <line x1="200" y1="50" x2="200" y2="220" stroke="#a78bfa" stroke-width="1" stroke-dasharray="3,2"/>
-
-            <line x1="300" y1="220" x2="315" y2="180" stroke="#a78bfa" stroke-width="1" stroke-dasharray="3,2"/>
-
-            <!-- Output -->
-            <line x1="550" y1="150" x2="580" y2="150" stroke="#e6edf3" stroke-width="1.5"/>
-            <text x="565" y="140" fill="#e6edf3" font-size="9">To</text>
-            <text x="565" y="165" fill="#e6edf3" font-size="9">MCU</text>
-
-            <!-- Annotations -->
-            <text x="190" y="200" fill="#e6edf3" font-size="9" text-anchor="middle">Gain ≈ 1-10</text>
-            <text x="315" y="200" fill="#e6edf3" font-size="9" text-anchor="middle">Reject 50/60Hz</text>
-            <text x="420" y="200" fill="#e6edf3" font-size="9" text-anchor="middle">Anti-alias</text>
-        </svg>
+        <canvas id="usbc-sink-canvas" width="980" height="450" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
     </div>
 
-    <div class="notice">
-        <strong>Key AFE Specifications:</strong>
-        <ul>
-            <li><strong>Resolution:</strong> 0.1 fF typical (16-bit ADC after gain)</li>
-            <li><strong>Scan rate:</strong> 50-200 Hz per sensor</li>
-            <li><strong>SNR:</strong> > 60 dB to reject environmental noise</li>
-            <li><strong>Excitation frequency:</strong> 50kHz - 500kHz (avoid 50/60Hz and harmonics)</li>
-        </ul>
-    </div>
-</section>
+    <div class="card">
+        <h3>Section 1: CC Pin Detection and Cable Orientation</h3>
 
-<!-- Noise Considerations -->
-<section class="card">
-    <h3>Noise Sources and Mitigation</h3>
+        <p>The Configuration Channel (CC) pins serve multiple functions: cable orientation detection, current capability advertisement, and USB PD communication.</p>
 
-    <h4>Common Noise Sources</h4>
-    <table>
-        <thead>
-            <tr>
-                <th>Noise Source</th>
-                <th>Frequency</th>
-                <th>Mechanism</th>
-                <th>Mitigation</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>AC Mains</td>
-                <td>50/60 Hz + harmonics</td>
-                <td>Capacitive coupling to body</td>
-                <td>Sync demod, notch filter, spread spectrum</td>
-            </tr>
-            <tr>
-                <td>LCD noise</td>
-                <td>~15-75 kHz</td>
-                <td>Backlight PWM, row drivers</td>
-                <td>Frequency hopping, time-division</td>
-            </tr>
-            <tr>
-                <td>Charger noise</td>
-                <td>50-500 kHz</td>
-                <td>SMPS ripple on body</td>
-                <td>Higher excitation freq, averaging</td>
-            </tr>
-            <tr>
-                <td>RF interference</td>
-                <td>MHz - GHz</td>
-                <td>EMI pickup on traces</td>
-                <td>Shielding, differential sensing</td>
-            </tr>
-            <tr>
-                <td>Thermal noise</td>
-                <td>Broadband</td>
-                <td>Johnson noise in resistors</td>
-                <td>Low R, oversampling, averaging</td>
-            </tr>
-        </tbody>
-    </table>
+        <div class="subsection">
+            <h4>CC Pull-Down Resistors (Sink Device)</h4>
 
-    <h4>Spread Spectrum Excitation</h4>
-    <p>
-        Instead of a fixed excitation frequency, <strong>spread spectrum</strong> varies the
-        frequency randomly within a band. This spreads noise energy and avoids synchronization
-        with interfering sources.
-    </p>
+            <table class="table">
+                <tr>
+                    <th>Resistor Value (Rd)</th>
+                    <th>Meaning</th>
+                    <th>Max Current Allowed</th>
+                </tr>
+                <tr>
+                    <td>5.1kΩ to GND</td>
+                    <td>Standard USB sink</td>
+                    <td>Up to 3A (after negotiation)</td>
+                </tr>
+                <tr>
+                    <td>1kΩ to GND</td>
+                    <td>Audio adapter accessory</td>
+                    <td>500mA</td>
+                </tr>
+            </table>
 
-    <div class="diagram-container">
-        <canvas id="spread-spectrum-canvas" width="600" height="200" style="width:100%;max-width:600px;background:#0d1117;border-radius:8px;"></canvas>
-    </div>
-</section>
-
-<!-- Touch Detection Algorithm -->
-<section class="card">
-    <h3>Touch Detection Algorithm</h3>
-    <p>
-        Raw capacitance readings need processing to reliably detect touches while
-        rejecting environmental drift.
-    </p>
-
-    <div class="diagram-container">
-        <canvas id="touch-detection-canvas" width="700" height="360" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
-    </div>
-
-    <h4>Touch Detection Simulator</h4>
-    <div class="controls">
-        <div class="c3">
-            <label>Baseline Count</label>
-            <input type="text" id="td-base" value="1000">
-        </div>
-        <div class="c3">
-            <label>Touch Threshold (%)</label>
-            <input type="text" id="td-thresh" value="15">
-        </div>
-        <div class="c3">
-            <label>Current Reading</label>
-            <input type="text" id="td-reading" value="1180">
-        </div>
-        <div class="c3">
-            <button onclick="detectTouch()">Check Touch</button>
-        </div>
-    </div>
-
-    <div id="td-results" class="results">
-        <div class="result-grid">
-            <div class="result-item">
-                <span class="label">Delta</span>
-                <span class="value" id="td-delta">—</span>
+            <div class="notice">
+                <strong>Critical:</strong> Both CC1 and CC2 pins must have 5.1kΩ ±10% pull-down resistors for proper sink detection. The source detects which CC line is connected to determine cable orientation.
             </div>
-            <div class="result-item">
-                <span class="label">Delta %</span>
-                <span class="value" id="td-pct">—</span>
+        </div>
+
+        <div class="subsection">
+            <h4>Source Current Advertisement (Rp)</h4>
+
+            <table class="table">
+                <tr>
+                    <th>Source Pull-up (Rp)</th>
+                    <th>Voltage on CC</th>
+                    <th>Current Capability</th>
+                </tr>
+                <tr>
+                    <td>56kΩ to 5V</td>
+                    <td>~0.4V</td>
+                    <td>500mA (USB 2.0 default)</td>
+                </tr>
+                <tr>
+                    <td>22kΩ to 5V</td>
+                    <td>~0.9V</td>
+                    <td>1.5A</td>
+                </tr>
+                <tr>
+                    <td>10kΩ to 5V</td>
+                    <td>~1.6V</td>
+                    <td>3.0A</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="subsection">
+            <h4>Interactive: CC Voltage Calculator</h4>
+
+            <div class="controls">
+                <div class="c4">
+                    <label for="cc-rp">Source Rp (kΩ)</label>
+                    <input type="range" id="cc-rp" min="10" max="56" step="1" value="22">
+                    <span id="cc-rp-val" class="mono">22kΩ</span>
+                </div>
+                <div class="c4">
+                    <label for="cc-rd">Sink Rd (kΩ)</label>
+                    <input type="range" id="cc-rd" min="1" max="10" step="0.1" value="5.1">
+                    <span id="cc-rd-val" class="mono">5.1kΩ</span>
+                </div>
+                <div class="c4">
+                    <label for="cc-vcc">Pull-up Voltage (V)</label>
+                    <input type="range" id="cc-vcc" min="3.3" max="5" step="0.1" value="5">
+                    <span id="cc-vcc-val" class="mono">5.0V</span>
+                </div>
             </div>
-            <div class="result-item">
-                <span class="label">Touch State</span>
-                <span class="value" id="td-state">—</span>
+
+            <div class="kv">
+                <div class="box">
+                    <div class="k">CC Voltage</div>
+                    <div class="v mono" id="cc-voltage">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Current Capability</div>
+                    <div class="v mono" id="cc-current">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Detection</div>
+                    <div class="v mono" id="cc-detect">—</div>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-    function detectTouch() {
-        const base = parseInt(document.getElementById('td-base').value);
-        const thresh = AD.num('td-thresh');
-        const reading = parseInt(document.getElementById('td-reading').value);
+    <div class="card">
+        <h3>Section 2: PD Negotiation and VBUS Control</h3>
 
-        const delta = reading - base;
-        const pct = (delta / base) * 100;
-        const touched = pct > thresh;
+        <p>USB PD uses BMC (Biphase Mark Coding) on the CC line to negotiate power contracts. The source advertises capabilities, and the sink requests a specific voltage/current.</p>
 
-        document.getElementById('td-delta').textContent = delta;
-        document.getElementById('td-pct').textContent = pct.toFixed(1) + '%';
-        document.getElementById('td-state').textContent = touched ? 'TOUCHED' : 'Not touched';
-        document.getElementById('td-state').style.color = touched ? 'var(--ok)' : 'var(--text)';
-    }
-    </script>
-</section>
+        <div class="subsection">
+            <h4>PD Message Flow</h4>
 
-<!-- Component Selection -->
-<section class="card">
-    <h3>Real Component Selection</h3>
-
-    <h4>Capacitive Touch Controllers</h4>
-    <table>
-        <thead>
-            <tr>
-                <th>Part Number</th>
-                <th>Channels</th>
-                <th>Type</th>
-                <th>Interface</th>
-                <th>Features</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr><td>AT42QT1070</td><td>7</td><td>Self-cap</td><td>I²C</td><td>Simple button controller</td></tr>
-            <tr><td>CAP1208</td><td>8</td><td>Self-cap</td><td>I²C/SMBus</td><td>Proximity, LED driver</td></tr>
-            <tr><td>CY8CMBR3116</td><td>16</td><td>Self-cap</td><td>I²C</td><td>Water tolerant, auto-tune</td></tr>
-            <tr><td>FT5x16</td><td>5" display</td><td>Mutual-cap</td><td>I²C</td><td>Smartphone touchscreen</td></tr>
-            <tr><td>GT911</td><td>5-point</td><td>Mutual-cap</td><td>I²C</td><td>Tablet touchscreen</td></tr>
-            <tr><td>MSP430FR2633</td><td>16</td><td>Both</td><td>MCU</td><td>CapTIvate, ultra-low power</td></tr>
-        </tbody>
-    </table>
-
-    <h4>PCB Design Guidelines</h4>
-    <table>
-        <thead>
-            <tr>
-                <th>Parameter</th>
-                <th>Recommendation</th>
-                <th>Notes</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr><td>Electrode size</td><td>8-15mm diameter</td><td>Finger-tip sized</td></tr>
-            <tr><td>Electrode spacing</td><td>> 4mm + overlay</td><td>Prevent ghost touches</td></tr>
-            <tr><td>Overlay thickness</td><td>0.5-4mm</td><td>Thinner = more sensitive</td></tr>
-            <tr><td>Ground pour gap</td><td>0.5-1mm</td><td>Around electrodes</td></tr>
-            <tr><td>Trace routing</td><td>Direct, short</td><td>Minimize parasitic C</td></tr>
-            <tr><td>Shield traces</td><td>Driven shield</td><td>For long traces</td></tr>
-        </tbody>
-    </table>
-</section>
-
-<!-- Checklist -->
-<section class="card">
-    <h3>Capacitive Touch Design Checklist</h3>
-    <div class="checklist" data-lesson="m24l3">
-        <label><input type="checkbox" data-k="1"><span>Choose self-cap vs mutual-cap based on application</span></label>
-        <label><input type="checkbox" data-k="2"><span>Size electrodes for target sensitivity (8-15mm typical)</span></label>
-        <label><input type="checkbox" data-k="3"><span>Calculate expected Cp and Ct for overlay material/thickness</span></label>
-        <label><input type="checkbox" data-k="4"><span>Select excitation frequency to avoid LCD/charger noise</span></label>
-        <label><input type="checkbox" data-k="5"><span>Design AFE gain for ADC resolution vs saturation</span></label>
-        <label><input type="checkbox" data-k="6"><span>Implement baseline tracking with appropriate time constant</span></label>
-        <label><input type="checkbox" data-k="7"><span>Set touch/release thresholds with hysteresis</span></label>
-        <label><input type="checkbox" data-k="8"><span>Route sensor traces away from noisy signals</span></label>
-        <label><input type="checkbox" data-k="9"><span>Add driven shield for long traces</span></label>
-        <label><input type="checkbox" data-k="10"><span>Test with charger connected and near LCD displays</span></label>
-    </div>
-</section>
-
-<!-- Exercises -->
-<section class="card">
-    <h3>Progressive Exercises</h3>
-
-    <div class="exercise-group">
-        <h4>Level 1: Fundamentals</h4>
-
-        <div class="exercise">
-            <p><strong>Exercise 1:</strong> A touch sensor has 15pF parasitic capacitance. A finger touch adds 1.5pF. What is the percentage change in capacitance?</p>
-            <input type="text" id="cap-ex1" placeholder="Change (%)">
-            <button onclick="checkCap(1, 10, 2)">Check</button>
-            <span id="cap-ex1-fb" class="feedback"></span>
-            <div class="hint">ΔC/Cp × 100%</div>
+            <canvas id="pd-negotiation-canvas" width="700" height="420" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
         </div>
 
-        <div class="exercise">
-            <p><strong>Exercise 2:</strong> A charge transfer circuit uses Cint = 100pF, VDD = 3.3V, and runs 8 cycles. If Cx = 12pF, what is the final voltage on Cint?</p>
-            <input type="text" id="cap-ex2" placeholder="Vint (V)">
-            <button onclick="checkCap(2, 3.168, 3)">Check</button>
-            <span id="cap-ex2-fb" class="feedback"></span>
-            <div class="hint">Vint = N × Cx × VDD / Cint</div>
+        <div class="subsection">
+            <h4>Power Data Objects (PDOs)</h4>
+
+            <table class="table">
+                <tr>
+                    <th>PDO Type</th>
+                    <th>Voltage</th>
+                    <th>Current</th>
+                    <th>Use Case</th>
+                </tr>
+                <tr>
+                    <td>Fixed</td>
+                    <td>5/9/15/20V</td>
+                    <td>Up to 5A</td>
+                    <td>Standard charging</td>
+                </tr>
+                <tr>
+                    <td>PPS (APDO)</td>
+                    <td>3.3-21V variable</td>
+                    <td>Up to 5A</td>
+                    <td>Fast charging protocols</td>
+                </tr>
+                <tr>
+                    <td>AVS (EPR)</td>
+                    <td>15-48V adjustable</td>
+                    <td>Up to 5A</td>
+                    <td>High-power devices</td>
+                </tr>
+            </table>
         </div>
     </div>
 
-    <div class="exercise-group">
-        <h4>Level 2: Application</h4>
+    <div class="card">
+        <h3>Section 3: Buck-Boost Charger Design</h3>
 
-        <div class="exercise">
-            <p><strong>Exercise 3:</strong> A touch controller baseline reads 2000 counts. Touch threshold is set to 12%. What count value triggers a touch?</p>
-            <input type="text" id="cap-ex3" placeholder="Threshold count">
-            <button onclick="checkCap(3, 2240, 2)">Check</button>
-            <span id="cap-ex3-fb" class="feedback"></span>
-            <div class="hint">threshold_count = baseline × (1 + threshold%)</div>
+        <p>Since USB PD can provide 5-20V (or higher with EPR) while batteries are typically 3-4.4V (1S) or 7-17V (2S-4S), a buck-boost converter is often needed.</p>
+
+        <div class="subsection">
+            <h4>Topology Selection</h4>
+
+            <table class="table">
+                <tr>
+                    <th>Input Range</th>
+                    <th>Battery</th>
+                    <th>Topology</th>
+                    <th>Example IC</th>
+                </tr>
+                <tr>
+                    <td>5-20V</td>
+                    <td>1S (4.2V)</td>
+                    <td>Buck only</td>
+                    <td>BQ25890, MP2696</td>
+                </tr>
+                <tr>
+                    <td>5-20V</td>
+                    <td>2S (8.4V)</td>
+                    <td>Buck-Boost</td>
+                    <td>BQ25703, LT8253</td>
+                </tr>
+                <tr>
+                    <td>5-20V</td>
+                    <td>3S (12.6V)</td>
+                    <td>Buck-Boost</td>
+                    <td>BQ25700, MAX77818</td>
+                </tr>
+                <tr>
+                    <td>5-20V</td>
+                    <td>4S (16.8V)</td>
+                    <td>Buck (usually)</td>
+                    <td>BQ25713, LTC4162</td>
+                </tr>
+            </table>
         </div>
 
-        <div class="exercise">
-            <p><strong>Exercise 4:</strong> An electrode over 2mm acrylic (εr = 3.0) has 12mm diameter. Estimate the parasitic capacitance to a ground plane directly below. (C = ε₀εrA/d)</p>
-            <input type="text" id="cap-ex4" placeholder="Capacitance (pF)">
-            <button onclick="checkCap(4, 1.5, 15)">Check</button>
-            <span id="cap-ex4-fb" class="feedback"></span>
-            <div class="hint">A = π×(6mm)², d = 2mm, ε₀ = 8.854e-12 F/m</div>
+        <div class="subsection">
+            <h4>Interactive: PD Charger Power Flow</h4>
+
+            <div class="controls">
+                <div class="c3">
+                    <label for="pd-vin">VBUS Voltage (V)</label>
+                    <select id="pd-vin" style="width:100%;padding:8px;">
+                        <option value="5">5V (USB default)</option>
+                        <option value="9">9V (PD)</option>
+                        <option value="15" selected>15V (PD)</option>
+                        <option value="20">20V (PD)</option>
+                    </select>
+                </div>
+                <div class="c3">
+                    <label for="pd-imax">Max Current (A)</label>
+                    <input type="range" id="pd-imax" min="1" max="5" step="0.25" value="3">
+                    <span id="pd-imax-val" class="mono">3.0A</span>
+                </div>
+                <div class="c3">
+                    <label for="pd-vbat">Battery Voltage (V)</label>
+                    <input type="range" id="pd-vbat" min="6" max="17" step="0.1" value="11.1">
+                    <span id="pd-vbat-val" class="mono">11.1V</span>
+                </div>
+                <div class="c3">
+                    <label for="pd-eff">Converter Efficiency (%)</label>
+                    <input type="range" id="pd-eff" min="85" max="98" step="1" value="93">
+                    <span id="pd-eff-val" class="mono">93%</span>
+                </div>
+            </div>
+
+            <div class="kv">
+                <div class="box">
+                    <div class="k">Input Power</div>
+                    <div class="v mono" id="pd-pin">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Output Power</div>
+                    <div class="v mono" id="pd-pout">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Charge Current</div>
+                    <div class="v mono" id="pd-ichg">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Topology Needed</div>
+                    <div class="v mono" id="pd-topology">—</div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="exercise-group">
-        <h4>Level 3: System Design</h4>
+    <div class="card">
+        <h3>Section 4: Protection and Safety</h3>
 
-        <div class="exercise">
-            <p><strong>Exercise 5:</strong> A touch sensor needs 100 samples/second scan rate with 10 channels. If each charge transfer needs 20 cycles at 200kHz excitation, what percentage of time is spent scanning?</p>
-            <input type="text" id="cap-ex5" placeholder="Duty cycle (%)">
-            <button onclick="checkCap(5, 10, 10)">Check</button>
-            <span id="cap-ex5-fb" class="feedback"></span>
-            <div class="hint">Time per scan = 10 × 20/200kHz. Scans per second × time per scan / 1s</div>
+        <div class="subsection">
+            <h4>Required Protection Elements</h4>
+
+            <table class="table">
+                <tr>
+                    <th>Protection</th>
+                    <th>Implementation</th>
+                    <th>Typical Threshold</th>
+                </tr>
+                <tr>
+                    <td>Overvoltage (OVP)</td>
+                    <td>TVS + OVP IC (BQ24314)</td>
+                    <td>22-25V for SPR, 55V for EPR</td>
+                </tr>
+                <tr>
+                    <td>Overcurrent (OCP)</td>
+                    <td>In charger IC</td>
+                    <td>125% of max negotiated</td>
+                </tr>
+                <tr>
+                    <td>Reverse Voltage</td>
+                    <td>Ideal diode controller</td>
+                    <td>Block if VBUS < VBAT</td>
+                </tr>
+                <tr>
+                    <td>Short Circuit</td>
+                    <td>Fast fuse + FET</td>
+                    <td>Response < 1µs</td>
+                </tr>
+                <tr>
+                    <td>ESD</td>
+                    <td>TVS on CC, D+/D-</td>
+                    <td>IEC 61000-4-2 Level 4</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="subsection">
+            <h4>VBUS Discharge Requirement</h4>
+
+            <div class="warn">
+                <strong>USB PD Requirement:</strong> When the sink disconnects or negotiates a lower voltage, VBUS must discharge to safe levels within specified time (typically 650ms from 20V to 5V). This requires active discharge circuits.
+            </div>
+
+            <p>Discharge resistor sizing: For 20V → 5V in 500ms with C = 100µF:</p>
+            <p class="mono" style="margin-left:20px;">R = t / (C × ln(V_start/V_end)) = 0.5 / (100µ × ln(4)) ≈ 3.6kΩ → ~100mW peak dissipation</p>
         </div>
     </div>
 
-    <script>
-    function checkCap(n, expected, tolerance) {
-        const ans = parseFloat(document.getElementById('cap-ex' + n).value);
-        const fb = document.getElementById('cap-ex' + n + '-fb');
+    <div class="card">
+        <h3>Section 5: Complete Design Example</h3>
 
-        if (isNaN(ans)) {
-            fb.textContent = 'Please enter a number';
-            fb.className = 'feedback incorrect';
-            return;
-        }
+        <div class="subsection">
+            <h4>45W USB-C PD Laptop Charger Input Stage</h4>
 
-        const error = Math.abs((ans - expected) / expected * 100);
+            <canvas id="pd-design-canvas" width="980" height="480" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+        </div>
+    </div>
 
-        if (error <= tolerance) {
-            fb.textContent = '✓ Correct!';
-            fb.className = 'feedback correct';
-        } else {
-            fb.textContent = '✗ Try again. Expected: ' + expected.toFixed(2);
-            fb.className = 'feedback incorrect';
-        }
-    }
-    </script>
-</section>
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
 
-<!-- References -->
-<section class="card">
-    <h3>Industry References</h3>
-    <ul>
-        <li><a href="https://ww1.microchip.com/downloads/aemDocuments/documents/TXFG/ApplicationNotes/ApplicationNotes/Capacitive-Touch-Sensor-Design-Guide-DS00002934-B.pdf" target="_blank">AN2934 Capacitive Touch Sensor Design Guide (Microchip)</a></li>
-        <li><a href="https://www.silabs.com/documents/public/application-notes/AN0040.pdf" target="_blank">Hardware Design for Capacitive Touch (Silicon Labs)</a></li>
-        <li><a href="https://www.silabs.com/documents/public/application-notes/AN447.pdf" target="_blank">PCB Design Notes for Capacitive Sensing (Silicon Labs)</a></li>
-        <li><strong>TI CapTIvate Technology Guide</strong> - MSP430 capacitive touch</li>
-        <li><strong>Cypress CapSense Design Guide</strong> - PSoC touch sensing</li>
-    </ul>
-</section>
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
 
 <script>
+// ==================== USB-C SINK ARCHITECTURE CANVAS ====================
 (function() {
-    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+    const canvas = document.getElementById('usbc-sink-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
 
-    function roundRect(ctx, x, y, w, h, r) {
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('USB-C PD SINK (Laptop/Phone Charging)', W/2, 28);
+
+    // USB-C Connector box (left side)
+    const connX = 30, connY = 60, connW = 110, connH = 280;
+    AD.roundRect(ctx, connX, connY, connW, connH, 8, { fill: '#1a2332', stroke: TEK.ch2, lineWidth: 2 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('USB-C', connX + connW/2, connY + 20);
+    ctx.fillText('Connector', connX + connW/2, connY + 34);
+
+    // Connector pins
+    const pins = [
+        { name: 'VBUS', y: 70, color: TEK.ch1 },
+        { name: 'CC1', y: 110, color: TEK.ch3 },
+        { name: 'CC2', y: 145, color: TEK.ch3 },
+        { name: 'D+', y: 180, color: TEK.ch5 },
+        { name: 'D-', y: 210, color: TEK.ch5 },
+        { name: 'SBU1', y: 240, color: '#8b8b8b' },
+        { name: 'SBU2', y: 265, color: '#8b8b8b' },
+        { name: 'GND', y: 300, color: '#6b7280' }
+    ];
+
+    pins.forEach(pin => {
+        ctx.fillStyle = pin.color;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(pin.name, connX + 10, connY + pin.y);
+
+        // Pin line out
+        ctx.strokeStyle = pin.color;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + w - r, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-        ctx.lineTo(x + w, y + h - r);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        ctx.lineTo(x + r, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-        ctx.lineTo(x, y + r);
-        ctx.quadraticCurveTo(x, y, x + r, y);
-        ctx.closePath();
+        ctx.moveTo(connX + connW - 10, connY + pin.y - 3);
+        ctx.lineTo(connX + connW + 20, connY + pin.y - 3);
+        ctx.stroke();
+    });
+
+    // TVS Diode after VBUS
+    const tvsX = connX + connW + 40, tvsY = connY + 65;
+    AD.roundRect(ctx, tvsX, tvsY, 50, 25, 3, { fill: '#2a2a4a', stroke: '#8b5cf6', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('TVS', tvsX + 25, tvsY + 16);
+
+    // Connect VBUS to TVS
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(connX + connW + 20, connY + 67);
+    ctx.lineTo(tvsX, connY + 67);
+    ctx.stroke();
+
+    // OVP Block
+    const ovpX = tvsX + 80, ovpY = connY + 50;
+    AD.roundRect(ctx, ovpX, ovpY, 130, 55, 6, { fill: '#1f2937', stroke: TEK.ch5, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('OVP + Current Limit', ovpX + 65, ovpY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('(BQ24314)', ovpX + 65, ovpY + 38);
+
+    // Connect TVS to OVP
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(tvsX + 50, tvsY + 12);
+    ctx.lineTo(ovpX, tvsY + 12);
+    ctx.stroke();
+
+    // PD Controller Block
+    const pdX = 340, pdY = 160;
+    AD.roundRect(ctx, pdX, pdY, 160, 120, 6, { fill: '#1a2332', stroke: TEK.ch3, lineWidth: 2 });
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('USB PD Controller', pdX + 80, pdY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('(MAX77958/FUSB302)', pdX + 80, pdY + 38);
+
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('• CC detection', pdX + 15, pdY + 62);
+    ctx.fillText('• PD negotiation', pdX + 15, pdY + 78);
+    ctx.fillText('• VBUS control', pdX + 15, pdY + 94);
+
+    // Connect CC pins to PD Controller
+    ctx.strokeStyle = TEK.ch3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(connX + connW + 20, connY + 107);
+    ctx.lineTo(connX + connW + 60, connY + 107);
+    ctx.lineTo(connX + connW + 60, pdY + 60);
+    ctx.lineTo(pdX, pdY + 60);
+    ctx.stroke();
+
+    // Buck-Boost Charger Block
+    const chgX = 580, chgY = 120;
+    AD.roundRect(ctx, chgX, chgY, 150, 130, 6, { fill: '#1a2a32', stroke: TEK.ch4, lineWidth: 2 });
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Buck-Boost', chgX + 75, chgY + 22);
+    ctx.fillText('Charger', chgX + 75, chgY + 38);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('(BQ25703)', chgX + 75, chgY + 56);
+
+    ctx.font = '9px monospace';
+    ctx.fillText('5-20V → Battery', chgX + 30, chgY + 85);
+
+    // Connect OVP to Charger
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ovpX + 130, ovpY + 27);
+    ctx.lineTo(ovpX + 180, ovpY + 27);
+    ctx.lineTo(ovpX + 180, chgY + 40);
+    ctx.lineTo(chgX, chgY + 40);
+    ctx.stroke();
+
+    // Connect PD to Charger (control)
+    ctx.strokeStyle = TEK.ch3;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(pdX + 160, pdY + 80);
+    ctx.lineTo(chgX, pdY + 80);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Battery Pack
+    const batX = 800, batY = 145;
+    AD.roundRect(ctx, batX, batY, 120, 80, 6, { fill: '#2a3a2a', stroke: TEK.ch4, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Battery Pack', batX + 60, batY + 30);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('1S-4S', batX + 60, batY + 50);
+
+    // Connect Charger to Battery
+    AD.drawArrow(ctx, chgX + 150, chgY + 65, batX, batY + 40, { color: TEK.ch4, headSize: 8 });
+
+    // Application Processor
+    const mcuX = 380, mcuY = 320;
+    AD.roundRect(ctx, mcuX, mcuY, 120, 55, 6, { fill: '#1f2937', stroke: '#6b7280', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Application', mcuX + 60, mcuY + 22);
+    ctx.fillText('Processor', mcuX + 60, mcuY + 38);
+
+    // I2C connection from PD to MCU
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pdX + 80, pdY + 120);
+    ctx.lineTo(pdX + 80, mcuY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('I2C', pdX + 85, pdY + 135);
+
+    // USB Data Path (D+/D-)
+    const dataY = 365;
+    ctx.strokeStyle = TEK.ch5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(connX + connW + 20, connY + 177);
+    ctx.lineTo(200, connY + 177);
+    ctx.lineTo(200, dataY);
+    ctx.lineTo(540, dataY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('USB Data Path (D+/D-)', 370, dataY + 20);
+
+    // Legend box
+    AD.roundRect(ctx, W - 200, H - 90, 180, 75, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    const legend = [
+        { color: TEK.ch1, text: 'Power (VBUS)' },
+        { color: TEK.ch3, text: 'CC/PD Control' },
+        { color: TEK.ch5, text: 'USB Data' }
+    ];
+    legend.forEach((item, i) => {
+        ctx.fillStyle = item.color;
+        ctx.fillRect(W - 190, H - 78 + i * 22, 12, 12);
+        ctx.fillStyle = '#9ca3af';
+        ctx.fillText(item.text, W - 170, H - 68 + i * 22);
+    });
+
+})();
+
+// ==================== PD NEGOTIATION SEQUENCE CANVAS ====================
+(function() {
+    const canvas = document.getElementById('pd-negotiation-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('USB PD NEGOTIATION SEQUENCE (Simplified)', W/2, 25);
+
+    // Column headers
+    const srcX = 150, sinkX = 550;
+    const headerY = 55;
+
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('SOURCE (Charger)', srcX, headerY);
+
+    ctx.fillStyle = TEK.ch2;
+    ctx.fillText('SINK (Device)', sinkX, headerY);
+
+    // Vertical timelines
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(srcX, headerY + 15);
+    ctx.lineTo(srcX, H - 80);
+    ctx.moveTo(sinkX, headerY + 15);
+    ctx.lineTo(sinkX, H - 80);
+    ctx.stroke();
+
+    // Message arrows
+    const messages = [
+        { y: 95, dir: 'left', text: 'Rd detected on CC', color: TEK.ch3 },
+        { y: 140, dir: 'right', text: 'Source_Capabilities', subtext: '[5V/3A, 9V/3A, 15V/3A, 20V/2.25A = 45W max]', color: TEK.ch1 },
+        { y: 200, dir: 'left', text: 'Request (15V/3A)', color: TEK.ch2 },
+        { y: 245, dir: 'right', text: 'Accept', color: TEK.ch4 },
+        { y: 290, dir: 'right', text: '(Source ramps VBUS to 15V)', color: '#888', note: true },
+        { y: 330, dir: 'right', text: 'PS_RDY', color: TEK.ch4 },
+        { y: 365, dir: 'right', text: '(Sink can now draw up to 3A)', color: '#888', note: true }
+    ];
+
+    messages.forEach(msg => {
+        if (msg.note) {
+            // Note text (no arrow)
+            ctx.fillStyle = msg.color;
+            ctx.font = 'italic 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(msg.text, (srcX + sinkX) / 2, msg.y);
+        } else {
+            // Arrow
+            const fromX = msg.dir === 'right' ? srcX + 10 : sinkX - 10;
+            const toX = msg.dir === 'right' ? sinkX - 10 : srcX + 10;
+
+            AD.drawArrow(ctx, fromX, msg.y, toX, msg.y, { color: msg.color, headSize: 8, lineWidth: 2 });
+
+            // Label
+            ctx.fillStyle = msg.color;
+            ctx.font = '11px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(msg.text, (srcX + sinkX) / 2, msg.y - 8);
+
+            // Subtext if any
+            if (msg.subtext) {
+                ctx.fillStyle = '#888';
+                ctx.font = '9px monospace';
+                ctx.fillText(msg.subtext, (srcX + sinkX) / 2, msg.y + 18);
+            }
+        }
+    });
+
+    // Communication details box
+    AD.roundRect(ctx, 100, H - 65, 500, 55, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Communication:', 115, H - 45);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('300 kbaud BMC on CC line', 220, H - 45);
+    ctx.fillStyle = TEK.ch3;
+    ctx.fillText('Message format:', 115, H - 25);
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText('SOP + Header + Data Objects + CRC + EOP', 230, H - 25);
+
+})();
+
+// ==================== 45W PD SINK DESIGN CANVAS ====================
+(function() {
+    const canvas = document.getElementById('pd-design-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 15px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('45W USB-C PD SINK DESIGN', W/2, 25);
+
+    // Section headers
+    const sections = [
+        { x: 70, text: 'USB-C Connector' },
+        { x: 250, text: 'Protection' },
+        { x: 430, text: 'PD Controller' },
+        { x: 640, text: 'Charger' },
+        { x: 830, text: 'Output' }
+    ];
+
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    sections.forEach(s => {
+        ctx.textAlign = 'center';
+        ctx.fillText(s.text, s.x, 50);
+    });
+
+    // USB-C Connector
+    const connX = 30, connY = 70, connW = 80, connH = 200;
+    AD.roundRect(ctx, connX, connY, connW, connH, 6, { fill: '#1a2332', stroke: TEK.ch2, lineWidth: 2 });
+
+    const connPins = [
+        { name: 'VBUS', y: 25, color: TEK.ch1 },
+        { name: 'CC1', y: 60, color: TEK.ch3 },
+        { name: 'CC2', y: 90, color: TEK.ch3 },
+        { name: 'D+', y: 125, color: TEK.ch5 },
+        { name: 'D-', y: 150, color: TEK.ch5 },
+        { name: 'GND', y: 180, color: '#6b7280' }
+    ];
+
+    connPins.forEach(pin => {
+        ctx.fillStyle = pin.color;
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(pin.name, connX + 8, connY + pin.y);
+    });
+
+    // TVS after VBUS
+    const tvsX = connX + connW + 25;
+    AD.roundRect(ctx, tvsX, connY + 15, 40, 22, 3, { fill: '#2a2a4a', stroke: '#8b5cf6', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('TVS', tvsX + 20, connY + 30);
+    ctx.fillStyle = '#888';
+    ctx.font = '8px monospace';
+    ctx.fillText('24V', tvsX + 20, connY + 50);
+
+    // Connect VBUS to TVS
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(connX + connW, connY + 25);
+    ctx.lineTo(tvsX, connY + 25);
+    ctx.stroke();
+
+    // 5.1k resistors for CC
+    [60, 90].forEach(yOff => {
+        const resX = tvsX, resY = connY + yOff - 8;
+        AD.roundRect(ctx, resX, resY, 40, 16, 2, { fill: '#2a3a3a', stroke: TEK.ch3, lineWidth: 1 });
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '7px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('5.1k', resX + 20, resY + 11);
+
+        ctx.strokeStyle = TEK.ch3;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(connX + connW, connY + yOff);
+        ctx.lineTo(resX, connY + yOff);
+        ctx.stroke();
+    });
+
+    // OVP IC (BQ24314)
+    const ovpX = 200, ovpY = connY + 5;
+    AD.roundRect(ctx, ovpX, ovpY, 100, 50, 4, { fill: '#1f2937', stroke: TEK.ch5, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BQ24314', ovpX + 50, ovpY + 20);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '8px monospace';
+    ctx.fillText('OVP IC', ovpX + 50, ovpY + 35);
+
+    // Connect TVS to OVP
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(tvsX + 40, connY + 25);
+    ctx.lineTo(ovpX, connY + 25);
+    ctx.stroke();
+
+    // ESD TVS for D+/D-
+    const esdX = 200, esdY = connY + 115;
+    AD.roundRect(ctx, esdX, esdY, 100, 45, 4, { fill: '#2a2a4a', stroke: '#8b5cf6', lineWidth: 1 });
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('ESD TVS', esdX + 50, esdY + 28);
+
+    // Connect D+/D- to ESD
+    ctx.strokeStyle = TEK.ch5;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(connX + connW, connY + 125);
+    ctx.lineTo(esdX, connY + 125);
+    ctx.moveTo(connX + connW, connY + 150);
+    ctx.lineTo(esdX, connY + 150);
+    ctx.stroke();
+
+    // PD Controller (FUSB302)
+    const pdX = 370, pdY = connY + 30;
+    AD.roundRect(ctx, pdX, pdY, 120, 75, 5, { fill: '#1a2332', stroke: TEK.ch3, lineWidth: 2 });
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('FUSB302', pdX + 60, pdY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('USB PD PHY', pdX + 60, pdY + 40);
+
+    // Connect OVP to PD
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ovpX + 100, ovpY + 25);
+    ctx.lineTo(pdX, pdY + 25);
+    ctx.stroke();
+
+    // Connect CC to PD
+    ctx.strokeStyle = TEK.ch3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(tvsX + 40, connY + 75);
+    ctx.lineTo(tvsX + 60, connY + 75);
+    ctx.lineTo(tvsX + 60, pdY + 50);
+    ctx.lineTo(pdX, pdY + 50);
+    ctx.stroke();
+
+    // MCU/EC
+    const mcuX = 400, mcuY = connY + 150;
+    AD.roundRect(ctx, mcuX, mcuY, 80, 50, 4, { fill: '#1f2937', stroke: '#6b7280', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('MCU/EC', mcuX + 40, mcuY + 30);
+
+    // I2C from PD to MCU
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    ctx.moveTo(pdX + 60, pdY + 75);
+    ctx.lineTo(pdX + 60, mcuY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#888';
+    ctx.font = '8px monospace';
+    ctx.fillText('I2C', pdX + 75, pdY + 95);
+
+    // Connect MCU to PD Controller (control line)
+    ctx.strokeStyle = '#888';
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    ctx.moveTo(mcuX + 80, mcuY + 25);
+    ctx.lineTo(mcuX + 110, mcuY + 25);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Buck-Boost Charger (BQ25703)
+    const chgX = 560, chgY = connY + 20;
+    AD.roundRect(ctx, chgX, chgY, 130, 100, 5, { fill: '#1a2a32', stroke: TEK.ch4, lineWidth: 2 });
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BQ25703', chgX + 65, chgY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('Buck-Boost', chgX + 65, chgY + 40);
+
+    ctx.font = '8px monospace';
+    ctx.fillText('5-20V in', chgX + 65, chgY + 60);
+    ctx.fillText('8.4V out', chgX + 65, chgY + 75);
+    ctx.fillText('(2S pack)', chgX + 65, chgY + 88);
+
+    // Connect PD to Charger
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(pdX + 120, pdY + 25);
+    ctx.lineTo(chgX, chgY + 30);
+    ctx.stroke();
+
+    // Battery output
+    const batX = 750, batY = connY + 40;
+    AD.roundRect(ctx, batX, batY, 100, 60, 4, { fill: '#2a3a2a', stroke: TEK.ch4, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BAT', batX + 50, batY + 28);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('3A max', batX + 50, batY + 45);
+
+    // Arrow from Charger to Battery
+    AD.drawArrow(ctx, chgX + 130, chgY + 50, batX, batY + 30, { color: TEK.ch4, headSize: 8 });
+
+    // Key Components box
+    const keyX = 30, keyY = 300;
+    AD.roundRect(ctx, keyX, keyY, W - 60, 160, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Key Components:', keyX + 15, keyY + 22);
+
+    const components = [
+        { label: 'TVS:', value: 'SMBJ24CA (24V standoff, bidirectional)' },
+        { label: 'OVP:', value: 'BQ24314 (4.5-28V, 3A, programmable threshold)' },
+        { label: 'PD Controller:', value: 'FUSB302 (USB PD PHY) or MAX77958 (standalone)' },
+        { label: 'Charger:', value: 'BQ25703 (1-4 cell, buck-boost, 5-24V input)' },
+        { label: 'CC Pull-downs:', value: '5.1kΩ ±5%, 0402 size' },
+        { label: 'Decoupling:', value: '10µF + 100nF on each power pin' }
+    ];
+
+    components.forEach((comp, i) => {
+        const row = Math.floor(i / 2);
+        const col = i % 2;
+        const cx = keyX + 15 + col * 450;
+        const cy = keyY + 45 + row * 22;
+
+        ctx.fillStyle = TEK.ch3;
+        ctx.font = '10px monospace';
+        ctx.fillText('• ' + comp.label, cx, cy);
+
+        ctx.fillStyle = '#9ca3af';
+        ctx.fillText(comp.value, cx + 95, cy);
+    });
+
+})();
+
+(function() {
+    // CC voltage calculator
+    function updateCC() {
+        const rp = AD.num('cc-rp') * 1000;
+        const rd = AD.num('cc-rd') * 1000;
+        const vcc = AD.num('cc-vcc');
+
+        document.getElementById('cc-rp-val').textContent = (rp/1000) + 'kΩ';
+        document.getElementById('cc-rd-val').textContent = (rd/1000).toFixed(1) + 'kΩ';
+        document.getElementById('cc-vcc-val').textContent = vcc.toFixed(1) + 'V';
+
+        const vcc_pin = vcc * rd / (rp + rd);
+
+        // Determine current capability based on Rp
+        let current = '500mA';
+        let detect = 'USB 2.0 Default';
+        if (rp <= 12000) {
+            current = '3.0A';
+            detect = 'USB Type-C 3A';
+        } else if (rp <= 25000) {
+            current = '1.5A';
+            detect = 'USB Type-C 1.5A';
+        } else {
+            current = '500mA';
+            detect = 'USB Default';
+        }
+
+        document.getElementById('cc-voltage').textContent = vcc_pin.toFixed(2) + ' V';
+        document.getElementById('cc-current').textContent = current;
+        document.getElementById('cc-detect').textContent = detect;
     }
 
-    // Charge Transfer Equations Canvas
-    (function() {
-        const canvas = document.getElementById('charge-transfer-canvas');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
+    ['cc-rp', 'cc-rd', 'cc-vcc'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateCC);
+    });
+    updateCC();
 
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // PD charger calculator
+    function updatePD() {
+        const vin = AD.num('pd-vin');
+        const imax = AD.num('pd-imax');
+        const vbat = AD.num('pd-vbat');
+        const eff = AD.num('pd-eff') / 100;
 
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = 'bold 13px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('CHARGE TRANSFER OPERATION:', 20, 25);
+        document.getElementById('pd-imax-val').textContent = imax.toFixed(2) + 'A';
+        document.getElementById('pd-vbat-val').textContent = vbat.toFixed(1) + 'V';
+        document.getElementById('pd-eff-val').textContent = (eff * 100).toFixed(0) + '%';
 
-        ctx.font = '11px monospace';
-        ctx.fillStyle = TEK.ch2;
-        ctx.fillText('Phase 1 (S1 ON, S2 OFF): Charge sensor capacitor', 20, 50);
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillText('    Qx = Cx × VDD', 20, 68);
+        const pin = vin * imax;
+        const pout = pin * eff;
+        const ichg = pout / vbat;
 
-        ctx.fillStyle = TEK.ch2;
-        ctx.fillText('Phase 2 (S1 OFF, S2 ON): Transfer charge to Cint', 20, 93);
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillText('    ΔVint = Qx / Cint = (Cx × VDD) / Cint', 20, 111);
+        let topology = 'Buck';
+        if (vin < vbat * 1.1) {
+            topology = 'Boost (or Buck-Boost)';
+        } else if (vin < vbat * 1.3) {
+            topology = 'Buck-Boost';
+        }
 
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('After N cycles:', 20, 140);
-        ctx.fillStyle = TEK.ch4;
-        ctx.fillText('    Vint = N × Cx × VDD / Cint', 20, 158);
+        document.getElementById('pd-pin').textContent = pin.toFixed(1) + ' W';
+        document.getElementById('pd-pout').textContent = pout.toFixed(1) + ' W';
+        document.getElementById('pd-ichg').textContent = ichg.toFixed(2) + ' A';
+        document.getElementById('pd-topology').textContent = topology;
+    }
 
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('For detection:', 20, 188);
-        ctx.fillText('    Without touch: Vint_base = N × Cp × VDD / Cint', 20, 206);
-        ctx.fillText('    With touch:    Vint_touch = N × (Cp + Ct) × VDD / Cint', 20, 224);
-        ctx.fillStyle = TEK.ch3;
-        ctx.fillText('    Delta:         ΔVint = N × Ct × VDD / Cint', 20, 242);
+    ['pd-vin', 'pd-imax', 'pd-vbat', 'pd-eff'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updatePD);
+        document.getElementById(id).addEventListener('change', updatePD);
+    });
+    updatePD();
 
-        // Example box
-        ctx.strokeStyle = '#374151';
-        ctx.lineWidth = 1;
-        roundRect(ctx, 350, 40, 280, 130, 5);
-        ctx.stroke();
+    // SPICE netlist
+    new SpiceNetlistWidget('spice-container', {
+        title: 'CC Detection Circuit',
+        netlist: `* USB-C CC Pin Detection
+* Shows voltage divider for source/sink detection
 
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillText('EXAMPLE:', 360, 60);
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '10px monospace';
-        ctx.fillText('Cp = 20pF, Ct = 2pF', 360, 80);
-        ctx.fillText('Cint = 200pF, N = 10, VDD = 3.3V', 360, 95);
+* Source pull-up (charger side)
+Vcc vcc 0 DC 5
 
-        ctx.fillStyle = TEK.ch2;
-        ctx.fillText('Vint_base = 10×20pF×3.3V/200pF', 360, 118);
-        ctx.fillText('         = 3.3V', 360, 133);
-        ctx.fillStyle = TEK.ch4;
-        ctx.fillText('Vint_touch = 3.63V', 360, 153);
-        ctx.fillStyle = TEK.ch3;
-        ctx.fillText('ΔVint = 0.33V (10% change!)', 360, 173);
+* Pull-up resistor (source)
+* 10k = 3A, 22k = 1.5A, 56k = 500mA
+Rp vcc cc 22k
 
-        // Result highlight
-        ctx.strokeStyle = TEK.ch4;
-        ctx.lineWidth = 2;
-        roundRect(ctx, 350, 265, 280, 40, 5);
-        ctx.stroke();
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = 'bold 11px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('10% change is easily detectable!', 490, 290);
-    })();
+* Pull-down resistor (sink side)
+Rd cc 0 5.1k
 
-    // Spread Spectrum Canvas
-    (function() {
-        const canvas = document.getElementById('spread-spectrum-canvas');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
+* Measure CC voltage
+.OP
 
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+* Sweep Rp to see different current levels
+.STEP PARAM Rp_val 10k 56k 10k
+Rp2 vcc cc2 {Rp_val}
+Rd2 cc2 0 5.1k
 
-        // Left side - Fixed Frequency
-        ctx.fillStyle = TEK.ch1;
-        ctx.font = 'bold 12px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('FIXED FREQUENCY', 150, 25);
+.DC Rp_val 10k 56k 2k
 
-        // Axes
-        ctx.strokeStyle = '#6b7280';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(50, 130);
-        ctx.lineTo(50, 50);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(50, 130);
-        ctx.lineTo(260, 130);
-        ctx.stroke();
+.PROBE V(cc) V(cc2)
+.END
 
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'right';
-        ctx.fillText('Amplitude', 48, 55);
-        ctx.textAlign = 'center';
-        ctx.fillText('f', 265, 135);
-        ctx.fillText('f₀', 150, 150);
+* Expected results:
+* Rp = 10k: Vcc = ~1.6V (3A capability)
+* Rp = 22k: Vcc = ~0.9V (1.5A capability)
+* Rp = 56k: Vcc = ~0.4V (500mA default)`
+    });
 
-        // Single spike
-        ctx.strokeStyle = TEK.ch1;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(150, 130);
-        ctx.lineTo(150, 60);
-        ctx.stroke();
+    // Checklist
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm23l3',
+        items: [
+            'Understand CC pull-down resistor function (5.1kΩ for sink)',
+            'Know PD voltage levels: 5V, 9V, 15V, 20V (SPR)',
+            'Calculate CC voltage from Rp/Rd divider',
+            'Understand PD negotiation sequence',
+            'Know when buck vs buck-boost topology is needed',
+            'Understand VBUS discharge requirements'
+        ]
+    });
 
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '9px monospace';
-        ctx.fillText('Single tone', 150, 170);
-        ctx.fillStyle = '#ef4444';
-        ctx.fillText('(easy to interfere)', 150, 185);
+    // Progressive Exercises
+    const container = document.getElementById('exercise-container');
+    container.innerHTML = `
+        <h4>USB-C Power Delivery Problems</h4>
+        <p style="color:var(--text);opacity:0.7;margin-bottom:15px;">
+            Progress from CC detection to complete PD system design.
+        </p>
+    `;
 
-        // Right side - Spread Spectrum
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = 'bold 12px monospace';
-        ctx.fillText('SPREAD SPECTRUM', 450, 25);
+    const exercises = [
+        // Level 1: Basic CC detection
+        {
+            id: 'M23-3-L1a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 1</span> A source has 22kΩ pull-up to 5V. The sink has 5.1kΩ pull-down. What is the CC pin voltage?',
+            hint: 'Voltage divider: Vcc = 5V × Rd/(Rp + Rd)',
+            expected: 0.94,
+            tolerance: 0.02,
+            unit: 'V',
+            solution: 'Vcc = 5V × 5.1k/(22k + 5.1k) = 5V × 5.1/27.1 = 0.94V',
+            explanation: 'This voltage indicates 1.5A current capability.'
+        },
+        {
+            id: 'M23-3-L1b',
+            type: 'choice',
+            question: '<span class="difficulty">Level 1</span> What does a CC voltage of ~1.6V indicate?',
+            choices: [
+                { text: '500mA USB 2.0 default', correct: false },
+                { text: '1.5A Type-C current', correct: false },
+                { text: '3.0A Type-C current', correct: true },
+                { text: 'USB PD negotiated voltage', correct: false }
+            ],
+            solution: '~1.6V corresponds to 10kΩ pull-up, indicating 3A current advertisement.',
+            explanation: 'The source uses different Rp values to advertise current capability before PD negotiation.'
+        },
+        // Level 2: Power calculations
+        {
+            id: 'M23-3-L2a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 2</span> A 45W charger negotiates 15V/3A. At 92% converter efficiency, how much power reaches the battery?',
+            hint: 'Pout = Pin × efficiency',
+            expected: 41.4,
+            tolerance: 0.5,
+            unit: 'W',
+            solution: 'Pout = 45W × 0.92 = 41.4W',
+            explanation: 'The remaining 3.6W is dissipated as heat in the charger IC.'
+        },
+        {
+            id: 'M23-3-L2b',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 2</span> With 41.4W delivered to an 11.1V (3S) battery, what is the charge current?',
+            hint: 'I = P / V',
+            expected: 3.73,
+            tolerance: 0.1,
+            unit: 'A',
+            solution: 'I = 41.4W / 11.1V = 3.73A',
+            explanation: 'For a 5000mAh pack, this is 0.75C charging rate.'
+        },
+        // Level 3: Topology and protection
+        {
+            id: 'M23-3-L3a',
+            type: 'choice',
+            question: '<span class="difficulty">Level 3</span> A 2S battery (8.4V max) is charged from USB-C at 9V. What converter topology is needed?',
+            choices: [
+                { text: 'Buck only - 9V > 8.4V', correct: false },
+                { text: 'Boost only - 9V < 8.4V', correct: false },
+                { text: 'Buck-boost - 9V ≈ 8.4V (too close for buck)', correct: true },
+                { text: 'No converter needed - direct connection', correct: false }
+            ],
+            solution: 'Buck requires Vin > Vout + dropout (typically 0.5-1V). 9V - 8.4V = 0.6V is marginal.',
+            explanation: 'Buck-boost handles the case when Vin ≈ Vout. Also needed if Vin can be 5V (PD renegotiation).'
+        },
+        {
+            id: 'M23-3-L3b',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 3</span> VBUS must discharge from 20V to 5V in 500ms. With C = 100µF, what discharge resistor is needed?',
+            hint: 'V(t) = V0 × e^(-t/RC). Rearrange for R.',
+            expected: 3.6,
+            tolerance: 0.2,
+            unit: 'kΩ',
+            solution: 't = RC × ln(V0/V). R = t / (C × ln(20/5)) = 0.5 / (100µ × 1.39) = 3.6kΩ',
+            explanation: 'Peak power dissipation: 20²/3600 = 111mW. Use 1/4W resistor.'
+        },
+        // Level 3: PD negotiation
+        {
+            id: 'M23-3-L3c',
+            type: 'choice',
+            question: '<span class="difficulty">Level 3</span> A charger advertises [5V/3A, 9V/3A, 15V/2A, 20V/1.5A]. Which PDO provides maximum power?',
+            choices: [
+                { text: '5V/3A = 15W', correct: false },
+                { text: '9V/3A = 27W', correct: false },
+                { text: '15V/2A = 30W', correct: true },
+                { text: '20V/1.5A = 30W', correct: false }
+            ],
+            solution: '5V/3A=15W, 9V/3A=27W, 15V/2A=30W, 20V/1.5A=30W. 15V and 20V tie at 30W.',
+            explanation: 'Device should request 15V/2A (or 20V/1.5A) for fastest charging. Higher voltage = lower cable losses.'
+        },
+        // Level 4: Complete design
+        {
+            id: 'M23-3-L4a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 4</span> Design: A laptop needs 65W charging. If efficiency is 95% and PD max is 20V, what minimum current capability is required?',
+            hint: 'Pin = Pout/η. I = Pin/V',
+            expected: 3.42,
+            tolerance: 0.1,
+            unit: 'A',
+            solution: 'Pin = 65W / 0.95 = 68.4W. I = 68.4W / 20V = 3.42A',
+            explanation: 'Need 20V/3.5A PDO minimum. Round up to 20V/5A (100W) charger for headroom.'
+        },
+        {
+            id: 'M23-3-L4b',
+            type: 'choice',
+            question: '<span class="difficulty">Level 4</span> Your USB-C device works with some chargers but not others. CC voltage reads 0V with failing chargers. Most likely cause?',
+            choices: [
+                { text: 'PD controller firmware bug', correct: false },
+                { text: 'Missing or wrong value CC pull-down resistor', correct: true },
+                { text: 'VBUS overvoltage protection triggered', correct: false },
+                { text: 'Charger not USB-C compliant', correct: false }
+            ],
+            solution: 'If Rd is missing or wrong value, the source cannot detect the sink and won\'t enable VBUS.',
+            explanation: 'Always verify 5.1kΩ ±10% on both CC1 and CC2 to GND.'
+        },
+        {
+            id: 'M23-3-L4c',
+            type: 'choice',
+            question: '<span class="difficulty">Level 4</span> When would you use PPS (Programmable Power Supply) instead of fixed PDOs?',
+            choices: [
+                { text: 'When the device only needs 5V', correct: false },
+                { text: 'For battery charging with direct voltage control', correct: true },
+                { text: 'When cable is longer than 2m', correct: false },
+                { text: 'PPS is always better than fixed PDOs', correct: false }
+            ],
+            solution: 'PPS allows fine voltage control (20mV steps) so the charger IC can directly control CC/CV without internal conversion.',
+            explanation: 'Samsung and other fast-charging use PPS. The charger negotiates voltage to match battery + IR drop.'
+        }
+    ];
 
-        // Axes
-        ctx.strokeStyle = '#6b7280';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(340, 130);
-        ctx.lineTo(340, 50);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(340, 130);
-        ctx.lineTo(560, 130);
-        ctx.stroke();
-
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'right';
-        ctx.fillText('Amplitude', 338, 55);
-        ctx.textAlign = 'center';
-        ctx.fillText('f', 565, 135);
-        ctx.fillText('f₀±Δf', 450, 150);
-
-        // Spread distribution (bell curve)
-        ctx.strokeStyle = TEK.ch4;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(380, 130);
-        ctx.quadraticCurveTo(400, 130, 420, 90);
-        ctx.quadraticCurveTo(450, 65, 480, 90);
-        ctx.quadraticCurveTo(500, 130, 520, 130);
-        ctx.stroke();
-
-        // Fill
-        ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
-        ctx.beginPath();
-        ctx.moveTo(380, 130);
-        ctx.quadraticCurveTo(400, 130, 420, 90);
-        ctx.quadraticCurveTo(450, 65, 480, 90);
-        ctx.quadraticCurveTo(500, 130, 520, 130);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '9px monospace';
-        ctx.fillText('Distributed', 450, 170);
-        ctx.fillStyle = TEK.ch4;
-        ctx.fillText('(noise-resistant)', 450, 185);
-    })();
-
-    // Touch Detection Pipeline Canvas
-    (function() {
-        const canvas = document.getElementById('touch-detection-canvas');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = 'bold 13px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('TOUCH DETECTION PIPELINE:', 20, 25);
-
-        // Pipeline boxes
-        const boxes = [
-            { x: 30, label: 'Raw ADC', sub: 'Reading', color: TEK.ch2 },
-            { x: 140, label: 'IIR Filter', sub: '(noise smoothing)', color: TEK.ch1 },
-            { x: 270, label: 'Baseline', sub: 'Tracking', color: TEK.ch3 },
-            { x: 390, label: 'Delta', sub: 'Calc', color: TEK.ch4 },
-            { x: 490, label: 'Threshold', sub: 'Compare', color: '#ef4444' },
-            { x: 600, label: 'Touch', sub: 'State', color: TEK.ch4 }
-        ];
-
-        ctx.strokeStyle = '#6b7280';
-        ctx.lineWidth = 2;
-        boxes.forEach((b, i) => {
-            roundRect(ctx, b.x, 45, 80, 45, 5);
-            ctx.stroke();
-            ctx.fillStyle = b.color;
-            ctx.font = 'bold 10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(b.label, b.x + 40, 65);
-            ctx.fillStyle = '#e6edf3';
-            ctx.font = '8px monospace';
-            ctx.fillText(b.sub, b.x + 40, 80);
-
-            // Arrow to next
-            if (i < boxes.length - 1) {
-                ctx.strokeStyle = '#e6edf3';
-                ctx.beginPath();
-                ctx.moveTo(b.x + 85, 67);
-                ctx.lineTo(boxes[i + 1].x - 5, 67);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(boxes[i + 1].x - 5, 67);
-                ctx.lineTo(boxes[i + 1].x - 12, 62);
-                ctx.moveTo(boxes[i + 1].x - 5, 67);
-                ctx.lineTo(boxes[i + 1].x - 12, 72);
-                ctx.stroke();
-            }
-        });
-
-        // Baseline Tracking
-        ctx.textAlign = 'left';
-        ctx.font = 'bold 11px monospace';
-        ctx.fillStyle = TEK.ch3;
-        ctx.fillText('BASELINE TRACKING:', 20, 120);
-        ctx.font = '11px monospace';
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillText('baseline = baseline × (1-α) + sample × α    (when not touched)', 20, 140);
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('α = small (0.001-0.01) for slow drift tracking', 20, 158);
-
-        // Touch Delta
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = 'bold 11px monospace';
-        ctx.fillText('TOUCH DELTA:', 20, 188);
-        ctx.font = '11px monospace';
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillText('delta = sample - baseline', 20, 208);
-
-        // Threshold
-        ctx.fillStyle = '#ef4444';
-        ctx.font = 'bold 11px monospace';
-        ctx.fillText('THRESHOLD:', 20, 238);
-        ctx.font = '11px monospace';
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('if (delta > touch_threshold) → TOUCHED', 20, 258);
-        ctx.fillText('if (delta < release_threshold) → RELEASED', 20, 276);
-        ctx.fillStyle = TEK.ch2;
-        ctx.fillText('Hysteresis: release_threshold < touch_threshold (e.g., 80%)', 20, 296);
-
-        // Example Values box
-        ctx.strokeStyle = '#374151';
-        ctx.lineWidth = 1;
-        roundRect(ctx, 420, 115, 260, 100, 5);
-        ctx.stroke();
-
-        ctx.fillStyle = TEK.ch1;
-        ctx.font = 'bold 10px monospace';
-        ctx.fillText('EXAMPLE VALUES:', 430, 135);
-        ctx.font = '10px monospace';
-        ctx.fillStyle = '#e6edf3';
-        ctx.fillText('IIR filter: α = 0.1 (fast)', 430, 155);
-        ctx.fillText('Baseline: α = 0.001 (slow)', 430, 172);
-        ctx.fillText('Touch threshold: 10-20%', 430, 189);
-        ctx.fillText('Release threshold: 8-16%', 430, 206);
-    })();
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-m23l3-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-m23l3-${i}`, ex);
+    });
 })();
 </script>
-
-</lesson-content>

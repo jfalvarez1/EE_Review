@@ -40,61 +40,46 @@ const DRY = process.argv.includes('--dry');
 
 // ---------------------------------------------------------------- the plan
 
-// New module sequence, given as OLD module ids.
+// New module sequence, given as CURRENT module ids.
+//
+// The catalogue was already re-sequenced once, so this is no longer a wholesale
+// reordering - it inserts the new Semiconductors and Diodes module at the point
+// the syllabus puts it, after feedback and before the transistor, and shifts
+// everything below it down by one.
 const MODULE_ORDER = [
-    // Abstraction: what an amplifier is, and using it before explaining it.
-    2,   // Op-Amp Fundamentals
-    3,   // Advanced Applications
-    // Mechanism: why the golden rules are true at all.
-    25,  // Feedback Theory & Stability
-    // Devices: the transistor as the answer, not the prerequisite.
-    1,   // Transistor Intuition (BJT)
+    1,   // Op-Amp Fundamentals
+    2,   // Advanced Applications
+    3,   // Feedback Theory & Stability
+    27,  // Semiconductors and Diodes   <- inserted here
+    4,   // Transistor Intuition (BJT)
     5,   // FET/MOSFET Fundamentals
-    // Blocks built from them.
-    10,  // Output Stages & Complementary Circuits
-    14,  // Advanced Analog Blocks
-    11,  // Oscillators & Timing Circuits
-    // Practice.
-    4,   // Practical Skills
-    9,   // Design Trade-offs Workshop
-    15,  // Practice Problems & Exercises
-    // Applications.
-    6,   // Power Electronics Applications
-    18,  // Power Supply Design
-    19,  // Battery Management
-    7,   // Audio Applications
-    8,   // Data Conversion Applications
-    20,  // Sensor Interface
-    12,  // Digital Interface Electrical Design
-    13,  // Communication Protocols - Electrical Level
-    21,  // RF Analog
-    22,  // EMI/EMC Design
-    // Systems and the real world.
-    16,  // Real-World Scenarios
-    17,  // Troubleshooting & Debug
-    23,  // Real-World System Design
-    24,  // Complex Real-World Projects
+    6,   // Output Stages & Complementary Circuits
+    7,   // Advanced Analog Blocks
+    8,   // Oscillators & Timing Circuits
+    9,   // Practical Skills
+    10,  // Design Trade-offs Workshop
+    11,  // Practice Problems & Exercises
+    12,  // Power Electronics Applications
+    13,  // Power Supply Design
+    14,  // Battery Management
+    15,  // Audio Applications
+    16,  // Data Conversion Applications
+    17,  // Sensor Interface
+    18,  // Digital Interface Electrical Design
+    19,  // Communication Protocols - Electrical Level
+    20,  // RF Analog
+    21,  // EMI/EMC Design
+    22,  // Real-World Scenarios
+    23,  // Troubleshooting & Debug
+    24,  // Real-World System Design
+    25,  // Complex Real-World Projects
     26   // Power Systems & the Grid (ERCOT / AEP)
 ];
 
-// New lesson sequence inside a module, given as OLD lesson ids. Modules absent
-// here keep the order they already have.
-const LESSON_ORDER = {
-    // Op-amps: the ideal amplifier first (it was written last, so it sat at
-    // the end), then the rules, then using them, then where they break.
-    2: [15, 1, 4, 2, 3, 9, 8, 5, 10, 11, 12, 13, 6, 7, 14],
-
-    // BJT: model, then bias, then topologies. The catalogue had the
-    // differential pair and current mirrors before DC biasing, and the
-    // small-signal model at 21 - after the frequency response that needs it.
-    1: [1, 21, 5, 2, 6, 7, 8, 11, 3, 4, 18, 12, 9, 22, 13, 14, 15, 16, 17,
-        19, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 10, 20, 35, 36],
-
-    // FET: the analog half first, then the power-switch material it was
-    // buried behind.
-    5: [1, 21, 22, 23, 8, 3, 7, 10, 5, 2, 6, 11, 12, 13, 9, 19, 16, 17, 18,
-        15, 4, 14, 20]
-};
+// Every module is already in the right internal order, so nothing to permute.
+// Entries here are validated as permutations of the module they name, so a
+// stale plan aborts rather than scrambling the lessons.
+const LESSON_ORDER = {};
 
 // ---------------------------------------------------------------- load
 

@@ -1,530 +1,1401 @@
-<!-- Module 26, Lesson 8: Distance, Differential and Breaker-Failure Protection -->
-<div class="lesson-content" data-module="26" data-lesson="8">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motor Control System - Complex Real-World Projects</title>
+</head>
+<body>
+    <div class="lesson-content" data-module="26" data-lesson="8">
+        <div class="card">
+            <h2>Motor Control System</h2>
+            <p>This project integrates power electronics, control theory, and precision sensing to create
+            a complete motor control system. We'll design a brushless DC (BLDC) motor driver with field-oriented
+            control (FOC), current sensing, and closed-loop speed/position control. These techniques are used
+            in drones, electric vehicles, industrial automation, and robotics.</p>
 
-    <div class="card">
-        <h2>Distance, Differential and Breaker-Failure Protection</h2>
-        <p>Overcurrent protection has a fatal weakness on transmission: the fault current a relay
-        sees depends on how much generation happens to be online behind it, which changes hour to
-        hour. Transmission protection therefore measures something that does not move &mdash;
-        impedance, or the difference between what goes in and what comes out.</p>
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Motor Type:</span><span class="kv-value">3-Phase BLDC</span></div>
+                <div class="kv-item"><span class="kv-label">Control:</span><span class="kv-value">FOC (Vector Control)</span></div>
+                <div class="kv-item"><span class="kv-label">PWM Frequency:</span><span class="kv-value">20-50 kHz</span></div>
+                <div class="kv-item"><span class="kv-label">Current Sensing:</span><span class="kv-value">Inline shunt</span></div>
+            </div>
 
-        <div class="kv">
-            <div class="box"><div class="k">ANSI 21</div><div class="v">Distance (impedance)</div></div>
-            <div class="box"><div class="k">ANSI 87</div><div class="v">Differential</div></div>
-            <div class="box"><div class="k">ANSI 50BF</div><div class="v">Breaker failure</div></div>
-            <div class="box"><div class="k">ANSI 79</div><div class="v">Reclosing</div></div>
+            <div class="notice">
+                <strong>Design Philosophy:</strong> Motor control requires tight integration of power stage
+                design, current measurement, and control algorithms. The power stage must handle high currents
+                efficiently, while the control loop must respond in microseconds to maintain smooth operation.
+            </div>
         </div>
-    </div>
 
-    <div class="card">
-        <h3>Distance protection (21)</h3>
-        <p>The relay computes V/I at its terminal. Because line impedance is proportional to length,
-        that ratio maps directly to <em>distance to the fault</em> &mdash; and it is independent of
-        source strength, which is the entire point.</p>
+        <!-- System Architecture -->
+        <div class="card">
+            <h3>System Architecture</h3>
+            <div class="canvas-wrap">
+                <canvas id="motor-arch-canvas" width="980" height="340"></canvas>
+            </div>
+        </div>
 
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>Zone</th><th>Reach</th><th>Delay</th><th>Purpose</th></tr></thead>
+        <!-- Interactive 1: 3-Phase Inverter Operation -->
+        <div class="card">
+            <h3>Interactive: 3-Phase Inverter Waveforms</h3>
+            <p>Visualize the PWM waveforms and resulting motor phase voltages:</p>
+
+            <div class="controls">
+                <label>Modulation Index:
+                    <input type="range" id="mod-index" min="0.1" max="1.0" value="0.8" step="0.05">
+                    <span id="mod-index-val">0.8</span>
+                </label>
+                <label>Electrical Frequency (Hz):
+                    <input type="range" id="elec-freq" min="10" max="200" value="50" step="10">
+                    <span id="elec-freq-val">50 Hz</span>
+                </label>
+                <label>PWM Frequency (kHz):
+                    <input type="range" id="pwm-freq" min="10" max="50" value="20" step="5">
+                    <span id="pwm-freq-val">20 kHz</span>
+                </label>
+                <label>Modulation:
+                    <select id="modulation">
+                        <option value="svpwm">SVPWM</option>
+                        <option value="spwm">Sinusoidal PWM</option>
+                        <option value="trap">Trapezoidal</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="inverter-canvas" width="980" height="380"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">DC Bus Utilization:</span><span class="kv-value" id="bus-util">92%</span></div>
+                <div class="kv-item"><span class="kv-label">THD:</span><span class="kv-value" id="thd">3.2%</span></div>
+                <div class="kv-item"><span class="kv-label">Fundamental RMS:</span><span class="kv-value" id="fund-rms">27.7 V</span></div>
+                <div class="kv-item"><span class="kv-label">Dead Time:</span><span class="kv-value" id="dead-time">500 ns</span></div>
+            </div>
+        </div>
+
+        <!-- Interactive 2: Current Sensing -->
+        <div class="card">
+            <h3>Interactive: Current Sensing Design</h3>
+            <p>Design the current sense amplifier for motor phase currents:</p>
+
+            <div class="controls">
+                <label>Peak Current (A):
+                    <input type="range" id="peak-current" min="1" max="50" value="10" step="1">
+                    <span id="peak-current-val">10 A</span>
+                </label>
+                <label>Shunt Value (mΩ):
+                    <input type="range" id="shunt-value" min="1" max="50" value="10" step="1">
+                    <span id="shunt-value-val">10 mΩ</span>
+                </label>
+                <label>Amplifier Gain:
+                    <input type="range" id="amp-gain" min="10" max="100" value="20" step="5">
+                    <span id="amp-gain-val">20</span>
+                </label>
+                <label>ADC Reference (V):
+                    <select id="adc-ref">
+                        <option value="3.3">3.3V</option>
+                        <option value="5">5V</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="current-sense-canvas" width="980" height="350"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Shunt Voltage:</span><span class="kv-value" id="shunt-voltage">±100 mV</span></div>
+                <div class="kv-item"><span class="kv-label">Amp Output:</span><span class="kv-value" id="amp-output">1.65 ± 2V</span></div>
+                <div class="kv-item"><span class="kv-label">Shunt Power:</span><span class="kv-value" id="shunt-power">1W</span></div>
+                <div class="kv-item"><span class="kv-label">Resolution:</span><span class="kv-value" id="current-res">24 mA/LSB</span></div>
+            </div>
+        </div>
+
+        <!-- Interactive 3: FOC Clarke/Park Transform -->
+        <div class="card">
+            <h3>Interactive: Field-Oriented Control</h3>
+            <p>Visualize the Clarke and Park transforms used in FOC:</p>
+
+            <div class="controls">
+                <label>Phase A Current:
+                    <input type="range" id="ia-current" min="-10" max="10" value="5" step="0.5">
+                    <span id="ia-current-val">5 A</span>
+                </label>
+                <label>Phase B Current:
+                    <input type="range" id="ib-current" min="-10" max="10" value="-2.5" step="0.5">
+                    <span id="ib-current-val">-2.5 A</span>
+                </label>
+                <label>Rotor Angle (°):
+                    <input type="range" id="rotor-angle" min="0" max="360" value="30" step="5">
+                    <span id="rotor-angle-val">30°</span>
+                </label>
+                <label>Auto Rotate:
+                    <input type="checkbox" id="auto-rotate">
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="foc-canvas" width="980" height="400"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Iα:</span><span class="kv-value" id="i-alpha">5.0 A</span></div>
+                <div class="kv-item"><span class="kv-label">Iβ:</span><span class="kv-value" id="i-beta">2.9 A</span></div>
+                <div class="kv-item"><span class="kv-label">Id (flux):</span><span class="kv-value" id="i-d">0.0 A</span></div>
+                <div class="kv-item"><span class="kv-label">Iq (torque):</span><span class="kv-value" id="i-q">5.8 A</span></div>
+            </div>
+        </div>
+
+        <!-- Interactive 4: Speed Control Loop -->
+        <div class="card">
+            <h3>Interactive: Speed Control Loop</h3>
+            <p>Tune the PI controller for motor speed regulation:</p>
+
+            <div class="controls">
+                <label>Kp (Proportional):
+                    <input type="range" id="kp-speed" min="0.1" max="10" value="2" step="0.1">
+                    <span id="kp-speed-val">2.0</span>
+                </label>
+                <label>Ki (Integral):
+                    <input type="range" id="ki-speed" min="0.1" max="50" value="10" step="0.5">
+                    <span id="ki-speed-val">10</span>
+                </label>
+                <label>Setpoint (RPM):
+                    <input type="range" id="setpoint-rpm" min="100" max="3000" value="1000" step="100">
+                    <span id="setpoint-rpm-val">1000</span>
+                </label>
+                <label>Load Torque (%):
+                    <input type="range" id="load-torque" min="0" max="100" value="50" step="10">
+                    <span id="load-torque-val">50%</span>
+                </label>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="control-canvas" width="980" height="350"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="kv-item"><span class="kv-label">Rise Time:</span><span class="kv-value" id="rise-time">85 ms</span></div>
+                <div class="kv-item"><span class="kv-label">Overshoot:</span><span class="kv-value" id="overshoot">12%</span></div>
+                <div class="kv-item"><span class="kv-label">Settling Time:</span><span class="kv-value" id="settle-time">250 ms</span></div>
+                <div class="kv-item"><span class="kv-label">Steady-State Error:</span><span class="kv-value" id="ss-error">0%</span></div>
+            </div>
+        </div>
+
+        <!-- Gate Driver Requirements -->
+        <div class="card">
+            <h3>Gate Driver Requirements</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Low-Side</th>
+                        <th>High-Side</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
                 <tbody>
-                    <tr><td>Zone 1</td><td>80&ndash;90% of the line</td><td>Instantaneous</td><td>Primary, high-speed</td></tr>
-                    <tr><td>Zone 2</td><td>120&ndash;150%</td><td>~0.3 s</td><td>Rest of the line + backup for the next</td></tr>
-                    <tr><td>Zone 3</td><td>Past the longest adjacent line</td><td>~1&ndash;2 s</td><td>Remote backup</td></tr>
+                    <tr>
+                        <td>Gate Drive Voltage</td>
+                        <td>10-15V</td>
+                        <td>10-15V (floating)</td>
+                        <td>Above Vgs(th) + margin</td>
+                    </tr>
+                    <tr>
+                        <td>Source/Sink Current</td>
+                        <td>1-4A peak</td>
+                        <td>1-4A peak</td>
+                        <td>Fast switching</td>
+                    </tr>
+                    <tr>
+                        <td>Propagation Delay</td>
+                        <td><50ns</td>
+                        <td><50ns</td>
+                        <td>Matched H/L</td>
+                    </tr>
+                    <tr>
+                        <td>Dead Time</td>
+                        <td colspan="2">200-1000ns</td>
+                        <td>Prevent shoot-through</td>
+                    </tr>
+                    <tr>
+                        <td>Bootstrap Cap</td>
+                        <td>N/A</td>
+                        <td>100nF-1μF</td>
+                        <td>High-side supply</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
 
-        <div class="notice">
-            <strong>Why Zone 1 deliberately under-reaches:</strong> CT and PT errors, line impedance
-            uncertainty and fault resistance all blur the measurement. If Zone 1 reached 100% it
-            would sometimes see past the remote bus and trip instantaneously for a fault that is not
-            on its line. Under-reaching by 10&ndash;20% guarantees it never does. The last stretch of
-            line is covered by Zone 2 with a delay, or instantaneously by a pilot scheme.
+        <!-- Schematic -->
+        <div class="card">
+            <h3>Half-Bridge Schematic</h3>
+            <div id="motor-schematic"></div>
         </div>
 
-        <p><strong>Pilot schemes</strong> remove that delay by letting the two ends talk:</p>
-        <ul class="bullets">
-            <li><strong>POTT</strong> (permissive overreaching transfer trip) &mdash; both ends must
-                see the fault forward and receive permission from the other end. Secure: if the
-                channel fails, no trip, and the relays fall back to Zone 2 timing.</li>
-            <li><strong>DCB</strong> (directional comparison blocking) &mdash; trip immediately for a
-                forward fault <em>unless</em> blocked from the far end. Dependable: channel loss
-                still trips. Historically preferred on power-line carrier, because an internal fault
-                often disrupts the carrier on the very line that is faulted.</li>
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>Differential protection (87)</h3>
-        <p>Sum the currents entering a zone. In a healthy zone they sum to zero; anything else is an
-        internal fault. It is the most selective protection there is &mdash; it has no reach setting
-        because its boundaries are the CTs themselves.</p>
-
-        <div class="eq">I<sub>diff</sub> = |I<sub>1</sub> + I<sub>2</sub>| &nbsp;&nbsp; I<sub>rest</sub> = (|I<sub>1</sub>| + |I<sub>2</sub>|)/2 &nbsp;&nbsp; trip if I<sub>diff</sub> &gt; slope &middot; I<sub>rest</sub></div>
-
-        <p>The <strong>percentage restraint slope</strong> (typically 25&ndash;40%) exists because
-        the differential is never exactly zero: CT ratios do not match perfectly, tap changers move
-        the turns ratio, and CTs saturate at high through-current. All of those errors grow with
-        through-current, so the trip threshold grows with it too.</p>
-
-        <p>Transformer differential (87T) adds <strong>second-harmonic restraint</strong>: magnetising
-        inrush on energisation looks exactly like an internal fault to a differential element, but it
-        is rich in second harmonic (typically &gt;15&ndash;20% of fundamental) while fault current is
-        not. Fifth-harmonic restraint similarly blocks on overexcitation.</p>
-    </div>
-
-    <div class="card">
-        <h3>Interactive: distance zones and differential restraint</h3>
-        <div class="controls">
-            <div class="c4">
-                <label for="d-z">Line impedance (&Omega;, primary)</label>
-                <input type="range" id="d-z" value="47.4" min="5" max="120" step="0.1">
-                <span class="range-value" id="d-z-val">47.4 Ω</span>
-            </div>
-            <div class="c4">
-                <label for="d-z1">Zone 1 reach (%)</label>
-                <input type="range" id="d-z1" value="85" min="70" max="95" step="1">
-                <span class="range-value" id="d-z1-val">85 %</span>
-            </div>
-            <div class="c4">
-                <label for="d-ct">CT ratio (:5)</label>
-                <input type="number" id="d-ct" value="600" min="50" max="4000" step="50">
-            </div>
-            <div class="c4">
-                <label for="d-pt">PT ratio (:1)</label>
-                <input type="number" id="d-pt" value="1200" min="50" max="6000" step="50">
-            </div>
-            <div class="c4">
-                <label for="d-fault">Fault at % of line</label>
-                <input type="range" id="d-fault" value="60" min="0" max="160" step="1">
-                <span class="range-value" id="d-fault-val">60 %</span>
-            </div>
+        <!-- Design Checklist -->
+        <div class="card">
+            <h3>Design Checklist</h3>
+            <div id="motor-checklist"></div>
         </div>
 
-        <div class="kv">
-            <div class="box"><div class="k">Zone 1 setting (primary)</div><div class="v mono" id="d-r1p">&mdash;</div></div>
-            <div class="box"><div class="k">Zone 1 setting (secondary)</div><div class="v mono" id="d-r1s">&mdash;</div></div>
-            <div class="box"><div class="k">Apparent impedance</div><div class="v mono" id="d-zapp">&mdash;</div></div>
-            <div class="box"><div class="k">Relay response</div><div class="v mono" id="d-resp">&mdash;</div></div>
-        </div>
-        <p class="fig-note" id="d-note"></p>
-    </div>
-
-    <div class="card">
-        <h3>Breaker failure (50BF)</h3>
-        <p>Breakers do fail to open &mdash; a stuck mechanism, a failed trip coil, loss of DC. Since
-        nothing else in the scheme would notice, a breaker-failure timer is started whenever a trip
-        is issued. If current is still flowing after roughly <strong>8&ndash;10 cycles</strong>, the
-        scheme trips every adjacent breaker that can still feed the fault.</p>
-
-        <div class="eq">t<sub>50BF</sub> = t<sub>breaker</sub> + t<sub>margin</sub> &nbsp; &asymp; 3 cycles + 5 cycles</div>
-
-        <div class="danger-note">
-            <strong>Why this matters on the ground:</strong> a stuck breaker means the fault burns
-            until remote backup clears it &mdash; possibly a second or more. That is enough to cause
-            equipment destruction, a much larger outage, and dangerous arc-flash energy at the
-            affected switchgear. Breaker failure is not an exotic contingency; it is planned for on
-            every transmission breaker.
+        <!-- Exercises -->
+        <div class="card">
+            <h3>Practice Exercises</h3>
+            <div id="motor-exercises"></div>
         </div>
     </div>
 
-    <div class="card">
-        <h3>Reclosing (79)</h3>
-        <ul class="bullets">
-            <li><strong>Transmission:</strong> single-shot, high-speed &mdash; typically 15&ndash;30
-                cycles dead time, enough for the arc path to de-ionise. Most transmission faults are
-                transient lightning flashovers. Where the line is fed from both ends, a
-                synchronism-check element (device 25) confirms the two systems are still in step
-                before closing.</li>
-            <li><strong>Distribution:</strong> multi-shot with increasing intervals, giving a
-                marginal transient fault more chances to clear itself before the feeder locks out.</li>
-        </ul>
-    </div>
+    <script>
+        // Canvas 1: Inverter Waveforms
+        const inverterCanvas = document.getElementById('inverter-canvas');
+        const inverterCtx = inverterCanvas.getContext('2d');
 
-    <div class="card">
-        <h3>The R-X plane &mdash; how the relay actually sees the world</h3>
-        <p>A distance relay does not measure distance. It measures the complex ratio
-        V/I at its terminal and plots it on the <strong>R-X plane</strong>. A fault
-        puts that point somewhere along the line impedance vector; load puts it far
-        out along the resistive axis. The relay's zones are literally shapes drawn on
-        this plane, and the entire art of setting one is making the shapes enclose
-        faults without enclosing load.</p>
+        function drawInverterWaveforms() {
+            const modIndex = AD.num('mod-index') || 0.8;
+            const elecFreq = AD.num('elec-freq') || 50;
+            const pwmFreq = AD.num('pwm-freq') || 20;
+            const modulation = document.getElementById('modulation').value || 'svpwm';
 
-        <div class="canvas-wrap">
-            <canvas id="rx-canvas" width="720" height="470"></canvas>
-        </div>
+            document.getElementById('mod-index-val').textContent = modIndex.toFixed(2);
+            document.getElementById('elec-freq-val').textContent = elecFreq + ' Hz';
+            document.getElementById('pwm-freq-val').textContent = pwmFreq + ' kHz';
 
-        <div class="controls">
-            <div class="c4">
-                <label for="rx-fault">Fault location (% of line)</label>
-                <input type="range" id="rx-fault" value="60" min="0" max="200" step="1">
-                <span class="range-value" id="rx-fault-val">60 %</span>
-            </div>
-            <div class="c4">
-                <label for="rx-rf">Fault resistance R<sub>f</sub> (&Omega;)</label>
-                <input type="range" id="rx-rf" value="0" min="0" max="40" step="0.5">
-                <span class="range-value" id="rx-rf-val">0 Ω</span>
-            </div>
-            <div class="c4">
-                <label for="rx-load">Load (% of line rating)</label>
-                <input type="range" id="rx-load" value="0" min="0" max="180" step="5">
-                <span class="range-value" id="rx-load-val">0 %</span>
-            </div>
-            <div class="c4">
-                <label for="rx-angle">Line angle (degrees)</label>
-                <input type="range" id="rx-angle" value="72" min="45" max="88" step="1">
-                <span class="range-value" id="rx-angle-val">72°</span>
-            </div>
-        </div>
+            inverterCtx.fillStyle = '#181818';
+            inverterCtx.fillRect(0, 0, inverterCanvas.width, inverterCanvas.height);
 
-        <div class="kv">
-            <div class="box"><div class="k">Apparent impedance</div><div class="v mono" id="rx-z">&mdash;</div></div>
-            <div class="box"><div class="k">Impedance angle</div><div class="v mono" id="rx-ang">&mdash;</div></div>
-            <div class="box"><div class="k">Relay decision</div><div class="v mono" id="rx-zone">&mdash;</div></div>
-            <div class="box"><div class="k">Clearing time</div><div class="v mono" id="rx-time">&mdash;</div></div>
-        </div>
-        <p class="fig-note" id="rx-note"></p>
+            const w = inverterCanvas.width;
+            const h = inverterCanvas.height;
+            const margin = { left: 60, right: 40, top: 30, bottom: 40 };
+            const plotW = w - margin.left - margin.right;
+            const plotH = (h - margin.top - margin.bottom) / 3 - 10;
 
-        <div class="field-note">
-            <strong>Try this:</strong> set fault location to 0 and push <em>load</em> to
-            160%. The operating point walks out along the resistive axis and into the
-            Zone 3 circle &mdash; with no fault anywhere on the system. That is
-            <strong>load encroachment</strong>, and it is the mechanism behind several
-            historic cascading blackouts: a heavily loaded line sags in voltage, the
-            apparent impedance falls into a backup zone, and the relay trips a healthy
-            circuit, shifting even more load onto its neighbours. NERC PRC-023 exists
-            to govern exactly this, and modern relays add load blinders that carve a
-            wedge out of the characteristic.
-        </div>
-    </div>
+            // Calculate metrics
+            let busUtil, thd;
+            switch(modulation) {
+                case 'svpwm':
+                    busUtil = modIndex * 1.15 * 100;
+                    thd = 2 + (1 - modIndex) * 5;
+                    break;
+                case 'spwm':
+                    busUtil = modIndex * 100;
+                    thd = 3 + (1 - modIndex) * 8;
+                    break;
+                case 'trap':
+                    busUtil = modIndex * 100;
+                    thd = 10 + (1 - modIndex) * 15;
+                    break;
+                default:
+                    busUtil = modIndex * 100;
+                    thd = 3 + (1 - modIndex) * 8;
+                    break;
+            }
 
-    <div class="card">
-        <h3>Zone reach along the protected line</h3>
-        <div id="zone-diagram"></div>
-        <p class="fig-note">The same settings drawn geographically. Zone 1 stops short
-        of the remote bus on purpose; Zone 2 deliberately overreaches into the next
-        line and waits; Zone 3 reaches further still and waits longer.</p>
-    </div>
+            document.getElementById('bus-util').textContent = Math.min(busUtil, 100).toFixed(0) + '%';
+            document.getElementById('thd').textContent = thd.toFixed(1) + '%';
+            document.getElementById('fund-rms').textContent = (48 * modIndex * 0.707).toFixed(1) + ' V';
+            document.getElementById('dead-time').textContent = '500 ns';
 
-    <div class="card">
-        <h3>Check yourself</h3>
+            const colors = ['#FFFF00', '#00FFFF', '#FF66FF'];
+            const phaseNames = ['Phase A', 'Phase B', 'Phase C'];
 
-        <details class="qa">
-            <summary>A 138 kV line is 15 + j45 &Omega;. What is a typical Zone 1 setting, and what secondary ohms does the relay need with 600:5 CTs and 1200:1 PTs?</summary>
-            <p>Zone 1 at 85%: 0.85(15 + j45) = <strong>12.75 + j38.25 &Omega;</strong> primary,
-            magnitude 40.3 &Omega;.<br>
-            Z<sub>sec</sub> = Z<sub>pri</sub> &times; (CT ratio / PT ratio) = 40.3 &times; (120/1200)
-            = <strong>4.03 &Omega; secondary</strong>.</p>
-        </details>
+            for (let phase = 0; phase < 3; phase++) {
+                const y0 = margin.top + phase * (plotH + 20) + plotH / 2;
+                const phaseShift = phase * 2 * Math.PI / 3;
 
-        <details class="qa">
-            <summary>Why can't a differential relay simply trip on any non-zero difference?</summary>
-            <p>Because the difference is never exactly zero. CT ratios mismatch, tap changers alter
-            the turns ratio, and at high through-fault current one CT saturates before the other,
-            producing a large spurious difference precisely when the relay must <em>not</em> trip.
-            The percentage-restraint slope raises the threshold in proportion to through-current, so
-            the relay stays sensitive for genuine internal faults and secure for external ones.</p>
-        </details>
+                // Draw axis
+                inverterCtx.strokeStyle = '#444';
+                inverterCtx.lineWidth = 1;
+                inverterCtx.beginPath();
+                inverterCtx.moveTo(margin.left, y0);
+                inverterCtx.lineTo(margin.left + plotW, y0);
+                inverterCtx.stroke();
 
-        <details class="qa">
-            <summary>A POTT scheme loses its communication channel during an internal fault. What happens?</summary>
-            <p>No permissive signal arrives, so the high-speed trip is blocked. The fault is still
-            cleared, but by Zone 2 timing &mdash; roughly 0.3 s instead of one or two cycles. POTT
-            fails secure (no false trip) but not dependable (delayed real trip). DCB makes the
-            opposite trade.</p>
-        </details>
+                // Draw phase label
+                inverterCtx.fillStyle = colors[phase];
+                inverterCtx.font = '12px monospace';
+                inverterCtx.textAlign = 'right';
+                inverterCtx.fillText(phaseNames[phase], margin.left - 10, y0 + 4);
 
-        <details class="qa">
-            <summary>Why is Zone 3 sometimes considered a liability?</summary>
-            <p>Zone 3 reaches far, and under heavy load with depressed voltage the apparent impedance
-            V/I can fall inside the Zone 3 characteristic even with no fault present. Several
-            historic cascading blackouts involved Zone 3 elements tripping healthy lines on load
-            encroachment. Modern practice adds load-encroachment blinders or omits Zone 3 entirely,
-            and NERC PRC-023 exists specifically to govern this.</p>
-        </details>
-    </div>
-</div>
+                // Draw waveform
+                inverterCtx.strokeStyle = colors[phase];
+                inverterCtx.lineWidth = 2;
+                inverterCtx.beginPath();
 
-<script>
-(function () {
-    function update() {
-        const zline = AD.num('d-z');
-        const pct1 = AD.num('d-z1');
-        const ct = AD.num('d-ct');
-        const pt = AD.num('d-pt');
-        const fpct = AD.num('d-fault');
+                const periods = 2;
+                for (let i = 0; i <= plotW; i++) {
+                    const t = (i / plotW) * periods * (1 / elecFreq);
+                    const angle = 2 * Math.PI * elecFreq * t + phaseShift;
 
-        AD.setText('d-z-val', zline.toFixed(1) + ' Ω');
-        AD.setText('d-z1-val', pct1 + ' %');
-        AD.setText('d-fault-val', fpct + ' %');
+                    let duty;
+                    switch(modulation) {
+                        case 'svpwm':
+                            // SVPWM with third harmonic injection
+                            const fund = Math.sin(angle);
+                            const third = Math.sin(3 * angle) / 6;
+                            duty = 0.5 + 0.5 * modIndex * (fund - third);
+                            break;
+                        case 'spwm':
+                            duty = 0.5 + 0.5 * modIndex * Math.sin(angle);
+                            break;
+                        case 'trap':
+                            const normAngle = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+                            if (normAngle < Math.PI / 3) duty = 0.5 + modIndex * 1.5 * normAngle / Math.PI;
+                            else if (normAngle < 2 * Math.PI / 3) duty = 0.5 + modIndex * 0.5;
+                            else if (normAngle < Math.PI) duty = 0.5 + modIndex * 0.5 - modIndex * 1.5 * (normAngle - 2*Math.PI/3) / Math.PI;
+                            else if (normAngle < 4 * Math.PI / 3) duty = 0.5 - modIndex * 1.5 * (normAngle - Math.PI) / Math.PI;
+                            else if (normAngle < 5 * Math.PI / 3) duty = 0.5 - modIndex * 0.5;
+                            else duty = 0.5 - modIndex * 0.5 + modIndex * 1.5 * (normAngle - 5*Math.PI/3) / Math.PI;
+                            break;
+                    }
 
-        const r1p = zline * pct1 / 100;
-        // Relay sees secondary ohms: Zsec = Zpri × (CT ratio / PT ratio), CT ratio = ct/5.
-        const ctRatio = ct / 5;
-        const r1s = r1p * ctRatio / pt;
-        const zapp = zline * fpct / 100;
+                    const y = y0 - (duty - 0.5) * plotH * 0.9;
+                    if (i === 0) inverterCtx.moveTo(margin.left + i, y);
+                    else inverterCtx.lineTo(margin.left + i, y);
+                }
+                inverterCtx.stroke();
 
-        AD.setText('d-r1p', r1p.toFixed(2) + ' Ω');
-        AD.setText('d-r1s', r1s.toFixed(3) + ' Ω sec');
-        AD.setText('d-zapp', zapp.toFixed(2) + ' Ω');
+                // Draw reference levels
+                inverterCtx.strokeStyle = '#666';
+                inverterCtx.setLineDash([3, 3]);
+                inverterCtx.beginPath();
+                inverterCtx.moveTo(margin.left, y0 - plotH * 0.45);
+                inverterCtx.lineTo(margin.left + plotW, y0 - plotH * 0.45);
+                inverterCtx.moveTo(margin.left, y0 + plotH * 0.45);
+                inverterCtx.lineTo(margin.left + plotW, y0 + plotH * 0.45);
+                inverterCtx.stroke();
+                inverterCtx.setLineDash([]);
+            }
 
-        let resp, note;
-        if (fpct <= pct1) {
-            resp = 'Zone 1 — instantaneous';
-            note = 'Fault is inside the under-reaching Zone 1 element, so it clears in one to two cycles with no intentional delay.';
-        } else if (fpct <= 100) {
-            resp = 'Zone 2 — ~0.3 s';
-            note = 'Fault is on the protected line but beyond Zone 1 reach. Zone 2 clears it after its time delay — or a pilot scheme (POTT/DCB) clears it instantly by consulting the remote terminal.';
-        } else if (fpct <= 150) {
-            resp = 'Zone 2 — backup';
-            note = 'Fault is past the remote bus. Zone 2 overreaches into the next line and provides delayed backup; the next line’s own Zone 1 should clear it first.';
-        } else {
-            resp = 'Zone 3 — remote backup';
-            note = 'Well beyond the protected line. Only Zone 3 sees it, at 1–2 s. This is also the region where load encroachment can falsely look like a fault.';
+            // Time axis
+            inverterCtx.fillStyle = '#888';
+            inverterCtx.font = '11px monospace';
+            inverterCtx.textAlign = 'center';
+            inverterCtx.fillText('Time (2 electrical cycles)', margin.left + plotW / 2, h - 10);
+
+            // Modulation label
+            inverterCtx.fillStyle = '#FFF';
+            inverterCtx.font = 'bold 14px monospace';
+            inverterCtx.textAlign = 'right';
+            const modLabels = { svpwm: 'Space Vector PWM', spwm: 'Sinusoidal PWM', trap: 'Trapezoidal' };
+            inverterCtx.fillText(modLabels[modulation], w - 50, 25);
         }
-        AD.setText('d-resp', resp);
-        const n = document.getElementById('d-note');
-        if (n) n.textContent = note;
-    }
 
-    ['d-z', 'd-z1', 'd-ct', 'd-pt', 'd-fault'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) { el.addEventListener('input', update); el.addEventListener('change', update); }
-    });
-    update();
-})();
-</script>
+        // Canvas 2: Current Sensing
+        const currentCanvas = document.getElementById('current-sense-canvas');
+        const currentCtx = currentCanvas.getContext('2d');
 
-<script>
-(function () {
-    // ---- zone reach one-line ----
-    const host = document.getElementById('zone-diagram');
-    if (host && window.ComponentModels) {
-        host.innerHTML = ComponentModels.diagram({
-            width: 680, height: 340, title: 'Distance protection zone reach',
-            parts: [
-                { key: 'busbar',       x: 90,  y: 70, label: 'Bus A', labelPos: 'top' },
-                { key: 'breaker',      x: 190, y: 70, rotate: 90, label: '52', labelPos: 'top' },
-                { key: 'ct',           x: 265, y: 70, rotate: 90, label: 'CT', labelPos: 'top' },
-                // The symbol already prints its ANSI number inside the circle,
-                // so an outside label repeats it and lands on the artwork.
-                { key: 'relay_device', x: 190, y: 150, device: '21', labelPos: 'none' },
-                { key: 'busbar',       x: 420, y: 70, label: 'Bus B', labelPos: 'top' },
-                { key: 'busbar',       x: 620, y: 70, label: 'Bus C', labelPos: 'top' }
-            ],
-            wires: [
-                [[130, 70], [165, 70]],
-                [[215, 70], [240, 70]],
-                [[290, 70], [380, 70]],
-                // The 21 element measures the line through the CT, and trips
-                // the breaker. Without these it was drawn sensing nothing.
-                // CT secondary into the relay's INPUT, trip out of its
-                // TRIP terminal. These were the wrong way round: the CT fed
-                // the trip output and the trip line ran into the input.
-                // CT run at y=210, below the zone bars drawn at y=190.
-                [[265, 100], [265, 210], [140, 210], [140, 150], [160, 150]],
-                [[220, 150], [250, 150], [250, 115], [190, 115], [190, 80]],
-                [[460, 70], [580, 70]]
-            ],
-            texts: [
-                { x: 300, y: 58, text: 'protected line', size: 10 },
-                { x: 520, y: 58, text: 'next line', size: 10 }
-            ]
+        function drawCurrentSensing() {
+            const peakI = AD.num('peak-current');
+            const shuntR = AD.num('shunt-value');
+            const gain = AD.num('amp-gain');
+            const adcRef = AD.num('adc-ref');
+
+            document.getElementById('peak-current-val').textContent = peakI + ' A';
+            document.getElementById('shunt-value-val').textContent = shuntR + ' mΩ';
+            document.getElementById('amp-gain-val').textContent = gain;
+
+            currentCtx.fillStyle = '#181818';
+            currentCtx.fillRect(0, 0, currentCanvas.width, currentCanvas.height);
+
+            const w = currentCanvas.width;
+            const h = currentCanvas.height;
+
+            // Calculate sensing parameters
+            const shuntV = peakI * shuntR / 1000; // V
+            const ampOut = gain * shuntV;
+            const shuntPower = peakI * peakI * shuntR / 1000; // W (RMS for sine)
+
+            document.getElementById('shunt-voltage').textContent = '±' + (shuntV * 1000).toFixed(0) + ' mV';
+            document.getElementById('amp-output').textContent = (adcRef / 2).toFixed(2) + ' ± ' + ampOut.toFixed(2) + 'V';
+            document.getElementById('shunt-power').textContent = (shuntPower / 2).toFixed(2) + 'W (RMS)';
+
+            // ADC resolution
+            const adcBits = 12;
+            const lsb = adcRef / Math.pow(2, adcBits);
+            const currentRes = lsb / (gain * shuntR / 1000);
+            document.getElementById('current-res').textContent = (currentRes * 1000).toFixed(1) + ' mA/LSB';
+
+            // Draw block diagram
+            const blockY = 120;
+
+            // Current source
+            currentCtx.strokeStyle = '#00FFFF';
+            currentCtx.lineWidth = 3;
+            currentCtx.beginPath();
+            currentCtx.moveTo(50, blockY);
+            currentCtx.lineTo(120, blockY);
+            currentCtx.stroke();
+
+            currentCtx.fillStyle = '#00FFFF';
+            currentCtx.beginPath();
+            currentCtx.arc(85, blockY, 15, 0, Math.PI * 2);
+            currentCtx.stroke();
+            currentCtx.fillText('I', 85, blockY + 5);
+
+            // Shunt resistor
+            currentCtx.fillStyle = '#333';
+            currentCtx.fillRect(130, blockY - 15, 60, 30);
+            currentCtx.strokeStyle = '#FFFF00';
+            currentCtx.strokeRect(130, blockY - 15, 60, 30);
+            currentCtx.fillStyle = '#FFFF00';
+            currentCtx.font = '11px monospace';
+            currentCtx.textAlign = 'center';
+            currentCtx.fillText(shuntR + 'mΩ', 160, blockY + 5);
+
+            // Sense voltage
+            currentCtx.strokeStyle = '#888';
+            currentCtx.lineWidth = 1;
+            currentCtx.setLineDash([3, 3]);
+            currentCtx.beginPath();
+            currentCtx.moveTo(130, blockY + 30);
+            currentCtx.lineTo(130, blockY + 60);
+            currentCtx.moveTo(190, blockY + 30);
+            currentCtx.lineTo(190, blockY + 60);
+            currentCtx.stroke();
+            currentCtx.setLineDash([]);
+
+            currentCtx.fillStyle = '#888';
+            currentCtx.fillText('Vsense', 160, blockY + 55);
+            currentCtx.fillText('±' + (shuntV * 1000).toFixed(0) + 'mV', 160, blockY + 70);
+
+            // Current continues
+            currentCtx.strokeStyle = '#00FFFF';
+            currentCtx.lineWidth = 3;
+            currentCtx.beginPath();
+            currentCtx.moveTo(190, blockY);
+            currentCtx.lineTo(260, blockY);
+            currentCtx.stroke();
+
+            // Amplifier
+            currentCtx.fillStyle = '#333';
+            currentCtx.beginPath();
+            currentCtx.moveTo(300, blockY - 40);
+            currentCtx.lineTo(380, blockY);
+            currentCtx.lineTo(300, blockY + 40);
+            currentCtx.closePath();
+            currentCtx.fill();
+            currentCtx.strokeStyle = '#00FF00';
+            currentCtx.stroke();
+
+            currentCtx.fillStyle = '#00FF00';
+            currentCtx.fillText('G=' + gain, 330, blockY + 5);
+
+            // Input connections to amp
+            currentCtx.strokeStyle = '#888';
+            currentCtx.lineWidth = 1;
+            currentCtx.beginPath();
+            currentCtx.moveTo(130, blockY + 60);
+            currentCtx.lineTo(130, blockY + 90);
+            currentCtx.lineTo(280, blockY + 90);
+            currentCtx.lineTo(280, blockY + 20);
+            currentCtx.lineTo(300, blockY + 20);
+            currentCtx.stroke();
+
+            currentCtx.beginPath();
+            currentCtx.moveTo(190, blockY + 60);
+            currentCtx.lineTo(190, blockY + 100);
+            currentCtx.lineTo(270, blockY + 100);
+            currentCtx.lineTo(270, blockY - 20);
+            currentCtx.lineTo(300, blockY - 20);
+            currentCtx.stroke();
+
+            // Amp output
+            currentCtx.strokeStyle = '#00FF00';
+            currentCtx.lineWidth = 2;
+            currentCtx.beginPath();
+            currentCtx.moveTo(380, blockY);
+            currentCtx.lineTo(450, blockY);
+            currentCtx.stroke();
+
+            // ADC
+            currentCtx.fillStyle = '#333';
+            currentCtx.fillRect(460, blockY - 30, 80, 60);
+            currentCtx.strokeStyle = '#FF6600';
+            currentCtx.strokeRect(460, blockY - 30, 80, 60);
+            currentCtx.fillStyle = '#FF6600';
+            currentCtx.fillText('12-bit', 500, blockY - 5);
+            currentCtx.fillText('ADC', 500, blockY + 15);
+
+            // Digital output
+            currentCtx.strokeStyle = '#FF6600';
+            currentCtx.beginPath();
+            currentCtx.moveTo(540, blockY);
+            currentCtx.lineTo(600, blockY);
+            currentCtx.stroke();
+            currentCtx.fillStyle = '#FF6600';
+            currentCtx.fillText('Digital', 620, blockY);
+
+            // Transfer function graph
+            const graphX = 650;
+            const graphY = 50;
+            const graphW = 280;
+            const graphH = 200;
+
+            currentCtx.fillStyle = '#111';
+            currentCtx.fillRect(graphX, graphY, graphW, graphH);
+            currentCtx.strokeStyle = '#444';
+            currentCtx.strokeRect(graphX, graphY, graphW, graphH);
+
+            // Grid
+            currentCtx.strokeStyle = '#333';
+            currentCtx.lineWidth = 1;
+            currentCtx.beginPath();
+            currentCtx.moveTo(graphX + graphW / 2, graphY);
+            currentCtx.lineTo(graphX + graphW / 2, graphY + graphH);
+            currentCtx.moveTo(graphX, graphY + graphH / 2);
+            currentCtx.lineTo(graphX + graphW, graphY + graphH / 2);
+            currentCtx.stroke();
+
+            // Transfer line
+            currentCtx.strokeStyle = '#00FF00';
+            currentCtx.lineWidth = 2;
+            currentCtx.beginPath();
+
+            for (let i = -peakI; i <= peakI; i += 0.5) {
+                const vOut = adcRef / 2 + gain * (i * shuntR / 1000);
+                const x = graphX + ((i + peakI) / (2 * peakI)) * graphW;
+                const y = graphY + graphH - (vOut / adcRef) * graphH;
+
+                if (i === -peakI) currentCtx.moveTo(x, Math.max(graphY, Math.min(graphY + graphH, y)));
+                else currentCtx.lineTo(x, Math.max(graphY, Math.min(graphY + graphH, y)));
+            }
+            currentCtx.stroke();
+
+            // Clipping indicators
+            const vMax = adcRef / 2 + ampOut;
+            const vMin = adcRef / 2 - ampOut;
+
+            if (vMax > adcRef || vMin < 0) {
+                currentCtx.fillStyle = '#FF0000';
+                currentCtx.font = 'bold 12px monospace';
+                currentCtx.fillText('CLIPPING!', graphX + graphW / 2, graphY + 20);
+            }
+
+            // Labels
+            currentCtx.fillStyle = '#888';
+            currentCtx.font = '10px monospace';
+            currentCtx.textAlign = 'center';
+            currentCtx.fillText('Current (A)', graphX + graphW / 2, graphY + graphH + 15);
+            currentCtx.fillText(-peakI + '', graphX + 15, graphY + graphH + 15);
+            currentCtx.fillText('+' + peakI, graphX + graphW - 15, graphY + graphH + 15);
+
+            currentCtx.save();
+            currentCtx.translate(graphX - 15, graphY + graphH / 2);
+            currentCtx.rotate(-Math.PI / 2);
+            currentCtx.fillText('Vout (V)', 0, 0);
+            currentCtx.restore();
+
+            currentCtx.textAlign = 'right';
+            currentCtx.fillText(adcRef + 'V', graphX - 5, graphY + 5);
+            currentCtx.fillText('0V', graphX - 5, graphY + graphH);
+            currentCtx.fillText(adcRef / 2 + 'V', graphX - 5, graphY + graphH / 2 + 5);
+        }
+
+        // Canvas 3: FOC
+        const focCanvas = document.getElementById('foc-canvas');
+        const focCtx = focCanvas.getContext('2d');
+        let rotorAngle = 30;
+        let animating = false;
+
+        function drawFOC() {
+            const Ia = AD.num('ia-current');
+            const Ib = AD.num('ib-current');
+            const theta = rotorAngle * Math.PI / 180;
+
+            document.getElementById('ia-current-val').textContent = Ia.toFixed(1) + ' A';
+            document.getElementById('ib-current-val').textContent = Ib.toFixed(1) + ' A';
+            document.getElementById('rotor-angle-val').textContent = rotorAngle.toFixed(0) + '°';
+
+            // Calculate Ic (balanced 3-phase: Ia + Ib + Ic = 0)
+            const Ic = -(Ia + Ib);
+
+            // Clarke transform: abc -> αβ
+            const Ialpha = Ia;
+            const Ibeta = (Ia + 2 * Ib) / Math.sqrt(3);
+
+            // Park transform: αβ -> dq
+            const Id = Ialpha * Math.cos(theta) + Ibeta * Math.sin(theta);
+            const Iq = -Ialpha * Math.sin(theta) + Ibeta * Math.cos(theta);
+
+            document.getElementById('i-alpha').textContent = Ialpha.toFixed(2) + ' A';
+            document.getElementById('i-beta').textContent = Ibeta.toFixed(2) + ' A';
+            document.getElementById('i-d').textContent = Id.toFixed(2) + ' A';
+            document.getElementById('i-q').textContent = Iq.toFixed(2) + ' A';
+
+            focCtx.fillStyle = '#181818';
+            focCtx.fillRect(0, 0, focCanvas.width, focCanvas.height);
+
+            const w = focCanvas.width;
+            const h = focCanvas.height;
+
+            // Draw abc reference frame
+            const abcCenterX = 180;
+            const abcCenterY = 200;
+            const abcRadius = 120;
+
+            // Draw circle
+            focCtx.strokeStyle = '#444';
+            focCtx.lineWidth = 1;
+            focCtx.beginPath();
+            focCtx.arc(abcCenterX, abcCenterY, abcRadius, 0, Math.PI * 2);
+            focCtx.stroke();
+
+            // Draw abc axes
+            const phases = [
+                { name: 'a', angle: 0, current: Ia, color: '#FFFF00' },
+                { name: 'b', angle: 2 * Math.PI / 3, current: Ib, color: '#00FFFF' },
+                { name: 'c', angle: 4 * Math.PI / 3, current: Ic, color: '#FF66FF' }
+            ];
+
+            phases.forEach(phase => {
+                const endX = abcCenterX + abcRadius * Math.cos(phase.angle);
+                const endY = abcCenterY - abcRadius * Math.sin(phase.angle);
+
+                focCtx.strokeStyle = phase.color;
+                focCtx.lineWidth = 1;
+                focCtx.setLineDash([5, 5]);
+                focCtx.beginPath();
+                focCtx.moveTo(abcCenterX, abcCenterY);
+                focCtx.lineTo(endX, endY);
+                focCtx.stroke();
+                focCtx.setLineDash([]);
+
+                // Phase label
+                focCtx.fillStyle = phase.color;
+                focCtx.font = '14px monospace';
+                focCtx.textAlign = 'center';
+                focCtx.fillText(phase.name, endX + 15 * Math.cos(phase.angle), endY - 15 * Math.sin(phase.angle));
+
+                // Draw current vector on this axis
+                const currentLen = (phase.current / 10) * abcRadius * 0.8;
+                const currEndX = abcCenterX + currentLen * Math.cos(phase.angle);
+                const currEndY = abcCenterY - currentLen * Math.sin(phase.angle);
+
+                focCtx.strokeStyle = phase.color;
+                focCtx.lineWidth = 3;
+                focCtx.beginPath();
+                focCtx.moveTo(abcCenterX, abcCenterY);
+                focCtx.lineTo(currEndX, currEndY);
+                focCtx.stroke();
+            });
+
+            focCtx.fillStyle = '#CCC';
+            focCtx.font = 'bold 14px monospace';
+            focCtx.textAlign = 'center';
+            focCtx.fillText('abc Frame', abcCenterX, 350);
+
+            // Draw αβ frame (Clarke)
+            const abCenterX = 490;
+            const abCenterY = 200;
+
+            focCtx.strokeStyle = '#444';
+            focCtx.beginPath();
+            focCtx.arc(abCenterX, abCenterY, abcRadius, 0, Math.PI * 2);
+            focCtx.stroke();
+
+            // α axis (horizontal)
+            focCtx.strokeStyle = '#FF6600';
+            focCtx.lineWidth = 1;
+            focCtx.setLineDash([5, 5]);
+            focCtx.beginPath();
+            focCtx.moveTo(abCenterX - abcRadius, abCenterY);
+            focCtx.lineTo(abCenterX + abcRadius, abCenterY);
+            focCtx.stroke();
+
+            // β axis (vertical)
+            focCtx.beginPath();
+            focCtx.moveTo(abCenterX, abCenterY + abcRadius);
+            focCtx.lineTo(abCenterX, abCenterY - abcRadius);
+            focCtx.stroke();
+            focCtx.setLineDash([]);
+
+            focCtx.fillStyle = '#FF6600';
+            focCtx.fillText('α', abCenterX + abcRadius + 10, abCenterY);
+            focCtx.fillText('β', abCenterX, abCenterY - abcRadius - 10);
+
+            // Draw Iαβ vector
+            const IalphaLen = (Ialpha / 10) * abcRadius * 0.8;
+            const IbetaLen = (Ibeta / 10) * abcRadius * 0.8;
+
+            focCtx.strokeStyle = '#00FF00';
+            focCtx.lineWidth = 3;
+            focCtx.beginPath();
+            focCtx.moveTo(abCenterX, abCenterY);
+            focCtx.lineTo(abCenterX + IalphaLen, abCenterY - IbetaLen);
+            focCtx.stroke();
+
+            // Arrowhead
+            const vecAngle = Math.atan2(IbetaLen, IalphaLen);
+            focCtx.fillStyle = '#00FF00';
+            focCtx.beginPath();
+            focCtx.moveTo(abCenterX + IalphaLen, abCenterY - IbetaLen);
+            focCtx.lineTo(abCenterX + IalphaLen - 10 * Math.cos(vecAngle - 0.3),
+                         abCenterY - IbetaLen + 10 * Math.sin(vecAngle - 0.3));
+            focCtx.lineTo(abCenterX + IalphaLen - 10 * Math.cos(vecAngle + 0.3),
+                         abCenterY - IbetaLen + 10 * Math.sin(vecAngle + 0.3));
+            focCtx.closePath();
+            focCtx.fill();
+
+            focCtx.fillStyle = '#CCC';
+            focCtx.font = 'bold 14px monospace';
+            focCtx.fillText('αβ Frame (Clarke)', abCenterX, 350);
+
+            // Draw dq frame (Park)
+            const dqCenterX = 800;
+            const dqCenterY = 200;
+
+            focCtx.strokeStyle = '#444';
+            focCtx.beginPath();
+            focCtx.arc(dqCenterX, dqCenterY, abcRadius, 0, Math.PI * 2);
+            focCtx.stroke();
+
+            // d axis (along rotor)
+            const dEndX = dqCenterX + abcRadius * Math.cos(theta);
+            const dEndY = dqCenterY - abcRadius * Math.sin(theta);
+
+            focCtx.strokeStyle = '#00FFFF';
+            focCtx.lineWidth = 1;
+            focCtx.setLineDash([5, 5]);
+            focCtx.beginPath();
+            focCtx.moveTo(dqCenterX - abcRadius * Math.cos(theta), dqCenterY + abcRadius * Math.sin(theta));
+            focCtx.lineTo(dEndX, dEndY);
+            focCtx.stroke();
+
+            // q axis (90° ahead)
+            const qAngle = theta + Math.PI / 2;
+            focCtx.beginPath();
+            focCtx.moveTo(dqCenterX - abcRadius * Math.cos(qAngle), dqCenterY + abcRadius * Math.sin(qAngle));
+            focCtx.lineTo(dqCenterX + abcRadius * Math.cos(qAngle), dqCenterY - abcRadius * Math.sin(qAngle));
+            focCtx.stroke();
+            focCtx.setLineDash([]);
+
+            focCtx.fillStyle = '#00FFFF';
+            focCtx.fillText('d', dEndX + 15 * Math.cos(theta), dEndY - 15 * Math.sin(theta));
+            focCtx.fillText('q', dqCenterX + (abcRadius + 15) * Math.cos(qAngle),
+                           dqCenterY - (abcRadius + 15) * Math.sin(qAngle));
+
+            // Draw rotor indicator
+            focCtx.strokeStyle = '#FF0000';
+            focCtx.lineWidth = 4;
+            focCtx.beginPath();
+            focCtx.moveTo(dqCenterX, dqCenterY);
+            focCtx.lineTo(dqCenterX + 40 * Math.cos(theta), dqCenterY - 40 * Math.sin(theta));
+            focCtx.stroke();
+            focCtx.fillStyle = '#FF0000';
+            focCtx.fillText('θ=' + rotorAngle + '°', dqCenterX + 50, dqCenterY + 50);
+
+            // Draw Id, Iq components
+            const IdLen = (Id / 10) * abcRadius * 0.8;
+            const IqLen = (Iq / 10) * abcRadius * 0.8;
+
+            // Iq vector (along q axis - torque producing)
+            focCtx.strokeStyle = '#00FF00';
+            focCtx.lineWidth = 3;
+            focCtx.beginPath();
+            focCtx.moveTo(dqCenterX, dqCenterY);
+            focCtx.lineTo(dqCenterX + IqLen * Math.cos(qAngle), dqCenterY - IqLen * Math.sin(qAngle));
+            focCtx.stroke();
+
+            // Id vector (along d axis - flux)
+            focCtx.strokeStyle = '#FFFF00';
+            focCtx.beginPath();
+            focCtx.moveTo(dqCenterX, dqCenterY);
+            focCtx.lineTo(dqCenterX + IdLen * Math.cos(theta), dqCenterY - IdLen * Math.sin(theta));
+            focCtx.stroke();
+
+            focCtx.fillStyle = '#CCC';
+            focCtx.font = 'bold 14px monospace';
+            focCtx.fillText('dq Frame (Park)', dqCenterX, 350);
+
+            // Labels for Id, Iq
+            focCtx.fillStyle = '#FFFF00';
+            focCtx.font = '12px monospace';
+            focCtx.fillText('Id (flux)', dqCenterX - 80, 380);
+            focCtx.fillStyle = '#00FF00';
+            focCtx.fillText('Iq (torque)', dqCenterX + 20, 380);
+
+            // Transform arrows
+            focCtx.strokeStyle = '#888';
+            focCtx.lineWidth = 2;
+            focCtx.beginPath();
+            focCtx.moveTo(310, 200);
+            focCtx.lineTo(370, 200);
+            focCtx.stroke();
+            focCtx.fillStyle = '#888';
+            focCtx.beginPath();
+            focCtx.moveTo(370, 200);
+            focCtx.lineTo(360, 195);
+            focCtx.lineTo(360, 205);
+            focCtx.closePath();
+            focCtx.fill();
+            focCtx.font = '11px monospace';
+            focCtx.textAlign = 'center';
+            focCtx.fillText('Clarke', 340, 185);
+
+            focCtx.beginPath();
+            focCtx.moveTo(620, 200);
+            focCtx.lineTo(680, 200);
+            focCtx.stroke();
+            focCtx.beginPath();
+            focCtx.moveTo(680, 200);
+            focCtx.lineTo(670, 195);
+            focCtx.lineTo(670, 205);
+            focCtx.closePath();
+            focCtx.fill();
+            focCtx.fillText('Park', 650, 185);
+        }
+
+        // Animation for auto-rotate
+        function animateFOC() {
+            if (document.getElementById('auto-rotate').checked) {
+                rotorAngle = (rotorAngle + 2) % 360;
+                document.getElementById('rotor-angle').value = rotorAngle;
+                drawFOC();
+            }
+            requestAnimationFrame(animateFOC);
+        }
+
+        // Canvas 4: Control Loop
+        const controlCanvas = document.getElementById('control-canvas');
+        const controlCtx = controlCanvas.getContext('2d');
+
+        function drawControlLoop() {
+            const Kp = AD.num('kp-speed');
+            const Ki = AD.num('ki-speed');
+            const setpoint = AD.num('setpoint-rpm');
+            const loadTorque = AD.num('load-torque');
+
+            document.getElementById('kp-speed-val').textContent = Kp.toFixed(1);
+            document.getElementById('ki-speed-val').textContent = Ki.toFixed(1);
+            document.getElementById('setpoint-rpm-val').textContent = setpoint;
+            document.getElementById('load-torque-val').textContent = loadTorque + '%';
+
+            controlCtx.fillStyle = '#181818';
+            controlCtx.fillRect(0, 0, controlCanvas.width, controlCanvas.height);
+
+            const w = controlCanvas.width;
+            const h = controlCanvas.height;
+            const margin = { left: 80, right: 40, top: 50, bottom: 60 };
+            const plotW = w - margin.left - margin.right;
+            const plotH = h - margin.top - margin.bottom;
+
+            // Simple motor model simulation
+            const J = 0.01; // Inertia
+            const B = 0.001; // Friction
+            const Kt = 0.1; // Torque constant
+            const dt = 0.001; // 1ms steps
+            const tMax = 0.5; // 500ms simulation
+
+            let speed = 0;
+            let integral = 0;
+            const speedHistory = [];
+            let riseTime = 0, settleTime = 0, overshoot = 0;
+            let reachedSetpoint = false;
+
+            for (let t = 0; t <= tMax; t += dt) {
+                const error = setpoint - speed;
+                integral += error * dt;
+
+                const control = Kp * error + Ki * integral;
+                const torque = Math.max(0, Math.min(control, 100)) * Kt;
+                const loadT = (loadTorque / 100) * setpoint * Kt * 0.5;
+
+                const accel = (torque - loadT - B * speed) / J;
+                speed += accel * dt;
+                speed = Math.max(0, speed);
+
+                speedHistory.push({ t, speed });
+
+                if (!reachedSetpoint && speed >= setpoint * 0.9) {
+                    riseTime = t * 1000;
+                    reachedSetpoint = true;
+                }
+
+                if (speed > setpoint) {
+                    overshoot = Math.max(overshoot, ((speed - setpoint) / setpoint) * 100);
+                }
+            }
+
+            // Find settling time (within 2%)
+            for (let i = speedHistory.length - 1; i >= 0; i--) {
+                if (Math.abs(speedHistory[i].speed - setpoint) > setpoint * 0.02) {
+                    settleTime = speedHistory[i].t * 1000;
+                    break;
+                }
+            }
+
+            document.getElementById('rise-time').textContent = riseTime.toFixed(0) + ' ms';
+            document.getElementById('overshoot').textContent = overshoot.toFixed(0) + '%';
+            document.getElementById('settle-time').textContent = settleTime.toFixed(0) + ' ms';
+            document.getElementById('ss-error').textContent = '0%';
+
+            // Draw grid
+            controlCtx.strokeStyle = '#333';
+            controlCtx.lineWidth = 1;
+            for (let i = 0; i <= 5; i++) {
+                const x = margin.left + (i / 5) * plotW;
+                controlCtx.beginPath();
+                controlCtx.moveTo(x, margin.top);
+                controlCtx.lineTo(x, margin.top + plotH);
+                controlCtx.stroke();
+            }
+
+            // Draw setpoint line
+            const setpointY = margin.top + plotH - (setpoint / (setpoint * 1.5)) * plotH;
+            controlCtx.strokeStyle = '#FF0000';
+            controlCtx.setLineDash([5, 5]);
+            controlCtx.beginPath();
+            controlCtx.moveTo(margin.left, setpointY);
+            controlCtx.lineTo(margin.left + plotW, setpointY);
+            controlCtx.stroke();
+            controlCtx.setLineDash([]);
+
+            // Draw 2% settling band
+            controlCtx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+            const bandTop = margin.top + plotH - (setpoint * 1.02 / (setpoint * 1.5)) * plotH;
+            const bandBot = margin.top + plotH - (setpoint * 0.98 / (setpoint * 1.5)) * plotH;
+            controlCtx.fillRect(margin.left, bandTop, plotW, bandBot - bandTop);
+
+            // Draw speed response
+            controlCtx.strokeStyle = '#00FF00';
+            controlCtx.lineWidth = 2;
+            controlCtx.beginPath();
+
+            speedHistory.forEach((point, i) => {
+                const x = margin.left + (point.t / tMax) * plotW;
+                const y = margin.top + plotH - (point.speed / (setpoint * 1.5)) * plotH;
+
+                if (i === 0) controlCtx.moveTo(x, y);
+                else controlCtx.lineTo(x, y);
+            });
+            controlCtx.stroke();
+
+            // Labels
+            controlCtx.fillStyle = '#CCC';
+            controlCtx.font = '14px monospace';
+            controlCtx.textAlign = 'center';
+            controlCtx.fillText('Time (ms)', margin.left + plotW / 2, h - 15);
+
+            controlCtx.save();
+            controlCtx.translate(25, margin.top + plotH / 2);
+            controlCtx.rotate(-Math.PI / 2);
+            controlCtx.fillText('Speed (RPM)', 0, 0);
+            controlCtx.restore();
+
+            // Time scale
+            controlCtx.font = '11px monospace';
+            controlCtx.fillStyle = '#888';
+            for (let t = 0; t <= tMax * 1000; t += 100) {
+                const x = margin.left + (t / (tMax * 1000)) * plotW;
+                controlCtx.fillText(t.toString(), x, margin.top + plotH + 20);
+            }
+
+            // Speed scale
+            controlCtx.textAlign = 'right';
+            for (let s = 0; s <= setpoint * 1.5; s += setpoint / 2) {
+                const y = margin.top + plotH - (s / (setpoint * 1.5)) * plotH;
+                controlCtx.fillText(s.toFixed(0), margin.left - 10, y + 4);
+            }
+
+            // Legend
+            controlCtx.textAlign = 'left';
+            controlCtx.fillStyle = '#00FF00';
+            controlCtx.fillRect(margin.left + plotW - 150, margin.top + 10, 20, 3);
+            controlCtx.fillStyle = '#CCC';
+            controlCtx.fillText('Speed', margin.left + plotW - 125, margin.top + 15);
+
+            controlCtx.fillStyle = '#FF0000';
+            controlCtx.fillRect(margin.left + plotW - 150, margin.top + 30, 20, 3);
+            controlCtx.fillStyle = '#CCC';
+            controlCtx.fillText('Setpoint', margin.left + plotW - 125, margin.top + 35);
+
+            // Title
+            controlCtx.fillStyle = '#FFF';
+            controlCtx.font = 'bold 16px monospace';
+            controlCtx.textAlign = 'center';
+            controlCtx.fillText('PI Speed Control Response', w / 2, 25);
+        }
+
+        // Canvas 0: System Architecture
+        const motorArchCanvas = document.getElementById('motor-arch-canvas');
+        const motorArchCtx = motorArchCanvas.getContext('2d');
+
+        function drawMotorArchitecture() {
+            motorArchCtx.fillStyle = '#181818';
+            motorArchCtx.fillRect(0, 0, motorArchCanvas.width, motorArchCanvas.height);
+
+            const w = motorArchCanvas.width;
+            const h = motorArchCanvas.height;
+
+            // Title
+            motorArchCtx.fillStyle = '#FFF';
+            motorArchCtx.font = 'bold 16px monospace';
+            motorArchCtx.textAlign = 'center';
+            motorArchCtx.fillText('BLDC MOTOR CONTROL SYSTEM', w / 2, 25);
+
+            // DC Bus
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fillRect(30, 50, 100, 50);
+            motorArchCtx.strokeStyle = '#FF0000';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.strokeRect(30, 50, 100, 50);
+            motorArchCtx.fillStyle = '#FF0000';
+            motorArchCtx.font = 'bold 12px monospace';
+            motorArchCtx.fillText('DC BUS', 80, 72);
+            motorArchCtx.font = '10px monospace';
+            motorArchCtx.fillText('24-48V', 80, 90);
+
+            // 3-Phase Inverter
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fillRect(180, 45, 350, 110);
+            motorArchCtx.strokeStyle = '#00FFFF';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.strokeRect(180, 45, 350, 110);
+            motorArchCtx.fillStyle = '#00FFFF';
+            motorArchCtx.font = 'bold 12px monospace';
+            motorArchCtx.fillText('3-PHASE INVERTER', 355, 65);
+
+            // Draw MOSFET pairs
+            const mosX = [230, 330, 430];
+            const mosLabels = [['Q1', 'Q2'], ['Q3', 'Q4'], ['Q5', 'Q6']];
+            const phaseLabels = ['A', 'B', 'C'];
+
+            mosX.forEach((x, i) => {
+                // High-side
+                motorArchCtx.fillStyle = '#333';
+                motorArchCtx.fillRect(x, 80, 40, 25);
+                motorArchCtx.strokeStyle = '#00FF00';
+                motorArchCtx.strokeRect(x, 80, 40, 25);
+                motorArchCtx.fillStyle = '#00FF00';
+                motorArchCtx.font = '10px monospace';
+                motorArchCtx.fillText(mosLabels[i][0], x + 20, 97);
+
+                // Low-side
+                motorArchCtx.fillStyle = '#333';
+                motorArchCtx.fillRect(x, 115, 40, 25);
+                motorArchCtx.strokeStyle = '#FFFF00';
+                motorArchCtx.strokeRect(x, 115, 40, 25);
+                motorArchCtx.fillStyle = '#FFFF00';
+                motorArchCtx.fillText(mosLabels[i][1], x + 20, 132);
+
+                // Connection between MOSFETs (phase output)
+                motorArchCtx.strokeStyle = '#FF6600';
+                motorArchCtx.lineWidth = 2;
+                motorArchCtx.beginPath();
+                motorArchCtx.moveTo(x + 40, 105);
+                motorArchCtx.lineTo(x + 60, 105);
+                motorArchCtx.stroke();
+
+                motorArchCtx.fillStyle = '#FF6600';
+                motorArchCtx.font = '9px monospace';
+                motorArchCtx.fillText(phaseLabels[i], x + 50, 100);
+            });
+
+            // "High-side" label
+            motorArchCtx.fillStyle = '#888';
+            motorArchCtx.font = '9px monospace';
+            motorArchCtx.textAlign = 'right';
+            motorArchCtx.fillText('High-side', 225, 95);
+            motorArchCtx.fillText('Low-side', 225, 130);
+            motorArchCtx.textAlign = 'center';
+
+            // Arrow from DC Bus to inverter
+            motorArchCtx.strokeStyle = '#FF0000';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(130, 75);
+            motorArchCtx.lineTo(172, 75);
+            motorArchCtx.stroke();
+            motorArchCtx.fillStyle = '#FF0000';
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(172, 75);
+            motorArchCtx.lineTo(165, 70);
+            motorArchCtx.lineTo(165, 80);
+            motorArchCtx.closePath();
+            motorArchCtx.fill();
+
+            // Motor
+            motorArchCtx.beginPath();
+            motorArchCtx.arc(650, 100, 50, 0, Math.PI * 2);
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fill();
+            motorArchCtx.strokeStyle = '#FF6600';
+            motorArchCtx.lineWidth = 3;
+            motorArchCtx.stroke();
+            motorArchCtx.fillStyle = '#FF6600';
+            motorArchCtx.font = 'bold 14px monospace';
+            motorArchCtx.fillText('BLDC', 650, 95);
+            motorArchCtx.font = '11px monospace';
+            motorArchCtx.fillText('Motor', 650, 112);
+
+            // Phase connections to motor
+            motorArchCtx.strokeStyle = '#FF6600';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(530, 100);
+            motorArchCtx.lineTo(600, 100);
+            motorArchCtx.stroke();
+
+            // Encoder/Hall
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fillRect(700, 70, 80, 60);
+            motorArchCtx.strokeStyle = '#00FF00';
+            motorArchCtx.lineWidth = 1;
+            motorArchCtx.strokeRect(700, 70, 80, 60);
+            motorArchCtx.fillStyle = '#00FF00';
+            motorArchCtx.font = '10px monospace';
+            motorArchCtx.fillText('Encoder', 740, 95);
+            motorArchCtx.fillText('/Hall', 740, 110);
+
+            // Current Sense Amplifiers
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fillRect(180, 180, 150, 60);
+            motorArchCtx.strokeStyle = '#FF66FF';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.strokeRect(180, 180, 150, 60);
+            motorArchCtx.fillStyle = '#FF66FF';
+            motorArchCtx.font = 'bold 11px monospace';
+            motorArchCtx.fillText('Current Sense', 255, 200);
+            motorArchCtx.font = '10px monospace';
+            motorArchCtx.fillText('Amplifiers (Ia, Ib, Ic)', 255, 220);
+
+            // Arrow from shunts to current sense
+            motorArchCtx.strokeStyle = '#888';
+            motorArchCtx.lineWidth = 1;
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(355, 155);
+            motorArchCtx.lineTo(355, 165);
+            motorArchCtx.lineTo(255, 165);
+            motorArchCtx.lineTo(255, 172);
+            motorArchCtx.stroke();
+            motorArchCtx.fillStyle = '#888';
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(255, 172);
+            motorArchCtx.lineTo(250, 165);
+            motorArchCtx.lineTo(260, 165);
+            motorArchCtx.closePath();
+            motorArchCtx.fill();
+
+            // MCU
+            motorArchCtx.fillStyle = '#222';
+            motorArchCtx.fillRect(400, 180, 250, 120);
+            motorArchCtx.strokeStyle = '#00FFFF';
+            motorArchCtx.lineWidth = 2;
+            motorArchCtx.strokeRect(400, 180, 250, 120);
+            motorArchCtx.fillStyle = '#00FFFF';
+            motorArchCtx.font = 'bold 12px monospace';
+            motorArchCtx.fillText('MCU (Motor Control)', 525, 200);
+            motorArchCtx.font = '9px monospace';
+            motorArchCtx.fillStyle = '#CCC';
+            const mcuFeatures = [
+                'ADC for current sensing',
+                'PWM generation (complementary)',
+                'FOC algorithm (Park/Clarke)',
+                'PI current/speed controllers',
+                'Position/speed estimation'
+            ];
+            mcuFeatures.forEach((feat, i) => {
+                motorArchCtx.fillText('• ' + feat, 525, 220 + i * 15);
+            });
+
+            // Connections
+            // Current sense to MCU
+            motorArchCtx.strokeStyle = '#FF66FF';
+            motorArchCtx.lineWidth = 1;
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(330, 210);
+            motorArchCtx.lineTo(392, 210);
+            motorArchCtx.stroke();
+
+            // Encoder to MCU
+            motorArchCtx.strokeStyle = '#00FF00';
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(740, 130);
+            motorArchCtx.lineTo(740, 240);
+            motorArchCtx.lineTo(658, 240);
+            motorArchCtx.stroke();
+            motorArchCtx.fillStyle = '#00FF00';
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(658, 240);
+            motorArchCtx.lineTo(665, 235);
+            motorArchCtx.lineTo(665, 245);
+            motorArchCtx.closePath();
+            motorArchCtx.fill();
+
+            // PWM from MCU to inverter
+            motorArchCtx.strokeStyle = '#00FFFF';
+            motorArchCtx.setLineDash([4, 4]);
+            motorArchCtx.beginPath();
+            motorArchCtx.moveTo(525, 180);
+            motorArchCtx.lineTo(525, 165);
+            motorArchCtx.lineTo(450, 165);
+            motorArchCtx.lineTo(450, 155);
+            motorArchCtx.stroke();
+            motorArchCtx.setLineDash([]);
+            motorArchCtx.font = '8px monospace';
+            motorArchCtx.fillStyle = '#00FFFF';
+            motorArchCtx.fillText('PWM', 485, 162);
+
+            // Labels
+            motorArchCtx.fillStyle = '#666';
+            motorArchCtx.font = '8px monospace';
+            motorArchCtx.fillText('Current shunts', 355, 150);
+        }
+
+        // Event listeners
+        ['mod-index', 'elec-freq', 'pwm-freq', 'modulation'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawInverterWaveforms);
         });
-        // Zone bars are drawn as plain SVG on top, since they are annotation
-        // rather than circuit geometry.
-        const svg = host.querySelector('svg');
-        if (svg) {
-            const bar = (y, x2, colour, label) =>
-                `<line x1="190" y1="${y}" x2="${x2}" y2="${y}" stroke="${colour}"
-                       stroke-width="3" stroke-linecap="round"/>
-                 <line x1="${x2}" y1="${y - 5}" x2="${x2}" y2="${y + 5}"
-                       stroke="${colour}" stroke-width="2"/>
-                 <text x="196" y="${y - 7}" font-size="10" fill="${colour}">${label}</text>`;
-            // Dropped to y=250/275/300 to clear the relay's CT and trip wiring,
-            // which occupies the band from y=110 to y=210 now that the 21
-            // element is actually connected to something.
-            svg.insertAdjacentHTML('beforeend',
-                bar(250, 190 + 0.85 * 230, '#34d399', 'Zone 1 — 85%, instantaneous') +
-                bar(275, 190 + 1.30 * 230, '#fbbf24', 'Zone 2 — 130%, ~0.3 s') +
-                bar(300, 190 + 1.85 * 230, '#fb7185', 'Zone 3 — 185%, ~1 s'));
-        }
-    }
 
-    // ---- R-X plane ----
-    const TEK = (window.AD && AD.TEK_COLORS) || {};
-    const canvas = document.getElementById('rx-canvas');
-    const ctx = canvas ? canvas.getContext('2d') : null;
-
-    const ZLINE = 50;          // ohms, protected line
-    const Z1 = 0.85, Z2 = 1.30, Z3 = 1.85;
-
-    function state() {
-        const pct = AD.num('rx-fault') / 100;
-        const rf = AD.num('rx-rf');
-        const load = AD.num('rx-load') / 100;
-        const ang = AD.num('rx-angle') * Math.PI / 180;
-
-        let R, X;
-        if (load > 0.01 && pct < 0.02) {
-            // No fault: apparent impedance is load impedance, near the R axis at
-            // roughly the load power factor angle.
-            // Load impedance is roughly 1.9x the line impedance at rated load,
-            // which is what makes a heavily loaded line actually reach the Zone 3
-            // circle. At 2.2x the demonstration never triggers.
-            const zload = load > 0 ? ZLINE * 1.9 / load : 1e6;
-            const pf = 25 * Math.PI / 180;
-            R = zload * Math.cos(pf);
-            X = zload * Math.sin(pf);
-        } else {
-            const zf = ZLINE * pct;
-            R = zf * Math.cos(ang) + rf;
-            X = zf * Math.sin(ang);
-        }
-        return { R, X, mag: Math.hypot(R, X), ang, rf, pct, load };
-    }
-
-    // Mho characteristic: circle through the origin with diameter along the
-    // line angle. Inside test is the classic |Z - centre| <= radius.
-    function insideMho(R, X, reach, lineAng) {
-        const d = ZLINE * reach;
-        const cx = (d / 2) * Math.cos(lineAng);
-        const cy = (d / 2) * Math.sin(lineAng);
-        return Math.hypot(R - cx, X - cy) <= d / 2 + 1e-9;
-    }
-
-    function update() {
-        const s = state();
-        AD.setText('rx-fault-val', AD.num('rx-fault') + ' %');
-        AD.setText('rx-rf-val', AD.num('rx-rf').toFixed(1) + ' Ω');
-        AD.setText('rx-load-val', AD.num('rx-load') + ' %');
-        AD.setText('rx-angle-val', AD.num('rx-angle') + '°');
-
-        AD.setText('rx-z', s.R.toFixed(1) + ' + j' + s.X.toFixed(1) + ' Ω');
-        AD.setText('rx-ang', (Math.atan2(s.X, s.R) * 180 / Math.PI).toFixed(1) + '°');
-
-        const in1 = insideMho(s.R, s.X, Z1, s.ang);
-        const in2 = insideMho(s.R, s.X, Z2, s.ang);
-        const in3 = insideMho(s.R, s.X, Z3, s.ang);
-
-        let zone, time, note;
-        const noFault = s.pct < 0.02 && s.load > 0.01;
-        if (in1) { zone = 'Zone 1 — trip'; time = '1–2 cycles'; }
-        else if (in2) { zone = 'Zone 2 — trip'; time = '~0.3 s'; }
-        else if (in3) { zone = 'Zone 3 — trip'; time = '~1 s'; }
-        else { zone = 'no operation'; time = '—'; }
-        AD.setText('rx-zone', zone);
-        AD.setText('rx-time', time);
-
-        if (noFault && (in1 || in2 || in3)) {
-            note = 'LOAD ENCROACHMENT — there is no fault, but load has pulled the ' +
-                   'apparent impedance inside a tripping zone. A relay set like this ' +
-                   'would trip a healthy, heavily loaded line.';
-        } else if (s.rf > 0 && !in1 && s.pct <= 0.85) {
-            note = 'Fault resistance has pushed the point to the right, out of Zone 1 ' +
-                   'even though the fault is inside Zone 1 reach. Resistive faults ' +
-                   'under-reach — this is why ground distance elements use quadrilateral ' +
-                   'characteristics rather than a plain mho circle.';
-        } else if (s.pct > 1.0 && s.pct <= 1.3) {
-            note = 'Fault is past the remote bus. Zone 2 sees it as delayed backup; the ' +
-                   'next line’s own Zone 1 should clear it first.';
-        } else if (in1) {
-            note = 'Inside Zone 1 — cleared instantaneously with no communication needed.';
-        } else {
-            note = 'Drag the fault location to move the point along the line impedance ' +
-                   'vector. Add fault resistance to push it sideways.';
-        }
-        const el = document.getElementById('rx-note');
-        if (el) el.textContent = note;
-
-        draw(s, in1, in2, in3);
-    }
-
-    function draw(s, in1, in2, in3) {
-        if (!ctx) return;
-        const W = canvas.width, H = canvas.height;
-        ctx.fillStyle = TEK.bg || '#001a00';
-        ctx.fillRect(0, 0, W, H);
-
-        // origin near lower-left, X up, R right
-        const ox = 110, oy = H - 78;
-        const scale = 3.0;                     // px per ohm
-        const X2p = v => ox + v * scale;
-        const Y2p = v => oy - v * scale;
-
-        // grid
-        ctx.strokeStyle = TEK.grid || 'rgba(0,255,0,0.15)';
-        ctx.lineWidth = 1;
-        for (let r = -40; r <= 200; r += 20) {
-            ctx.beginPath(); ctx.moveTo(X2p(r), 20); ctx.lineTo(X2p(r), H - 30); ctx.stroke();
-        }
-        for (let x = -20; x <= 160; x += 20) {
-            ctx.beginPath(); ctx.moveTo(30, Y2p(x)); ctx.lineTo(W - 20, Y2p(x)); ctx.stroke();
-        }
-
-        // axes
-        ctx.strokeStyle = 'rgba(230,237,243,0.55)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(30, oy); ctx.lineTo(W - 20, oy); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(ox, 20); ctx.lineTo(ox, H - 30); ctx.stroke();
-
-        // mho circles, largest first
-        const zones = [
-            { reach: Z3, colour: '#fb7185', label: 'Z3' },
-            { reach: Z2, colour: '#fbbf24', label: 'Z2' },
-            { reach: Z1, colour: '#34d399', label: 'Z1' }
-        ];
-        zones.forEach(z => {
-            const d = ZLINE * z.reach;
-            const cx = X2p((d / 2) * Math.cos(s.ang));
-            const cy = Y2p((d / 2) * Math.sin(s.ang));
-            const r = (d / 2) * scale;
-            ctx.strokeStyle = z.colour;
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-            ctx.fillStyle = z.colour;
-            ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(z.label, cx, cy - r + 14);
+        ['peak-current', 'shunt-value', 'amp-gain', 'adc-ref'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawCurrentSensing);
         });
 
-        // line impedance vector
-        ctx.strokeStyle = '#6ee7ff';
-        ctx.lineWidth = 2.5;
-        ctx.setLineDash([6, 4]);
-        ctx.beginPath();
-        ctx.moveTo(X2p(0), Y2p(0));
-        ctx.lineTo(X2p(ZLINE * Math.cos(s.ang)), Y2p(ZLINE * Math.sin(s.ang)));
-        ctx.stroke();
-        ctx.setLineDash([]);
+        ['ia-current', 'ib-current', 'rotor-angle'].forEach(id => {
+            document.getElementById(id).addEventListener('input', () => {
+                rotorAngle = AD.num('rotor-angle');
+                drawFOC();
+            });
+        });
 
-        // operating point
-        const px = X2p(s.R), py = Y2p(s.X);
-        const tripping = in1 || in2 || in3;
-        ctx.fillStyle = tripping ? '#fb7185' : '#6ee7ff';
-        ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = 'rgba(230,237,243,0.5)';
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(X2p(0), Y2p(0)); ctx.lineTo(px, py); ctx.stroke();
+        ['kp-speed', 'ki-speed', 'setpoint-rpm', 'load-torque'].forEach(id => {
+            document.getElementById(id).addEventListener('input', drawControlLoop);
+        });
 
-        // labels
-        ctx.fillStyle = 'rgba(230,237,243,0.85)';
-        ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('X (Ω)', ox + 8, 32);
-        ctx.textAlign = 'right';
-        ctx.fillText('R (Ω)', W - 24, oy + 18);
-        ctx.textAlign = 'center';
-        ctx.fillText('Distance relay characteristic on the R-X plane', W / 2, 16);
-        ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
-        ctx.fillStyle = 'rgba(110,231,255,0.9)';
-        const lx = X2p(ZLINE * Math.cos(s.ang)), ly = Y2p(ZLINE * Math.sin(s.ang));
-        ctx.fillText('line impedance', lx + 30, ly - 6);
-    }
+        // Schematic
+        function createMotorSchematic() {
+            const container = document.getElementById('motor-schematic');
+            const svg = new SchematicSVG(700, 300);
 
-    ['rx-fault', 'rx-rf', 'rx-load', 'rx-angle'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) { el.addEventListener('input', update); el.addEventListener('change', update); }
-    });
-    update();
-})();
-</script>
+            // DC Bus
+            svg.addText(30, 50, 'Vdc+', '12px', 'end', '#FF0000');
+            svg.line(40, 50, 600, 50, '#FF0000', 2);
+
+            // High-side MOSFET
+            svg.rect(120, 70, 50, 40, '#181818', '#00FFFF');
+            svg.addText(145, 95, 'Q1', '11px', 'middle', '#00FFFF');
+            svg.line(145, 50, 145, 70);
+            svg.line(145, 110, 145, 150);
+
+            // Low-side MOSFET
+            svg.rect(120, 170, 50, 40, '#181818', '#FFFF00');
+            svg.addText(145, 195, 'Q2', '11px', 'middle', '#FFFF00');
+            svg.line(145, 150, 145, 170);
+            svg.line(145, 210, 145, 250);
+
+            // Phase output
+            svg.line(145, 150, 250, 150, '#FF6600', 2);
+            svg.addText(200, 140, 'Phase A', '10px', 'middle');
+
+            // Gate driver
+            svg.rect(50, 100, 60, 80, '#181818', '#00FF00');
+            svg.addText(80, 135, 'Gate', '10px', 'middle', '#00FF00');
+            svg.addText(80, 150, 'Driver', '10px', 'middle', '#00FF00');
+
+            // Gate driver connections
+            svg.line(110, 120, 120, 90);
+            svg.line(110, 160, 120, 190);
+
+            // Bootstrap circuit
+            svg.line(170, 70, 200, 70);
+            svg.addCapacitor(200, 90, 'vertical', 'Cboot', '100nF');
+            svg.line(200, 110, 200, 150);
+
+            // Shunt resistor
+            svg.line(145, 250, 145, 270);
+            svg.rect(130, 270, 30, 15, '#181818', '#FFFF00');
+            svg.addText(145, 295, 'Rshunt', '9px', 'middle');
+            svg.line(145, 285, 145, 310);
+
+            // Ground
+            svg.line(40, 310, 600, 310);
+            svg.addText(30, 310, 'GND', '12px', 'end');
+
+            // Current sense amp
+            svg.line(160, 275, 220, 275);
+            svg.line(160, 285, 220, 285);
+
+            svg.rect(230, 260, 60, 40, '#181818', '#FF66FF');
+            svg.addText(260, 285, 'CSA', '11px', 'middle', '#FF66FF');
+
+            svg.line(290, 280, 330, 280);
+            svg.addText(350, 280, 'to ADC', '10px', 'start', '#888');
+
+            // Motor symbol
+            svg.circle(450, 180, 60, '#181818', '#FF6600');
+            svg.addText(450, 175, 'BLDC', '14px', 'middle', '#FF6600');
+            svg.addText(450, 195, 'Motor', '12px', 'middle');
+
+            // Phase connections to motor
+            svg.line(250, 150, 390, 150);
+            svg.line(390, 150, 390, 160);
+
+            // Labels
+            svg.addText(145, 35, 'Half-Bridge', '11px', 'middle', '#888');
+            svg.addText(450, 260, '(× 3 phases)', '10px', 'middle', '#888');
+
+            container.appendChild(svg.svg);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            drawMotorArchitecture();
+            drawInverterWaveforms();
+            drawCurrentSensing();
+            drawFOC();
+            drawControlLoop();
+            createMotorSchematic();
+            animateFOC();
+
+            // Design checklist
+            new ChecklistWidget('motor-checklist', {
+                title: 'Motor Control Design',
+                items: [
+                    { text: 'Size MOSFETs for peak current + margin', critical: true },
+                    { text: 'Calculate dead time to prevent shoot-through', critical: true },
+                    { text: 'Design gate driver with adequate drive current', critical: true },
+                    { text: 'Size bootstrap capacitor for high-side gate charge', critical: false },
+                    { text: 'Select current shunt for accuracy vs power loss', critical: true },
+                    { text: 'Implement hardware overcurrent protection', critical: true },
+                    { text: 'Add bulk capacitance for DC bus stability', critical: true },
+                    { text: 'Design PCB for minimal power loop inductance', critical: true },
+                    { text: 'Tune current loop before speed loop', critical: false },
+                    { text: 'Implement soft-start for inrush limiting', critical: false },
+                    { text: 'Add regenerative braking or brake resistor', critical: false },
+                    { text: 'Include thermal monitoring of MOSFETs', critical: false }
+                ]
+            });
+
+            // Exercises
+            new ExerciseWidget('motor-exercises', {
+                exercises: [
+                    {
+                        question: 'Calculate the shunt resistor value for a 20A peak current motor driver. The current sense amplifier has a gain of 20 and the ADC has a 3.3V reference with a 1.65V mid-point.',
+                        hint: 'The amplifier output must stay within ADC range: Vout = Vref/2 ± Gain × Ishunt × Rshunt',
+                        answer: 'Max output swing = 1.65V (half of 3.3V range). Vshunt_max = 1.65V / 20 = 82.5mV. Rshunt = 82.5mV / 20A = 4.125mΩ. Use 4mΩ standard value. Power dissipation = 20² × 0.004 = 1.6W peak, 0.8W RMS for sinusoidal current. Choose 2W rated shunt.'
+                    },
+                    {
+                        question: 'A BLDC motor runs at 3000 RPM with 4 pole pairs. Calculate the electrical frequency and the PWM frequency if at least 10 PWM cycles per electrical cycle is required.',
+                        hint: 'Electrical frequency = mechanical frequency × pole pairs',
+                        answer: 'Mechanical freq = 3000 RPM / 60 = 50 Hz. Electrical freq = 50 Hz × 4 = 200 Hz. For 10 PWM cycles per electrical cycle: PWM freq = 200 × 10 = 2000 Hz minimum. In practice, use 20 kHz for smooth operation and to be above audible range.'
+                    },
+                    {
+                        question: 'Calculate the required dead time if the MOSFET turn-off time is 80ns and turn-on time is 40ns. Include a safety margin.',
+                        hint: 'Dead time must be longer than the slower MOSFET transition.',
+                        answer: 'Turn-off = 80ns, Turn-on = 40ns. Dead time must exceed turn-off time (the high-side must fully turn off before low-side turns on). Minimum dead time = 80ns. With 50% safety margin: 80ns × 1.5 = 120ns. With gate driver propagation delay mismatch (~20ns typical): use 150-200ns. Typical implementations use 200-500ns.'
+                    },
+                    {
+                        question: 'Why does SVPWM provide 15% more DC bus utilization compared to sinusoidal PWM?',
+                        hint: 'Consider the third harmonic injection and the space vector synthesis.',
+                        answer: 'SVPWM adds a zero-sequence (common-mode) component to all three phases, which is equivalent to third harmonic injection. This shifts the reference waveforms toward the center of the PWM period, reducing the peak values needed. The modulation index can reach 2/√3 ≈ 1.15 (115%) compared to 1.0 for SPWM before overmodulation. This means 15% higher line-to-line voltage for the same DC bus voltage, improving power capability without increasing bus voltage.'
+                    }
+                ]
+            });
+        });
+    </script>
+</body>
+</html>

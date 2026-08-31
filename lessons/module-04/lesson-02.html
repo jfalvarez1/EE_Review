@@ -1,704 +1,393 @@
-<!-- Module 4, Lesson 2: BJT High-Frequency AC Model (Miller Effect & fT) -->
+<!-- Module 4, Lesson 2: Diodes in Practice - an Overview -->
 <div class="lesson-content" data-module="4" data-lesson="2">
 
     <div class="card">
-        <h2>BJT High-Frequency AC Model</h2>
-        <p>At high frequencies, parasitic capacitances dominate BJT behavior. The <strong>hybrid-pi model</strong> with capacitors explains bandwidth limits, the Miller effect, and the transition frequency (fT).</p>
+        <h2>Diodes in Practice &mdash; an Overview</h2>
 
-        <div class="kv">
-            <div class="box">
-                <div class="k">Transition Frequency</div>
-                <div class="v mono">f<sub>T</sub> = g<sub>m</sub> / (2&pi;(C<sub>&pi;</sub> + C<sub>&mu;</sub>))</div>
+        <div class="notice">
+            <strong>This lesson is deliberately a survey, and it is worth saying why.</strong>
+            A classical Electronics I spends a fortnight on rectifier design: half-wave,
+            full-wave, centre-tapped, bridge, each with its own ripple derivation. Almost none of
+            that is work an analog engineer does now. You buy a supply module, or an integrated
+            regulator, or a PFC controller with the bridge built in.
+            <br><br>
+            What has <em>not</em> gone away is the intuition: how big the input capacitor must be,
+            why the peak current is many times the average, and why the diode you chose is
+            getting hot. That survives, so it is what this lesson covers. The design procedures
+            do not.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>1. Rectification, at the level you need it</h3>
+
+        <p>Three topologies, one paragraph each, then the only equation worth memorising.</p>
+
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Topology</th><th>Diodes</th><th>Ripple frequency</th><th>Drop</th><th>Still used?</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Half-wave</strong></td><td>1</td><td>\(f_{line}\)</td><td>1 &times; \(V_F\)</td><td>Rarely. Tiny loads, and RF envelope detectors.</td></tr>
+                    <tr><td><strong>Full-wave, centre-tapped</strong></td><td>2</td><td>\(2f_{line}\)</td><td>1 &times; \(V_F\)</td><td>Only where the transformer already has the tap. Low-voltage, high-current.</td></tr>
+                    <tr><td><strong>Bridge</strong></td><td>4</td><td>\(2f_{line}\)</td><td>2 &times; \(V_F\)</td><td>Yes — the default, and it is one four-pin part.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p>The doubled ripple frequency is the reason full-wave wins: you get twice as many
+        recharge events per second, so the same ripple needs half the capacitance.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ I = C\frac{dV}{dt} \;\Longrightarrow\; \Delta V = \frac{I\,\Delta t}{C} \]
+                <span class="drv-why">The capacitor supplies the load alone between peaks, so its
+                voltage droops linearly at a rate set by the load current.</span>
             </div>
-            <div class="box">
-                <div class="k">Miller Capacitance</div>
-                <div class="v mono">C<sub>Miller</sub> = C<sub>&mu;</sub>(1 + |A<sub>v</sub>|)</div>
+            <div class="drv-step">
+                \[ \Delta t \approx \frac{1}{f_{ripple}} \;\Longrightarrow\; \boxed{\;V_{ripple} \approx \frac{I_{load}}{f_{ripple}\,C}\;} \]
+                <span class="drv-why">Assuming the recharge pulse is short compared with the
+                period, which it is. This slightly overestimates ripple, which is the right
+                direction for a design margin.</span>
             </div>
-            <div class="box">
-                <div class="k">Input Pole</div>
-                <div class="v mono">f<sub>p</sub> = 1/(2&pi;R<sub>s</sub>C<sub>in</sub>)</div>
+            <div class="drv-step">
+                \[ \text{50 Hz mains, bridge, }1\,\mathrm{A},\ C=4700\,\mathrm{\mu F}:\quad V_{ripple} = \frac{1}{100 \times 4700\times10^{-6}} = 2.1\,\mathrm{V} \]
+                <span class="drv-why">Two volts of ripple on a supply you probably wanted flat.
+                This is why the regulator after it exists, and why its dropout voltage has to
+                accommodate the ripple troughs, not the average.</span>
             </div>
-            <div class="box">
-                <div class="k">Gain-Bandwidth</div>
-                <div class="v mono">GBW &asymp; constant for CE</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>2. The part everyone gets wrong: peak current</h3>
+
+        <p>The capacitor only draws current while the input is above its stored voltage &mdash; a
+        narrow sliver at the top of each half-cycle. All the charge must move in that window.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ Q_{out} = I_{load}\cdot\frac{1}{f_{ripple}} \quad\text{must equal}\quad Q_{in} = I_{peak}\cdot t_{cond} \]
+                <span class="drv-why">Charge balance over one cycle. Whatever leaves must arrive.</span>
+            </div>
+            <div class="drv-step">
+                \[ \frac{I_{peak}}{I_{load}} = \frac{1}{f_{ripple}\,t_{cond}} \]
+            </div>
+            <div class="drv-step">
+                \[ t_{cond} \approx 1\,\mathrm{ms\ of\ a\ }10\,\mathrm{ms\ half\text{-}cycle}:\quad \frac{I_{peak}}{I_{load}} \approx 10 \]
+                <span class="drv-why">A 1 A load draws 10 A peaks. This is not a corner case, it
+                is normal.</span>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Art of Electronics Insight:</strong> The Miller effect multiplies the small base-collector capacitance C&mu; (typically 2-8pF) by the voltage gain, often making it the dominant bandwidth limitation.
+            <strong>What that ratio explains.</strong> Why the diode's <em>surge</em> rating
+            \(I_{FSM}\) matters more than its average rating; why the transformer runs hot at a
+            modest average current; why these supplies have an awful power factor; and why a
+            switch-mode supply with active PFC exists at all. It also explains the loud buzz from
+            a cheap linear supply's transformer &mdash; that is 10 A pulses at 100 Hz doing
+            magnetostriction.
         </div>
     </div>
 
     <div class="card">
-        <h3>Hybrid-Pi Model with Capacitances</h3>
-        <div class="schematic-container" id="sch-hybrid-pi"></div>
-
-        <table class="table" style="margin-top: 20px;">
-            <tr>
-                <th>Element</th>
-                <th>Name</th>
-                <th>Formula</th>
-                <th>Typical (2N3904 @ 1mA)</th>
-            </tr>
-            <tr>
-                <td class="mono">r<sub>&pi;</sub></td>
-                <td>Base spreading resistance</td>
-                <td class="mono">&beta;/g<sub>m</sub></td>
-                <td>3.9k&Omega;</td>
-            </tr>
-            <tr>
-                <td class="mono">g<sub>m</sub></td>
-                <td>Transconductance</td>
-                <td class="mono">I<sub>C</sub>/V<sub>T</sub></td>
-                <td>38.5mS</td>
-            </tr>
-            <tr>
-                <td class="mono">C<sub>&pi;</sub></td>
-                <td>Base-emitter capacitance</td>
-                <td class="mono">g<sub>m</sub>/(2&pi;f<sub>T</sub>) - C<sub>&mu;</sub></td>
-                <td>~35pF</td>
-            </tr>
-            <tr>
-                <td class="mono">C<sub>&mu;</sub></td>
-                <td>Base-collector capacitance</td>
-                <td class="mono">(from datasheet)</td>
-                <td>4pF</td>
-            </tr>
-            <tr>
-                <td class="mono">r<sub>o</sub></td>
-                <td>Output resistance (Early)</td>
-                <td class="mono">V<sub>A</sub>/I<sub>C</sub></td>
-                <td>100k&Omega;</td>
-            </tr>
-        </table>
-    </div>
-
-    <div class="card">
-        <h3>Interactive: fT and Miller Effect Calculator</h3>
+        <h3>Interactive: sizing the reservoir capacitor</h3>
+        <p>The one rectifier calculation still worth doing by hand.</p>
 
         <div class="controls">
-            <div class="c3">
-                <label for="hf-ic">I<sub>C</sub> (mA)</label>
-                <input type="range" id="hf-ic" min="0.1" max="50" step="0.1" value="1">
-                <span id="hf-ic-val" class="mono">1.0 mA</span>
+            <div class="c4">
+                <label for="rc-i">Load current</label>
+                <input type="range" id="rc-i" min="0.01" max="5" step="0.01" value="1">
+                <span class="range-value" id="rc-i-val">1.00 A</span>
             </div>
-            <div class="c3">
-                <label for="hf-ft">f<sub>T</sub> (MHz)</label>
-                <input type="range" id="hf-ft" min="50" max="1000" step="10" value="300">
-                <span id="hf-ft-val" class="mono">300 MHz</span>
+            <div class="c4">
+                <label for="rc-c">Reservoir capacitance</label>
+                <input type="range" id="rc-c" min="100" max="20000" step="100" value="4700">
+                <span class="range-value" id="rc-c-val">4700 &micro;F</span>
             </div>
-            <div class="c3">
-                <label for="hf-cmu">C<sub>&mu;</sub> (pF)</label>
-                <input type="range" id="hf-cmu" min="0.5" max="15" step="0.5" value="4">
-                <span id="hf-cmu-val" class="mono">4.0 pF</span>
+            <div class="c4">
+                <label for="rc-f">Mains frequency</label>
+                <select id="rc-f">
+                    <option value="50">50 Hz (most of the world)</option>
+                    <option value="60">60 Hz (Americas)</option>
+                </select>
             </div>
-            <div class="c3">
-                <label for="hf-beta">Beta (&beta;)</label>
-                <input type="range" id="hf-beta" min="50" max="400" step="10" value="150">
-                <span id="hf-beta-val" class="mono">150</span>
-            </div>
-            <div class="c3">
-                <label for="hf-rc">R<sub>C</sub> (k&Omega;)</label>
-                <input type="range" id="hf-rc" min="0.5" max="20" step="0.5" value="4.7">
-                <span id="hf-rc-val" class="mono">4.7 k&Omega;</span>
-            </div>
-            <div class="c3">
-                <label for="hf-rs">R<sub>S</sub> (k&Omega;)</label>
-                <input type="range" id="hf-rs" min="0.1" max="10" step="0.1" value="1">
-                <span id="hf-rs-val" class="mono">1.0 k&Omega;</span>
+            <div class="c4">
+                <label for="rc-topo">Topology</label>
+                <select id="rc-topo">
+                    <option value="2" selected>Bridge / full-wave</option>
+                    <option value="1">Half-wave</option>
+                </select>
             </div>
         </div>
 
-        <div class="kv">
-            <div class="box">
-                <div class="k">g<sub>m</sub></div>
-                <div class="v mono" id="hf-gm">-</div>
-            </div>
-            <div class="box">
-                <div class="k">r<sub>&pi;</sub></div>
-                <div class="v mono" id="hf-rpi">-</div>
-            </div>
-            <div class="box">
-                <div class="k">C<sub>&pi;</sub></div>
-                <div class="v mono" id="hf-cpi">-</div>
-            </div>
-            <div class="box">
-                <div class="k">|A<sub>v</sub>|</div>
-                <div class="v mono" id="hf-av">-</div>
-            </div>
+        <div class="canvas-wrap">
+            <canvas id="rc-canvas" width="660" height="260"></canvas>
         </div>
 
         <div class="kv">
-            <div class="box">
-                <div class="k">C<sub>Miller</sub></div>
-                <div class="v mono" id="hf-cmiller">-</div>
-            </div>
-            <div class="box">
-                <div class="k">C<sub>in,total</sub></div>
-                <div class="v mono" id="hf-cin">-</div>
-            </div>
-            <div class="box">
-                <div class="k">f<sub>-3dB</sub> (input)</div>
-                <div class="v mono" id="hf-f3db">-</div>
-            </div>
-            <div class="box">
-                <div class="k">GBW</div>
-                <div class="v mono" id="hf-gbw">-</div>
-            </div>
+            <div class="box"><div class="k">Ripple voltage</div><div class="v mono" id="rc-vr">&mdash;</div></div>
+            <div class="box"><div class="k">Ripple frequency</div><div class="v mono" id="rc-fr">&mdash;</div></div>
+            <div class="box"><div class="k">Conduction angle</div><div class="v mono" id="rc-ang">&mdash;</div></div>
+            <div class="box"><div class="k">Peak / average current</div><div class="v mono" id="rc-ratio">&mdash;</div></div>
+            <div class="box"><div class="k">Diode peak current</div><div class="v mono" id="rc-ipk">&mdash;</div></div>
+            <div class="box"><div class="k">Capacitor ripple current (RMS)</div><div class="v mono" id="rc-irms">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="rc-note"></p>
+    </div>
+
+    <div class="card">
+        <h3>3. Choosing a rectifier</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Spec</th><th>What it means</th><th>How to pick</th></tr></thead>
+                <tbody>
+                    <tr><td>\(V_{RRM}\)</td><td>Peak repetitive reverse voltage</td><td>&ge; 2&times; peak input. A 230 V RMS line peaks at 325 V, so 600 V or 1000 V parts.</td></tr>
+                    <tr><td>\(I_{F(AV)}\)</td><td>Average forward current</td><td>&ge; load current, derated for temperature. Necessary but not sufficient.</td></tr>
+                    <tr><td><strong>\(I_{FSM}\)</strong></td><td>Non-repetitive surge</td><td><strong>The one that actually bites.</strong> Cold start into a discharged reservoir can be tens of amps.</td></tr>
+                    <tr><td>\(t_{rr}\)</td><td>Reverse recovery time</td><td>Irrelevant at 50 Hz. Critical above ~10 kHz — use Schottky or fast-recovery.</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
     <div class="card">
-        <h3>Frequency Response Visualization</h3>
-        <div class="canvas-wrap">
-            <canvas id="hf-bode" width="980" height="320"></canvas>
-        </div>
-    </div>
+        <h3>4. Clamping and protection &mdash; what is actually used</h3>
 
-    <div class="card">
-        <h3>fT vs IC Characteristic</h3>
-        <p>Transition frequency varies with collector current. It peaks at a "sweet spot" and drops at both low and high currents.</p>
+        <p>Zener diodes still appear in textbooks as shunt regulators. They are almost never used
+        that way now: a TL431 or a two-terminal reference does the job with an order of magnitude
+        better tempco and load regulation, for similar money. Zeners survive in three roles:</p>
 
-        <div class="canvas-wrap">
-            <canvas id="ft-vs-ic" width="980" height="280"></canvas>
+        <ul class="bullets">
+            <li><strong>Crude overvoltage clamps</strong> where accuracy does not matter.</li>
+            <li><strong>Level shifting</strong> by a fixed drop, in gate drive and bias strings.</li>
+            <li><strong>The 5&ndash;6 V sweet spot</strong>, where the avalanche and Zener
+                mechanisms have opposite tempcos and cancel &mdash; giving a genuinely stable
+                reference around 5.6 V, which is the basis of buried-Zener references, still the
+                lowest-noise references money can buy.</li>
+        </ul>
+
+        <p>For protection, the modern parts are different devices with a similar shape:</p>
+
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Part</th><th>For</th><th>Note</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>TVS diode</strong></td><td>Transients, ESD, load dump</td><td>Built for energy, not precision. Specified in joules and in clamping voltage at a stated surge current.</td></tr>
+                    <tr><td><strong>Schottky clamp pair</strong></td><td>Holding an input inside the rails</td><td>The classic pair to \(V_{CC}\) and ground. Watch the leakage into high-impedance nodes.</td></tr>
+                    <tr><td><strong>Series blocking diode</strong></td><td>Reverse-polarity protection</td><td>Costs a \(V_F\). A PMOS with its body diode pointing the right way costs a few tens of millivolts instead, and is the standard modern answer.</td></tr>
+                </tbody>
+            </table>
         </div>
 
         <div class="notice">
-            <strong>Key Observation:</strong> fT peaks around 10-50mA for most small-signal BJTs, then drops due to high-level injection effects. At low currents, C&pi; dominates; at high currents, transit time limits increase.
+            <strong>Clamping into a high-impedance node is a trap.</strong> A BAT54 leaks about
+            \(2\,\mathrm{\mu A}\) at 25 °C and doubles every 10 °C. Clamp the input of a
+            \(10^{12}\,\Omega\) electrometer with one and the leakage is many orders of magnitude
+            larger than the signal current. The protection destroys the measurement it was added
+            to defend &mdash; and the fix is a low-leakage part, or a guard ring, or accepting
+            that this input cannot be protected that way.
         </div>
     </div>
 
     <div class="card">
-        <h3>Design Strategies for High Bandwidth</h3>
+        <h3>Problem Set</h3>
+        <div class="pset">
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">1</span><span class="problem-level level-1">Level 1</span></div>
+                <p>A bridge rectifier on 60 Hz mains feeds \(500\,\mathrm{mA}\). What
+                capacitance keeps ripple below \(1\,\mathrm{V}\)?</p>
+                <details><summary>Solution</summary>
+                <p>\[ C \ge \frac{I}{f_{ripple}V_{ripple}} = \frac{0.5}{120 \times 1} = 4170\,\mathrm{\mu F} \]</p>
+                <p>Use \(4700\,\mathrm{\mu F}\), the next standard value. Then check the ripple
+                current rating &mdash; on a supply this size it is usually the ripple current, not
+                the capacitance, that decides which capacitor you can actually buy.</p>
+                </details>
+            </div>
 
-        <table class="table">
-            <tr>
-                <th>Strategy</th>
-                <th>Effect on Bandwidth</th>
-                <th>Trade-off</th>
-            </tr>
-            <tr>
-                <td>Reduce R<sub>S</sub> (source impedance)</td>
-                <td>Higher f<sub>-3dB</sub> &prop; 1/R<sub>S</sub></td>
-                <td>May need buffer stage</td>
-            </tr>
-            <tr>
-                <td>Use cascode configuration</td>
-                <td>Eliminates Miller effect</td>
-                <td>Reduced output swing</td>
-            </tr>
-            <tr>
-                <td>Emitter degeneration</td>
-                <td>Reduces effective gain, reduces Miller</td>
-                <td>Lower overall gain</td>
-            </tr>
-            <tr>
-                <td>Choose high-f<sub>T</sub> transistor</td>
-                <td>Lower C<sub>&pi;</sub> and C<sub>&mu;</sub></td>
-                <td>Often more expensive</td>
-            </tr>
-            <tr>
-                <td>Operate at optimal I<sub>C</sub></td>
-                <td>Maximize f<sub>T</sub></td>
-                <td>Power consumption trade-off</td>
-            </tr>
-        </table>
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">2</span><span class="problem-level level-2">Level 2</span></div>
+                <p>The same supply, but you switch from a bridge to half-wave to save two diodes.
+                What happens, quantitatively?</p>
+                <details><summary>Solution</summary>
+                <p>Ripple frequency halves from 120 Hz to 60 Hz, so for the same capacitor the
+                ripple <em>doubles</em> to 2 V. To restore 1 V you need
+                \(8340\,\mathrm{\mu F}\) &mdash; twice the capacitance.</p>
+                <p>You saved two diodes worth a few cents and bought a capacitor at twice the
+                size, cost and volume, with double the ripple current through it. You also gained
+                a DC component in the transformer winding, which pushes the core toward
+                saturation. <strong>This is why nobody does it.</strong></p>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">3</span><span class="problem-level level-3">Level 3</span></div>
+                <p>A 12 V supply uses a bridge of 1N4007s and a \(4700\,\mathrm{\mu F}\)
+                reservoir, feeding 1 A. Estimate the power dissipated in the bridge, and say
+                whether it needs a heatsink.</p>
+                <details><summary>Solution</summary>
+                <p>Two diodes conduct at a time, each dropping about 1 V at the peak currents
+                involved &mdash; not 0.7 V, because the current in the conduction sliver is
+                roughly 10 A, several decades above where 0.7 V applies.</p>
+                <p>\[ P \approx 2 \times V_F \times I_{load,avg} = 2 \times 1.0 \times 1 = 2\,\mathrm{W} \]</p>
+                <p>Using the <em>average</em> current is correct for dissipation, because the
+                diode conducts only while current flows and the charge is what it is. A DO-41
+                axial part has \(R_{\theta JA} \approx 50\,^\circ\mathrm{C/W}\), and 1 W per diode
+                is a 50 °C rise. That is survivable in free air and marginal in a box: use a
+                bridge module on a tab, or Schottkys to halve the drop.</p>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">4</span><span class="problem-level level-4">Level 4</span></div>
+                <p>Explain why the reservoir capacitor's <strong>ripple current</strong> rating,
+                rather than its capacitance, usually decides which part you buy &mdash; and why
+                exceeding it destroys the capacitor rather than merely degrading performance.</p>
+                <details><summary>Solution</summary>
+                <p>The capacitor sees the full pulse current on charge and the load current on
+                discharge, so its RMS ripple current is several times the DC load current &mdash;
+                roughly \(I_{load}\sqrt{I_{peak}/I_{load}}\) for short pulses, so about
+                \(3\times\) at a 10:1 peak ratio.</p>
+                <p>That current flows through the capacitor's equivalent series resistance,
+                dissipating \(I_{rms}^2 R_{ESR}\) <em>inside</em> the can, where the heat has
+                nowhere to go and the electrolyte is. Raised temperature accelerates electrolyte
+                loss, which <em>raises</em> ESR, which raises dissipation. It is a positive
+                feedback loop that ends in an open circuit or a vented can &mdash; and it is why
+                electrolytic life is quoted in hours at a stated temperature, halving for every
+                10 °C above it.</p>
+                <p>So the selection order is: ripple current first, then ESR, then capacitance.
+                Capacitance is usually the easy one to satisfy.</p>
+                </details>
+            </div>
+        </div>
     </div>
-
-    <div class="card">
-        <h3>SPICE Netlist</h3>
-        <div id="hf-spice"></div>
-    </div>
-
-    <div class="card">
-        <h3>Verification Checklist</h3>
-        <div id="hf-checklist"></div>
-    </div>
-
-    <div class="card">
-        <h3>Practice Exercises</h3>
-        <div id="hf-exercises"></div>
-    </div>
-
 </div>
 
 <script>
-(function() {
-    const TEK = AD.TEK_COLORS;
+(function () {
+    const canvas = document.getElementById('rc-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
 
-    // ===== HYBRID-PI SCHEMATIC =====
-    (function() {
-        const container = document.getElementById('sch-hybrid-pi');
-        if (!container || typeof AD === 'undefined' || !AD.Schematic) return;
+    function model() {
+        const i = AD.num('rc-i');
+        const c = AD.num('rc-c') * 1e-6;
+        const fLine = parseFloat(document.getElementById('rc-f').value);
+        const mult = parseFloat(document.getElementById('rc-topo').value);
+        const fr = fLine * mult;
+        const vpk = 17;                       // a nominal 12 V transformer, rectified
+        const vr = i / (fr * c);
 
-        const S = AD.Schematic;
-        const sch = S.create(container, { width: 520, height: 240 });
+        // Conduction angle: the diode conducts while the sine is above (Vpk - Vr).
+        const ratio = Math.min(1, Math.max(0, (vpk - vr) / vpk));
+        const theta = Math.acos(ratio);       // radians either side of the peak
+        const tCond = theta / (Math.PI * fLine);
+        const ipk = tCond > 0 ? i / (fr * tCond) : Infinity;
+        // Short-pulse approximation for the capacitor's RMS ripple current.
+        const irms = i * Math.sqrt(Math.max(1, ipk / i));
 
-        // Node positions
-        const bX = 60, bY = 120;    // Base input
-        const b2X = 140, b2Y = 120;  // After rb
-        const eX = 260, eY = 200;    // Emitter
-        const cX = 400, cY = 50;     // Collector output
-        const gndY = 220;
-
-        // Base resistance rb (external)
-        sch.resistor(bX, bY, 'horizontal', { label: 'rb', value: '~100Ω' });
-        const rb = S.resistorTerminals(bX, bY, 'horizontal');
-        const binX = bX - 25;
-        sch.wire([[binX, bY], [rb.start.x, rb.start.y]]);
-        sch.nodeLabel(binX, bY, 'B', { dx: -8, dy: 4, anchor: 'end' });
-
-        // rπ (base to emitter)
-        const rpiX = b2X + 30, rpiY = bY + 20;
-        sch.resistor(rpiX, rpiY, 'vertical', { label: 'rπ' });
-        const rpi = S.resistorTerminals(rpiX, rpiY, 'vertical');
-
-        // Cπ in parallel with rπ
-        const cpiX = rpiX + 50;
-        sch.capacitor(cpiX, rpiY, 'vertical', { label: 'Cπ' });
-        const cpi = S.capacitorTerminals(cpiX, rpiY, 'vertical');
-
-        // Connect rb to rπ/Cπ top
-        sch.wire([[rb.end.x, rb.end.y], [b2X + 30, bY]]);
-        sch.wire([[b2X + 30, bY], [rpi.start.x, rpi.start.y]]);
-        sch.wire([[rpi.start.x, rpi.start.y], [cpi.start.x, cpi.start.y]]);
-        sch.junction(rpi.start.x, rpi.start.y);
-
-        // Emitter node
-        sch.wire([[rpi.end.x, rpi.end.y], [eX, eY]]);
-        sch.wire([[cpi.end.x, cpi.end.y], [eX, eY]]);
-        sch.junction(eX, eY);
-        sch.wire([[eX, eY], [eX, gndY]]);
-        sch.ground(eX, gndY);
-        sch.text(eX + 28, eY + 18, 'E', { anchor: 'start' });
-
-        // Cμ (Miller capacitor) from B' to C
-        const cmuX = 260, cmuY = 50;
-        sch.capacitor(cmuX, cmuY, 'horizontal', { label: 'Cμ' });
-        const cmu = S.capacitorTerminals(cmuX, cmuY, 'horizontal');
-        sch.wire([[b2X + 30, bY], [b2X + 30, cmuY]]);
-        sch.wire([[b2X + 30, cmuY], [cmu.start.x, cmu.start.y]]);
-        sch.wire([[cmu.end.x, cmu.end.y], [cX, cmuY]]);
-        sch.junction(b2X + 30, bY);
-
-        // Controlled current source gm*vπ
-        const gmX = 340, gmY = 120;
-        sch.currentSource(gmX, gmY, 'vertical');
-        sch.text(gmX - 30, gmY + 10, 'gm·vπ', { size: 11, anchor: 'end' });
-        sch.wire([[gmX, gmY], [gmX, cmuY]]);
-        sch.wire([[gmX, cmuY], [cX, cmuY]]);
-        sch.wire([[gmX, gmY + 50], [gmX, eY]]);
-        sch.wire([[gmX, eY], [eX, eY]]);
-        sch.junction(gmX, eY);
-
-        // ro (output resistance)
-        const roX = cX - 20, roY = cmuY + 30;
-        sch.resistor(roX, roY, 'vertical', { label: 'ro' });
-        const ro = S.resistorTerminals(roX, roY, 'vertical');
-        sch.wire([[cX, cmuY], [ro.start.x, ro.start.y]]);
-        sch.wire([[ro.end.x, ro.end.y], [cX - 20, eY]]);
-        sch.wire([[cX - 20, eY], [gmX, eY]]);
-        sch.junction(cX, cmuY);
-
-        // Collector output
-        const cOutX = cX + 40;
-        sch.wire([[cX, cmuY], [cOutX, cmuY]]);
-        sch.nodeLabel(cOutX, cmuY, 'C', { dx: 8, dy: 4, anchor: 'start' });
-
-        sch.finalize();
-    })();
-
-    // ===== CALCULATOR =====
-    const icEl = document.getElementById('hf-ic');
-    const ftEl = document.getElementById('hf-ft');
-    const cmuEl = document.getElementById('hf-cmu');
-    const betaEl = document.getElementById('hf-beta');
-    const rcEl = document.getElementById('hf-rc');
-    const rsEl = document.getElementById('hf-rs');
-    if (!icEl) return;
-
-    const bodeCanvas = document.getElementById('hf-bode');
-    const bodeCtx = bodeCanvas ? bodeCanvas.getContext('2d') : null;
+        return { i, c, fLine, fr, vpk, vr, theta, tCond, ipk, irms };
+    }
 
     function update() {
-        const ic = parseFloat(icEl.value) * 1e-3;
-        const ft = parseFloat(ftEl.value) * 1e6;
-        const cmu = parseFloat(cmuEl.value) * 1e-12;
-        const beta = parseFloat(betaEl.value);
-        const rc = parseFloat(rcEl.value) * 1e3;
-        const rs = parseFloat(rsEl.value) * 1e3;
+        const m = model();
+        AD.setText('rc-i-val', m.i.toFixed(2) + ' A');
+        AD.setText('rc-c-val', (m.c * 1e6).toFixed(0) + ' µF');
 
-        // Update displays
-        document.getElementById('hf-ic-val').textContent = (ic * 1e3).toFixed(1) + ' mA';
-        document.getElementById('hf-ft-val').textContent = (ft / 1e6).toFixed(0) + ' MHz';
-        document.getElementById('hf-cmu-val').textContent = (cmu * 1e12).toFixed(1) + ' pF';
-        document.getElementById('hf-beta-val').textContent = beta;
-        document.getElementById('hf-rc-val').textContent = (rc / 1e3).toFixed(1) + ' kΩ';
-        document.getElementById('hf-rs-val').textContent = (rs / 1e3).toFixed(1) + ' kΩ';
+        AD.setText('rc-vr', m.vr.toFixed(2) + ' V');
+        AD.setText('rc-fr', m.fr.toFixed(0) + ' Hz');
+        AD.setText('rc-ang', (m.theta * 180 / Math.PI).toFixed(1) + '° either side');
+        AD.setText('rc-ratio', isFinite(m.ipk) ? (m.ipk / m.i).toFixed(1) + ' : 1' : '—');
+        AD.setText('rc-ipk', isFinite(m.ipk) ? m.ipk.toFixed(1) + ' A' : '—');
+        AD.setText('rc-irms', m.irms.toFixed(2) + ' A');
 
-        // Calculate parameters
-        const vt = 0.026;
-        const gm = ic / vt;
-        const rpi = beta / gm;
-        const cTotal = gm / (2 * Math.PI * ft);
-        const cpi = Math.max(cTotal - cmu, 1e-12);
-
-        // Voltage gain (mid-band)
-        const av = gm * rc;
-
-        // Miller capacitance
-        const cMiller = cmu * (1 + av);
-        const cin = cpi + cMiller;
-
-        // Input pole frequency
-        const rIn = rs * rpi / (rs + rpi);  // Parallel of Rs and rπ
-        const f3db = 1 / (2 * Math.PI * rIn * cin);
-
-        // Gain-bandwidth product
-        const gbw = av * f3db;
-
-        // Update results
-        document.getElementById('hf-gm').textContent = AD.fmtUnit(gm, 'S');
-        document.getElementById('hf-rpi').textContent = AD.fmtUnit(rpi, 'Ω');
-        document.getElementById('hf-cpi').textContent = AD.fmtUnit(cpi, 'F');
-        document.getElementById('hf-av').textContent = av.toFixed(1);
-        document.getElementById('hf-cmiller').textContent = AD.fmtUnit(cMiller, 'F');
-        document.getElementById('hf-cin').textContent = AD.fmtUnit(cin, 'F');
-        document.getElementById('hf-f3db').textContent = AD.fmtUnit(f3db, 'Hz');
-        document.getElementById('hf-gbw').textContent = AD.fmtUnit(gbw, 'Hz');
-
-        // Plot Bode diagram
-        if (bodeCtx) {
-            plotBode(av, f3db, ft);
+        const note = document.getElementById('rc-note');
+        if (note) {
+            note.textContent = m.vr > 4
+                ? 'Ripple is ' + m.vr.toFixed(1) + ' V on a ' + m.vpk + ' V peak — the trough ' +
+                  'is at ' + (m.vpk - m.vr).toFixed(1) + ' V, and any regulator after this must ' +
+                  'still have headroom THERE, not at the average.'
+                : 'Peak diode current is ' + (m.ipk / m.i).toFixed(1) + '× the load current, ' +
+                  'flowing for only ' + (m.tCond * 1000).toFixed(2) + ' ms per half-cycle. That ' +
+                  'ratio is what sets the surge rating, the transformer heating and the power ' +
+                  'factor.';
         }
+        draw(m);
     }
 
-    function plotBode(av, f3db, ft) {
-        const w = bodeCanvas.width, h = bodeCanvas.height;
-        const margin = { left: 60, right: 20, top: 20, bottom: 40 };
-        const plotW = w - margin.left - margin.right;
-        const plotH = h - margin.top - margin.bottom;
+    function draw(m) {
+        const W = canvas.width, H = canvas.height;
+        ctx.fillStyle = '#001a00';
+        ctx.fillRect(0, 0, W, H);
 
-        // Clear
-        bodeCtx.fillStyle = '#0d1117';
-        bodeCtx.fillRect(0, 0, w, h);
+        const ml = 48, mr = 20, mt = 26, mb = 40;
+        const pw = W - ml - mr, ph = H - mt - mb;
+        const cycles = 2.5;
+        const vTop = m.vpk * 1.15;
+        const xOf = t => ml + t * pw;                  // t in cycles 0..cycles
+        const yOf = v => mt + ph - Math.max(0, v) / vTop * ph;
 
-        // Frequency range (log scale)
-        const fMin = 1e3, fMax = 1e9;
-        const dbMin = -20, dbMax = 60;
-
-        function fToX(f) {
-            return margin.left + (Math.log10(f / fMin) / Math.log10(fMax / fMin)) * plotW;
-        }
-        function dbToY(db) {
-            return margin.top + plotH - ((db - dbMin) / (dbMax - dbMin)) * plotH;
-        }
-
-        // Grid
-        bodeCtx.strokeStyle = 'rgba(255,255,255,0.08)';
-        bodeCtx.lineWidth = 1;
-        for (let exp = 3; exp <= 9; exp++) {
-            const x = fToX(Math.pow(10, exp));
-            bodeCtx.beginPath();
-            bodeCtx.moveTo(x, margin.top);
-            bodeCtx.lineTo(x, margin.top + plotH);
-            bodeCtx.stroke();
-        }
-        for (let db = dbMin; db <= dbMax; db += 20) {
-            const y = dbToY(db);
-            bodeCtx.beginPath();
-            bodeCtx.moveTo(margin.left, y);
-            bodeCtx.lineTo(margin.left + plotW, y);
-            bodeCtx.stroke();
-        }
-
-        // 0dB line
-        bodeCtx.strokeStyle = 'rgba(255,255,255,0.25)';
-        bodeCtx.beginPath();
-        bodeCtx.moveTo(margin.left, dbToY(0));
-        bodeCtx.lineTo(margin.left + plotW, dbToY(0));
-        bodeCtx.stroke();
-
-        // Plot gain curve (single-pole approximation)
-        const avDb = 20 * Math.log10(av);
-        bodeCtx.strokeStyle = TEK.ch1;
-        bodeCtx.lineWidth = 2.5;
-        bodeCtx.beginPath();
-
-        let first = true;
-        for (let exp = 3; exp <= 9; exp += 0.05) {
-            const f = Math.pow(10, exp);
-            // Single-pole rolloff
-            const gain = av / Math.sqrt(1 + Math.pow(f / f3db, 2));
-            // Add high-frequency rolloff at fT
-            const hfRolloff = 1 / Math.sqrt(1 + Math.pow(f / ft, 2));
-            const totalGain = gain * hfRolloff;
-            const db = 20 * Math.log10(Math.max(totalGain, 0.001));
-
-            const x = fToX(f);
-            const y = dbToY(db);
-
-            if (first) { bodeCtx.moveTo(x, y); first = false; }
-            else bodeCtx.lineTo(x, y);
-        }
-        bodeCtx.stroke();
-
-        // Mark f-3dB
-        bodeCtx.strokeStyle = TEK.ch2;
-        bodeCtx.setLineDash([5, 5]);
-        bodeCtx.beginPath();
-        bodeCtx.moveTo(fToX(f3db), margin.top);
-        bodeCtx.lineTo(fToX(f3db), margin.top + plotH);
-        bodeCtx.stroke();
-        bodeCtx.setLineDash([]);
-
-        // Mark fT
-        bodeCtx.strokeStyle = TEK.ch3;
-        bodeCtx.setLineDash([5, 5]);
-        bodeCtx.beginPath();
-        bodeCtx.moveTo(fToX(ft), margin.top);
-        bodeCtx.lineTo(fToX(ft), margin.top + plotH);
-        bodeCtx.stroke();
-        bodeCtx.setLineDash([]);
-
-        // Labels
-        bodeCtx.fillStyle = 'rgba(255,255,255,0.8)';
-        bodeCtx.font = '11px ui-sans-serif';
-        bodeCtx.textAlign = 'center';
-
-        // X-axis labels
-        ['1k', '10k', '100k', '1M', '10M', '100M', '1G'].forEach((label, i) => {
-            bodeCtx.fillText(label, fToX(Math.pow(10, i + 3)), h - 8);
-        });
-
-        // Y-axis labels
-        bodeCtx.textAlign = 'right';
-        for (let db = dbMin; db <= dbMax; db += 20) {
-            bodeCtx.fillText(db + 'dB', margin.left - 8, dbToY(db) + 4);
-        }
-
-        // Legend
-        bodeCtx.textAlign = 'left';
-        bodeCtx.fillStyle = TEK.ch1;
-        bodeCtx.fillText('Gain', w - 120, 30);
-        bodeCtx.fillStyle = TEK.ch2;
-        bodeCtx.fillText('f-3dB: ' + AD.fmtUnit(f3db, 'Hz'), w - 120, 50);
-        bodeCtx.fillStyle = TEK.ch3;
-        bodeCtx.fillText('fT: ' + AD.fmtUnit(ft, 'Hz'), w - 120, 70);
-    }
-
-    // ===== fT vs IC PLOT =====
-    (function() {
-        const canvas = document.getElementById('ft-vs-ic');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        const w = canvas.width, h = canvas.height;
-
-        // Model fT vs IC (peaks around 10-50mA, drops at extremes)
-        function ftModel(ic) {
-            const icMa = ic * 1000;
-            const ftPeak = 350e6;
-            // Low current: fT limited by Cπ dominance
-            const lowFactor = 1 / (1 + 1 / icMa);
-            // High current: fT drops due to high-level injection
-            const highFactor = 1 / (1 + icMa / 100);
-            return ftPeak * lowFactor * highFactor;
-        }
-
-        const margin = { left: 60, right: 20, top: 20, bottom: 40 };
-        const plotW = w - margin.left - margin.right;
-        const plotH = h - margin.top - margin.bottom;
-
-        // Clear
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, w, h);
-
-        // Axes (log-log)
-        const icMin = 0.01e-3, icMax = 200e-3;
-        const ftMin = 10e6, ftMax = 500e6;
-
-        function icToX(ic) {
-            return margin.left + (Math.log10(ic / icMin) / Math.log10(icMax / icMin)) * plotW;
-        }
-        function ftToY(ft) {
-            return margin.top + plotH - (Math.log10(ft / ftMin) / Math.log10(ftMax / ftMin)) * plotH;
-        }
-
-        // Grid
         ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-        for (let exp = -5; exp <= -1; exp++) {
-            const x = icToX(Math.pow(10, exp));
-            ctx.beginPath();
-            ctx.moveTo(x, margin.top);
-            ctx.lineTo(x, margin.top + plotH);
-            ctx.stroke();
-        }
-        for (let exp = 7; exp <= 9; exp++) {
-            const y = ftToY(Math.pow(10, exp));
-            ctx.beginPath();
-            ctx.moveTo(margin.left, y);
-            ctx.lineTo(margin.left + plotW, y);
-            ctx.stroke();
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        for (let v = 0; v <= vTop; v += 5) {
+            const y = yOf(v);
+            ctx.beginPath(); ctx.moveTo(ml, y); ctx.lineTo(ml + pw, y); ctx.stroke();
+            ctx.textAlign = 'right';
+            ctx.fillText(v.toFixed(0) + 'V', ml - 5, y + 3);
         }
 
-        // Plot fT curve
-        ctx.strokeStyle = TEK.ch1;
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
         ctx.beginPath();
-        let first = true;
-        for (let logIc = -5; logIc <= -0.7; logIc += 0.05) {
-            const ic = Math.pow(10, logIc);
-            const ft = ftModel(ic);
-            const x = icToX(ic);
-            const y = ftToY(ft);
-            if (first) { ctx.moveTo(x, y); first = false; }
-            else ctx.lineTo(x, y);
+        ctx.moveTo(ml, mt); ctx.lineTo(ml, mt + ph); ctx.lineTo(ml + pw, mt + ph);
+        ctx.stroke();
+
+        // Rectified sine, faint - what arrives at the reservoir.
+        ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const N = 700;
+        for (let k = 0; k <= N; k++) {
+            const t = k / N * cycles;
+            const raw = Math.sin(2 * Math.PI * t);
+            const v = m.fr > m.fLine ? Math.abs(raw) * m.vpk : Math.max(0, raw) * m.vpk;
+            const x = xOf(t), y = yOf(v);
+            k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
         }
         ctx.stroke();
 
-        // Highlight optimal range
-        ctx.fillStyle = 'rgba(52, 211, 153, 0.15)';
-        const x1 = icToX(5e-3), x2 = icToX(50e-3);
-        ctx.fillRect(x1, margin.top, x2 - x1, plotH);
+        // The capacitor voltage: follows the peaks, then droops linearly.
+        ctx.strokeStyle = '#00BFFF';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const per = m.fLine / m.fr;                 // cycles between peaks
+        for (let k = 0; k <= N; k++) {
+            const t = k / N * cycles;
+            const phase = ((t + per / 4) % per) / per;   // 0 at a peak
+            const v = m.vpk - m.vr * phase;
+            const x = xOf(t), y = yOf(v);
+            k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        ctx.stroke();
 
-        // Labels
-        ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.font = '11px ui-sans-serif';
+        ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#00BFFF';
+        ctx.fillText('capacitor voltage', ml + 8, mt + 14);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fillText('rectified input', ml + 8, mt + 29);
+
         ctx.textAlign = 'center';
-        ctx.fillText('IC (A) - Log Scale', margin.left + plotW / 2, h - 8);
+        ctx.fillText('time — ' + m.fr.toFixed(0) + ' Hz ripple', ml + pw / 2, H - 10);
+    }
 
-        ctx.save();
-        ctx.translate(15, margin.top + plotH / 2);
-        ctx.rotate(-Math.PI / 2);
-        ctx.fillText('fT (Hz) - Log Scale', 0, 0);
-        ctx.restore();
-
-        // IC axis labels
-        ['10µ', '100µ', '1m', '10m', '100m'].forEach((label, i) => {
-            ctx.fillText(label, icToX(Math.pow(10, -5 + i)), h - 25);
-        });
-
-        // fT axis labels
-        ctx.textAlign = 'right';
-        ['10M', '50M', '100M', '200M', '500M'].forEach((label, i) => {
-            const ft = [10e6, 50e6, 100e6, 200e6, 500e6][i];
-            ctx.fillText(label, margin.left - 8, ftToY(ft) + 4);
-        });
-
-        // Annotations
-        ctx.fillStyle = '#34d399';
-        ctx.textAlign = 'center';
-        ctx.fillText('Optimal IC range', (x1 + x2) / 2, margin.top + 20);
-    })();
-
-    // Bind events
-    [icEl, ftEl, cmuEl, betaEl, rcEl, rsEl].forEach(el => {
+    ['rc-i', 'rc-c'].forEach(id => {
+        const el = document.getElementById(id);
         if (el) el.addEventListener('input', update);
     });
+    ['rc-f', 'rc-topo'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', update);
+    });
     update();
-
-    // ===== SPICE =====
-    new SpiceNetlistWidget('hf-spice', {
-        title: 'CE Amplifier AC Analysis (Frequency Response)',
-        netlist: `* CE Amplifier Frequency Response
-.include 2N3904.lib
-
-VCC vcc 0 DC 12
-VIN in 0 AC 1m SIN(0 10m 1k)
-
-* Bias network
-R1 vcc base 47k
-R2 base 0 10k
-RC vcc col 4.7k
-RE emitter 0 1k
-CE emitter 0 100u  ; Bypass capacitor
-
-* Coupling capacitors
-CIN in base 1u
-COUT col out 1u
-RL out 0 10k
-
-Q1 col base emitter 2N3904
-
-.AC DEC 20 100 100Meg
-.PROBE V(out) V(in)
-.END
-
-* Look for:
-* 1. Mid-band gain
-* 2. Low-frequency pole (coupling caps)
-* 3. High-frequency pole (Miller effect)
-* 4. fT rolloff at very high frequencies`
-    });
-
-    // ===== CHECKLIST =====
-    new ChecklistWidget('hf-checklist', {
-        lessonKey: 'm1l21',
-        items: [
-            'Understand the hybrid-pi model elements: rπ, gm, Cπ, Cμ, ro',
-            'Calculate transconductance gm = IC/VT',
-            'Explain why Cμ causes the Miller effect',
-            'Calculate Miller capacitance: CMiller = Cμ(1 + |Av|)',
-            'Find the input pole frequency f-3dB = 1/(2πRin·Cin)',
-            'Know fT = gm/(2π(Cπ + Cμ))',
-            'Understand gain-bandwidth trade-off',
-            'Recognize cascode eliminates Miller effect',
-            'Know fT varies with IC (peaks at optimal current)'
-        ]
-    });
-
-    // ===== EXERCISES =====
-    const exercises = [
-        {
-            id: 'M1L21-1',
-            type: 'numeric',
-            question: 'A BJT has IC = 2mA, β = 150, fT = 300MHz, and Cμ = 4pF. Calculate Cπ.',
-            hint: 'First find gm, then use fT = gm/(2π(Cπ + Cμ))',
-            expected: 37,
-            tolerance: 5,
-            unit: 'pF',
-            solution: 'gm = 2mA/26mV = 77mS. Cπ + Cμ = gm/(2πfT) = 77mS/(2π×300MHz) = 41pF. Cπ = 41 - 4 = 37pF'
-        },
-        {
-            id: 'M1L21-2',
-            type: 'numeric',
-            question: 'A CE amplifier has voltage gain |Av| = 50 and Cμ = 3pF. What is the Miller capacitance?',
-            hint: 'CMiller = Cμ × (1 + |Av|)',
-            expected: 153,
-            tolerance: 5,
-            unit: 'pF',
-            solution: 'CMiller = 3pF × (1 + 50) = 3pF × 51 = 153pF'
-        },
-        {
-            id: 'M1L21-3',
-            type: 'choice',
-            question: 'Which technique most effectively eliminates the Miller effect in a BJT amplifier?',
-            choices: [
-                { text: 'Add emitter degeneration resistor', correct: false, explanation: 'This reduces gain and thus Miller capacitance, but doesn\'t eliminate it.' },
-                { text: 'Use a cascode configuration', correct: true, explanation: 'Correct! The cascode keeps the CE stage\'s collector at nearly constant voltage, eliminating the voltage swing that causes Miller multiplication.' },
-                { text: 'Increase collector current', correct: false, explanation: 'Higher IC increases gm but doesn\'t address Miller effect directly.' },
-                { text: 'Use a larger value of RC', correct: false, explanation: 'Larger RC increases gain, which worsens Miller effect.' }
-            ]
-        },
-        {
-            id: 'M1L21-4',
-            type: 'numeric',
-            question: 'A CE stage has Cin = 200pF and is driven from RS = 1kΩ. What is the -3dB frequency?',
-            hint: 'f-3dB = 1/(2πRS×Cin)',
-            expected: 796,
-            tolerance: 50,
-            unit: 'kHz',
-            solution: 'f-3dB = 1/(2π × 1kΩ × 200pF) = 1/(2π × 200ns) = 796kHz'
-        }
-    ];
-
-    const exContainer = document.getElementById('hf-exercises');
-    exercises.forEach((ex, i) => {
-        const div = document.createElement('div');
-        div.id = `exercise-m1l21-${i}`;
-        div.style.marginBottom = '15px';
-        exContainer.appendChild(div);
-        new ExerciseWidget(`exercise-m1l21-${i}`, ex);
-    });
 })();
 </script>

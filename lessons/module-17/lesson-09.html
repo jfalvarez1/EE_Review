@@ -1,1863 +1,321 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lesson 9: Hall Effect Sensors - Module 20</title>
-</head>
-<body>
-    <div class="lesson-content" data-module="17" data-lesson="9">
-        <div class="card">
-            <h2>Hall Effect Sensors</h2>
-            <p>
-                Hall effect sensors detect magnetic fields by measuring the voltage developed across a
-                current-carrying conductor when placed in a magnetic field. They are widely used for
-                position sensing, current measurement, and speed detection. This lesson covers Hall
-                sensor principles and interface circuits.
-            </p>
+<!-- Module 17, Lesson 9: Anti-Aliasing and Reconstruction Filters -->
+<div class="lesson-content" data-module="17" data-lesson="9">
+    <div class="card">
+        <h2>Anti-Aliasing and Reconstruction Filters</h2>
+        <p>The Nyquist theorem requires signals be band-limited to less than half the sample rate to prevent aliasing. Anti-aliasing filters before ADCs and reconstruction filters after DACs are essential components in any sampled-data system.</p>
 
-            <div class="kv">
-                <div class="kv-item"><span>Hall Voltage</span><span>V_H = K_H × I × B</span></div>
-                <div class="kv-item"><span>Typical Sensitivity</span><span>1-10 mV/mT</span></div>
-                <div class="kv-item"><span>Applications</span><span>Current, Position, Speed, Proximity</span></div>
-                <div class="kv-item"><span>Types</span><span>Switch, Latch, Linear, Angle</span></div>
+        <div class="kv">
+            <div class="box">
+                <h4>Aliasing Problem</h4>
+                <ul>
+                    <li><strong>Nyquist:</strong> fs > 2 × fmax</li>
+                    <li><strong>Aliasing:</strong> High frequencies fold back</li>
+                    <li><strong>fAlias:</strong> |fin - n×fs|</li>
+                    <li><strong>Irreversible:</strong> Cannot be removed after sampling</li>
+                </ul>
             </div>
-
-            <div class="notice">
-                <strong>Hall Effect Principle:</strong> When current flows through a conductor in a
-                magnetic field, the Lorentz force deflects charge carriers, creating a voltage
-                perpendicular to both the current and magnetic field.
+            <div class="box">
+                <h4>Filter Requirements</h4>
+                <ul>
+                    <li><strong>Passband:</strong> Flat to signal bandwidth</li>
+                    <li><strong>Stopband:</strong> Attenuate beyond fs/2</li>
+                    <li><strong>Transition:</strong> Sharp rolloff needed</li>
+                    <li><strong>Phase:</strong> Linear phase for time-domain</li>
+                </ul>
             </div>
-        </div>
-
-        <div class="card">
-            <h3>Hall Effect Physics</h3>
-
-            <div class="canvas-wrap">
-                <canvas id="hall-physics-canvas" width="900" height="400"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Interactive: Hall Sensor Response</h3>
-            <p>Explore how magnetic field, bias current, and temperature affect Hall sensor output.</p>
-
-            <div class="controls">
-                <label>
-                    Sensor Type:
-                    <select id="hall-type">
-                        <option value="linear">Linear (Analog)</option>
-                        <option value="switch">Switch (Digital)</option>
-                        <option value="latch">Latch (Bipolar)</option>
-                    </select>
-                </label>
-                <label>
-                    Sensitivity:
-                    <input type="range" id="hall-sens" min="1" max="20" value="5" step="0.5">
-                    <span id="hall-sens-val">5.0 mV/mT</span>
-                </label>
-                <label>
-                    Magnetic Field:
-                    <input type="range" id="hall-field" min="-100" max="100" value="0">
-                    <span id="hall-field-val">0 mT</span>
-                </label>
-                <label>
-                    Supply Voltage:
-                    <input type="range" id="hall-vcc" min="3" max="12" value="5" step="0.5">
-                    <span id="hall-vcc-val">5.0 V</span>
-                </label>
-                <label>
-                    Temperature:
-                    <input type="range" id="hall-temp" min="-40" max="125" value="25">
-                    <span id="hall-temp-val">25°C</span>
-                </label>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="hall-canvas" width="980" height="420"></canvas>
-            </div>
-
-            <div class="kv" id="hall-results">
-                <div class="kv-item"><span>Hall Voltage</span><span id="hall-vh">0 mV</span></div>
-                <div class="kv-item"><span>Output Voltage</span><span id="hall-vout">2.50 V</span></div>
-                <div class="kv-item"><span>Temp Coefficient</span><span id="hall-tc">-0.12%/°C</span></div>
-                <div class="kv-item"><span>Digital Output</span><span id="hall-digital">LOW</span></div>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Hall Sensor Types</h3>
-
-            <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
-                <thead>
-                    <tr style="background:#333;">
-                        <th style="padding:0.5rem; border:1px solid #555;">Type</th>
-                        <th style="padding:0.5rem; border:1px solid #555;">Output</th>
-                        <th style="padding:0.5rem; border:1px solid #555;">Transfer Function</th>
-                        <th style="padding:0.5rem; border:1px solid #555;">Applications</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td style="padding:0.5rem; border:1px solid #555; color:#FFFF00;">Linear</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Analog voltage</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">V_out = V_q + S×B</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Current sensing, position</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:0.5rem; border:1px solid #555; color:#00FFFF;">Switch</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Digital on/off</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">ON when B > B_op</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Proximity, limit switch</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:0.5rem; border:1px solid #555; color:#FF66FF;">Latch</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Latching digital</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Toggle on ±B</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Speed sensing, encoder</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:0.5rem; border:1px solid #555; color:#00FF00;">Angle</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Sin/Cos or Absolute</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">θ = atan2(sin,cos)</td>
-                        <td style="padding:0.5rem; border:1px solid #555;">Motor commutation, steering</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div class="card">
-            <h3>Hall Sensor Internal Architecture</h3>
-
-            <div class="canvas-wrap">
-                <canvas id="hall-architecture-canvas" width="900" height="480"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Current Sensing with Hall Sensors</h3>
-
-            <div class="canvas-wrap">
-                <canvas id="current-sensing-canvas" width="900" height="500"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Interactive: Current Sensor Design</h3>
-            <p>Design a Hall-effect current sensor for your application.</p>
-
-            <div class="controls">
-                <label>
-                    Current Range:
-                    <input type="range" id="cs-imax" min="1" max="200" value="50">
-                    <span id="cs-imax-val">50 A</span>
-                </label>
-                <label>
-                    Sensor Type:
-                    <select id="cs-type">
-                        <option value="open">Open Loop</option>
-                        <option value="closed">Closed Loop</option>
-                    </select>
-                </label>
-                <label>
-                    Turns Ratio (N):
-                    <input type="range" id="cs-turns" min="100" max="2000" value="1000" step="100">
-                    <span id="cs-turns-val">1000</span>
-                </label>
-                <label>
-                    Sense Resistor:
-                    <input type="range" id="cs-rsense" min="1" max="100" value="20">
-                    <span id="cs-rsense-val">20 Ω</span>
-                </label>
-                <label>
-                    Current Input:
-                    <input type="range" id="cs-iin" min="-100" max="100" value="0" step="1">
-                    <span id="cs-iin-val">0 A</span>
-                </label>
-            </div>
-
-            <div class="canvas-wrap">
-                <canvas id="cs-canvas" width="980" height="350"></canvas>
-            </div>
-
-            <div class="kv" id="cs-results">
-                <div class="kv-item"><span>Output Voltage</span><span id="cs-vout">0 V</span></div>
-                <div class="kv-item"><span>Sensitivity</span><span id="cs-sens">20 mV/A</span></div>
-                <div class="kv-item"><span>Power Dissipation</span><span id="cs-power">0 mW</span></div>
-                <div class="kv-item"><span>Bandwidth</span><span id="cs-bw">~100 kHz</span></div>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Position and Speed Sensing</h3>
-
-            <div class="canvas-wrap">
-                <canvas id="position-speed-canvas" width="900" height="440"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Hall Sensor Schematic</h3>
-            <div id="hall-schematic"></div>
-        </div>
-
-        <div class="card">
-            <h3>SPICE Netlist</h3>
-            <div id="hall-spice"></div>
-        </div>
-
-        <div class="card">
-            <h3>Design Checklist</h3>
-            <div id="hall-checklist"></div>
-        </div>
-
-        <div class="card">
-            <h3>Practice Exercises</h3>
-            <div id="hall-exercises"></div>
         </div>
     </div>
 
+    <div class="card">
+        <h3>Aliasing Demonstration</h3>
+
+        <svg viewBox="0 0 650 280" class="circuit-diagram">
+            <text x="325" y="20" text-anchor="middle" class="label" style="font-weight:bold;">Aliasing: High Frequency Appears as Low Frequency</text>
+
+            <!-- Original high frequency signal -->
+            <text x="40" y="70" text-anchor="start" class="label" style="font-size:10px;">Input: 9 kHz</text>
+
+            <!-- Sine wave (high frequency) -->
+            <path d="M50,100 Q60,70 70,100 Q80,130 90,100 Q100,70 110,100 Q120,130 130,100 Q140,70 150,100 Q160,130 170,100 Q180,70 190,100 Q200,130 210,100 Q220,70 230,100 Q240,130 250,100" fill="none" stroke="#3498db" stroke-width="1.5"/>
+
+            <!-- Sample points -->
+            <circle cx="50" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="100" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="150" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="200" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="250" cy="100" r="4" fill="#e74c3c"/>
+
+            <!-- Sample rate annotation -->
+            <text x="150" y="55" text-anchor="middle" class="label" style="font-size:9px;fill:#e74c3c;">fs = 10 kHz (samples)</text>
+
+            <!-- Arrow -->
+            <line x1="280" y1="100" x2="350" y2="100" stroke="#333" stroke-width="2"/>
+            <polygon points="345,95 355,100 345,105" fill="#333"/>
+            <text x="315" y="90" text-anchor="middle" class="label" style="font-size:9px;">ADC</text>
+
+            <!-- Aliased output -->
+            <text x="400" y="70" text-anchor="start" class="label" style="font-size:10px;">Output: 1 kHz (alias!)</text>
+
+            <!-- Low frequency reconstruction -->
+            <path d="M380,100 Q430,70 480,100 Q530,130 580,100 Q630,70 680,100" fill="none" stroke="#e74c3c" stroke-width="2"/>
+
+            <!-- Sample points on output -->
+            <circle cx="380" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="430" cy="85" r="4" fill="#e74c3c"/>
+            <circle cx="480" cy="100" r="4" fill="#e74c3c"/>
+            <circle cx="530" cy="115" r="4" fill="#e74c3c"/>
+            <circle cx="580" cy="100" r="4" fill="#e74c3c"/>
+
+            <!-- Frequency domain -->
+            <text x="325" y="160" text-anchor="middle" class="label" style="font-weight:bold;">Frequency Domain View</text>
+
+            <!-- Axis -->
+            <line x1="50" y1="250" x2="600" y2="250" stroke="#333" stroke-width="2"/>
+            <line x1="50" y1="250" x2="50" y2="180" stroke="#333" stroke-width="2"/>
+            <text x="325" y="270" text-anchor="middle" class="label" style="font-size:10px;">Frequency</text>
+
+            <!-- Original signal -->
+            <rect x="140" y="200" width="20" height="50" fill="#3498db"/>
+            <text x="150" y="195" text-anchor="middle" class="label" style="font-size:9px;">9 kHz</text>
+
+            <!-- fs/2 marker -->
+            <line x1="180" y1="180" x2="180" y2="250" stroke="#e74c3c" stroke-width="2" stroke-dasharray="5,5"/>
+            <text x="180" y="175" text-anchor="middle" class="label" style="font-size:9px;fill:#e74c3c;">fs/2 = 5 kHz</text>
+
+            <!-- fs marker -->
+            <line x1="300" y1="180" x2="300" y2="250" stroke="#999" stroke-width="1" stroke-dasharray="3,3"/>
+            <text x="300" y="175" text-anchor="middle" class="label" style="font-size:9px;fill:#999;">fs = 10 kHz</text>
+
+            <!-- Aliased component -->
+            <rect x="85" y="200" width="20" height="50" fill="#e74c3c"/>
+            <text x="95" y="195" text-anchor="middle" class="label" style="font-size:9px;fill:#e74c3c;">1 kHz (alias)</text>
+
+            <!-- Folding arrow -->
+            <path d="M150,185 C200,160 200,160 95,185" fill="none" stroke="#e74c3c" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+            <text x="180" y="155" text-anchor="middle" class="label" style="font-size:8px;fill:#e74c3c;">Folds at fs/2</text>
+
+            <!-- Formula -->
+            <rect x="400" y="180" width="180" height="45" fill="#fff3cd" stroke="#ffc107" stroke-width="1" rx="3"/>
+            <text x="490" y="200" text-anchor="middle" class="label" style="font-size:10px;">fAlias = |fin - fs|</text>
+            <text x="490" y="218" text-anchor="middle" class="label" style="font-size:10px;">= |9 kHz - 10 kHz| = 1 kHz</text>
+        </svg>
+    </div>
+
+    <div class="card">
+        <h3>Anti-Aliasing Filter Design</h3>
+
+        <svg viewBox="0 0 650 280" class="circuit-diagram">
+            <text x="325" y="20" text-anchor="middle" class="label" style="font-weight:bold;">Anti-Aliasing Filter in ADC Signal Chain</text>
+
+            <!-- Signal source -->
+            <rect x="40" y="100" width="70" height="40" fill="#e8f4f8" stroke="#3498db" stroke-width="2" rx="3"/>
+            <text x="75" y="125" text-anchor="middle" class="label" style="font-size:10px;">Signal</text>
+
+            <line x1="110" y1="120" x2="150" y2="120" stroke="#333" stroke-width="2"/>
+
+            <!-- Anti-aliasing filter -->
+            <rect x="150" y="90" width="100" height="60" fill="#d4edda" stroke="#28a745" stroke-width="2" rx="3"/>
+            <text x="200" y="115" text-anchor="middle" class="label" style="font-size:10px;font-weight:bold;">AAF</text>
+            <text x="200" y="130" text-anchor="middle" class="label" style="font-size:9px;">fc < fs/2</text>
+
+            <line x1="250" y1="120" x2="290" y2="120" stroke="#333" stroke-width="2"/>
+
+            <!-- ADC -->
+            <rect x="290" y="100" width="70" height="40" fill="#fff3cd" stroke="#ffc107" stroke-width="2" rx="3"/>
+            <text x="325" y="125" text-anchor="middle" class="label" style="font-size:10px;">ADC</text>
+
+            <line x1="360" y1="120" x2="400" y2="120" stroke="#333" stroke-width="2"/>
+            <text x="420" y="125" text-anchor="start" class="label">Digital Out</text>
+
+            <!-- Sample clock -->
+            <line x1="325" y1="80" x2="325" y2="100" stroke="#333" stroke-width="1.5"/>
+            <text x="325" y="75" text-anchor="middle" class="label" style="font-size:9px;">fs</text>
+
+            <!-- Frequency response graph -->
+            <rect x="40" y="170" width="280" height="100" fill="#f8f9fa" stroke="#333" stroke-width="1" rx="3"/>
+            <text x="180" y="190" text-anchor="middle" class="label" style="font-weight:bold;">Anti-Aliasing Filter Response</text>
+
+            <!-- Axes -->
+            <line x1="60" y1="255" x2="300" y2="255" stroke="#333" stroke-width="1"/>
+            <line x1="60" y1="255" x2="60" y2="200" stroke="#333" stroke-width="1"/>
+
+            <!-- Filter response (4th order Butterworth) -->
+            <path d="M60,210 L120,210 Q150,210 170,230 Q190,260 200,255" fill="none" stroke="#27ae60" stroke-width="2"/>
+            <line x1="200" y1="255" x2="300" y2="255" stroke="#27ae60" stroke-width="2"/>
+
+            <!-- Passband -->
+            <text x="90" y="208" text-anchor="middle" class="label" style="font-size:8px;">Passband</text>
+
+            <!-- fc marker -->
+            <line x1="150" y1="200" x2="150" y2="255" stroke="#27ae60" stroke-width="1" stroke-dasharray="3,3"/>
+            <text x="150" y="268" text-anchor="middle" class="label" style="font-size:8px;fill:#27ae60;">fc</text>
+
+            <!-- fs/2 marker -->
+            <line x1="220" y1="200" x2="220" y2="255" stroke="#e74c3c" stroke-width="1" stroke-dasharray="3,3"/>
+            <text x="220" y="268" text-anchor="middle" class="label" style="font-size:8px;fill:#e74c3c;">fs/2</text>
+
+            <!-- Required attenuation -->
+            <line x1="220" y1="210" x2="220" y2="255" stroke="#e74c3c" stroke-width="1"/>
+            <text x="260" y="230" text-anchor="start" class="label" style="font-size:8px;fill:#e74c3c;">> N×6 dB</text>
+
+            <!-- Filter selection guide -->
+            <rect x="350" y="170" width="280" height="100" fill="#e8f4f8" stroke="#3498db" stroke-width="1" rx="3"/>
+            <text x="490" y="190" text-anchor="middle" class="label" style="font-weight:bold;">Filter Selection</text>
+            <text x="360" y="210" text-anchor="start" class="label" style="font-size:9px;">• Butterworth: Maximally flat passband</text>
+            <text x="360" y="225" text-anchor="start" class="label" style="font-size:9px;">• Chebyshev: Steeper rolloff, ripple</text>
+            <text x="360" y="240" text-anchor="start" class="label" style="font-size:9px;">• Bessel: Best group delay (time)</text>
+            <text x="360" y="255" text-anchor="start" class="label" style="font-size:9px;">• Elliptic: Steepest transition band</text>
+        </svg>
+    </div>
+
+    <div class="card">
+        <h3>Anti-Aliasing Filter Calculator</h3>
+        <div class="controls">
+            <label>Sample Rate: <input type="text" id="aaf-fs" value="100k" style="width:60px;"> SPS</label>
+            <label>Signal Bandwidth: <input type="text" id="aaf-bw" value="20k" style="width:60px;"> Hz</label>
+            <label>ADC Bits: <input type="text" id="aaf-bits" value="16" style="width:50px;"></label>
+            <label>Filter Order: <input type="text" id="aaf-order" value="4" style="width:50px;"></label>
+            <button onclick="calculateAAF()">Calculate</button>
+        </div>
+        <div id="aaf-results" class="results"></div>
+
+        <h4>Oversampling vs Filter Order Trade-off</h4>
+        <table class="data-table">
+            <tr>
+                <th>Oversampling Ratio</th>
+                <th>Transition Band</th>
+                <th>Filter Order Needed</th>
+                <th>Complexity</th>
+            </tr>
+            <tr>
+                <td>2× (fs = 2×BW)</td>
+                <td>None!</td>
+                <td>Impossible (brick wall)</td>
+                <td>N/A</td>
+            </tr>
+            <tr>
+                <td>2.5×</td>
+                <td>0.25×BW</td>
+                <td>8-12th order</td>
+                <td>Very high</td>
+            </tr>
+            <tr>
+                <td>4×</td>
+                <td>1×BW</td>
+                <td>4-6th order</td>
+                <td>Moderate</td>
+            </tr>
+            <tr>
+                <td>8×</td>
+                <td>3×BW</td>
+                <td>2-3rd order</td>
+                <td>Low</td>
+            </tr>
+            <tr>
+                <td>16× or higher</td>
+                <td>7×BW+</td>
+                <td>1-2nd order</td>
+                <td>Very low</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <div id="exercise-container"></div>
+    </div>
+
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ch5:'#FF6600', bg:'#001000', grid:'#004000'};
+    (function() {
+        function calculateAAF() {
+            const fs = AD.num('aaf-fs') || 100e3;
+            const bw = AD.num('aaf-bw') || 20e3;
+            const bits = parseInt(document.getElementById('aaf-bits').value) || 16;
+            const order = parseInt(document.getElementById('aaf-order').value) || 4;
 
-        // Hall sensor canvas
-        const hallCanvas = document.getElementById('hall-canvas');
-        const hallCtx = hallCanvas.getContext('2d');
+            const nyquist = fs / 2;
+            const oversampling = fs / (2 * bw);
+            const transitionBand = nyquist - bw;
 
-        function drawHallSensor() {
-            const W = hallCanvas.width, H = hallCanvas.height;
-            hallCtx.fillStyle = TEK.bg;
-            hallCtx.fillRect(0, 0, W, H);
+            // Required attenuation at Nyquist to keep alias below LSB
+            const requiredAtten = 6.02 * bits + 10; // dB, with 10 dB margin
 
-            const type = document.getElementById('hall-type').value;
-            const sens = AD.num('hall-sens'); // mV/mT
-            const field = AD.num('hall-field'); // mT
-            const Vcc = AD.num('hall-vcc');
-            const temp = AD.num('hall-temp');
+            // Butterworth attenuation at Nyquist
+            // A = 20 × log10(sqrt(1 + (f/fc)^(2n)))
+            // For Butterworth, at f = fs/2, fc = bw
+            const freqRatio = nyquist / bw;
+            const butterworthAtten = 10 * order * Math.log10(1 + Math.pow(freqRatio, 2 * order));
 
-            document.getElementById('hall-sens-val').textContent = sens.toFixed(1) + ' mV/mT';
-            document.getElementById('hall-field-val').textContent = field + ' mT';
-            document.getElementById('hall-vcc-val').textContent = Vcc.toFixed(1) + ' V';
-            document.getElementById('hall-temp-val').textContent = temp + '°C';
+            // Margin
+            const margin = butterworthAtten - requiredAtten;
 
-            // Temperature coefficient (~-0.12%/°C for InSb, -0.04%/°C for Si)
-            const tempCoeff = -0.12;
-            const tempFactor = 1 + (tempCoeff / 100) * (temp - 25);
+            let html = '<h4>System Analysis</h4>';
+            html += '<table class="data-table">';
+            html += '<tr><td>Sample rate</td><td>' + AD.fmtUnit(fs, 'SPS') + '</td></tr>';
+            html += '<tr><td>Nyquist frequency</td><td>' + AD.fmtUnit(nyquist, 'Hz') + '</td></tr>';
+            html += '<tr><td>Signal bandwidth</td><td>' + AD.fmtUnit(bw, 'Hz') + '</td></tr>';
+            html += '<tr><td>Oversampling ratio</td><td>' + oversampling.toFixed(1) + '×</td></tr>';
+            html += '<tr><td>Transition band</td><td>' + AD.fmtUnit(transitionBand, 'Hz') + '</td></tr>';
+            html += '</table>';
 
-            // Quiescent voltage (typically Vcc/2 for ratiometric)
-            const Vq = Vcc / 2;
+            html += '<h4>Filter Performance</h4>';
+            html += '<table class="data-table">';
+            html += '<tr><td>Filter order</td><td>' + order + ' (Butterworth)</td></tr>';
+            html += '<tr><td>Required attenuation @ fs/2</td><td>' + requiredAtten.toFixed(1) + ' dB</td></tr>';
+            html += '<tr><td>Achieved attenuation @ fs/2</td><td>' + butterworthAtten.toFixed(1) + ' dB</td></tr>';
+            html += '<tr><td>Margin</td><td style="color:' + (margin >= 0 ? '#27ae60' : '#e74c3c') + ';">' + margin.toFixed(1) + ' dB</td></tr>';
+            html += '</table>';
 
-            // Hall voltage (before amp)
-            const Vh = sens * field * tempFactor; // mV
-
-            // Output voltage
-            let Vout;
-            let digitalOut = 'N/A';
-
-            if (type === 'linear') {
-                Vout = Vq + (Vh / 1000);
-                // Clamp to rails
-                if (Vout > Vcc - 0.2) Vout = Vcc - 0.2;
-                if (Vout < 0.2) Vout = 0.2;
-            } else if (type === 'switch') {
-                // Operate at 5mT, release at 2mT
-                const Bop = 5;
-                const Brp = 2;
-                if (field > Bop) {
-                    digitalOut = 'HIGH';
-                    Vout = Vcc - 0.4; // Open drain pulled up
-                } else if (field < Brp) {
-                    digitalOut = 'LOW';
-                    Vout = 0.4;
-                } else {
-                    digitalOut = 'PREV';
-                    Vout = Vcc / 2;
-                }
-            } else { // latch
-                // Bipolar: +5mT sets, -5mT resets
-                const Bop = 5;
-                if (field > Bop) {
-                    digitalOut = 'HIGH';
-                    Vout = Vcc - 0.4;
-                } else if (field < -Bop) {
-                    digitalOut = 'LOW';
-                    Vout = 0.4;
-                } else {
-                    digitalOut = 'LATCHED';
-                    Vout = Vcc / 2;
-                }
-            }
-
-            document.getElementById('hall-vh').textContent = Vh.toFixed(1) + ' mV';
-            document.getElementById('hall-vout').textContent = Vout.toFixed(3) + ' V';
-            document.getElementById('hall-tc').textContent = tempCoeff.toFixed(2) + '%/°C';
-            document.getElementById('hall-digital').textContent = digitalOut;
-            document.getElementById('hall-digital').style.color = digitalOut === 'HIGH' ? TEK.ch4 : digitalOut === 'LOW' ? '#f66' : TEK.ch1;
-
-            // Draw magnetic field visualization
-            const vizX = 80, vizY = 80;
-
-            // Hall element
-            hallCtx.fillStyle = '#444';
-            hallCtx.fillRect(vizX, vizY, 100, 60);
-            hallCtx.strokeStyle = TEK.ch2;
-            hallCtx.lineWidth = 2;
-            hallCtx.strokeRect(vizX, vizY, 100, 60);
-
-            hallCtx.fillStyle = '#fff';
-            hallCtx.font = '12px monospace';
-            hallCtx.textAlign = 'center';
-            hallCtx.fillText('Hall', vizX + 50, vizY + 35);
-
-            // Current flow
-            hallCtx.strokeStyle = TEK.ch1;
-            hallCtx.lineWidth = 2;
-            hallCtx.beginPath();
-            hallCtx.moveTo(vizX - 30, vizY + 30);
-            hallCtx.lineTo(vizX, vizY + 30);
-            hallCtx.stroke();
-            hallCtx.beginPath();
-            hallCtx.moveTo(vizX + 100, vizY + 30);
-            hallCtx.lineTo(vizX + 130, vizY + 30);
-            hallCtx.stroke();
-            hallCtx.fillStyle = TEK.ch1;
-            hallCtx.fillText('I →', vizX - 20, vizY + 25);
-
-            // Magnetic field (dots for into page, crosses for out)
-            hallCtx.fillStyle = TEK.ch3;
-            const fieldStrength = Math.abs(field) / 100;
-            for (let row = 0; row < 3; row++) {
-                for (let col = 0; col < 5; col++) {
-                    const x = vizX + 10 + col * 20;
-                    const y = vizY - 40 + row * 15;
-                    if (field > 0) {
-                        // Into page (dot)
-                        hallCtx.beginPath();
-                        hallCtx.arc(x, y, 3 + fieldStrength * 3, 0, 2 * Math.PI);
-                        hallCtx.fill();
-                    } else if (field < 0) {
-                        // Out of page (cross)
-                        hallCtx.strokeStyle = TEK.ch3;
-                        hallCtx.lineWidth = 1 + fieldStrength * 2;
-                        hallCtx.beginPath();
-                        hallCtx.moveTo(x - 4, y - 4);
-                        hallCtx.lineTo(x + 4, y + 4);
-                        hallCtx.moveTo(x + 4, y - 4);
-                        hallCtx.lineTo(x - 4, y + 4);
-                        hallCtx.stroke();
-                    }
-                }
-            }
-            hallCtx.fillStyle = '#ccc';
-            hallCtx.textAlign = 'center';
-            hallCtx.fillText('B = ' + field + ' mT', vizX + 50, vizY - 50);
-            hallCtx.fillText(field > 0 ? '⊗ (into page)' : field < 0 ? '⊙ (out of page)' : '(none)', vizX + 50, vizY - 65);
-
-            // Hall voltage output
-            hallCtx.strokeStyle = TEK.ch4;
-            hallCtx.lineWidth = 1;
-            hallCtx.beginPath();
-            hallCtx.moveTo(vizX + 50, vizY);
-            hallCtx.lineTo(vizX + 50, vizY - 20);
-            hallCtx.lineTo(vizX + 150, vizY - 20);
-            hallCtx.stroke();
-            hallCtx.fillStyle = TEK.ch4;
-            hallCtx.fillText('V_H = ' + Vh.toFixed(1) + ' mV', vizX + 180, vizY - 15);
-
-            // Draw transfer function
-            const graphX = 300, graphY = 50, graphW = 350, graphH = 280;
-
-            hallCtx.strokeStyle = '#444';
-            hallCtx.lineWidth = 1;
-            hallCtx.strokeRect(graphX, graphY, graphW, graphH);
-
-            // Grid
-            for (let i = 0; i <= 10; i++) {
-                const x = graphX + graphW * i / 10;
-                const y = graphY + graphH * i / 10;
-                hallCtx.beginPath();
-                hallCtx.moveTo(x, graphY);
-                hallCtx.lineTo(x, graphY + graphH);
-                hallCtx.strokeStyle = '#333';
-                hallCtx.stroke();
-                hallCtx.beginPath();
-                hallCtx.moveTo(graphX, y);
-                hallCtx.lineTo(graphX + graphW, y);
-                hallCtx.stroke();
-            }
-
-            const BMax = 100;
-
-            if (type === 'linear') {
-                // Draw linear transfer function
-                hallCtx.beginPath();
-                for (let b = -BMax; b <= BMax; b += 2) {
-                    const vh = sens * b / 1000;
-                    let vo = Vq + vh;
-                    if (vo > Vcc - 0.2) vo = Vcc - 0.2;
-                    if (vo < 0.2) vo = 0.2;
-
-                    const x = graphX + graphW * (b + BMax) / (2 * BMax);
-                    const y = graphY + graphH - graphH * vo / Vcc;
-                    if (b === -BMax) hallCtx.moveTo(x, y);
-                    else hallCtx.lineTo(x, y);
-                }
-                hallCtx.strokeStyle = TEK.ch1;
-                hallCtx.lineWidth = 2;
-                hallCtx.stroke();
-
-                // Quiescent line
-                hallCtx.strokeStyle = '#666';
-                hallCtx.setLineDash([5, 5]);
-                hallCtx.beginPath();
-                hallCtx.moveTo(graphX, graphY + graphH / 2);
-                hallCtx.lineTo(graphX + graphW, graphY + graphH / 2);
-                hallCtx.stroke();
-                hallCtx.setLineDash([]);
-            } else if (type === 'switch') {
-                // Switch transfer function
-                hallCtx.strokeStyle = TEK.ch2;
-                hallCtx.lineWidth = 2;
-                hallCtx.beginPath();
-                hallCtx.moveTo(graphX, graphY + graphH - 20);
-                hallCtx.lineTo(graphX + graphW * 0.52, graphY + graphH - 20);
-                hallCtx.lineTo(graphX + graphW * 0.52, graphY + 20);
-                hallCtx.lineTo(graphX + graphW, graphY + 20);
-                hallCtx.stroke();
-
-                // Return path (hysteresis)
-                hallCtx.strokeStyle = TEK.ch2 + '88';
-                hallCtx.beginPath();
-                hallCtx.moveTo(graphX + graphW, graphY + 20);
-                hallCtx.lineTo(graphX + graphW * 0.51, graphY + 20);
-                hallCtx.lineTo(graphX + graphW * 0.51, graphY + graphH - 20);
-                hallCtx.lineTo(graphX, graphY + graphH - 20);
-                hallCtx.stroke();
-
-                // Hysteresis annotation
-                hallCtx.fillStyle = '#888';
-                hallCtx.font = '10px monospace';
-                hallCtx.fillText('B_op', graphX + graphW * 0.54, graphY + graphH / 2);
-                hallCtx.fillText('B_rp', graphX + graphW * 0.48, graphY + graphH / 2);
+            if (margin < 0) {
+                html += '<p style="color:#e74c3c;">Warning: Filter does not provide sufficient attenuation. Increase order or sample rate.</p>';
             } else {
-                // Latch (bipolar)
-                hallCtx.strokeStyle = TEK.ch3;
-                hallCtx.lineWidth = 2;
-                hallCtx.beginPath();
-                hallCtx.moveTo(graphX, graphY + graphH - 20);
-                hallCtx.lineTo(graphX + graphW * 0.45, graphY + graphH - 20);
-                hallCtx.lineTo(graphX + graphW * 0.45, graphY + 20);
-                hallCtx.lineTo(graphX + graphW * 0.55, graphY + 20);
-                hallCtx.lineTo(graphX + graphW * 0.55, graphY + graphH - 20);
-                hallCtx.lineTo(graphX + graphW, graphY + graphH - 20);
-                hallCtx.stroke();
+                html += '<p style="color:#27ae60;">Filter provides adequate attenuation for ' + bits + '-bit resolution.</p>';
             }
 
-            // Operating point
-            const opX = graphX + graphW * (field + BMax) / (2 * BMax);
-            const opY = graphY + graphH - graphH * Vout / Vcc;
-            hallCtx.beginPath();
-            hallCtx.arc(opX, opY, 6, 0, 2 * Math.PI);
-            hallCtx.fillStyle = TEK.ch5;
-            hallCtx.fill();
+            // Suggested cutoff frequency
+            const suggestedFc = bw * 1.2; // 20% above signal BW
+            html += '<h4>Suggested Filter Cutoff</h4>';
+            html += '<p>fc = ' + AD.fmtUnit(suggestedFc, 'Hz') + ' (signal BW + 20% margin)</p>';
 
-            // Labels
-            hallCtx.fillStyle = '#ccc';
-            hallCtx.font = '11px monospace';
-            hallCtx.textAlign = 'center';
-            hallCtx.fillText('Magnetic Field (mT)', graphX + graphW / 2, graphY + graphH + 25);
-            hallCtx.save();
-            hallCtx.translate(graphX - 35, graphY + graphH / 2);
-            hallCtx.rotate(-Math.PI / 2);
-            hallCtx.fillText('Output Voltage (V)', 0, 0);
-            hallCtx.restore();
-
-            // Type indicator
-            hallCtx.fillStyle = '#fff';
-            hallCtx.font = '14px monospace';
-            hallCtx.textAlign = 'left';
-            hallCtx.fillText('Type: ' + type.toUpperCase(), graphX + graphW + 30, graphY + 30);
-            hallCtx.font = '11px monospace';
-            hallCtx.fillText('Vcc = ' + Vcc + 'V', graphX + graphW + 30, graphY + 55);
-            hallCtx.fillText('Vq = ' + Vq.toFixed(2) + 'V', graphX + graphW + 30, graphY + 75);
-            hallCtx.fillText('Sens = ' + sens + ' mV/mT', graphX + graphW + 30, graphY + 95);
-
-            // Temperature effect
-            hallCtx.fillStyle = temp > 85 ? '#ff6666' : temp < -20 ? '#6666ff' : '#66ff66';
-            hallCtx.fillText('T = ' + temp + '°C', graphX + graphW + 30, graphY + 130);
-            hallCtx.fillText('Factor: ' + tempFactor.toFixed(3), graphX + graphW + 30, graphY + 150);
+            document.getElementById('aaf-results').innerHTML = html;
         }
+        window.calculateAAF = calculateAAF;
+        calculateAAF();
 
-        // Current sensor canvas
-        const csCanvas = document.getElementById('cs-canvas');
-        const csCtx = csCanvas.getContext('2d');
-
-        function drawCurrentSensor() {
-            const W = csCanvas.width, H = csCanvas.height;
-            csCtx.fillStyle = TEK.bg;
-            csCtx.fillRect(0, 0, W, H);
-
-            const Imax = AD.num('cs-imax');
-            const type = document.getElementById('cs-type').value;
-            const N = AD.num('cs-turns');
-            const Rsense = AD.num('cs-rsense');
-            const Iin = AD.num('cs-iin');
-
-            document.getElementById('cs-imax-val').textContent = Imax + ' A';
-            document.getElementById('cs-turns-val').textContent = N;
-            document.getElementById('cs-rsense-val').textContent = Rsense + ' Ω';
-            document.getElementById('cs-iin-val').textContent = Iin + ' A';
-
-            let Vout, sensitivity, power, bw;
-
-            if (type === 'open') {
-                // Open loop: V_out = gain × B, B ∝ I
-                // Typical: 40mV/A for a hall-based sensor
-                sensitivity = 40; // mV/A
-                Vout = 2.5 + (Iin * sensitivity / 1000); // Centered at 2.5V
-                power = 0; // Negligible
-                bw = '~100 kHz';
-            } else {
-                // Closed loop: V_out = I_primary × R_sense / N
-                const Isec = Math.abs(Iin) / N;
-                Vout = Isec * Rsense;
-                sensitivity = (Rsense / N) * 1000; // mV/A
-                power = Isec * Isec * Rsense * 1000; // mW
-                bw = '~200 kHz';
+        const exercises = [
+            {
+                id: 'aaf1',
+                type: 'numeric',
+                question: 'What is the maximum signal frequency that can be sampled at 48 kHz without aliasing?',
+                expected: 24,
+                tolerance: 0.5,
+                unit: 'kHz',
+                hint: 'Nyquist: fmax = fs/2'
+            },
+            {
+                id: 'aaf2',
+                type: 'numeric',
+                question: 'A 9 kHz signal sampled at 8 kHz produces an alias at what frequency?',
+                expected: 1,
+                tolerance: 0.1,
+                unit: 'kHz',
+                hint: 'fAlias = |fin - fs|'
+            },
+            {
+                id: 'aaf3',
+                type: 'choice',
+                question: 'Which filter type provides the flattest passband response?',
+                options: ['Chebyshev', 'Butterworth', 'Elliptic', 'Bessel'],
+                correct: 1,
+                hint: 'Butterworth is "maximally flat magnitude"'
             }
+        ];
 
-            document.getElementById('cs-vout').textContent = Vout.toFixed(3) + ' V';
-            document.getElementById('cs-sens').textContent = sensitivity.toFixed(1) + ' mV/A';
-            document.getElementById('cs-power').textContent = power.toFixed(1) + ' mW';
-            document.getElementById('cs-bw').textContent = bw;
-
-            // Draw sensor diagram
-            const diagX = 100, diagY = 80;
-
-            // Core
-            csCtx.strokeStyle = '#888';
-            csCtx.lineWidth = 8;
-            csCtx.beginPath();
-            csCtx.arc(diagX + 80, diagY + 80, 60, 0.3, 2 * Math.PI - 0.3);
-            csCtx.stroke();
-
-            // Gap
-            csCtx.fillStyle = TEK.bg;
-            csCtx.fillRect(diagX + 120, diagY + 60, 30, 40);
-
-            // Hall sensor in gap
-            csCtx.fillStyle = TEK.ch2;
-            csCtx.fillRect(diagX + 125, diagY + 70, 20, 20);
-            csCtx.fillStyle = '#fff';
-            csCtx.font = '8px monospace';
-            csCtx.textAlign = 'center';
-            csCtx.fillText('HALL', diagX + 135, diagY + 83);
-
-            // Primary current
-            csCtx.strokeStyle = TEK.ch1;
-            csCtx.lineWidth = 4;
-            csCtx.beginPath();
-            csCtx.moveTo(diagX - 20, diagY + 80);
-            csCtx.lineTo(diagX + 20, diagY + 80);
-            csCtx.stroke();
-            csCtx.fillStyle = TEK.ch1;
-            csCtx.font = '12px monospace';
-            csCtx.fillText('I_p = ' + Iin + 'A', diagX, diagY + 65);
-
-            if (type === 'closed') {
-                // Secondary winding
-                csCtx.strokeStyle = TEK.ch3;
-                csCtx.lineWidth = 1;
-                for (let i = 0; i < 8; i++) {
-                    const angle = -0.8 + i * 0.15;
-                    const x1 = diagX + 80 + 55 * Math.cos(angle);
-                    const y1 = diagY + 80 + 55 * Math.sin(angle);
-                    const x2 = diagX + 80 + 65 * Math.cos(angle);
-                    const y2 = diagY + 80 + 65 * Math.sin(angle);
-                    csCtx.beginPath();
-                    csCtx.moveTo(x1, y1);
-                    csCtx.lineTo(x2, y2);
-                    csCtx.stroke();
-                }
-                csCtx.fillStyle = TEK.ch3;
-                csCtx.fillText('N = ' + N, diagX + 20, diagY + 160);
-
-                // Sense resistor
-                csCtx.fillStyle = '#888';
-                csCtx.fillRect(diagX + 160, diagY + 120, 40, 15);
-                csCtx.strokeStyle = '#666';
-                csCtx.strokeRect(diagX + 160, diagY + 120, 40, 15);
-                csCtx.fillStyle = '#fff';
-                csCtx.font = '9px monospace';
-                csCtx.fillText('Rs=' + Rsense + 'Ω', diagX + 180, diagY + 131);
-            }
-
-            // Output
-            csCtx.strokeStyle = TEK.ch4;
-            csCtx.lineWidth = 2;
-            csCtx.beginPath();
-            csCtx.moveTo(diagX + 160, diagY + 80);
-            csCtx.lineTo(diagX + 220, diagY + 80);
-            csCtx.stroke();
-            csCtx.fillStyle = TEK.ch4;
-            csCtx.font = '12px monospace';
-            csCtx.fillText('V_out', diagX + 230, diagY + 85);
-
-            // Transfer function graph
-            const graphX = 350, graphY = 30, graphW = 350, graphH = 280;
-
-            csCtx.strokeStyle = '#444';
-            csCtx.lineWidth = 1;
-            csCtx.strokeRect(graphX, graphY, graphW, graphH);
-
-            // Grid
-            for (let i = 0; i <= 10; i++) {
-                const x = graphX + graphW * i / 10;
-                const y = graphY + graphH * i / 10;
-                csCtx.beginPath();
-                csCtx.moveTo(x, graphY);
-                csCtx.lineTo(x, graphY + graphH);
-                csCtx.strokeStyle = '#333';
-                csCtx.stroke();
-                csCtx.beginPath();
-                csCtx.moveTo(graphX, y);
-                csCtx.lineTo(graphX + graphW, y);
-                csCtx.stroke();
-            }
-
-            // Draw transfer curve
-            csCtx.beginPath();
-            const Vmax = type === 'open' ? 5 : (Imax / N) * Rsense;
-            for (let i = -Imax; i <= Imax; i += Imax / 50) {
-                let v;
-                if (type === 'open') {
-                    v = 2.5 + (i * 40 / 1000);
-                } else {
-                    v = Math.abs(i) / N * Rsense;
-                }
-                const x = graphX + graphW * (i + Imax) / (2 * Imax);
-                const y = graphY + graphH - graphH * v / (type === 'open' ? 5 : Vmax * 1.2);
-                if (i === -Imax) csCtx.moveTo(x, y);
-                else csCtx.lineTo(x, y);
-            }
-            csCtx.strokeStyle = TEK.ch1;
-            csCtx.lineWidth = 2;
-            csCtx.stroke();
-
-            // Operating point
-            const opX = graphX + graphW * (Iin + Imax) / (2 * Imax);
-            const opVout = type === 'open' ? Vout : Math.abs(Iin) / N * Rsense;
-            const opY = graphY + graphH - graphH * opVout / (type === 'open' ? 5 : Vmax * 1.2);
-            csCtx.beginPath();
-            csCtx.arc(opX, opY, 6, 0, 2 * Math.PI);
-            csCtx.fillStyle = TEK.ch5;
-            csCtx.fill();
-
-            // Labels
-            csCtx.fillStyle = '#ccc';
-            csCtx.font = '11px monospace';
-            csCtx.textAlign = 'center';
-            csCtx.fillText('Primary Current (A)', graphX + graphW / 2, graphY + graphH + 25);
-            csCtx.save();
-            csCtx.translate(graphX - 30, graphY + graphH / 2);
-            csCtx.rotate(-Math.PI / 2);
-            csCtx.fillText('Output Voltage (V)', 0, 0);
-            csCtx.restore();
-
-            // Type label
-            csCtx.fillStyle = '#fff';
-            csCtx.font = '14px monospace';
-            csCtx.textAlign = 'left';
-            csCtx.fillText(type.toUpperCase() + ' LOOP', graphX + graphW + 30, graphY + 30);
-        }
-
-        // Event listeners
-        ['hall-type', 'hall-sens', 'hall-field', 'hall-vcc', 'hall-temp'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawHallSensor);
-            document.getElementById(id).addEventListener('change', drawHallSensor);
+        exercises.forEach((ex, i) => {
+            const div = document.createElement('div');
+            div.id = 'exercise-' + i;
+            document.getElementById('exercise-container').appendChild(div);
+            new ExerciseWidget('exercise-' + i, ex);
         });
-
-        ['cs-imax', 'cs-type', 'cs-turns', 'cs-rsense', 'cs-iin'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawCurrentSensor);
-            document.getElementById(id).addEventListener('change', drawCurrentSensor);
-        });
-
-        // Initialize
-        drawHallSensor();
-        drawCurrentSensor();
-
-        // Schematic
-        document.addEventListener('SchematicSVGReady', function() {
-            const container = document.getElementById('hall-schematic');
-            if (!container || typeof SchematicSVG === 'undefined') return;
-
-            const svg = new SchematicSVG(900, 300);
-
-            svg.text(450, 25, 'Linear Hall Sensor Interface', '14px', '#fff', 'middle');
-
-            // Hall sensor IC
-            svg.rect(150, 80, 100, 120);
-            svg.text(200, 120, 'DRV5053', '10px', '#fff', 'middle');
-            svg.text(200, 140, 'Linear Hall', '9px', '#888', 'middle');
-
-            // Power supply
-            svg.line(200, 60, 200, 80);
-            svg.text(200, 55, 'Vcc (5V)', '9px');
-
-            // Bypass cap
-            svg.line(230, 70, 260, 70);
-            svg.capacitor(260, 95, 'v', 'C1', '100nF');
-            svg.line(260, 120, 260, 140);
-            svg.ground(260, 140);
-
-            // Ground
-            svg.line(200, 200, 200, 230);
-            svg.ground(200, 230);
-
-            // Output
-            svg.line(250, 140, 320, 140);
-            svg.text(280, 135, 'OUT', '9px');
-
-            // Low-pass filter
-            svg.resistor(350, 140, 'h', 'R1', '1k');
-            svg.line(400, 140, 430, 140);
-            svg.capacitor(430, 165, 'v', 'C2', '100nF');
-            svg.line(430, 190, 430, 210);
-            svg.ground(430, 210);
-
-            // Op-amp buffer/gain
-            svg.line(430, 140, 480, 140);
-            svg.line(480, 110, 480, 170);
-            svg.line(480, 110, 560, 140);
-            svg.line(480, 170, 560, 140);
-            svg.text(510, 145, 'Buffer', '9px', '#fff');
-
-            // Output to ADC
-            svg.line(560, 140, 620, 140);
-            svg.rect(620, 110, 80, 60);
-            svg.text(660, 140, 'ADC', '12px', '#fff', 'middle');
-
-            svg.line(700, 140, 750, 140);
-            svg.text(770, 145, 'Digital', '10px');
-
-            // Magnet symbol
-            svg.rect(100, 100, 30, 60);
-            svg.text(115, 120, 'N', '12px', '#f66', 'middle');
-            svg.text(115, 150, 'S', '12px', '#66f', 'middle');
-
-            container.appendChild(svg.svg);
-        });
-
-        if (typeof SchematicSVG !== 'undefined') {
-            document.dispatchEvent(new Event('SchematicSVGReady'));
-        }
-
-        // SPICE widget
-        if (typeof SpiceNetlistWidget !== 'undefined') {
-            new SpiceNetlistWidget('hall-spice', {
-                title: 'Hall Sensor Model',
-                description: 'Behavioral model of linear Hall sensor',
-                netlist: `* Linear Hall Sensor Model
-* Based on DRV5053 characteristics
-
-.param VCC = 5           ; Supply voltage
-.param SENS = 45m        ; Sensitivity (45 mV/mT)
-.param VQ = {VCC/2}      ; Quiescent output
-.param B_FIELD = 20m     ; Magnetic field (mT)
-
-* Hall sensor behavioral model
-V_supply vcc 0 DC {VCC}
-
-* Hall voltage (proportional to B field)
-E_hall v_hall 0 VALUE={VQ + SENS*B_FIELD*1000}
-
-* Output stage (with rail limits)
-E_out out 0 VALUE={
-+   LIMIT(V(v_hall), 0.2, VCC-0.2)
-+ }
-
-* Load resistor (to ADC)
-R_load out 0 10k
-
-* For 20mT field:
-* V_out = 2.5V + 45mV/mT × 20mT = 2.5V + 0.9V = 3.4V
-
-.dc B_FIELD -100m 100m 1m
-
-.end`
-            });
-        }
-
-        // Checklist widget
-        if (typeof ChecklistWidget !== 'undefined') {
-            new ChecklistWidget('hall-checklist', {
-                title: 'Hall Sensor Design Checklist',
-                items: [
-                    {id: 'field-range', text: 'Determine magnetic field range for application', category: 'Sensor Selection'},
-                    {id: 'type-sel', text: 'Select sensor type (linear, switch, latch, angle)', category: 'Sensor Selection'},
-                    {id: 'package', text: 'Choose package for mounting orientation', category: 'Sensor Selection'},
-                    {id: 'magnet', text: 'Select magnet type and strength', category: 'Magnet Design'},
-                    {id: 'airgap', text: 'Calculate required air gap for field range', category: 'Magnet Design'},
-                    {id: 'tolerance', text: 'Account for magnet and position tolerances', category: 'Magnet Design'},
-                    {id: 'bypass', text: 'Add bypass capacitor close to sensor Vcc', category: 'Circuit Design'},
-                    {id: 'filter', text: 'Design input filter for noise rejection', category: 'Circuit Design'},
-                    {id: 'gain', text: 'Calculate gain for ADC input range', category: 'Circuit Design'},
-                    {id: 'temp-comp', text: 'Consider temperature compensation', category: 'Calibration'},
-                    {id: 'cal-points', text: 'Define calibration points (zero, span)', category: 'Calibration'},
-                    {id: 'emi', text: 'Shield sensor from EMI sources', category: 'EMC'}
-                ]
-            });
-        }
-
-        // Exercises widget
-        if (typeof ExerciseWidget !== 'undefined') {
-            new ExerciseWidget('hall-exercises', {
-                exercises: [
-                    {
-                        id: 'ex1',
-                        title: 'Linear Hall Sensor Output',
-                        problem: 'A linear Hall sensor (DRV5053, 45mV/mT sensitivity) operates from 5V supply with quiescent output at Vcc/2. Calculate: (a) Output voltage at +30mT, (b) Output voltage at -20mT, (c) ADC counts for 12-bit ADC with 5V reference at both field levels.',
-                        hints: [
-                            'Vout = Vq + (S × B)',
-                            'Quiescent Vq = Vcc/2 = 2.5V',
-                            'ADC counts = (Vout / Vref) × 2^bits'
-                        ],
-                        answer: '(a) Vout = 2.5V + (45mV/mT × 30mT) = 2.5V + 1.35V = 3.85V. (b) Vout = 2.5V + (45mV/mT × -20mT) = 2.5V - 0.9V = 1.6V. (c) At 3.85V: counts = (3.85/5) × 4096 = 3154. At 1.6V: counts = (1.6/5) × 4096 = 1311.'
-                    },
-                    {
-                        id: 'ex2',
-                        title: 'Current Sensor Design',
-                        problem: 'Design a closed-loop Hall current sensor for 0-100A with 0-5V output. Calculate: (a) Required turns ratio N if using a 50mA secondary current limit, (b) Sense resistor value, (c) Power dissipation in sense resistor at full scale.',
-                        hints: [
-                            'I_secondary = I_primary / N',
-                            'V_out = I_secondary × R_sense',
-                            'P = I² × R'
-                        ],
-                        answer: '(a) I_sec_max = 100A / N = 50mA, so N = 2000 turns. (b) At 100A: I_sec = 50mA. For 5V output: R_sense = 5V / 50mA = 100Ω. (c) P = (50mA)² × 100Ω = 0.25W. Use 0.5W resistor minimum.'
-                    },
-                    {
-                        id: 'ex3',
-                        title: 'Temperature Compensation',
-                        problem: 'A Hall sensor has -0.12%/°C temperature coefficient. At 25°C, the output is 2.5V at zero field and 4.0V at 50mT. Calculate: (a) Sensitivity at 25°C, (b) Output at 50mT and 85°C without compensation, (c) Gain adjustment needed to compensate at 85°C.',
-                        hints: [
-                            'Sensitivity = ΔV / ΔB',
-                            'Output change = base × (1 + TC × ΔT)',
-                            'Gain compensation = 1 / temperature_factor'
-                        ],
-                        answer: '(a) S = (4.0V - 2.5V) / 50mT = 30mV/mT. (b) ΔT = 85-25 = 60°C. Factor = 1 + (-0.0012 × 60) = 0.928. At 85°C: V = 2.5V + (1.5V × 0.928) = 3.892V (vs 4.0V at 25°C). (c) Gain compensation = 1/0.928 = 1.078. Multiply by 1.078 to restore output to 4.0V equivalent.'
-                    }
-                ]
-            });
-        }
-
-        // Hall Effect Physics Canvas
-        (function() {
-            const canvas = document.getElementById('hall-physics-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            function roundRect(ctx, x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-            }
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Title
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 16px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Hall Effect in a Semiconductor', W/2, 25);
-
-            // Draw magnetic field dots (into page)
-            ctx.fillStyle = TEK.ch3;
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('B (magnetic field, into page)', 220, 55);
-
-            for (let row = 0; row < 2; row++) {
-                for (let col = 0; col < 9; col++) {
-                    ctx.beginPath();
-                    ctx.arc(100 + col * 30, 75 + row * 20, 5, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-
-            // Semiconductor bar
-            const barX = 70, barY = 120, barW = 300, barH = 100;
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch2;
-            ctx.lineWidth = 2;
-            roundRect(ctx, barX, barY, barW, barH, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            // Current flow arrow
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(barX - 40, barY + barH/2);
-            ctx.lineTo(barX + 20, barY + barH/2);
-            ctx.stroke();
-            // Arrow head
-            ctx.beginPath();
-            ctx.moveTo(barX + 20, barY + barH/2 - 8);
-            ctx.lineTo(barX + 35, barY + barH/2);
-            ctx.lineTo(barX + 20, barY + barH/2 + 8);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '12px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('I', barX - 50, barY + barH/2 - 10);
-
-            // Current flow inside
-            ctx.strokeStyle = TEK.ch1 + '88';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([8, 4]);
-            ctx.beginPath();
-            ctx.moveTo(barX + 40, barY + barH/2);
-            ctx.lineTo(barX + barW - 40, barY + barH/2);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Electron deflection arrow
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(barX + barW/2, barY + barH/2 + 10);
-            ctx.lineTo(barX + barW/2, barY + 20);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(barX + barW/2 - 6, barY + 28);
-            ctx.lineTo(barX + barW/2, barY + 18);
-            ctx.lineTo(barX + barW/2 + 6, barY + 28);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Electrons', barX + barW/2 + 10, barY + 35);
-            ctx.fillText('deflected', barX + barW/2 + 10, barY + 48);
-
-            // Charge accumulation symbols
-            ctx.font = 'bold 18px monospace';
-            ctx.fillStyle = '#ff6666';
-            ctx.textAlign = 'center';
-            ctx.fillText('+', barX + barW - 25, barY + 25);
-            ctx.fillText('+', barX + barW - 25, barY + 45);
-            ctx.fillStyle = '#6666ff';
-            ctx.fillText('-', barX + barW - 25, barY + barH - 20);
-            ctx.fillText('-', barX + barW - 25, barY + barH - 40);
-
-            // Hall voltage connections
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(barX + barW, barY + 30);
-            ctx.lineTo(barX + barW + 50, barY + 30);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(barX + barW, barY + barH - 30);
-            ctx.lineTo(barX + barW + 50, barY + barH - 30);
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('V_H+ (Hall voltage)', barX + barW + 55, barY + 35);
-            ctx.fillText('V_H- (Hall voltage)', barX + barW + 55, barY + barH - 25);
-
-            // Current output arrow
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(barX + barW - 20, barY + barH/2);
-            ctx.lineTo(barX + barW + 40, barY + barH/2);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(barX + barW + 30, barY + barH/2 - 8);
-            ctx.lineTo(barX + barW + 45, barY + barH/2);
-            ctx.lineTo(barX + barW + 30, barY + barH/2 + 8);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '12px monospace';
-            ctx.fillText('I', barX + barW + 50, barY + barH/2 - 10);
-
-            // Formula box
-            const formulaX = 500, formulaY = 50;
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            ctx.lineWidth = 1;
-            roundRect(ctx, formulaX, formulaY, 370, 180, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = 'bold 13px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Hall Voltage:', formulaX + 15, formulaY + 25);
-            ctx.fillStyle = '#fff';
-            ctx.font = '13px monospace';
-            ctx.fillText('V_H = (I × B) / (n × e × t)', formulaX + 15, formulaY + 50);
-
-            ctx.fillStyle = '#888';
-            ctx.font = '11px monospace';
-            let y = formulaY + 75;
-            ctx.fillText('Where:', formulaX + 15, y); y += 18;
-            ctx.fillText('• I = bias current', formulaX + 25, y); y += 16;
-            ctx.fillText('• B = magnetic flux density (Tesla)', formulaX + 25, y); y += 16;
-            ctx.fillText('• n = carrier density', formulaX + 25, y); y += 16;
-            ctx.fillText('• e = electron charge', formulaX + 25, y); y += 16;
-            ctx.fillText('• t = conductor thickness', formulaX + 25, y);
-
-            // Practical formula box
-            ctx.fillStyle = '#1a2332';
-            ctx.strokeStyle = TEK.ch4;
-            roundRect(ctx, formulaX, formulaY + 195, 370, 90, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = 'bold 13px monospace';
-            ctx.fillText('Practical form:', formulaX + 15, formulaY + 220);
-            ctx.fillStyle = '#fff';
-            ctx.fillText('V_H = K_H × I × B', formulaX + 150, formulaY + 220);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '11px monospace';
-            ctx.fillText('• K_H = Hall coefficient (sensitivity)', formulaX + 15, formulaY + 250);
-            ctx.fillText('• Typical: 20-100 mV/T for silicon', formulaX + 15, formulaY + 270);
-
-            // Key parameters box
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, 70, 245, 370, 140, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 13px monospace';
-            ctx.fillText('Key Parameters:', 85, 270);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '11px monospace';
-            y = 295;
-            ctx.fillText('• Sensitivity: mV/g or mg/LSB', 95, y); y += 18;
-            ctx.fillText('• Range: ±2g to ±200g', 95, y); y += 18;
-            ctx.fillText('• Bandwidth: DC to several kHz', 95, y); y += 18;
-            ctx.fillText('• Noise: ~100-400 µg/√Hz', 95, y); y += 18;
-            ctx.fillText('• Cross-axis sensitivity: <3%', 95, y);
-        })();
-
-        // Hall Sensor Architecture Canvas
-        (function() {
-            const canvas = document.getElementById('hall-architecture-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            function roundRect(ctx, x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-            }
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Linear Hall Sensor section
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Linear Hall Sensor (e.g., DRV5053):', 30, 25);
-
-            // Main IC outline
-            const icX = 30, icY = 40, icW = 400, icH = 200;
-            ctx.fillStyle = '#1a2332';
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            roundRect(ctx, icX, icY, icW, icH, 10);
-            ctx.fill();
-            ctx.stroke();
-
-            // Vcc input
-            ctx.strokeStyle = '#ff6666';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(icX + 50, icY);
-            ctx.lineTo(icX + 50, icY - 20);
-            ctx.stroke();
-            ctx.fillStyle = '#ff6666';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Vcc', icX + 50, icY - 25);
-
-            // Voltage regulator block
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch2;
-            roundRect(ctx, icX + 60, icY + 20, 80, 35, 5);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Voltage', icX + 100, icY + 38);
-            ctx.fillText('Regulator', icX + 100, icY + 50);
-
-            // Temp comp block
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch3;
-            roundRect(ctx, icX + 160, icY + 20, 80, 35, 5);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.fillText('Temp', icX + 200, icY + 38);
-            ctx.fillText('Comp', icX + 200, icY + 50);
-
-            // Hall element block
-            ctx.fillStyle = '#2a4f5f';
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            roundRect(ctx, icX + 80, icY + 70, 160, 50, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '11px monospace';
-            ctx.fillText('Hall Element', icX + 160, icY + 95);
-
-            // I arrow into hall
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(icX + 95, icY + 95);
-            ctx.lineTo(icX + 125, icY + 95);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(icX + 120, icY + 90);
-            ctx.lineTo(icX + 130, icY + 95);
-            ctx.lineTo(icX + 120, icY + 100);
-            ctx.fill();
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '9px monospace';
-            ctx.fillText('I', icX + 90, icY + 92);
-
-            // Magnetic field symbol
-            ctx.fillStyle = TEK.ch3;
-            ctx.beginPath();
-            ctx.arc(icX + 160, icY + 95, 8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#0d1117';
-            ctx.beginPath();
-            ctx.arc(icX + 160, icY + 95, 3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = TEK.ch3;
-            ctx.font = '9px monospace';
-            ctx.fillText('⊗ B', icX + 175, icY + 98);
-
-            // V_H output
-            ctx.strokeStyle = TEK.ch4;
-            ctx.beginPath();
-            ctx.moveTo(icX + 195, icY + 95);
-            ctx.lineTo(icX + 225, icY + 95);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch4;
-            ctx.fillText('V_H', icX + 230, icY + 98);
-
-            // Amplifier block
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch1;
-            roundRect(ctx, icX + 120, icY + 135, 100, 45, 6);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Amplifier', icX + 170, icY + 153);
-            ctx.fillText('(gain + offset)', icX + 170, icY + 168);
-
-            // Connection from hall to amp
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(icX + 160, icY + 120);
-            ctx.lineTo(icX + 160, icY + 135);
-            ctx.stroke();
-
-            // GND
-            ctx.strokeStyle = '#666';
-            ctx.beginPath();
-            ctx.moveTo(icX + 50, icY + icH);
-            ctx.lineTo(icX + 50, icY + icH + 20);
-            ctx.stroke();
-            ctx.fillStyle = '#888';
-            ctx.fillText('GND', icX + 50, icY + icH + 32);
-
-            // Output
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(icX + icW, icY + 155);
-            ctx.lineTo(icX + icW + 40, icY + 155);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '11px monospace';
-            ctx.fillText('OUT', icX + icW + 50, icY + 160);
-
-            // Digital Hall Switch section
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Digital Hall Switch (e.g., DRV5032):', 30, icY + icH + 60);
-
-            const sw_y = icY + icH + 75;
-
-            // Main outline
-            ctx.fillStyle = '#1a2332';
-            ctx.strokeStyle = TEK.ch2;
-            ctx.lineWidth = 2;
-            roundRect(ctx, 30, sw_y, 420, 100, 10);
-            ctx.fill();
-            ctx.stroke();
-
-            // Hall element
-            ctx.fillStyle = '#2a4f5f';
-            ctx.strokeStyle = TEK.ch4;
-            roundRect(ctx, 50, sw_y + 25, 70, 50, 5);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Hall', 85, sw_y + 50);
-            ctx.fillText('Element', 85, sw_y + 62);
-
-            // Arrow
-            ctx.strokeStyle = TEK.ch1;
-            ctx.beginPath();
-            ctx.moveTo(120, sw_y + 50);
-            ctx.lineTo(145, sw_y + 50);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(140, sw_y + 45);
-            ctx.lineTo(150, sw_y + 50);
-            ctx.lineTo(140, sw_y + 55);
-            ctx.fill();
-
-            // Amp block
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch1;
-            roundRect(ctx, 150, sw_y + 25, 60, 50, 5);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.fillText('Amp', 180, sw_y + 55);
-
-            // Arrow
-            ctx.strokeStyle = TEK.ch1;
-            ctx.beginPath();
-            ctx.moveTo(210, sw_y + 50);
-            ctx.lineTo(235, sw_y + 50);
-            ctx.stroke();
-
-            // Schmitt trigger block
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch3;
-            roundRect(ctx, 240, sw_y + 25, 70, 50, 5);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.fillText('Schmitt', 275, sw_y + 45);
-            ctx.fillText('Trigger', 275, sw_y + 60);
-
-            // Arrow
-            ctx.strokeStyle = TEK.ch1;
-            ctx.beginPath();
-            ctx.moveTo(310, sw_y + 50);
-            ctx.lineTo(335, sw_y + 50);
-            ctx.stroke();
-
-            // Output driver block
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch4;
-            roundRect(ctx, 340, sw_y + 25, 60, 50, 5);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.fillText('Output', 370, sw_y + 45);
-            ctx.fillText('Driver', 370, sw_y + 60);
-
-            // Output arrow
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(400, sw_y + 50);
-            ctx.lineTo(455, sw_y + 50);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch4;
-            ctx.fillText('OUT', 465, sw_y + 55);
-
-            // Hysteresis info box
-            const hyBox = 500;
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, hyBox, icY, 370, 180, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch3;
-            ctx.font = 'bold 13px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Hysteresis Parameters:', hyBox + 15, icY + 25);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '11px monospace';
-            let y = icY + 55;
-            ctx.fillText('B_op (operate point):', hyBox + 20, y);
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillText('Field to turn ON', hyBox + 180, y);
-            y += 25;
-
-            ctx.fillStyle = '#ccc';
-            ctx.fillText('B_rp (release point):', hyBox + 20, y);
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillText('Field to turn OFF', hyBox + 180, y);
-            y += 25;
-
-            ctx.fillStyle = '#ccc';
-            ctx.fillText('Hysteresis = B_op - B_rp', hyBox + 20, y);
-            y += 35;
-
-            // Draw hysteresis curve
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(hyBox + 40, y + 60);
-            ctx.lineTo(hyBox + 200, y + 60);
-            ctx.moveTo(hyBox + 120, y);
-            ctx.lineTo(hyBox + 120, y + 70);
-            ctx.stroke();
-
-            // Hysteresis loop
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(hyBox + 60, y + 55);
-            ctx.lineTo(hyBox + 140, y + 55);
-            ctx.lineTo(hyBox + 140, y + 15);
-            ctx.lineTo(hyBox + 180, y + 15);
-            ctx.stroke();
-
-            ctx.strokeStyle = TEK.ch2;
-            ctx.beginPath();
-            ctx.moveTo(hyBox + 180, y + 15);
-            ctx.lineTo(hyBox + 100, y + 15);
-            ctx.lineTo(hyBox + 100, y + 55);
-            ctx.lineTo(hyBox + 60, y + 55);
-            ctx.stroke();
-
-            ctx.fillStyle = '#888';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('B_rp', hyBox + 100, y + 72);
-            ctx.fillText('B_op', hyBox + 140, y + 72);
-            ctx.fillText('B', hyBox + 210, y + 63);
-            ctx.fillText('V_out', hyBox + 35, y + 10);
-        })();
-
-        // Current Sensing Canvas
-        (function() {
-            const canvas = document.getElementById('current-sensing-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            function roundRect(ctx, x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-            }
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Open-Loop section
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Open-Loop Hall Current Sensor', 30, 25);
-
-            // Magnetic core (toroid)
-            const coreX = 120, coreY = 100, coreR = 60;
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 20;
-            ctx.beginPath();
-            ctx.arc(coreX, coreY, coreR, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // Core gap
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(coreX + coreR - 15, coreY - 20, 35, 40);
-
-            // Hall sensor in gap
-            ctx.fillStyle = TEK.ch2;
-            roundRect(ctx, coreX + coreR - 10, coreY - 15, 25, 30, 3);
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = '7px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('HALL', coreX + coreR + 2, coreY + 3);
-
-            // Primary current wire
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.moveTo(coreX - 80, coreY);
-            ctx.lineTo(coreX - 30, coreY);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(coreX + 30, coreY);
-            ctx.lineTo(coreX + 80, coreY);
-            ctx.stroke();
-
-            // Current label
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '12px monospace';
-            ctx.fillText('I (current)', coreX - 20, coreY - 80);
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(coreX, coreY - 70);
-            ctx.lineTo(coreX, coreY - 50);
-            ctx.stroke();
-
-            // Output
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(coreX + coreR + 15, coreY);
-            ctx.lineTo(coreX + coreR + 60, coreY);
-            ctx.lineTo(coreX + coreR + 60, coreY + 60);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '11px monospace';
-            ctx.fillText('V_out ∝ I', coreX + coreR + 35, coreY + 80);
-
-            // Info box
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, coreX - 100, coreY + 80, 240, 70, 6);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Magnetic core concentrates field', coreX - 90, coreY + 102);
-            ctx.fillText('Simple, low cost', coreX - 90, coreY + 118);
-            ctx.fillText('Accuracy: ~1-3%', coreX - 90, coreY + 134);
-
-            // Closed-Loop section
-            const clX = 480, clY = 25;
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px monospace';
-            ctx.fillText('Closed-Loop Hall Current Sensor', clX, clY);
-
-            // Magnetic core with secondary winding
-            const cl_coreX = clX + 90, cl_coreY = clY + 100, cl_coreR = 55;
-
-            // Secondary winding representation
-            ctx.strokeStyle = TEK.ch3;
-            ctx.lineWidth = 3;
-            for (let i = 0; i < 8; i++) {
-                const angle = -0.5 + i * 0.12;
-                ctx.beginPath();
-                ctx.arc(cl_coreX, cl_coreY, cl_coreR + 10, angle, angle + 0.08);
-                ctx.stroke();
-            }
-
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 16;
-            ctx.beginPath();
-            ctx.arc(cl_coreX, cl_coreY, cl_coreR, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // Core gap
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(cl_coreX + cl_coreR - 12, cl_coreY - 18, 30, 36);
-
-            // Hall sensor in gap
-            ctx.fillStyle = TEK.ch2;
-            roundRect(ctx, cl_coreX + cl_coreR - 8, cl_coreY - 12, 22, 24, 3);
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = '6px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('HALL', cl_coreX + cl_coreR + 3, cl_coreY + 3);
-
-            // Primary current
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.moveTo(cl_coreX - 70, cl_coreY);
-            ctx.lineTo(cl_coreX - 25, cl_coreY);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(cl_coreX + 25, cl_coreY);
-            ctx.lineTo(cl_coreX + 40, cl_coreY);
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '11px monospace';
-            ctx.fillText('I_p', cl_coreX - 80, cl_coreY - 10);
-
-            // Feedback amplifier
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            roundRect(ctx, cl_coreX + cl_coreR + 30, cl_coreY - 25, 70, 50, 5);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '9px monospace';
-            ctx.fillText('Feedback', cl_coreX + cl_coreR + 65, cl_coreY - 5);
-            ctx.fillText('Amp', cl_coreX + cl_coreR + 65, cl_coreY + 10);
-
-            // Connection from Hall to amp
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(cl_coreX + cl_coreR + 14, cl_coreY);
-            ctx.lineTo(cl_coreX + cl_coreR + 30, cl_coreY);
-            ctx.stroke();
-
-            // Connection from amp to secondary
-            ctx.strokeStyle = TEK.ch3;
-            ctx.beginPath();
-            ctx.moveTo(cl_coreX + cl_coreR + 100, cl_coreY);
-            ctx.lineTo(cl_coreX + cl_coreR + 120, cl_coreY);
-            ctx.lineTo(cl_coreX + cl_coreR + 120, cl_coreY + 80);
-            ctx.lineTo(cl_coreX - 40, cl_coreY + 80);
-            ctx.lineTo(cl_coreX - 40, cl_coreY + 50);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch3;
-            ctx.font = '10px monospace';
-            ctx.fillText('N turns', cl_coreX - 70, cl_coreY + 55);
-
-            // Sense resistor
-            ctx.fillStyle = '#555';
-            roundRect(ctx, cl_coreX + cl_coreR + 105, cl_coreY + 25, 40, 20, 3);
-            ctx.fill();
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(cl_coreX + cl_coreR + 105, cl_coreY + 25, 40, 20);
-            ctx.fillStyle = '#fff';
-            ctx.font = '8px monospace';
-            ctx.fillText('R_sense', cl_coreX + cl_coreR + 125, cl_coreY + 38);
-
-            // Output from sense resistor
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(cl_coreX + cl_coreR + 145, cl_coreY + 35);
-            ctx.lineTo(cl_coreX + cl_coreR + 175, cl_coreY + 35);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '11px monospace';
-            ctx.fillText('V_out', cl_coreX + cl_coreR + 180, cl_coreY + 40);
-
-            // Equations box
-            const eqX = clX - 30, eqY = cl_coreY + 100;
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = TEK.ch4;
-            roundRect(ctx, eqX, eqY, 380, 120, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = 'bold 12px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Closed-Loop Equations:', eqX + 15, eqY + 22);
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '11px monospace';
-            let y = eqY + 45;
-            ctx.fillText('Feedback nulls magnetic field:', eqX + 20, y); y += 18;
-            ctx.fillStyle = '#fff';
-            ctx.fillText('I_s × N = I_p × 1  →  I_s = I_p / N', eqX + 40, y); y += 25;
-            ctx.fillStyle = '#ccc';
-            ctx.fillText('Output voltage:', eqX + 20, y); y += 18;
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillText('V_out = I_p × R_sense / N', eqX + 40, y);
-
-            // Advantages box
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, eqX, eqY + 135, 380, 60, 6);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = 'bold 11px monospace';
-            ctx.fillText('Advantages:', eqX + 15, eqY + 155);
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px monospace';
-            ctx.fillText('• Higher accuracy (~0.1%)', eqX + 20, eqY + 173);
-            ctx.fillText('• Better linearity, wider bandwidth', eqX + 200, eqY + 173);
-        })();
-
-        // Position and Speed Sensing Canvas
-        (function() {
-            const canvas = document.getElementById('position-speed-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-
-            function roundRect(ctx, x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-            }
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, W, H);
-
-            // Rotary Position Section
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Rotary Position with Ring Magnet', 30, 25);
-
-            // Ring magnet (cross section)
-            const ringX = 130, ringY = 140, ringR = 70;
-
-            // Outer ring
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 25;
-            ctx.beginPath();
-            ctx.arc(ringX, ringY, ringR, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // N-S poles
-            ctx.fillStyle = '#ff6666';
-            ctx.font = 'bold 16px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('N', ringX - 45, ringY + 5);
-            ctx.fillStyle = '#6666ff';
-            ctx.fillText('S', ringX + 45, ringY + 5);
-
-            // Magnetic field lines
-            ctx.strokeStyle = TEK.ch3 + '66';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
-            ctx.beginPath();
-            ctx.moveTo(ringX - 30, ringY);
-            ctx.lineTo(ringX + 30, ringY);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Hall sensor at center
-            ctx.fillStyle = TEK.ch2;
-            roundRect(ctx, ringX - 15, ringY - 12, 30, 24, 4);
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = '8px monospace';
-            ctx.fillText('HALL', ringX, ringY + 3);
-
-            // Rotation arrow
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(ringX, ringY, ringR + 35, -0.5, 1.2);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(ringX + (ringR + 35) * Math.cos(1.2) - 5, ringY + (ringR + 35) * Math.sin(1.2) - 8);
-            ctx.lineTo(ringX + (ringR + 35) * Math.cos(1.2), ringY + (ringR + 35) * Math.sin(1.2));
-            ctx.lineTo(ringX + (ringR + 35) * Math.cos(1.2) + 8, ringY + (ringR + 35) * Math.sin(1.2) - 3);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '12px monospace';
-            ctx.fillText('θ', ringX + ringR + 45, ringY + 10);
-
-            // Output equation
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = TEK.ch4;
-            roundRect(ctx, 30, ringY + ringR + 40, 200, 40, 6);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Output: V = V_q + S×sin(θ)', 130, ringY + ringR + 65);
-
-            // Info box
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, 250, 40, 180, 80, 6);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Ring magnet', 265, 60);
-            ctx.fillText('(diametrically', 265, 75);
-            ctx.fillText('magnetized)', 265, 90);
-            ctx.fillText('Typical: ±180° range', 265, 110);
-
-            // Speed Sensing Section
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Speed Sensing with Gear Tooth', 480, 25);
-
-            // Gear representation
-            const gearX = 580, gearY = 80;
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(gearX - 120, gearY);
-            ctx.lineTo(gearX + 180, gearY);
-            ctx.stroke();
-
-            // Gear teeth
-            ctx.fillStyle = '#666';
-            for (let i = 0; i < 5; i++) {
-                const tx = gearX - 80 + i * 60;
-                ctx.fillRect(tx, gearY - 35, 25, 35);
-            }
-
-            // Rotating arrow
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(gearX - 100, gearY + 15);
-            ctx.lineTo(gearX + 160, gearY + 15);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(gearX + 150, gearY + 10);
-            ctx.lineTo(gearX + 165, gearY + 15);
-            ctx.lineTo(gearX + 150, gearY + 20);
-            ctx.fill();
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '10px monospace';
-            ctx.fillText('Rotating gear', gearX + 20, gearY + 35);
-
-            // Gap indicator
-            ctx.strokeStyle = '#666';
-            ctx.setLineDash([3, 3]);
-            ctx.beginPath();
-            ctx.moveTo(gearX + 30, gearY);
-            ctx.lineTo(gearX + 30, gearY + 50);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.fillStyle = '#888';
-            ctx.fillText('Gap', gearX + 40, gearY + 45);
-
-            // Hall sensor package
-            ctx.fillStyle = '#2a3f5f';
-            ctx.strokeStyle = TEK.ch2;
-            ctx.lineWidth = 2;
-            roundRect(ctx, gearX, gearY + 55, 60, 80, 8);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#fff';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('HALL', gearX + 30, gearY + 80);
-            ctx.fillText('SENSOR', gearX + 30, gearY + 92);
-
-            // Magnet inside
-            ctx.fillStyle = TEK.ch3;
-            roundRect(ctx, gearX + 10, gearY + 100, 40, 25, 4);
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = '8px monospace';
-            ctx.fillText('MAGNET', gearX + 30, gearY + 116);
-            ctx.fillStyle = '#ff6666';
-            ctx.fillText('N', gearX + 30, gearY + 70);
-
-            // Output pulse waveform
-            const waveX = gearX - 80, waveY = gearY + 170;
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, waveX, waveY, 280, 90, 6);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#888';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Digital pulse output:', waveX + 10, waveY + 18);
-
-            // Draw pulse waveform
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(waveX + 20, waveY + 65);
-            for (let i = 0; i < 5; i++) {
-                const px = waveX + 20 + i * 50;
-                ctx.lineTo(px, waveY + 65);
-                ctx.lineTo(px, waveY + 35);
-                ctx.lineTo(px + 25, waveY + 35);
-                ctx.lineTo(px + 25, waveY + 65);
-            }
-            ctx.stroke();
-
-            ctx.fillStyle = '#ccc';
-            ctx.fillText('Speed = pulses/rev × freq', waveX + 10, waveY + 82);
-
-            // Info box for tooth sensing
-            ctx.fillStyle = '#141922';
-            ctx.strokeStyle = '#374151';
-            roundRect(ctx, gearX + 90, gearY + 50, 200, 85, 6);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#ccc';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            let y = gearY + 70;
-            ctx.fillText('Back-biased with', gearX + 100, y); y += 15;
-            ctx.fillText('permanent magnet', gearX + 100, y); y += 20;
-            ctx.fillText('Tooth modulates', gearX + 100, y); y += 15;
-            ctx.fillText('magnetic field', gearX + 100, y);
-        })();
-    });
+    })();
     </script>
-</body>
-</html>
+</div>

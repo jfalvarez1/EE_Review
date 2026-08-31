@@ -266,9 +266,29 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 4: Transistor Intuition (BJT) ==========
+        // ========== MODULE 4: Semiconductors and Diodes ==========
         {
             id: 4,
+            title: 'Semiconductors and Diodes',
+            description: 'Where 0.7 V, 26 mV and the exponential come from - and diodes at the level you actually use them',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'The pn Junction and the Exponential',
+                    description: 'VT = kT/q, the diode equation, 60 mV/decade, and the -2 mV/degC derived',
+                    topics: ['VT = kT/q = 25.85 mV', 'Shockley equation and ideality factor', '60 mV per decade', 'rd = nVT/ID', 'Tempco derived from Eg']
+                },
+                {
+                    id: 2,
+                    title: 'Diodes in Practice: an Overview',
+                    description: 'Rectification, clamping and protection at the level an engineer uses them',
+                    topics: ['Ripple = I/(f·C)', 'Peak-to-average current ratio', 'Choosing a rectifier', 'TVS, Schottky clamps, why zeners faded']
+                }
+            ]
+        },
+        // ========== MODULE 5: Transistor Intuition (BJT) ==========
+        {
+            id: 5,
             title: 'Transistor Intuition (BJT)',
             description: 'Device-level understanding of bipolar junction transistors',
             lessons: [
@@ -490,9 +510,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 5: FET/MOSFET Fundamentals ==========
+        // ========== MODULE 6: FET/MOSFET Fundamentals ==========
         {
-            id: 5,
+            id: 6,
             title: 'FET/MOSFET Fundamentals',
             description: 'Device intuition, switching, biasing, and CMOS basics',
             lessons: [
@@ -636,9 +656,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 6: Output Stages & Complementary Circuits ==========
+        // ========== MODULE 7: Output Stages & Complementary Circuits ==========
         {
-            id: 6,
+            id: 7,
             title: 'Output Stages & Complementary Circuits',
             description: 'Push-pull, CMOS, open-drain, current sources',
             lessons: [
@@ -728,9 +748,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 7: Advanced Analog Blocks ==========
+        // ========== MODULE 8: Advanced Analog Blocks ==========
         {
-            id: 7,
+            id: 8,
             title: 'Advanced Analog Blocks',
             description: 'PLL, bandgap references, precision techniques',
             lessons: [
@@ -796,9 +816,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 8: Oscillators & Timing Circuits ==========
+        // ========== MODULE 9: Oscillators & Timing Circuits ==========
         {
-            id: 8,
+            id: 9,
             title: 'Oscillators & Timing Circuits',
             description: 'LC, RC, crystal oscillators, 555 timer, Schmitt triggers',
             lessons: [
@@ -894,9 +914,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 9: Practical Skills ==========
+        // ========== MODULE 10: Practical Skills ==========
         {
-            id: 9,
+            id: 10,
             title: 'Practical Skills',
             description: 'Oscilloscope, PCB layout, troubleshooting workflow',
             lessons: [
@@ -980,9 +1000,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 10: Design Trade-offs Workshop ==========
+        // ========== MODULE 11: Design Trade-offs Workshop ==========
         {
-            id: 10,
+            id: 11,
             title: 'Design Trade-offs Workshop',
             description: 'Performance-Power-Cost triangle, component selection',
             lessons: [
@@ -1072,9 +1092,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 11: Practice Problems & Exercises ==========
+        // ========== MODULE 12: Practice Problems & Exercises ==========
         {
-            id: 11,
+            id: 12,
             title: 'Practice Problems & Exercises',
             description: '10 problem sets with progressive difficulty',
             lessons: [
@@ -1140,9 +1160,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 12: Power Electronics Applications ==========
+        // ========== MODULE 13: Power Electronics Applications ==========
         {
-            id: 12,
+            id: 13,
             title: 'Power Electronics Applications',
             description: 'MOSFET selection, buck converters, LDO, PMIC',
             lessons: [
@@ -1232,9 +1252,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 13: Power Supply Design ==========
+        // ========== MODULE 14: Power Supply Design ==========
         {
-            id: 13,
+            id: 14,
             title: 'Power Supply Design',
             description: 'Complete power supply design techniques',
             lessons: [
@@ -1300,9 +1320,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 14: Battery Management ==========
+        // ========== MODULE 15: Battery Management ==========
         {
-            id: 14,
+            id: 15,
             title: 'Battery Management',
             description: 'Battery charging, protection, and monitoring',
             lessons: [
@@ -1368,9 +1388,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 15: Audio Applications ==========
+        // ========== MODULE 16: Audio Applications ==========
         {
-            id: 15,
+            id: 16,
             title: 'Audio Applications',
             description: 'Headphone amp, preamp, equalizer, Class D',
             lessons: [
@@ -1460,9 +1480,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 16: Data Conversion Applications ==========
+        // ========== MODULE 17: Data Conversion Applications ==========
         {
-            id: 16,
+            id: 17,
             title: 'Data Conversion Applications',
             description: 'SAR driver, delta-sigma, DAC reconstruction, references',
             lessons: [
@@ -1552,9 +1572,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 17: Sensor Interface ==========
+        // ========== MODULE 18: Sensor Interface ==========
         {
-            id: 17,
+            id: 18,
             title: 'Sensor Interface',
             description: 'Signal conditioning for various sensor types',
             lessons: [
@@ -1620,9 +1640,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 18: Digital Interface Electrical Design ==========
+        // ========== MODULE 19: Digital Interface Electrical Design ==========
         {
-            id: 18,
+            id: 19,
             title: 'Digital Interface Electrical Design',
             description: 'Logic levels, level shifting, pull-ups, ESD',
             lessons: [
@@ -1688,9 +1708,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 19: Communication Protocols - Electrical Level ==========
+        // ========== MODULE 20: Communication Protocols - Electrical Level ==========
         {
-            id: 19,
+            id: 20,
             title: 'Communication Protocols - Electrical Level',
             description: 'I2C, SPI, UART, USB electrical design',
             lessons: [
@@ -1756,9 +1776,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 20: RF Analog ==========
+        // ========== MODULE 21: RF Analog ==========
         {
-            id: 20,
+            id: 21,
             title: 'RF Analog',
             description: 'Radio frequency analog circuit design',
             lessons: [
@@ -1824,9 +1844,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 21: EMI/EMC Design ==========
+        // ========== MODULE 22: EMI/EMC Design ==========
         {
-            id: 21,
+            id: 22,
             title: 'EMI/EMC Design',
             description: 'Electromagnetic compatibility and interference control',
             lessons: [
@@ -1892,9 +1912,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 22: Real-World Scenarios ==========
+        // ========== MODULE 23: Real-World Scenarios ==========
         {
-            id: 22,
+            id: 23,
             title: 'Real-World Scenarios',
             description: 'Complete application-focused design scenarios',
             lessons: [
@@ -1960,9 +1980,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 23: Troubleshooting & Debug ==========
+        // ========== MODULE 24: Troubleshooting & Debug ==========
         {
-            id: 23,
+            id: 24,
             title: 'Troubleshooting & Debug',
             description: 'Systematic debugging techniques for analog circuits',
             lessons: [
@@ -2028,9 +2048,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 24: Real-World System Design ==========
+        // ========== MODULE 25: Real-World System Design ==========
         {
-            id: 24,
+            id: 25,
             title: 'Real-World System Design',
             description: 'Complete practical designs for laptops, phones, and consumer electronics',
             lessons: [
@@ -2186,9 +2206,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 25: Complex Real-World Projects ==========
+        // ========== MODULE 26: Complex Real-World Projects ==========
         {
-            id: 25,
+            id: 26,
             title: 'Complex Real-World Projects',
             description: 'Complete system-level designs integrating multiple analog subsystems',
             lessons: [
@@ -2254,9 +2274,9 @@ const CURRICULUM = {
                 }
             ]
         },
-        // ========== MODULE 26: Power Systems & the Grid (ERCOT / AEP) ==========
+        // ========== MODULE 27: Power Systems & the Grid (ERCOT / AEP) ==========
         {
-            id: 26,
+            id: 27,
             title: 'Power Systems & the Grid (ERCOT / AEP)',
             description: 'Undergraduate power systems plus the operating reality of the Texas grid and a large US utility',
             lessons: [

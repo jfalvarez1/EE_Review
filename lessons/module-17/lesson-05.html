@@ -1,543 +1,298 @@
-<!-- Module 17, Lesson 5: FPGA Power System Design -->
+<!-- Module 17, Lesson 5: SAR ADC Architecture -->
 <div class="lesson-content" data-module="17" data-lesson="5">
-
     <div class="card">
-        <h2>Scenario: FPGA Power System Design</h2>
-        <p>Design the power system for a mid-range FPGA with multiple voltage rails, sequencing requirements, and high transient current demands.</p>
+        <h2>SAR ADC Architecture</h2>
+        <p>The Successive Approximation Register (SAR) ADC is the workhorse of medium-speed, medium-resolution conversion. It uses a binary search algorithm to find the digital code that best represents the analog input, making it efficient in both power and silicon area.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Core</div>
-                <div class="v">1.0V @ 10A</div>
+                <h4>SAR Characteristics</h4>
+                <ul>
+                    <li><strong>Resolution:</strong> 8-20 bits typical</li>
+                    <li><strong>Speed:</strong> 10 kSPS - 10 MSPS</li>
+                    <li><strong>Power:</strong> Very low (μW to mW)</li>
+                    <li><strong>Latency:</strong> 1 conversion cycle</li>
+                </ul>
             </div>
             <div class="box">
-                <div class="k">Aux</div>
-                <div class="v">1.8V @ 2A</div>
+                <h4>Applications</h4>
+                <ul>
+                    <li><strong>Data acquisition:</strong> Precision measurement</li>
+                    <li><strong>Sensors:</strong> Temperature, pressure, etc.</li>
+                    <li><strong>Medical:</strong> ECG, patient monitoring</li>
+                    <li><strong>Industrial:</strong> Process control</li>
+                </ul>
             </div>
-            <div class="box">
-                <div class="k">I/O</div>
-                <div class="v">3.3V @ 1A</div>
-            </div>
-        </div>
-
-        <div class="notice">
-            <strong>Key Challenge:</strong> FPGA core power can have di/dt of 10A/µs during logic transitions. This requires low-impedance power delivery with extensive decoupling and fast transient response.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Power Rail Analysis</h3>
+        <h3>SAR ADC Block Diagram</h3>
 
+        <svg viewBox="0 0 650 320" class="circuit-diagram">
+            <text x="325" y="20" text-anchor="middle" class="label" style="font-weight:bold;">Successive Approximation ADC Architecture</text>
+
+            <!-- Analog input -->
+            <text x="30" y="100" text-anchor="end" class="label">Vin</text>
+            <line x1="40" y1="95" x2="80" y2="95" stroke="#333" stroke-width="2"/>
+
+            <!-- Sample and Hold -->
+            <rect x="80" y="75" width="80" height="40" fill="#e8f4f8" stroke="#3498db" stroke-width="2" rx="3"/>
+            <text x="120" y="100" text-anchor="middle" class="label" style="font-size:10px;">S/H</text>
+
+            <line x1="160" y1="95" x2="200" y2="95" stroke="#333" stroke-width="2"/>
+
+            <!-- Comparator -->
+            <polygon points="200,70 200,120 250,95" fill="none" stroke="#333" stroke-width="2"/>
+            <text x="220" y="100" text-anchor="middle" class="label" style="font-size:10px;">Comp</text>
+            <text x="205" y="88" text-anchor="start" class="label" style="font-size:9px;">+</text>
+            <text x="205" y="108" text-anchor="start" class="label" style="font-size:9px;">-</text>
+
+            <!-- DAC output to comparator -->
+            <line x1="200" y1="105" x2="200" y2="180" stroke="#333" stroke-width="2"/>
+            <line x1="200" y1="180" x2="280" y2="180" stroke="#333" stroke-width="2"/>
+
+            <!-- Comparator output -->
+            <line x1="250" y1="95" x2="320" y2="95" stroke="#333" stroke-width="2"/>
+
+            <!-- SAR Logic -->
+            <rect x="320" y="60" width="120" height="70" fill="#d4edda" stroke="#28a745" stroke-width="2" rx="3"/>
+            <text x="380" y="85" text-anchor="middle" class="label" style="font-size:10px;font-weight:bold;">SAR Logic</text>
+            <text x="380" y="105" text-anchor="middle" class="label" style="font-size:9px;">(Successive</text>
+            <text x="380" y="118" text-anchor="middle" class="label" style="font-size:9px;">Approximation)</text>
+
+            <!-- Digital output -->
+            <line x1="440" y1="95" x2="500" y2="95" stroke="#333" stroke-width="2"/>
+            <rect x="500" y="75" width="100" height="40" fill="#fff3cd" stroke="#ffc107" stroke-width="2" rx="3"/>
+            <text x="550" y="95" text-anchor="middle" class="label" style="font-size:10px;">Digital</text>
+            <text x="550" y="108" text-anchor="middle" class="label" style="font-size:10px;">Output</text>
+
+            <!-- DAC -->
+            <rect x="320" y="160" width="120" height="40" fill="#f8d7da" stroke="#dc3545" stroke-width="2" rx="3"/>
+            <text x="380" y="185" text-anchor="middle" class="label" style="font-size:10px;">Internal DAC</text>
+
+            <!-- SAR to DAC connection -->
+            <line x1="380" y1="130" x2="380" y2="160" stroke="#333" stroke-width="2"/>
+            <polygon points="375,155 385,155 380,162" fill="#333"/>
+
+            <!-- DAC output -->
+            <line x1="320" y1="180" x2="280" y2="180" stroke="#333" stroke-width="2"/>
+
+            <!-- Clock input -->
+            <line x1="380" y1="40" x2="380" y2="60" stroke="#333" stroke-width="2"/>
+            <text x="380" y="35" text-anchor="middle" class="label" style="font-size:9px;">CLK</text>
+
+            <!-- Reference -->
+            <line x1="440" y1="180" x2="480" y2="180" stroke="#333" stroke-width="2"/>
+            <text x="490" y="185" text-anchor="start" class="label" style="font-size:9px;">Vref</text>
+
+            <!-- Binary search illustration -->
+            <rect x="80" y="230" width="520" height="70" fill="#f8f9fa" stroke="#333" stroke-width="1" rx="3"/>
+            <text x="340" y="250" text-anchor="middle" class="label" style="font-weight:bold;">Binary Search Algorithm (12-bit example for Vin = 2.7V, Vref = 5V)</text>
+            <text x="90" y="270" text-anchor="start" class="label" style="font-size:9px;">Bit 11: Try 2.5V → Vin>2.5V → Set 1 → Code: 1000 0000 0000</text>
+            <text x="90" y="283" text-anchor="start" class="label" style="font-size:9px;">Bit 10: Try 3.75V → Vin<3.75V → Set 0 → Code: 1000 0000 0000</text>
+            <text x="90" y="296" text-anchor="start" class="label" style="font-size:9px;">Bit 9: Try 3.125V → Vin<3.125V → Set 0 ... continues for all bits</text>
+        </svg>
+    </div>
+
+    <div class="card">
+        <h3>SAR Conversion Timing</h3>
+
+        <svg viewBox="0 0 650 200" class="circuit-diagram">
+            <text x="325" y="20" text-anchor="middle" class="label" style="font-weight:bold;">SAR Conversion Cycle (12-bit)</text>
+
+            <!-- Clock -->
+            <text x="40" y="60" text-anchor="end" class="label" style="font-size:10px;">CLK</text>
+            <path d="M50,55 L60,55 L60,45 L80,45 L80,55 L100,55 L100,45 L120,45 L120,55 L140,55 L140,45 L160,45 L160,55 L180,55 L180,45 L200,45 L200,55 L220,55 L220,45 L240,45 L240,55 L260,55 L260,45 L280,45 L280,55 L300,55 L300,45 L320,45 L320,55 L340,55 L340,45 L360,45 L360,55 L380,55 L380,45 L400,45 L400,55 L420,55 L420,45 L440,45 L440,55 L460,55 L460,45 L480,45 L480,55 L500,55" fill="none" stroke="#333" stroke-width="1.5"/>
+
+            <!-- Sample phase -->
+            <rect x="50" y="75" width="50" height="25" fill="#3498db" opacity="0.3"/>
+            <text x="75" y="92" text-anchor="middle" class="label" style="font-size:8px;">Sample</text>
+
+            <!-- Bit decisions -->
+            <rect x="100" y="75" width="30" height="25" fill="#e74c3c" opacity="0.3"/>
+            <text x="115" y="92" text-anchor="middle" class="label" style="font-size:7px;">B11</text>
+
+            <rect x="130" y="75" width="30" height="25" fill="#e74c3c" opacity="0.3"/>
+            <text x="145" y="92" text-anchor="middle" class="label" style="font-size:7px;">B10</text>
+
+            <rect x="160" y="75" width="30" height="25" fill="#e74c3c" opacity="0.3"/>
+            <text x="175" y="92" text-anchor="middle" class="label" style="font-size:7px;">B9</text>
+
+            <rect x="190" y="75" width="30" height="25" fill="#e74c3c" opacity="0.3"/>
+            <text x="205" y="92" text-anchor="middle" class="label" style="font-size:7px;">B8</text>
+
+            <text x="235" y="92" text-anchor="middle" class="label" style="font-size:8px;">...</text>
+
+            <rect x="250" y="75" width="30" height="25" fill="#e74c3c" opacity="0.3"/>
+            <text x="265" y="92" text-anchor="middle" class="label" style="font-size:7px;">B1</text>
+
+            <rect x="280" y="75" width="30" height="25" fill="#e74c3c" opacity="0.3"/>
+            <text x="295" y="92" text-anchor="middle" class="label" style="font-size:7px;">B0</text>
+
+            <!-- Output valid -->
+            <rect x="310" y="75" width="30" height="25" fill="#27ae60" opacity="0.3"/>
+            <text x="325" y="92" text-anchor="middle" class="label" style="font-size:7px;">Valid</text>
+
+            <!-- DAC voltage -->
+            <text x="40" y="130" text-anchor="end" class="label" style="font-size:10px;">DAC</text>
+            <path d="M50,145 L100,145 L100,120 L130,120 L130,135 L160,135 L160,128 L190,128 L190,131 L250,131 L250,129 L280,129 L280,130 L340,130" fill="none" stroke="#e74c3c" stroke-width="1.5"/>
+
+            <!-- Final value annotation -->
+            <line x1="340" y1="130" x2="500" y2="130" stroke="#27ae60" stroke-width="2"/>
+            <text x="420" y="125" text-anchor="middle" class="label" style="font-size:9px;fill:#27ae60;">Final code settled</text>
+
+            <!-- Comparator output -->
+            <text x="40" y="170" text-anchor="end" class="label" style="font-size:10px;">Comp</text>
+            <path d="M50,175 L100,175 L100,160 L130,160 L130,175 L160,175 L160,175 L190,175 L190,160 L250,160 L250,175 L280,175 L280,160 L340,160" fill="none" stroke="#3498db" stroke-width="1.5"/>
+
+            <!-- Timing annotation -->
+            <line x1="50" y1="185" x2="340" y2="185" stroke="#333" stroke-width="1"/>
+            <polygon points="45,182 45,188 50,185" fill="#333"/>
+            <polygon points="345,182 345,188 340,185" fill="#333"/>
+            <text x="195" y="198" text-anchor="middle" class="label" style="font-size:9px;">Conversion Time = (N+1) × Clock Period</text>
+        </svg>
+    </div>
+
+    <div class="card">
+        <h3>SAR ADC Calculator</h3>
         <div class="controls">
-            <div class="c3">
-                <label for="fpga-rail">Power Rail</label>
-                <select id="fpga-rail">
-                    <option value="core" selected>1.0V Core</option>
-                    <option value="aux">1.8V Aux</option>
-                    <option value="io">3.3V I/O</option>
-                </select>
-            </div>
-            <div class="c3">
-                <label for="fpga-didt">Load Step di/dt (A/µs)</label>
-                <input type="range" id="fpga-didt" min="1" max="20" step="1" value="10">
-                <span id="fpga-didt-val" class="mono">10A/µs</span>
-            </div>
-            <div class="c3">
-                <label for="fpga-caps">Decoupling (µF total)</label>
-                <input type="range" id="fpga-caps" min="100" max="2000" step="100" value="500">
-                <span id="fpga-caps-val" class="mono">500µF</span>
-            </div>
-            <div class="c3">
-                <label for="fpga-esl">Effective ESL (nH)</label>
-                <input type="range" id="fpga-esl" min="0.1" max="5" step="0.1" value="1">
-                <span id="fpga-esl-val" class="mono">1nH</span>
-            </div>
+            <label>Resolution: <input type="text" id="sar-bits" value="12" style="width:50px;"> bits</label>
+            <label>Sample Rate: <input type="text" id="sar-rate" value="1M" style="width:60px;"> SPS</label>
+            <label>Reference: <input type="text" id="sar-vref" value="5" style="width:50px;"> V</label>
+            <button onclick="calculateSAR()">Calculate</button>
         </div>
+        <div id="sar-results" class="results"></div>
 
-        <div class="canvas-wrap">
-            <canvas id="fpga-canvas" width="980" height="280"></canvas>
-        </div>
-
-        <div class="kv">
-            <div class="box">
-                <div class="k">Inductive Drop</div>
-                <div class="v mono" id="fpga-ldrop">—</div>
-            </div>
-            <div class="box">
-                <div class="k">Cap Response</div>
-                <div class="v mono" id="fpga-cdrop">—</div>
-            </div>
-            <div class="box">
-                <div class="k">Total Droop</div>
-                <div class="v mono" id="fpga-droop">—</div>
-            </div>
-            <div class="box">
-                <div class="k">Margin</div>
-                <div class="v mono" id="fpga-margin">—</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Power Architecture</h3>
-        <div class="diagram-container">
-            <canvas id="fpga-power-tree-canvas" width="850" height="550" style="width:100%;max-width:850px;background:#0d1117;border-radius:8px;"></canvas>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Transient Response Requirements</h3>
-
-        <table class="table">
+        <h4>SAR ADC Selection Guide</h4>
+        <table class="data-table">
             <tr>
-                <th>Rail</th>
-                <th>Tolerance</th>
-                <th>Transient</th>
-                <th>Challenge</th>
+                <th>Resolution</th>
+                <th>Typical Speed</th>
+                <th>ENOB</th>
+                <th>Applications</th>
             </tr>
             <tr>
-                <td>1.0V Core</td>
-                <td>±3% (970-1030mV)</td>
-                <td>10A step in 100ns</td>
-                <td>Only 30mV margin!</td>
+                <td>8-bit</td>
+                <td>1-10 MSPS</td>
+                <td>7.5-8</td>
+                <td>Motor control, basic sensing</td>
             </tr>
             <tr>
-                <td>1.8V Aux</td>
-                <td>±5% (1.71-1.89V)</td>
-                <td>2A step</td>
-                <td>Moderate</td>
+                <td>12-bit</td>
+                <td>100 kSPS - 5 MSPS</td>
+                <td>10-11.5</td>
+                <td>Data acquisition, general purpose</td>
             </tr>
             <tr>
-                <td>3.3V I/O</td>
-                <td>±5% (3.13-3.47V)</td>
-                <td>1A step</td>
-                <td>Least critical</td>
+                <td>16-bit</td>
+                <td>10 kSPS - 2 MSPS</td>
+                <td>13-15</td>
+                <td>Precision measurement, audio</td>
+            </tr>
+            <tr>
+                <td>18-20 bit</td>
+                <td>1 kSPS - 1 MSPS</td>
+                <td>16-18</td>
+                <td>Scientific instruments, weigh scales</td>
             </tr>
         </table>
-
-        <div class="warn">
-            <strong>Layout Critical:</strong>
-            <ul style="margin: 10px 0 0 20px;">
-                <li>Place decoupling caps as close to FPGA power pins as possible</li>
-                <li>Use multiple vias for each cap to reduce inductance</li>
-                <li>Wide power planes, avoid routing signals through power area</li>
-                <li>Separate analog power from digital if FPGA has analog blocks</li>
-            </ul>
-        </div>
     </div>
 
     <div class="card">
-        <h3>SPICE Netlist</h3>
-        <div id="spice-container"></div>
-    </div>
-
-    <div class="card">
-        <h3>Design Checklist</h3>
-        <div id="checklist-container"></div>
-    </div>
-
-    <div class="card">
-        <h3>Practice Exercise</h3>
         <div id="exercise-container"></div>
     </div>
 
-</div>
+    <script>
+    (function() {
+        function calculateSAR() {
+            const bits = parseInt(document.getElementById('sar-bits').value) || 12;
+            const sampleRate = AD.num('sar-rate') || 1e6;
+            const vref = AD.num('sar-vref') || 5;
 
-<script>
-(function() {
-    const canvas = document.getElementById('fpga-canvas');
-    const ctx = canvas.getContext('2d');
+            // Calculate LSB
+            const levels = Math.pow(2, bits);
+            const lsb = vref / levels;
 
-    const rails = {
-        core: { v: 1.0, i: 10, tol: 0.03 },
-        aux: { v: 1.8, i: 2, tol: 0.05 },
-        io: { v: 3.3, i: 1, tol: 0.05 }
-    };
+            // Clock frequency (need N+1 clocks per conversion minimum)
+            const minClockFreq = sampleRate * (bits + 1);
 
-    function update() {
-        const railName = document.getElementById('fpga-rail').value || 'core';
-        const rail = rails[railName] || rails.core;
-        const didt = AD.num('fpga-didt'); // A/µs
-        const caps = AD.num('fpga-caps'); // µF
-        const esl = AD.num('fpga-esl'); // nH
+            // Conversion time
+            const conversionTime = 1 / sampleRate;
 
-        document.getElementById('fpga-didt-val').textContent = didt + 'A/µs';
-        document.getElementById('fpga-caps-val').textContent = caps + 'µF';
-        document.getElementById('fpga-esl-val').textContent = esl + 'nH';
+            // Input bandwidth (Nyquist)
+            const inputBW = sampleRate / 2;
 
-        // Inductive voltage drop: V = L × di/dt
-        const lDrop = esl * 1e-9 * didt * 1e6; // V
-        document.getElementById('fpga-ldrop').textContent = (lDrop * 1000).toFixed(1) + 'mV';
+            // DNL and INL budgets (typical targets)
+            const typicalDnl = 0.5; // ±0.5 LSB typical
+            const typicalInl = 1; // ±1 LSB typical
 
-        // Capacitive response during transient
-        // Assume step lasts 1µs, C provides current
-        const dt = 1e-6; // 1µs step
-        const di = didt * 1; // A change in 1µs
-        const cDrop = di * dt / (caps * 1e-6); // V = I×t/C
-        document.getElementById('fpga-cdrop').textContent = (cDrop * 1000).toFixed(1) + 'mV';
+            // S/H aperture time requirement (1/2 LSB settling)
+            const settlingTime = conversionTime / (bits + 2);
 
-        // Total droop (approximate, dominated by inductance initially)
-        const totalDroop = lDrop + cDrop * 0.5;
-        document.getElementById('fpga-droop').textContent = (totalDroop * 1000).toFixed(1) + 'mV';
+            let html = '<h4>SAR ADC Specifications</h4>';
+            html += '<table class="data-table">';
+            html += '<tr><td>Resolution</td><td>' + bits + ' bits (' + levels + ' levels)</td></tr>';
+            html += '<tr><td>LSB size</td><td>' + AD.fmtUnit(lsb, 'V') + '</td></tr>';
+            html += '<tr><td>Sample rate</td><td>' + AD.fmtUnit(sampleRate, 'SPS') + '</td></tr>';
+            html += '<tr><td>Conversion time</td><td>' + AD.fmtUnit(conversionTime, 's') + '</td></tr>';
+            html += '<tr><td>Minimum clock</td><td>' + AD.fmtUnit(minClockFreq, 'Hz') + '</td></tr>';
+            html += '<tr><td>Input bandwidth (Nyquist)</td><td>' + AD.fmtUnit(inputBW, 'Hz') + '</td></tr>';
+            html += '</table>';
 
-        // Margin
-        const allowed = rail.v * rail.tol;
-        const margin = allowed - totalDroop;
-        const marginEl = document.getElementById('fpga-margin');
-        marginEl.textContent = (margin * 1000).toFixed(1) + 'mV';
-        marginEl.style.color = margin > 0 ? 'var(--ok)' : 'var(--bad)';
+            html += '<h4>Typical Performance Targets</h4>';
+            html += '<ul>';
+            html += '<li>DNL: ±' + typicalDnl + ' LSB (no missing codes)</li>';
+            html += '<li>INL: ±' + typicalInl + ' LSB (good linearity)</li>';
+            html += '<li>S/H settling time: < ' + AD.fmtUnit(settlingTime, 's') + '</li>';
+            html += '</ul>';
 
-        plotTransient(rail, didt, caps, esl);
-    }
+            // ENOB estimate
+            const snrIdeal = 6.02 * bits + 1.76;
+            html += '<h4>Ideal Performance</h4>';
+            html += '<p>Theoretical SNR: ' + snrIdeal.toFixed(1) + ' dB</p>';
+            html += '<p>Ideal ENOB: ' + bits + ' bits</p>';
 
-    function plotTransient(rail, didt, caps, esl) {
-        const w = canvas.width;
-        const h = canvas.height;
+            document.getElementById('sar-results').innerHTML = html;
+        }
+        window.calculateSAR = calculateSAR;
+        calculateSAR();
 
-        const totalTime = 10; // µs
-        const vNom = rail.v;
-        const vMin = vNom * (1 - rail.tol);
-        const vMax = vNom * (1 + rail.tol);
-
-        const axes = AD.drawAxes(ctx, w, h, {
-            xMin: 0,
-            xMax: totalTime,
-            yMin: vNom * 0.9,
-            yMax: vNom * 1.05,
-            xLabel: 'Time',
-            yLabel: 'Voltage',
-            xUnit: 'µs',
-            yUnit: 'V',
-            xDivs: 10,
-            yDivs: 6
-        });
-
-        const N = 300;
-        const tData = [];
-        const vData = [];
-
-        const tStep = 2; // Step occurs at 2µs
-        const tRise = 0.1; // 100ns rise
-        const lDrop = esl * 1e-9 * didt * 1e6;
-
-        for (let i = 0; i < N; i++) {
-            const t = (i / N) * totalTime;
-            tData.push(t);
-
-            let v = vNom;
-
-            if (t >= tStep) {
-                const tEvt = t - tStep;
-
-                if (tEvt < tRise) {
-                    // During fast edge - inductive drop dominates
-                    v = vNom - lDrop * (tEvt / tRise);
-                } else {
-                    // After edge - capacitor supplies current, regulator recovers
-                    const tRecover = tEvt - tRise;
-                    const tau = caps * 1e-6 * 0.01; // Simplified recovery time
-                    const droopPeak = lDrop + (didt * tRise / (caps));
-                    v = vNom - droopPeak * Math.exp(-tRecover * 1e-6 / tau);
-                }
+        const exercises = [
+            {
+                id: 'sar1',
+                type: 'numeric',
+                question: 'A 12-bit SAR ADC needs how many clock cycles minimum per conversion?',
+                expected: 13,
+                tolerance: 0,
+                unit: 'cycles',
+                hint: 'Need 1 sample + N bit decisions'
+            },
+            {
+                id: 'sar2',
+                type: 'numeric',
+                question: 'What is the LSB voltage for a 16-bit ADC with 4.096V reference?',
+                expected: 62.5,
+                tolerance: 1,
+                unit: 'μV',
+                hint: 'LSB = Vref / 2^N'
+            },
+            {
+                id: 'sar3',
+                type: 'choice',
+                question: 'Which is a key advantage of SAR ADCs over Delta-Sigma ADCs?',
+                options: ['Higher resolution', 'Lower latency', 'Higher oversampling', 'Better noise shaping'],
+                correct: 1,
+                hint: 'SAR provides result in 1 conversion cycle'
             }
+        ];
 
-            vData.push(v);
-        }
-
-        // Draw tolerance band
-        ctx.save();
-        ctx.fillStyle = 'rgba(52, 211, 153, 0.15)';
-        const ptMin = axes.toCanvas(0, vMin);
-        const ptMax = axes.toCanvas(0, vMax);
-        ctx.fillRect(axes.left, ptMax.y, axes.width, ptMin.y - ptMax.y);
-
-        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
-        ctx.setLineDash([3, 3]);
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(axes.left, ptMin.y);
-        ctx.lineTo(axes.left + axes.width, ptMin.y);
-        ctx.moveTo(axes.left, ptMax.y);
-        ctx.lineTo(axes.left + axes.width, ptMax.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.restore();
-
-        // Plot voltage
-        AD.plotData(ctx, axes, tData, vData, {
-            color: 'rgba(110, 231, 255, 0.95)',
-            lineWidth: 2
+        exercises.forEach((ex, i) => {
+            const div = document.createElement('div');
+            div.id = 'exercise-' + i;
+            document.getElementById('exercise-container').appendChild(div);
+            new ExerciseWidget('exercise-' + i, ex);
         });
-
-        // Draw nominal
-        ctx.save();
-        ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
-        ctx.setLineDash([5, 5]);
-        ctx.lineWidth = 1;
-        const nomPt = axes.toCanvas(0, vNom);
-        ctx.beginPath();
-        ctx.moveTo(axes.left, nomPt.y);
-        ctx.lineTo(axes.left + axes.width, nomPt.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.restore();
-
-        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
-            { color: 'rgba(110, 231, 255, 0.95)', label: 'Rail voltage' },
-            { color: 'rgba(52, 211, 153, 0.5)', label: 'Tolerance band' },
-            { color: 'rgba(251, 191, 36, 0.5)', label: 'Nominal' }
-        ]);
-    }
-
-    ['fpga-rail', 'fpga-didt', 'fpga-caps', 'fpga-esl'].forEach(id => {
-        document.getElementById(id).addEventListener('input', update);
-    });
-
-    update();
-
-    new SpiceNetlistWidget('spice-container', {
-        title: 'FPGA Core Power PDN',
-        netlist: `* FPGA Core Power Distribution Network
-* Analyze impedance and transient response
-
-* Voltage regulator model (simplified)
-VREG reg_out 0 DC 1.0
-RREG reg_out pdn_in 5m
-
-* PDN inductance (PCB traces + vias)
-LPDN pdn_in pdn_mid 0.5n
-RPDN pdn_mid vcore 2m
-
-* Bulk capacitors (polymer, near regulator)
-C_BULK vcore 0 470u IC=1.0
-R_ESR_BULK vcore vcore_bulk 5m
-L_ESL_BULK vcore_bulk 0 1n
-
-* MLCC capacitors (distributed)
-C_MLCC vcore 0 100u IC=1.0
-R_ESR_MLCC vcore vcore_mlcc 2m
-L_ESL_MLCC vcore_mlcc 0 0.3n
-
-* HF decoupling (at FPGA pins)
-C_HF vcore 0 10u IC=1.0
-R_ESR_HF vcore vcore_hf 3m
-L_ESL_HF vcore_hf 0 0.1n
-
-* FPGA load (current step)
-ILOAD vcore 0 PWL(0 1 2u 1 2.1u 5 10u 5 10.1u 1)
-
-.TRAN 10n 15u UIC
-
-.PROBE V(vcore) I(VREG)
-.END
-
-* Watch voltage droop during load step
-* Adjust cap values to meet tolerance`
-    });
-
-    new ChecklistWidget('checklist-container', {
-        lessonKey: 'm20l5',
-        items: [
-            'Follow vendor power sequencing requirements',
-            'Calculate decoupling for di/dt transients',
-            'Minimize loop inductance in layout',
-            'Use impedance target (milliohms at MHz)',
-            'Verify with load step testing'
-        ]
-    });
-
-    new ExerciseWidget('exercise-container', {
-        id: 'SC5-1',
-        type: 'numeric',
-        question: 'An FPGA core experiences a 5A load step in 100ns through 1nH of inductance. What is the voltage drop?',
-        hint: 'V = L × di/dt',
-        expected: 50,
-        tolerance: 0.1,
-        unit: 'mV',
-        solution: 'di/dt = 5A / 100ns = 50×10⁶ A/s. V = 1nH × 50×10⁶ = 50mV',
-        explanation: 'With only 30mV tolerance on a 1V rail, this 50mV drop is unacceptable. Reduce inductance by using more caps in parallel, shorter traces, and more vias.'
-    });
-})();
-
-// FPGA Power Tree Canvas
-(function() {
-    const canvas = document.getElementById('fpga-power-tree-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
-
-    ctx.fillStyle = '#0d1117';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Title
-    ctx.fillStyle = TEK.ch1;
-    ctx.font = 'bold 14px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('FPGA Power Architecture', 30, 30);
-
-    // Helper to draw rounded rect
-    function roundRect(x, y, w, h, r, color, fill) {
-        ctx.beginPath();
-        ctx.roundRect(x, y, w, h, r);
-        if (fill) {
-            ctx.fillStyle = fill;
-            ctx.fill();
-        }
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
-
-    // Input power
-    roundRect(30, 80, 100, 50, 6, TEK.ch3, 'rgba(255,102,255,0.1)');
-    ctx.fillStyle = '#e6edf3';
-    ctx.font = '12px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('12V Input', 80, 110);
-
-    // Main DC-DC stages
-    const regulators = [
-        { x: 200, y: 60, w: 120, h: 50, label: 'Buck 1', out: '1.0V @ 10A', color: TEK.ch2 },
-        { x: 200, y: 150, w: 120, h: 50, label: 'Buck 2', out: '1.8V @ 2A', color: TEK.ch2 },
-        { x: 200, y: 240, w: 120, h: 50, label: 'Buck 3', out: '3.3V @ 1A', color: TEK.ch2 }
-    ];
-
-    regulators.forEach(r => {
-        roundRect(r.x, r.y, r.w, r.h, 6, r.color);
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '11px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(r.label, r.x + r.w/2, r.y + 20);
-        ctx.fillStyle = TEK.ch1;
-        ctx.font = '10px monospace';
-        ctx.fillText(r.out, r.x + r.w/2, r.y + 38);
-    });
-
-    // Lines from input to regulators
-    ctx.strokeStyle = TEK.ch3;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(130, 105);
-    ctx.lineTo(160, 105);
-    ctx.lineTo(160, 85);
-    ctx.lineTo(200, 85);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(160, 105);
-    ctx.lineTo(160, 175);
-    ctx.lineTo(200, 175);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(160, 175);
-    ctx.lineTo(160, 265);
-    ctx.lineTo(200, 265);
-    ctx.stroke();
-
-    // Decoupling networks
-    const decoupling = [
-        { x: 380, y: 50, w: 150, h: 70, rail: 'VCORE (1.0V)', caps: ['10×22µF MLCC', '100×0.1µF HF', '10×470µF bulk'] },
-        { x: 380, y: 140, w: 150, h: 70, rail: 'VAUX (1.8V)', caps: ['4×22µF MLCC', '20×0.1µF HF'] },
-        { x: 380, y: 230, w: 150, h: 70, rail: 'VIO (3.3V)', caps: ['2×22µF MLCC', '10×0.1µF HF'] }
-    ];
-
-    decoupling.forEach((d, i) => {
-        roundRect(d.x, d.y, d.w, d.h, 4, '#555');
-        ctx.fillStyle = TEK.ch4;
-        ctx.font = 'bold 10px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText(d.rail, d.x + 10, d.y + 18);
-        ctx.fillStyle = '#888';
-        ctx.font = '9px monospace';
-        d.caps.forEach((c, j) => {
-            ctx.fillText(c, d.x + 10, d.y + 35 + j * 12);
-        });
-
-        // Connection line
-        ctx.strokeStyle = TEK.ch2;
-        ctx.beginPath();
-        ctx.moveTo(320, regulators[i].y + 25);
-        ctx.lineTo(380, d.y + 35);
-        ctx.stroke();
-    });
-
-    // FPGA block
-    roundRect(580, 100, 140, 180, 8, TEK.ch4, 'rgba(0,255,0,0.05)');
-    ctx.fillStyle = TEK.ch4;
-    ctx.font = 'bold 14px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('FPGA', 650, 140);
-
-    // Power pins
-    const pins = [
-        { y: 160, label: 'VCCINT', rail: '1.0V' },
-        { y: 190, label: 'VCCAUX', rail: '1.8V' },
-        { y: 220, label: 'VCCO', rail: '3.3V' },
-        { y: 250, label: 'GND', rail: '' }
-    ];
-
-    pins.forEach(p => {
-        ctx.fillStyle = '#e6edf3';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText(p.label, 600, p.y);
-        if (p.rail) {
-            ctx.fillStyle = '#888';
-            ctx.fillText(p.rail, 680, p.y);
-        }
-    });
-
-    // Power connections to FPGA
-    ctx.strokeStyle = TEK.ch2;
-    ctx.lineWidth = 2;
-    [[530, 85, 580, 157], [530, 175, 580, 187], [530, 265, 580, 217]].forEach(c => {
-        ctx.beginPath();
-        ctx.moveTo(c[0], c[1]);
-        ctx.lineTo(c[2], c[3]);
-        ctx.stroke();
-    });
-
-    // Sequencing note
-    ctx.strokeStyle = '#374151';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(30, 340, 400, 100);
-    ctx.fillStyle = TEK.ch1;
-    ctx.font = 'bold 11px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('Power Sequencing (Critical!):', 50, 365);
-
-    ctx.fillStyle = '#e6edf3';
-    ctx.font = '10px monospace';
-    const seq = [
-        '1. VCCINT (1.0V) must power up first',
-        '2. VCCAUX (1.8V) ramps after VCCINT stable',
-        '3. VCCO (3.3V) last, after config complete',
-        '4. Use supervisor IC or soft-start control'
-    ];
-    seq.forEach((s, i) => {
-        ctx.fillText(s, 50, 385 + i * 15);
-    });
-
-    // PDN impedance note
-    ctx.strokeRect(450, 340, 370, 100);
-    ctx.fillStyle = TEK.ch2;
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText('PDN Impedance Target:', 470, 365);
-
-    ctx.fillStyle = '#e6edf3';
-    ctx.font = '10px monospace';
-    const pdn = [
-        'Z_target = ΔV / ΔI = 30mV / 10A = 3mΩ',
-        'From DC to ~10MHz frequency range',
-        'Requires multiple cap values for broad BW',
-        'Bulk (low f) → MLCC (mid f) → HF (high f)'
-    ];
-    pdn.forEach((p, i) => {
-        ctx.fillText(p, 470, 385 + i * 15);
-    });
-
-    // Ground plane note
-    ctx.fillStyle = TEK.ch3;
-    ctx.font = '10px monospace';
-    ctx.fillText('Solid ground plane under FPGA - no splits!', 30, 460);
-})();
-</script>
+    })();
+    </script>
+</div>

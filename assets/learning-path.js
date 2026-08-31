@@ -144,12 +144,12 @@ const LEARNING_PATH = (() => {
                    'rather than as a barrier before you have used anything. Two lessons, not ' +
                    'the usual four — see the note on scope below.',
             steps: [
-                { ref: null, status: 'todo', title: 'The pn junction and the exponential',
+                { ref: [4, 1], title: 'The pn junction and the exponential',
                   earns: 'Where 0.7 V comes from, why it drifts at −2 mV/°C, why VT = kT/q is ' +
                          '26 mV, and why every device in this course is exponential underneath. ' +
                          'The diode equation and the three models — ideal, constant-drop, and ' +
                          'small-signal rd = VT/ID — with the error each one costs you.' },
-                { ref: null, status: 'todo', title: 'Diodes in practice: an overview',
+                { ref: [4, 2], title: 'Diodes in practice: an overview',
                   earns: 'Rectification, clamping and protection at the level you actually use ' +
                          'them: ripple as ΔV = I·t/C, why the capacitor and not the diode sets ' +
                          'peak current, Schottky versus silicon, and what a TVS is for. ' +
@@ -163,11 +163,11 @@ const LEARNING_PATH = (() => {
             blurb: 'Open the box. The switch comes first because it needs no small-signal ' +
                    'model — it is on or it is off.',
             steps: [
-                { ref: [4, 7], title: 'BJT as a switch',
+                { ref: [5, 7], title: 'BJT as a switch',
                   earns: 'Saturation, base drive, and why an overdriven BJT turns off slowly.' },
-                { ref: [5, 9], title: 'MOSFET as a switch',
+                { ref: [6, 9], title: 'MOSFET as a switch',
                   earns: 'The same job done by a voltage, and Rds(on) instead of Vce(sat).' },
-                { ref: [4, 28], title: 'BJT versus MOSFET',
+                { ref: [5, 28], title: 'BJT versus MOSFET',
                   earns: 'When each wins, on the axes that actually decide it.' }
             ]
         },
@@ -178,21 +178,21 @@ const LEARNING_PATH = (() => {
             title: 'The BJT as an amplifier',
             blurb: 'The device that made the op-amp. Model first, then bias, then topologies.',
             steps: [
-                { ref: [4, 1], title: 'The BJT as a voltage-controlled current source',
+                { ref: [5, 1], title: 'The BJT as a voltage-controlled current source',
                   earns: 'gm = IC/VT and re = 25/IC(mA), derived — the two numbers every BJT ' +
                          'circuit is built from.' },
-                { ref: [4, 2], title: 'The small-signal model',
+                { ref: [5, 2], title: 'The small-signal model',
                   earns: 'Hybrid-pi: the linear circuit you actually solve. Everything after ' +
                          'this is that model with different resistors around it.' },
-                { ref: [4, 3], title: 'DC biasing',
+                { ref: [5, 3], title: 'DC biasing',
                   earns: 'Putting the device where the model is valid, and keeping it there ' +
                          'over temperature and beta spread.' },
-                { ref: [4, 4], title: 'Common-emitter',
+                { ref: [5, 4], title: 'Common-emitter',
                   earns: 'Voltage gain, and its three problems: gain that depends on beta, ' +
                          'distortion, and a low input impedance.' },
-                { ref: [4, 5], title: 'Emitter follower',
+                { ref: [5, 5], title: 'Emitter follower',
                   earns: 'Gain of one, and why that is worth a whole transistor.' },
-                { ref: [4, 6], title: 'Common-base',
+                { ref: [5, 6], title: 'Common-base',
                   earns: 'The current-input stage, and the first hint of why cascode exists.' }
             ]
         },
@@ -202,22 +202,22 @@ const LEARNING_PATH = (() => {
             blurb: 'The analog half of the MOSFET, which a power-electronics treatment of the ' +
                    'device never reaches.',
             steps: [
-                { ref: [5, 1], title: 'MOSFET fundamentals',
+                { ref: [6, 1], title: 'MOSFET fundamentals',
                   earns: 'Threshold, inversion, and the three regions.' },
-                { ref: [5, 2], title: 'Small-signal model and gm',
+                { ref: [6, 2], title: 'Small-signal model and gm',
                   earns: 'gm = √(2k·ID) = 2ID/Vov derived — and why a FET needs far more ' +
                          'current than a BJT for the same gm.' },
-                { ref: [5, 3], title: 'The common-source amplifier',
+                { ref: [6, 3], title: 'The common-source amplifier',
                   earns: 'The FET counterpart of common-emitter, worked end to end, and why ' +
                          'fixed-VGS biasing fails on threshold spread.' },
                 { ref: null, status: 'todo', title: 'Source follower (common-drain)',
                   earns: 'The FET buffer, and the body effect that stops its gain reaching one.' },
                 { ref: null, status: 'todo', title: 'Common-gate',
                   earns: 'Low input impedance by design, and the other half of the cascode.' },
-                { ref: [5, 5], title: 'Body effect and the back gate',
+                { ref: [6, 5], title: 'Body effect and the back gate',
                   earns: 'The fourth terminal, and the threshold shift that breaks a source ' +
                          'follower you thought you had designed.' },
-                { ref: [5, 4], title: 'What the square law gets wrong',
+                { ref: [6, 4], title: 'What the square law gets wrong',
                   earns: 'Subthreshold, velocity saturation, Pelgrom matching, and the ' +
                          'zero-tempco point.' }
             ]
@@ -228,12 +228,12 @@ const LEARNING_PATH = (() => {
             blurb: 'Every amplifier so far has been treated as if it worked at all frequencies. ' +
                    'None of them do.',
             steps: [
-                { ref: [4, 13], title: 'BJT frequency response',
+                { ref: [5, 13], title: 'BJT frequency response',
                   earns: 'fT, beta roll-off, and where the useful band actually ends.' },
                 { ref: null, status: 'todo', title: 'The Miller effect, derived',
                   earns: 'Why a 5 pF feedback capacitance behaves like 58 pF at the input, and ' +
                          'why that is the dominant pole in most single-stage amplifiers.' },
-                { ref: [4, 8], title: 'Cascode',
+                { ref: [5, 8], title: 'Cascode',
                   earns: 'The fix for Miller, and why high-frequency circuits look the way ' +
                          'they do.' },
                 { ref: null, status: 'todo', title: 'Poles, zeros and Bode plots by hand',
@@ -249,18 +249,18 @@ const LEARNING_PATH = (() => {
             blurb: 'Back to where the course started, from the inside. By the end of this ' +
                    'stage you can draw the op-amp you were using in semester 1.',
             steps: [
-                { ref: [4, 9], title: 'The differential pair',
+                { ref: [5, 9], title: 'The differential pair',
                   earns: 'The input stage of essentially every op-amp ever made.' },
-                { ref: [4, 10], title: 'Current mirrors',
+                { ref: [5, 10], title: 'Current mirrors',
                   earns: 'Biasing and active loads from one matched pair — and the error ' +
                          'budget that decides whether yours works.' },
-                { ref: [5, 7], title: 'MOSFET current mirrors',
+                { ref: [6, 7], title: 'MOSFET current mirrors',
                   earns: 'The same idea where matching is a layout problem, not a purchase.' },
-                { ref: [4, 11], title: 'Active loads',
+                { ref: [5, 11], title: 'Active loads',
                   earns: 'Where the enormous open-loop gain in semester 1 came from.' },
-                { ref: [4, 17], title: 'Multistage amplifier design',
+                { ref: [5, 17], title: 'Multistage amplifier design',
                   earns: 'Putting stages together without the interfaces eating the gain.' },
-                { ref: [7, 2], title: 'Bandgap references',
+                { ref: [8, 2], title: 'Bandgap references',
                   earns: 'Two temperature coefficients cancelled on purpose — the most elegant ' +
                          'use of everything above.' }
             ]
@@ -291,15 +291,15 @@ const LEARNING_PATH = (() => {
             title: 'Output stages, oscillators and filters',
             blurb: 'The circuits that deliver power, generate signals, and shape spectra.',
             steps: [
-                { ref: [6, 1], title: 'Push-pull output stages',
+                { ref: [7, 1], title: 'Push-pull output stages',
                   earns: 'Class A, B and AB, and where crossover distortion comes from.' },
-                { ref: [6, 5], title: 'Class AB biasing',
+                { ref: [7, 5], title: 'Class AB biasing',
                   earns: 'The VBE multiplier, and thermal runaway in an output stage.' },
-                { ref: [8, 2], title: 'RC oscillators (Wien bridge)',
+                { ref: [9, 2], title: 'RC oscillators (Wien bridge)',
                   earns: 'Barkhausen, and the amplitude control problem every oscillator has.' },
-                { ref: [8, 1], title: 'LC oscillators',
+                { ref: [9, 1], title: 'LC oscillators',
                   earns: 'Colpitts and Hartley, and why Q matters.' },
-                { ref: [8, 3], title: 'Crystal oscillators',
+                { ref: [9, 3], title: 'Crystal oscillators',
                   earns: 'What a 10,000× improvement in Q buys, and what it costs.' }
             ]
         },
@@ -314,10 +314,10 @@ const LEARNING_PATH = (() => {
                 { ref: null, status: 'todo', title: 'Choosing a transistor from a datasheet',
                   earns: 'Which parameters are guaranteed, which are typical-only, how much ' +
                          'beta really varies, and how to pick a part rather than recognise one.' },
-                { ref: [4, 36], title: 'Design: a current mirror from a datasheet',
+                { ref: [5, 36], title: 'Design: a current mirror from a datasheet',
                   earns: 'An error budget against a real spec, and choosing between a $0.15 ' +
                          'dual and an $8 matched pair.' },
-                { ref: [4, 34], title: 'Industry BJT selection guide',
+                { ref: [5, 34], title: 'Industry BJT selection guide',
                   earns: 'The reference list, useful once you know what the columns mean.' }
             ]
         },
@@ -327,13 +327,13 @@ const LEARNING_PATH = (() => {
             blurb: 'Where analog design meets everything else: converters, power, interference, ' +
                    'and the grid.',
             steps: [
-                { ref: [16, 1], title: 'Data conversion',
+                { ref: [17, 1], title: 'Data conversion',
                   earns: 'What happens at the boundary between this course and the digital one.' },
-                { ref: [13, 1], title: 'Power supply design',
+                { ref: [14, 1], title: 'Power supply design',
                   earns: 'The circuit every other circuit depends on.' },
-                { ref: [21, 1], title: 'EMI and EMC',
+                { ref: [22, 1], title: 'EMI and EMC',
                   earns: 'Why a circuit that works on a bench fails in a product.' },
-                { ref: [26, 1], title: 'Power systems and the grid',
+                { ref: [27, 1], title: 'Power systems and the grid',
                   earns: 'The same physics, six orders of magnitude larger.' }
             ]
         }

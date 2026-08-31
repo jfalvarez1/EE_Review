@@ -1,1920 +1,394 @@
-<lesson-content>
-<section class="card">
-    <h2>Laptop Power Architecture</h2>
-    <p>
-        A modern laptop requires <strong>10-15 different voltage rails</strong> to power its various subsystems.
-        Understanding how these rails are generated, sequenced, and managed is essential for embedded systems
-        and power electronics design.
-    </p>
+<!-- Module 24, Lesson 5: Oscillation Problems -->
+<div class="lesson-content" data-module="24" data-lesson="5">
 
-    <div class="notice">
-        <strong>What You'll Learn:</strong>
-        <ul>
-            <li>System voltage selection and rail hierarchy</li>
-            <li>Buck converter cascade design with efficiency stacking</li>
-            <li>Power sequencing requirements for complex systems</li>
-            <li>Thermal management and power budgeting</li>
-            <li>Soft-start and inrush current limiting</li>
-        </ul>
+    <div class="card">
+        <h2>Debugging Oscillation Problems</h2>
+        <p>Unwanted oscillations cause noise, instability, and failures. Learn to identify, characterize, and eliminate oscillations in amplifiers, power supplies, and feedback systems.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Motor-boating</div>
+                <div class="v">Low-frequency (Hz-kHz)</div>
+            </div>
+            <div class="box">
+                <div class="k">Ringing</div>
+                <div class="v">Damped oscillation on edges</div>
+            </div>
+            <div class="box">
+                <div class="k">Squegging</div>
+                <div class="v">Burst oscillation</div>
+            </div>
+            <div class="box">
+                <div class="k">Parasitic</div>
+                <div class="v">VHF/UHF unwanted</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Debug Insight:</strong> Oscillations satisfy Barkhausen criteria: loop gain ≥1 and phase shift = 0° (or 360°). Find where the phase margin disappeared—that's your fix location.
+        </div>
     </div>
-</section>
 
-<!-- System Architecture Overview -->
-<section class="card">
-    <h3>Laptop Power Rail Architecture</h3>
-    <p>
-        Starting from a 19-20V AC adapter input or battery (2S-4S Li-ion = 7.4-16.8V),
-        the power system creates multiple rails:
-    </p>
+    <div class="card">
+        <h3>Interactive: Oscillation Analyzer</h3>
 
-    <canvas id="laptop-power-canvas" width="900" height="450"></canvas>
+        <div class="controls">
+            <div class="c3">
+                <label for="osc-type">Oscillation Type</label>
+                <select id="osc-type">
+                    <option value="continuous">Continuous</option>
+                    <option value="ringing">Ringing/Damped</option>
+                    <option value="burst">Burst (Squegging)</option>
+                    <option value="motorboat">Motor-boating</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="osc-freq">Frequency (Hz)</label>
+                <input type="text" id="osc-freq" value="1M">
+            </div>
+            <div class="c3">
+                <label for="osc-damp">Damping Factor</label>
+                <input type="range" id="osc-damp" min="0" max="2" step="0.1" value="0.2">
+                <span id="osc-damp-val" class="mono">0.2</span>
+            </div>
+        </div>
 
-    <h4>Voltage Rail Summary</h4>
-    <table>
-        <thead>
+        <div class="canvas-wrap">
+            <canvas id="osc-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Likely Cause</div>
+                <div class="v mono" id="osc-cause">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Check Location</div>
+                <div class="v mono" id="osc-location">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Fix Strategy</div>
+                <div class="v mono" id="osc-fix">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Oscillation Causes and Fixes</h3>
+
+        <table class="table">
             <tr>
-                <th>Rail</th>
-                <th>Typical Current</th>
-                <th>Load Type</th>
-                <th>Regulation</th>
-                <th>Converter Type</th>
+                <th>Symptom</th>
+                <th>Frequency</th>
+                <th>Cause</th>
+                <th>Fix</th>
             </tr>
-        </thead>
-        <tbody>
-            <tr><td>19V (Input)</td><td>2-6A</td><td>System Bus</td><td>—</td><td>External Adapter</td></tr>
-            <tr><td>VSYS (7-20V)</td><td>5-10A</td><td>Power Bus</td><td>±5%</td><td>Power Path</td></tr>
-            <tr><td>5V</td><td>3-5A</td><td>USB, Audio, Misc</td><td>±3%</td><td>Synchronous Buck</td></tr>
-            <tr><td>3.3V</td><td>2-4A</td><td>Storage, WiFi, I/O</td><td>±3%</td><td>Synchronous Buck</td></tr>
-            <tr><td>1.8V</td><td>1-3A</td><td>DDR I/O, PCIE</td><td>±2%</td><td>Buck or LDO</td></tr>
-            <tr><td>VCore (0.6-1.5V)</td><td>20-100A</td><td>CPU/GPU</td><td>±1%</td><td>Multi-phase Buck</td></tr>
-            <tr><td>VDDQ (1.1-1.2V)</td><td>2-5A</td><td>DDR Memory</td><td>±2%</td><td>Buck</td></tr>
-            <tr><td>VTT (0.6V)</td><td>1-2A</td><td>DDR Termination</td><td>±3%</td><td>LDO (tracks VDDQ/2)</td></tr>
-        </tbody>
-    </table>
-</section>
-
-<!-- Buck Converter Cascade Design -->
-<section class="card">
-    <h3>Buck Converter Cascade Design</h3>
-    <p>
-        When generating multiple rails, you can either derive all from VSYS directly, or cascade
-        (e.g., 5V → 3.3V → 1.8V). Each approach has trade-offs:
-    </p>
-
-    <canvas id="topology-comparison-canvas" width="900" height="300"></canvas>
-
-    <h4>Efficiency Stacking Calculator</h4>
-    <p>
-        When cascading converters, overall efficiency multiplies. For a cascade of N stages:
-        <br><code>η_total = η₁ × η₂ × ... × η_N</code>
-    </p>
-
-    <div class="controls">
-        <div class="c3">
-            <label>Input Voltage</label>
-            <input type="range" id="eff-vin" min="12" max="20" value="19" step="0.5">
-            <span id="eff-vin-val">19V</span>
-        </div>
-        <div class="c3">
-            <label>Stage 1 Output</label>
-            <input type="range" id="eff-v1" min="4" max="6" value="5" step="0.1">
-            <span id="eff-v1-val">5V</span>
-        </div>
-        <div class="c3">
-            <label>Stage 2 Output</label>
-            <input type="range" id="eff-v2" min="1.5" max="4" value="3.3" step="0.1">
-            <span id="eff-v2-val">3.3V</span>
-        </div>
-        <div class="c3">
-            <label>Stage 3 Output</label>
-            <input type="range" id="eff-v3" min="0.8" max="2" value="1.8" step="0.1">
-            <span id="eff-v3-val">1.8V</span>
-        </div>
+            <tr>
+                <td>Continuous sine</td>
+                <td>Near bandwidth</td>
+                <td>Insufficient phase margin</td>
+                <td>Add compensation (Cc)</td>
+            </tr>
+            <tr>
+                <td>Ringing on edges</td>
+                <td>MHz range</td>
+                <td>Underdamped LC/RLC</td>
+                <td>Add series R, snubber</td>
+            </tr>
+            <tr>
+                <td>Motor-boating</td>
+                <td>Hz to kHz</td>
+                <td>Power supply coupling</td>
+                <td>Bypass caps, decoupling</td>
+            </tr>
+            <tr>
+                <td>VHF parasitic</td>
+                <td>>100MHz</td>
+                <td>Lead inductance</td>
+                <td>Ferrite beads, layout</td>
+            </tr>
+            <tr>
+                <td>Squegging</td>
+                <td>Irregular bursts</td>
+                <td>Gain margin cycling</td>
+                <td>Reduce gain, add damping</td>
+            </tr>
+            <tr>
+                <td>Output swinging rail-to-rail</td>
+                <td>Low frequency</td>
+                <td>Feedback polarity wrong</td>
+                <td>Swap FB connection</td>
+            </tr>
+        </table>
     </div>
 
-    <div class="controls">
-        <div class="c3">
-            <label>Stage 1 η (%)</label>
-            <input type="range" id="eff-eta1" min="80" max="98" value="92" step="1">
-            <span id="eff-eta1-val">92%</span>
-        </div>
-        <div class="c3">
-            <label>Stage 2 η (%)</label>
-            <input type="range" id="eff-eta2" min="70" max="95" value="85" step="1">
-            <span id="eff-eta2-val">85%</span>
-        </div>
-        <div class="c3">
-            <label>Stage 3 η (%)</label>
-            <input type="range" id="eff-eta3" min="60" max="90" value="80" step="1">
-            <span id="eff-eta3-val">80%</span>
-        </div>
-        <div class="c3">
-            <label>Final Load (A)</label>
-            <input type="range" id="eff-load" min="0.1" max="2" value="1" step="0.1">
-            <span id="eff-load-val">1A</span>
-        </div>
+    <div class="card">
+        <h3>Op-Amp Stability</h3>
+        <div id="osc-schematic"></div>
     </div>
 
-    <div id="eff-results" class="results">
-        <div class="result-grid">
-            <div class="result-item">
-                <span class="label">Cascaded Efficiency</span>
-                <span class="value" id="eff-cascade">62.6%</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Power at Load</span>
-                <span class="value" id="eff-pload">1.80W</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Power from Input</span>
-                <span class="value" id="eff-pin">2.88W</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Total Loss</span>
-                <span class="value" id="eff-ploss">1.08W</span>
-            </div>
-        </div>
-        <div class="result-grid">
-            <div class="result-item">
-                <span class="label">Direct Buck η (typical)</span>
-                <span class="value" id="eff-direct">~88%</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Direct Buck Power Loss</span>
-                <span class="value" id="eff-direct-loss">0.25W</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Cascade Extra Loss</span>
-                <span class="value" id="eff-extra-loss">0.83W</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Efficiency Penalty</span>
-                <span class="value" id="eff-penalty">25.4%</span>
-            </div>
-        </div>
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="osc-spice"></div>
     </div>
 
-    <script>
-    (function() {
-        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
-
-        function roundRect(ctx, x, y, w, h, r) {
-            ctx.beginPath();
-            ctx.moveTo(x + r, y);
-            ctx.lineTo(x + w - r, y);
-            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-            ctx.lineTo(x + w, y + h - r);
-            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-            ctx.lineTo(x + r, y + h);
-            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-            ctx.lineTo(x, y + r);
-            ctx.quadraticCurveTo(x, y, x + r, y);
-            ctx.closePath();
-        }
-
-        // Power Sequence Canvas
-        (function() {
-            const canvas = document.getElementById('power-sequence-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, 800, 420);
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('POWER-UP SEQUENCE', 220, 20);
-            ctx.fillText('POWER-DOWN SEQUENCE (REVERSE)', 600, 20);
-
-            const signals = [
-                { name: '3.3V', color: TEK.ch1, upDelay: 0, desc: 'I/O Supply - First' },
-                { name: '1.8V', color: TEK.ch2, upDelay: 40, desc: 'Memory I/O' },
-                { name: '1.05V', color: TEK.ch3, upDelay: 80, desc: 'DDR Core' },
-                { name: 'VCore', color: TEK.ch4, upDelay: 120, desc: 'CPU Core - Last' },
-                { name: 'CLK', color: '#9fb0c0', upDelay: 160, desc: 'Clocks enabled' },
-                { name: 'RESET', color: '#ff6b6b', upDelay: 200, desc: 'Reset released' }
-            ];
-
-            // Power-up side
-            signals.forEach((sig, i) => {
-                const y = 50 + i * 30;
-                // Label
-                ctx.fillStyle = sig.color;
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'right';
-                ctx.fillText(sig.name, 55, y + 15);
-
-                // Signal line
-                ctx.strokeStyle = sig.color;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(60, y + 20);
-                ctx.lineTo(60 + sig.upDelay, y + 20);
-                ctx.lineTo(60 + sig.upDelay + 5, y + 5);
-                ctx.lineTo(350, y + 5);
-                ctx.stroke();
-
-                // Description
-                ctx.fillStyle = '#9fb0c0';
-                ctx.font = '9px monospace';
-                ctx.textAlign = 'left';
-                ctx.fillText(sig.desc, 355, y + 10);
-            });
-
-            // Time axis (power-up)
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(60, 240);
-            ctx.lineTo(350, 240);
-            ctx.stroke();
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('Time \u2192', 205, 255);
-
-            // Power-down side (reversed order)
-            signals.slice().reverse().forEach((sig, i) => {
-                const y = 50 + i * 30;
-                const downDelay = 200 - sig.upDelay;
-
-                ctx.fillStyle = sig.color;
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'right';
-                ctx.fillText(sig.name, 455, y + 15);
-
-                ctx.strokeStyle = sig.color;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(460, y + 5);
-                ctx.lineTo(460 + downDelay, y + 5);
-                ctx.lineTo(460 + downDelay + 5, y + 20);
-                ctx.lineTo(750, y + 20);
-                ctx.stroke();
-            });
-
-            // Time axis (power-down)
-            ctx.strokeStyle = '#666';
-            ctx.beginPath();
-            ctx.moveTo(460, 240);
-            ctx.lineTo(750, 240);
-            ctx.stroke();
-            ctx.fillStyle = '#9fb0c0';
-            ctx.fillText('Time \u2192', 605, 255);
-
-            // Info boxes
-            ctx.fillStyle = '#1a1a2e';
-            roundRect(ctx, 60, 270, 330, 60, 6);
-            ctx.fill();
-            ctx.strokeStyle = '#9fb0c0';
-            roundRect(ctx, 60, 270, 330, 60, 6);
-            ctx.stroke();
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('\u2022 I/O rails first, core last', 70, 290);
-            ctx.fillText('\u2022 Each rail waits for previous PGOOD', 70, 308);
-            ctx.fillText('\u2022 RESET released after all stable', 70, 326);
-
-            ctx.fillStyle = '#1a1a2e';
-            roundRect(ctx, 410, 270, 330, 60, 6);
-            ctx.fill();
-            ctx.strokeStyle = '#9fb0c0';
-            roundRect(ctx, 410, 270, 330, 60, 6);
-            ctx.stroke();
-            ctx.fillStyle = '#9fb0c0';
-            ctx.fillText('\u2022 RESET asserted first', 420, 290);
-            ctx.fillText('\u2022 Core last to power down', 420, 308);
-            ctx.fillText('\u2022 Prevents latch-up damage', 420, 326);
-
-            // Timing annotations
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('>1ms', 80, 75);
-            ctx.fillText('>1ms', 120, 105);
-            ctx.fillText('>5ms', 180, 165);
-            ctx.fillText('>10ms', 210, 195);
-        })();
-
-        // PGOOD Chain Canvas
-        (function() {
-            const canvas = document.getElementById('pgood-chain-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, 750, 280);
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('POWER GOOD (PGOOD) DAISY CHAIN', 375, 20);
-
-            // VIN lines
-            ctx.strokeStyle = '#ff6b6b';
-            ctx.lineWidth = 2;
-            [130, 330, 530].forEach(x => {
-                ctx.beginPath();
-                ctx.moveTo(x, 40);
-                ctx.lineTo(x, 60);
-                ctx.stroke();
-                ctx.fillStyle = '#ff6b6b';
-                ctx.font = '10px monospace';
-                ctx.fillText('VIN', x, 38);
-            });
-
-            // Buck converters
-            const bucks = [
-                { x: 80, v: '3.3V', color: TEK.ch1 },
-                { x: 280, v: '1.8V', color: TEK.ch2 },
-                { x: 480, v: '1.2V', color: TEK.ch3 }
-            ];
-
-            bucks.forEach((b, i) => {
-                ctx.fillStyle = '#1a1a2e';
-                roundRect(ctx, b.x, 60, 100, 50, 6);
-                ctx.fill();
-                ctx.strokeStyle = b.color;
-                ctx.lineWidth = 2;
-                roundRect(ctx, b.x, 60, 100, 50, 6);
-                ctx.stroke();
-                ctx.fillStyle = b.color;
-                ctx.font = '11px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('Buck', b.x + 50, 82);
-                ctx.fillText(b.v, b.x + 50, 100);
-
-                // Output arrow
-                ctx.strokeStyle = b.color;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(b.x + 50, 110);
-                ctx.lineTo(b.x + 50, 135);
-                ctx.stroke();
-                ctx.fillStyle = b.color;
-                ctx.beginPath();
-                ctx.moveTo(b.x + 50, 140);
-                ctx.lineTo(b.x + 45, 130);
-                ctx.lineTo(b.x + 55, 130);
-                ctx.closePath();
-                ctx.fill();
-                ctx.fillText(b.v, b.x + 50, 155);
-
-                // PGOOD to next stage
-                if (i < 2) {
-                    ctx.strokeStyle = TEK.ch4;
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.moveTo(b.x + 100, 85);
-                    ctx.lineTo(b.x + 200, 85);
-                    ctx.stroke();
-                    // Arrow
-                    ctx.fillStyle = TEK.ch4;
-                    ctx.beginPath();
-                    ctx.moveTo(b.x + 200, 85);
-                    ctx.lineTo(b.x + 190, 80);
-                    ctx.lineTo(b.x + 190, 90);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.fillStyle = '#9fb0c0';
-                    ctx.font = '9px monospace';
-                    ctx.fillText('PGOOD' + (i+1) + ' \u2192 EN', b.x + 150, 78);
-                }
-            });
-
-            // Info box
-            ctx.fillStyle = '#1a1a2e';
-            roundRect(ctx, 50, 170, 650, 100, 6);
-            ctx.fill();
-            ctx.strokeStyle = '#9fb0c0';
-            roundRect(ctx, 50, 170, 650, 100, 6);
-            ctx.stroke();
-
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('PGOOD = "Power Good" open-drain output', 70, 190);
-            ctx.fillText('\u2022 Goes HIGH when output is within regulation (typically 90-95% of target)', 70, 210);
-            ctx.fillText('\u2022 Connect to EN (enable) of next stage', 70, 228);
-            ctx.fillText('\u2022 Add RC filter (10k + 100nF) for noise immunity', 70, 246);
-            ctx.fillText('\u2022 Startup delay per stage \u2248 soft-start time + PGOOD delay', 70, 264);
-        })();
-
-        // Soft-Start Canvas
-        (function() {
-            const canvas = document.getElementById('soft-start-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, 800, 340);
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('WITHOUT SOFT-START', 150, 20);
-            ctx.fillText('WITH SOFT-START', 550, 20);
-
-            // Without soft-start - VOUT
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'right';
-            ctx.fillText('VOUT', 45, 55);
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(50, 100);
-            ctx.lineTo(80, 100);
-            ctx.lineTo(82, 50);
-            ctx.lineTo(250, 50);
-            ctx.stroke();
-
-            // Time axis
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(50, 100);
-            ctx.lineTo(270, 100);
-            ctx.stroke();
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('t', 260, 115);
-
-            // Without soft-start - IINRUSH
-            ctx.fillStyle = '#ff6b6b';
-            ctx.textAlign = 'right';
-            ctx.fillText('IINRUSH', 45, 145);
-            ctx.strokeStyle = '#ff6b6b';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(50, 200);
-            ctx.lineTo(80, 200);
-            ctx.lineTo(82, 130);
-            ctx.lineTo(84, 200);
-            ctx.lineTo(250, 200);
-            ctx.stroke();
-            ctx.fillStyle = '#ff6b6b';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('\u2190 Peak 10-50A!', 90, 140);
-
-            // Time axis
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(50, 200);
-            ctx.lineTo(270, 200);
-            ctx.stroke();
-
-            // With soft-start - VOUT
-            ctx.fillStyle = TEK.ch1;
-            ctx.textAlign = 'right';
-            ctx.fillText('VOUT', 395, 55);
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(400, 100);
-            ctx.lineTo(420, 100);
-            for (let x = 420; x < 520; x += 2) {
-                const progress = (x - 420) / 100;
-                const y = 100 - 50 * Math.min(progress * 1.2, 1);
-                ctx.lineTo(x, y);
-            }
-            ctx.lineTo(650, 50);
-            ctx.stroke();
-
-            // tSS annotation
-            ctx.strokeStyle = '#9fb0c0';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([3, 3]);
-            ctx.beginPath();
-            ctx.moveTo(420, 105);
-            ctx.lineTo(420, 120);
-            ctx.moveTo(520, 105);
-            ctx.lineTo(520, 120);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('tSS', 470, 118);
-
-            // Time axis
-            ctx.strokeStyle = '#666';
-            ctx.beginPath();
-            ctx.moveTo(400, 100);
-            ctx.lineTo(670, 100);
-            ctx.stroke();
-            ctx.fillText('t', 660, 115);
-
-            // With soft-start - IINRUSH
-            ctx.fillStyle = TEK.ch4;
-            ctx.textAlign = 'right';
-            ctx.fillText('IINRUSH', 395, 145);
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(400, 200);
-            ctx.lineTo(420, 200);
-            ctx.lineTo(440, 160);
-            ctx.lineTo(480, 200);
-            ctx.lineTo(650, 200);
-            ctx.stroke();
-            ctx.fillStyle = '#9fb0c0';
-            ctx.textAlign = 'left';
-            ctx.fillText('\u2190 Controlled peak', 445, 155);
-
-            // Time axis
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(400, 200);
-            ctx.lineTo(670, 200);
-            ctx.stroke();
-
-            // Methods box
-            ctx.fillStyle = '#1a1a2e';
-            roundRect(ctx, 50, 220, 700, 110, 6);
-            ctx.fill();
-            ctx.strokeStyle = '#9fb0c0';
-            roundRect(ctx, 50, 220, 700, 110, 6);
-            ctx.stroke();
-
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('SOFT-START METHODS:', 70, 240);
-            ctx.font = '10px monospace';
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillText('1. INTERNAL SS:', 70, 260);
-            ctx.fillStyle = '#9fb0c0';
-            ctx.fillText('tSS = CSS \u00d7 VREF / ISS (typical ISS = 5-20\u00b5A)', 200, 260);
-            ctx.fillStyle = TEK.ch2;
-            ctx.fillText('2. EXTERNAL RC ON EN:', 70, 280);
-            ctx.fillStyle = '#9fb0c0';
-            ctx.fillText('EN voltage ramps through RC, simple but less precise', 240, 280);
-            ctx.fillStyle = TEK.ch4;
-            ctx.fillText('3. CURRENT LIMIT:', 70, 300);
-            ctx.fillStyle = '#9fb0c0';
-            ctx.fillText('Separate startup current limit provides hard inrush protection', 200, 300);
-        })();
-
-        // VRM Architecture Canvas
-        (function() {
-            const canvas = document.getElementById('vrm-architecture-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, 850, 450);
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 14px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('4-PHASE VRM ARCHITECTURE', 425, 20);
-
-            // VIN label
-            ctx.fillStyle = '#ff6b6b';
-            ctx.font = '12px monospace';
-            ctx.fillText('VIN (12V)', 200, 45);
-
-            // VIN distribution
-            ctx.strokeStyle = '#ff6b6b';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(200, 50);
-            ctx.lineTo(200, 70);
-            ctx.lineTo(80, 70);
-            ctx.lineTo(80, 90);
-            ctx.moveTo(200, 70);
-            ctx.lineTo(160, 70);
-            ctx.lineTo(160, 90);
-            ctx.moveTo(200, 70);
-            ctx.lineTo(240, 70);
-            ctx.lineTo(240, 90);
-            ctx.moveTo(200, 70);
-            ctx.lineTo(320, 70);
-            ctx.lineTo(320, 90);
-            ctx.stroke();
-
-            // Phase blocks
-            const phases = [
-                { x: 50, phase: '0\u00b0' },
-                { x: 130, phase: '90\u00b0' },
-                { x: 210, phase: '180\u00b0' },
-                { x: 290, phase: '270\u00b0' }
-            ];
-
-            phases.forEach((p, i) => {
-                ctx.fillStyle = '#1a1a2e';
-                roundRect(ctx, p.x, 90, 70, 60, 6);
-                ctx.fill();
-                ctx.strokeStyle = TEK.ch4;
-                ctx.lineWidth = 2;
-                roundRect(ctx, p.x, 90, 70, 60, 6);
-                ctx.stroke();
-                ctx.fillStyle = TEK.ch4;
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('Phase ' + (i+1), p.x + 35, 110);
-                ctx.fillText(p.phase, p.x + 35, 125);
-                ctx.fillStyle = '#9fb0c0';
-                ctx.font = '9px monospace';
-                ctx.fillText('HS/LS', p.x + 35, 140);
-
-                // Inductors
-                ctx.fillStyle = '#1a1a2e';
-                roundRect(ctx, p.x + 15, 165, 40, 30, 4);
-                ctx.fill();
-                ctx.strokeStyle = TEK.ch3;
-                roundRect(ctx, p.x + 15, 165, 40, 30, 4);
-                ctx.stroke();
-                ctx.fillStyle = TEK.ch3;
-                ctx.font = '9px monospace';
-                ctx.fillText('L' + (i+1), p.x + 35, 180);
-                ctx.fillText('220nH', p.x + 35, 192);
-
-                // Connection from phase to inductor
-                ctx.strokeStyle = '#9fb0c0';
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                ctx.moveTo(p.x + 35, 150);
-                ctx.lineTo(p.x + 35, 165);
-                ctx.stroke();
-            });
-
-            // Merge to output
-            ctx.strokeStyle = '#9fb0c0';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            phases.forEach((p, i) => {
-                ctx.moveTo(p.x + 35, 195);
-                ctx.lineTo(p.x + 35, 220);
-                ctx.lineTo(200, 220);
-            });
-            ctx.moveTo(200, 220);
-            ctx.lineTo(200, 240);
-            ctx.stroke();
-
-            // VCORE output
-            ctx.fillStyle = '#1a1a2e';
-            roundRect(ctx, 100, 240, 200, 70, 8);
-            ctx.fill();
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            roundRect(ctx, 100, 240, 200, 70, 8);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = '12px monospace';
-            ctx.fillText('VCORE (0.9V)', 200, 265);
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '9px monospace';
-            ctx.fillText('MLCC 500-1000\u00b5F total', 200, 285);
-            ctx.fillText('(many small caps)', 200, 300);
-
-            // CPU
-            ctx.fillStyle = '#1a1a2e';
-            roundRect(ctx, 150, 330, 100, 40, 6);
-            ctx.fill();
-            ctx.strokeStyle = TEK.ch2;
-            roundRect(ctx, 150, 330, 100, 40, 6);
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = '11px monospace';
-            ctx.fillText('CPU/GPU', 200, 355);
-
-            // Arrow to CPU
-            ctx.strokeStyle = '#9fb0c0';
-            ctx.beginPath();
-            ctx.moveTo(200, 310);
-            ctx.lineTo(200, 330);
-            ctx.stroke();
-
-            // Benefits box
-            ctx.fillStyle = '#1a1a2e';
-            roundRect(ctx, 420, 60, 410, 380, 8);
-            ctx.fill();
-            ctx.strokeStyle = '#9fb0c0';
-            roundRect(ctx, 420, 60, 410, 380, 8);
-            ctx.stroke();
-
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = 'bold 11px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('BENEFITS OF MULTI-PHASE:', 440, 85);
-
-            const benefits = [
-                { title: '1. CURRENT SHARING', color: TEK.ch1, items: [
-                    'Each phase handles ILOAD/N',
-                    'Smaller inductors, lower I\u00b2R loss',
-                    'Easier thermal management'
-                ]},
-                { title: '2. RIPPLE CANCELLATION', color: TEK.ch2, items: [
-                    'Output ripple reduced by factor N',
-                    'Input ripple also reduced',
-                    'Smaller output capacitance needed'
-                ]},
-                { title: '3. FASTER TRANSIENT RESPONSE', color: TEK.ch4, items: [
-                    'N phases respond simultaneously',
-                    'Lower output cap \u2192 faster dv/dt',
-                    'Critical for DVFS'
-                ]},
-                { title: '4. PHASE SHEDDING', color: TEK.ch3, items: [
-                    'Disable phases at light load',
-                    '1 phase idle, all at max perf'
-                ]}
-            ];
-
-            let y = 105;
-            benefits.forEach(b => {
-                ctx.fillStyle = b.color;
-                ctx.font = 'bold 10px monospace';
-                ctx.fillText(b.title, 440, y);
-                y += 18;
-                ctx.fillStyle = '#9fb0c0';
-                ctx.font = '9px monospace';
-                b.items.forEach(item => {
-                    ctx.fillText('\u2022 ' + item, 450, y);
-                    y += 15;
-                });
-                y += 10;
-            });
-        })();
-
-        // Thermal Model Canvas
-        (function() {
-            const canvas = document.getElementById('thermal-model-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, 800, 320);
-
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('THERMAL EQUIVALENT CIRCUIT', 400, 20);
-
-            // Circuit elements
-            const nodes = [
-                { x: 80, label: 'TJ', sub: 'Junction' },
-                { x: 230, label: 'TC', sub: 'Case' },
-                { x: 380, label: 'TA', sub: 'Ambient' },
-                { x: 530, label: 'T_AMB', sub: '' }
-            ];
-
-            const resistors = [
-                { x1: 100, x2: 210, label: '\u03B8JC', sub: 'Junction to Case' },
-                { x1: 250, x2: 360, label: '\u03B8CA', sub: 'Case to Ambient' },
-                { x1: 400, x2: 510, label: '\u03B8AMB', sub: '' }
-            ];
-
-            // Draw resistors
-            resistors.forEach(r => {
-                ctx.strokeStyle = TEK.ch1;
-                ctx.lineWidth = 2;
-                const midX = (r.x1 + r.x2) / 2;
-                ctx.beginPath();
-                ctx.moveTo(r.x1, 70);
-                ctx.lineTo(r.x1 + 10, 70);
-                // Zigzag
-                for (let i = 0; i < 6; i++) {
-                    const x = r.x1 + 20 + i * 15;
-                    ctx.lineTo(x, i % 2 === 0 ? 60 : 80);
-                }
-                ctx.lineTo(r.x2 - 10, 70);
-                ctx.lineTo(r.x2, 70);
-                ctx.stroke();
-
-                ctx.fillStyle = TEK.ch1;
-                ctx.font = '11px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText(r.label, midX, 55);
-                if (r.sub) {
-                    ctx.fillStyle = '#9fb0c0';
-                    ctx.font = '9px monospace';
-                    ctx.fillText(r.sub, midX, 95);
-                }
-            });
-
-            // Draw nodes
-            nodes.forEach(n => {
-                ctx.fillStyle = TEK.ch2;
-                ctx.beginPath();
-                ctx.arc(n.x, 70, 5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.font = '11px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText(n.label, n.x, 115);
-                if (n.sub) {
-                    ctx.fillStyle = '#9fb0c0';
-                    ctx.font = '9px monospace';
-                    ctx.fillText(n.sub, n.x, 130);
-                }
-            });
-
-            // Power source
-            ctx.fillStyle = '#ff6b6b';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'right';
-            ctx.fillText('PDISS', 70, 55);
-            ctx.fillText('(Power)', 70, 70);
-
-            // Equations box
-            ctx.fillStyle = '#1a1a2e';
-            roundRect(ctx, 50, 150, 350, 80, 6);
-            ctx.fill();
-            ctx.strokeStyle = '#9fb0c0';
-            roundRect(ctx, 50, 150, 350, 80, 6);
-            ctx.stroke();
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '11px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('EQUATIONS:', 70, 175);
-            ctx.fillStyle = TEK.ch1;
-            ctx.fillText('TJ = T_AMBIENT + PDISS \u00d7 \u03B8JA', 70, 200);
-            ctx.fillStyle = '#9fb0c0';
-            ctx.fillText('\u03B8JA = \u03B8JC + \u03B8CA (for discrete packages)', 70, 220);
-
-            // Thermal resistances table
-            ctx.fillStyle = '#1a1a2e';
-            roundRect(ctx, 420, 150, 360, 160, 6);
-            ctx.fill();
-            ctx.strokeStyle = '#9fb0c0';
-            roundRect(ctx, 420, 150, 360, 160, 6);
-            ctx.stroke();
-            ctx.fillStyle = '#9fb0c0';
-            ctx.font = '10px monospace';
-            ctx.fillText('TYPICAL THERMAL RESISTANCES:', 440, 175);
-
-            ctx.font = '9px monospace';
-            const thermalData = [
-                ['Package', '\u03B8JA (\u00b0C/W)', '\u03B8JC', 'Max TJ'],
-                ['QFN 3\u00d73mm', '45-60', '5-10', '150\u00b0C'],
-                ['QFN 5\u00d75mm', '30-45', '3-5', '150\u00b0C'],
-                ['PowerPAK SO-8', '20-35', '2-4', '150\u00b0C'],
-                ['DrMOS (VRM)', '1-3', '0.3-0.5', '125\u00b0C']
-            ];
-
-            thermalData.forEach((row, i) => {
-                const y = 195 + i * 18;
-                ctx.fillStyle = i === 0 ? TEK.ch2 : '#9fb0c0';
-                ctx.fillText(row[0], 440, y);
-                ctx.fillText(row[1], 560, y);
-                ctx.fillText(row[2], 640, y);
-                ctx.fillText(row[3], 710, y);
-            });
-        })();
-
-        // Laptop Power Architecture Canvas
-        (function() {
-            const canvas = document.getElementById('laptop-power-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const w = canvas.width, h = canvas.height;
-
-            function roundRect(ctx, x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
+    <div class="card">
+        <h3>Debug Checklist</h3>
+        <div id="osc-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="osc-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('osc-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    const oscInfo = {
+        continuous: {cause: 'Insufficient phase margin (<45°)', location: 'Feedback network, compensation', fix: 'Add Cc, reduce bandwidth'},
+        ringing: {cause: 'Underdamped resonance', location: 'Output LC, cable inductance', fix: 'Add snubber RC, ferrite bead'},
+        burst: {cause: 'Nonlinear gain margin', location: 'Bias circuit, thermal effects', fix: 'Improve bias stability'},
+        motorboat: {cause: 'Power supply impedance', location: 'Decoupling, ground path', fix: 'Add bypass caps, star ground'}
+    };
+
+    function update() {
+        const type = document.getElementById('osc-type').value || 'continuous';
+        const freq = AD.parseValue(document.getElementById('osc-freq').value) || 1e6;
+        const damp = AD.num('osc-damp') || 0.2;
+
+        document.getElementById('osc-damp-val').textContent = damp.toFixed(1);
+
+        const info = oscInfo[type] || oscInfo.continuous;
+        document.getElementById('osc-cause').textContent = info.cause;
+        document.getElementById('osc-location').textContent = info.location;
+        document.getElementById('osc-fix').textContent = info.fix;
+
+        // Draw oscillation waveform
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        const plotW = W - mL - mR;
+        const plotH = H - mT - mB;
+
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
+
+        // Zero line
+        ctx.strokeStyle = TEK.ref;
+        const yCenter = mT + plotH / 2;
+        ctx.beginPath();
+        ctx.moveTo(mL, yCenter);
+        ctx.lineTo(mL + plotW, yCenter);
+        ctx.stroke();
+
+        // Draw waveform based on type
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        const period = 1 / freq;
+        const totalTime = period * 10; // Show 10 cycles
+
+        for (let i = 0; i <= plotW; i++) {
+            const t = i / plotW * totalTime;
+            let v = 0;
+
+            switch(type) {
+                case 'continuous':
+                    v = Math.sin(2 * Math.PI * freq * t);
+                    break;
+                case 'ringing':
+                    // Damped sinusoid
+                    v = Math.exp(-damp * 2 * Math.PI * freq * t) * Math.sin(2 * Math.PI * freq * t);
+                    break;
+                case 'burst':
+                    // Burst oscillation
+                    const burstPeriod = totalTime / 3;
+                    const burstPhase = t % burstPeriod;
+                    if (burstPhase < burstPeriod * 0.6) {
+                        const env = Math.sin(Math.PI * burstPhase / (burstPeriod * 0.6));
+                        v = env * Math.sin(2 * Math.PI * freq * t);
+                    }
+                    break;
+                case 'motorboat':
+                    // Low frequency modulated
+                    const modFreq = freq / 100;
+                    v = (1 + 0.8 * Math.sin(2 * Math.PI * modFreq * t)) *
+                        Math.sin(2 * Math.PI * freq * 0.1 * t);
+                    v = Math.sin(2 * Math.PI * modFreq * t);
+                    break;
             }
 
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, w, h);
-
-            const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
-
-            // Title
-            ctx.fillStyle = 'rgba(110,231,255,0.1)';
-            roundRect(ctx, 15, 10, w - 30, 30, 6);
-            ctx.fill();
-            ctx.strokeStyle = TEK.ch2;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.fillStyle = TEK.ch2;
-            ctx.font = 'bold 14px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('LAPTOP POWER ARCHITECTURE', w/2, 30);
-
-            // Input sources
-            ctx.fillStyle = 'rgba(255,255,0,0.15)';
-            roundRect(ctx, 40, 55, 140, 45, 6);
-            ctx.fill();
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('AC ADAPTER', 110, 75);
-            ctx.fillText('19V-20V', 110, 90);
-
-            ctx.fillStyle = 'rgba(255,102,255,0.15)';
-            roundRect(ctx, 220, 55, 140, 45, 6);
-            ctx.fill();
-            ctx.strokeStyle = TEK.ch3;
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.fillText('BATTERY', 290, 75);
-            ctx.fillText('2S-4S Li-ion', 290, 90);
-
-            // Power Path Controller
-            ctx.fillStyle = 'rgba(0,255,0,0.15)';
-            roundRect(ctx, 40, 120, 320, 60, 6);
-            ctx.fill();
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 11px monospace';
-            ctx.fillText('POWER PATH CONTROLLER', 200, 140);
-            ctx.font = '9px monospace';
-            ctx.fillStyle = '#aaa';
-            ctx.fillText('BQ24780, ISL9238, MP2696', 200, 155);
-            ctx.fillText('Adapter detect | CC-CV charging | Priority', 200, 170);
-
-            // Connection lines from inputs
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(110, 100);
-            ctx.lineTo(110, 120);
-            ctx.moveTo(290, 100);
-            ctx.lineTo(290, 120);
-            ctx.stroke();
-
-            // VSYS
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = 'bold 11px monospace';
-            ctx.fillText('VSYS (6-20V)', 200, 205);
-
-            // Rails
-            const rails = [
-                { label: '5V Rail', sub: 'Buck 3-5A', loads: ['USB Ports', 'Audio', 'Sensors'], color: TEK.ch1, x: 50 },
-                { label: '3.3V Rail', sub: 'Buck 2-3A', loads: ['SSD', 'WiFi', 'eMMC'], color: TEK.ch2, x: 230 },
-                { label: '1.8V Rail', sub: 'Buck 1-2A', loads: ['DDR I/O', 'PCIE', 'PLLs'], color: TEK.ch3, x: 410 },
-                { label: 'VCore', sub: '20-100A', loads: ['CPU/GPU'], color: TEK.ch4, x: 590 }
-            ];
-
-            let rx = 50;
-            rails.forEach(r => {
-                // Rail box
-                ctx.fillStyle = r.color + '22';
-                roundRect(ctx, r.x, 220, 130, 50, 4);
-                ctx.fill();
-                ctx.strokeStyle = r.color;
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-                ctx.fillStyle = '#fff';
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText(r.label, r.x + 65, 240);
-                ctx.fillStyle = '#aaa';
-                ctx.font = '9px monospace';
-                ctx.fillText(r.sub, r.x + 65, 258);
-
-                // Load box
-                ctx.fillStyle = 'rgba(100,100,100,0.2)';
-                roundRect(ctx, r.x, 290, 130, 50, 4);
-                ctx.fill();
-                ctx.fillStyle = '#888';
-                ctx.font = '9px monospace';
-                r.loads.forEach((l, i) => {
-                    ctx.fillText(l, r.x + 65, 308 + i * 12);
-                });
-
-                // Arrow
-                ctx.strokeStyle = '#666';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(r.x + 65, 270);
-                ctx.lineTo(r.x + 65, 290);
-                ctx.stroke();
-
-                // Connection from VSYS
-                ctx.beginPath();
-                ctx.moveTo(200, 185);
-                ctx.lineTo(r.x + 65, 185);
-                ctx.lineTo(r.x + 65, 220);
-                ctx.stroke();
-            });
-
-            // Secondary rails section
-            ctx.fillStyle = 'rgba(100,100,100,0.15)';
-            roundRect(ctx, 750, 220, 135, 120, 6);
-            ctx.fill();
-            ctx.strokeStyle = '#888';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.fillStyle = '#888';
-            ctx.font = 'bold 9px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('SECONDARY RAILS', 760, 238);
-            ctx.font = '8px monospace';
-            ctx.fillStyle = '#aaa';
-            const secondary = ['1.2V DDR4 VTT', '1.05V DDR5', '0.9V PCIE', '3.3V_AUX (RTC)', '5V_SBY (USB)'];
-            secondary.forEach((s, i) => {
-                ctx.fillText('• ' + s, 760, 255 + i * 15);
-            });
-
-            ctx.fillStyle = '#666';
-            ctx.font = '9px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('Based on: BQ24780, ISL9238 designs', 20, h - 10);
-        })();
-
-        // Topology Comparison Canvas
-        (function() {
-            const canvas = document.getElementById('topology-comparison-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            const w = canvas.width, h = canvas.height;
-
-            function roundRect(ctx, x, y, w, h, r) {
-                ctx.beginPath();
-                ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);
-                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-                ctx.lineTo(x + w, y + h - r);
-                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                ctx.lineTo(x + r, y + h);
-                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-                ctx.lineTo(x, y + r);
-                ctx.quadraticCurveTo(x, y, x + r, y);
-                ctx.closePath();
-            }
-
-            ctx.fillStyle = '#0d1117';
-            ctx.fillRect(0, 0, w, h);
-
-            const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
-            const halfW = w/2 - 20;
-
-            // DIRECT topology
-            ctx.fillStyle = 'rgba(0,255,0,0.1)';
-            roundRect(ctx, 15, 15, halfW, 140, 8);
-            ctx.fill();
-            ctx.strokeStyle = TEK.ch4;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch4;
-            ctx.font = 'bold 12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('DIRECT FROM VSYS', 15 + halfW/2, 35);
-
-            // VSYS box
-            ctx.fillStyle = 'rgba(0,255,0,0.2)';
-            roundRect(ctx, 50, 50, 60, 25, 4);
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = '10px monospace';
-            ctx.fillText('VSYS', 80, 67);
-            ctx.fillStyle = '#888';
-            ctx.font = '8px monospace';
-            ctx.fillText('12V', 80, 82);
-
-            // Parallel bucks
-            const directRails = ['5V', '3.3V', '1.8V', '1.2V'];
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 1;
-            directRails.forEach((v, i) => {
-                const y = 55 + i * 25;
-                ctx.beginPath();
-                ctx.moveTo(110, 62);
-                ctx.lineTo(130, 62);
-                ctx.lineTo(130, y);
-                ctx.lineTo(160, y);
-                ctx.stroke();
-
-                ctx.fillStyle = 'rgba(255,255,0,0.2)';
-                roundRect(ctx, 160, y - 10, 50, 20, 3);
-                ctx.fill();
-                ctx.fillStyle = '#fff';
-                ctx.font = '8px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('Buck', 185, y + 2);
-
-                ctx.beginPath();
-                ctx.moveTo(210, y);
-                ctx.lineTo(240, y);
-                ctx.stroke();
-
-                ctx.fillStyle = TEK.ch1;
-                ctx.fillText(v, 260, y + 4);
-            });
-
-            // CASCADED topology
-            ctx.fillStyle = 'rgba(255,255,0,0.1)';
-            roundRect(ctx, w/2 + 5, 15, halfW, 140, 8);
-            ctx.fill();
-            ctx.strokeStyle = TEK.ch1;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            ctx.fillStyle = TEK.ch1;
-            ctx.font = 'bold 12px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('CASCADED APPROACH', w/2 + 5 + halfW/2, 35);
-
-            const cascX = w/2 + 50;
-            ctx.fillStyle = 'rgba(255,255,0,0.2)';
-            roundRect(ctx, cascX, 50, 60, 25, 4);
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.font = '10px monospace';
-            ctx.fillText('VSYS', cascX + 30, 67);
-
-            // Cascade chain
-            const cascade = [
-                { type: 'Buck', out: '5V', y: 60 },
-                { type: 'LDO', out: '3.3V', y: 95 },
-                { type: 'LDO', out: '1.8V', y: 130 }
-            ];
-            ctx.strokeStyle = '#666';
-            cascade.forEach((c, i) => {
-                ctx.beginPath();
-                ctx.moveTo(cascX + 60, c.y);
-                ctx.lineTo(cascX + 90, c.y);
-                ctx.stroke();
-
-                ctx.fillStyle = i === 0 ? 'rgba(0,255,0,0.2)' : 'rgba(0,255,255,0.2)';
-                roundRect(ctx, cascX + 90, c.y - 10, 50, 20, 3);
-                ctx.fill();
-                ctx.fillStyle = '#fff';
-                ctx.font = '8px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText(c.type, cascX + 115, c.y + 3);
-
-                ctx.beginPath();
-                ctx.moveTo(cascX + 140, c.y);
-                ctx.lineTo(cascX + 170, c.y);
-                ctx.stroke();
-
-                ctx.fillStyle = TEK.ch2;
-                ctx.fillText(c.out, cascX + 190, c.y + 4);
-
-                if (i < cascade.length - 1) {
-                    ctx.strokeStyle = '#666';
-                    ctx.beginPath();
-                    ctx.moveTo(cascX + 160, c.y);
-                    ctx.lineTo(cascX + 160, cascade[i+1].y);
-                    ctx.lineTo(cascX + 90, cascade[i+1].y);
-                    ctx.stroke();
-                }
-            });
-
-            // Trade-offs
-            ctx.fillStyle = 'rgba(52,211,153,0.1)';
-            roundRect(ctx, 15, 165, halfW, 60, 6);
-            ctx.fill();
-            ctx.strokeStyle = '#34d399';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.fillStyle = '#34d399';
-            ctx.font = 'bold 9px monospace';
-            ctx.textAlign = 'left';
-            ctx.fillText('DIRECT Pros:', 25, 182);
-            ctx.fillStyle = '#aaa';
-            ctx.font = '8px monospace';
-            ctx.fillText('✓ Higher efficiency | ✓ Independent regulation | ✓ Better transient', 25, 198);
-
-            ctx.fillStyle = 'rgba(251,113,133,0.1)';
-            roundRect(ctx, 15, 230, halfW, 60, 6);
-            ctx.fill();
-            ctx.strokeStyle = '#fb7185';
-            ctx.stroke();
-            ctx.fillStyle = '#fb7185';
-            ctx.font = 'bold 9px monospace';
-            ctx.fillText('DIRECT Cons:', 25, 247);
-            ctx.fillStyle = '#aaa';
-            ctx.font = '8px monospace';
-            ctx.fillText('✗ More components | ✗ Higher cost | ✗ Complex sequencing', 25, 263);
-
-            ctx.fillStyle = 'rgba(52,211,153,0.1)';
-            roundRect(ctx, w/2 + 5, 165, halfW, 60, 6);
-            ctx.fill();
-            ctx.strokeStyle = '#34d399';
-            ctx.stroke();
-            ctx.fillStyle = '#34d399';
-            ctx.font = 'bold 9px monospace';
-            ctx.fillText('CASCADED Pros:', w/2 + 15, 182);
-            ctx.fillStyle = '#aaa';
-            ctx.font = '8px monospace';
-            ctx.fillText('✓ Fewer inductors | ✓ Lower BOM cost | ✓ Simpler sequencing', w/2 + 15, 198);
-
-            ctx.fillStyle = 'rgba(251,113,133,0.1)';
-            roundRect(ctx, w/2 + 5, 230, halfW, 60, 6);
-            ctx.fill();
-            ctx.strokeStyle = '#fb7185';
-            ctx.stroke();
-            ctx.fillStyle = '#fb7185';
-            ctx.font = 'bold 9px monospace';
-            ctx.fillText('CASCADED Cons:', w/2 + 15, 247);
-            ctx.fillStyle = '#aaa';
-            ctx.font = '8px monospace';
-            ctx.fillText('✗ Compounded efficiency loss | ✗ Thermal concentration', w/2 + 15, 263);
-        })();
-
-        const ids = ['eff-vin', 'eff-v1', 'eff-v2', 'eff-v3', 'eff-eta1', 'eff-eta2', 'eff-eta3', 'eff-load'];
-
-        function updateEfficiency() {
-            const vin = AD.num('eff-vin');
-            const v1 = AD.num('eff-v1');
-            const v2 = AD.num('eff-v2');
-            const v3 = AD.num('eff-v3');
-            const eta1 = AD.num('eff-eta1') / 100;
-            const eta2 = AD.num('eff-eta2') / 100;
-            const eta3 = AD.num('eff-eta3') / 100;
-            const load = AD.num('eff-load');
-
-            // Update displays
-            document.getElementById('eff-vin-val').textContent = vin + 'V';
-            document.getElementById('eff-v1-val').textContent = v1.toFixed(1) + 'V';
-            document.getElementById('eff-v2-val').textContent = v2.toFixed(1) + 'V';
-            document.getElementById('eff-v3-val').textContent = v3.toFixed(1) + 'V';
-            document.getElementById('eff-eta1-val').textContent = (eta1*100).toFixed(0) + '%';
-            document.getElementById('eff-eta2-val').textContent = (eta2*100).toFixed(0) + '%';
-            document.getElementById('eff-eta3-val').textContent = (eta3*100).toFixed(0) + '%';
-            document.getElementById('eff-load-val').textContent = load.toFixed(1) + 'A';
-
-            // Calculate cascade efficiency
-            const etaCascade = eta1 * eta2 * eta3;
-            const pLoad = v3 * load;
-            const pIn = pLoad / etaCascade;
-            const pLoss = pIn - pLoad;
-
-            // Compare to direct buck (estimate ~88% for high step-down)
-            const etaDirect = 0.88;
-            const pInDirect = pLoad / etaDirect;
-            const pLossDirect = pInDirect - pLoad;
-            const extraLoss = pLoss - pLossDirect;
-            const penalty = (etaDirect - etaCascade) * 100;
-
-            document.getElementById('eff-cascade').textContent = (etaCascade * 100).toFixed(1) + '%';
-            document.getElementById('eff-pload').textContent = pLoad.toFixed(2) + 'W';
-            document.getElementById('eff-pin').textContent = pIn.toFixed(2) + 'W';
-            document.getElementById('eff-ploss').textContent = pLoss.toFixed(2) + 'W';
-            document.getElementById('eff-direct').textContent = '~' + (etaDirect * 100).toFixed(0) + '%';
-            document.getElementById('eff-direct-loss').textContent = pLossDirect.toFixed(2) + 'W';
-            document.getElementById('eff-extra-loss').textContent = extraLoss.toFixed(2) + 'W';
-            document.getElementById('eff-penalty').textContent = penalty.toFixed(1) + '%';
+            const y = yCenter - v * plotH * 0.4;
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
         }
+        ctx.stroke();
 
-        ids.forEach(id => {
-            document.getElementById(id).addEventListener('input', updateEfficiency);
-        });
+        // Labels
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Time', mL + plotW/2, H - 10);
+        ctx.fillText('Oscillation Waveform: ' + type.replace('_', ' '), mL + plotW/2, 20);
 
-        updateEfficiency();
-    })();
-    </script>
-</section>
-
-<!-- Power Sequencing -->
-<section class="card">
-    <h3>Power Sequencing Requirements</h3>
-    <p>
-        Modern processors and FPGAs have <strong>strict power sequencing requirements</strong>.
-        Turning rails on/off in the wrong order can cause:
-    </p>
-    <ul>
-        <li><strong>Latch-up:</strong> Parasitic SCR triggering → device destruction</li>
-        <li><strong>Excessive current draw:</strong> ESD protection diodes conduct</li>
-        <li><strong>Data corruption:</strong> Flash/EEPROM writes during brownout</li>
-        <li><strong>Unreliable startup:</strong> POR (Power-On Reset) not triggered properly</li>
-    </ul>
-
-    <div class="diagram-box">
-        <h4>Typical CPU Power Sequence</h4>
-        <canvas id="power-sequence-canvas" width="800" height="420" style="width:100%;max-width:800px;background:#0d1117;border-radius:8px;"></canvas>
-    </div>
-
-    <h4>Sequencing Implementation Methods</h4>
-    <table>
-        <thead>
-            <tr>
-                <th>Method</th>
-                <th>Pros</th>
-                <th>Cons</th>
-                <th>Use Case</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td><strong>Soft-Start Timing</strong></td>
-                <td>Simple, no extra ICs</td>
-                <td>Imprecise, varies with load</td>
-                <td>Non-critical sequencing</td>
-            </tr>
-            <tr>
-                <td><strong>Power Good Daisy Chain</strong></td>
-                <td>Guaranteed order</td>
-                <td>Slow startup (series delays)</td>
-                <td>Most laptop designs</td>
-            </tr>
-            <tr>
-                <td><strong>Sequencing Controller</strong></td>
-                <td>Precise, configurable</td>
-                <td>Extra IC cost</td>
-                <td>FPGA, server systems</td>
-            </tr>
-            <tr>
-                <td><strong>Embedded Controller</strong></td>
-                <td>Full flexibility, monitoring</td>
-                <td>Firmware complexity</td>
-                <td>Laptops with EC</td>
-            </tr>
-        </tbody>
-    </table>
-
-    <h4>Power Good (PGOOD) Daisy Chain Circuit</h4>
-    <div class="diagram-box">
-        <canvas id="pgood-chain-canvas" width="750" height="280" style="width:100%;max-width:750px;background:#0d1117;border-radius:8px;"></canvas>
-    </div>
-</section>
-
-<!-- Soft-Start and Inrush Limiting -->
-<section class="card">
-    <h3>Soft-Start and Inrush Current Limiting</h3>
-    <p>
-        Without soft-start, a buck converter tries to charge its output capacitor instantly,
-        causing massive inrush current that can:
-    </p>
-    <ul>
-        <li>Trip upstream protection (fuses, current limiters)</li>
-        <li>Cause input voltage sag affecting other rails</li>
-        <li>Stress input capacitors beyond ratings</li>
-        <li>Generate EMI from high di/dt</li>
-    </ul>
-
-    <div class="diagram-box">
-        <h4>Soft-Start Operation</h4>
-        <canvas id="soft-start-canvas" width="800" height="340" style="width:100%;max-width:800px;background:#0d1117;border-radius:8px;"></canvas>
-    </div>
-
-    <h4>Soft-Start Time Calculator</h4>
-    <div class="controls">
-        <div class="c3">
-            <label>Soft-Start Capacitor</label>
-            <input type="text" id="ss-cap" value="100n">
-        </div>
-        <div class="c3">
-            <label>Internal Current (µA)</label>
-            <input type="text" id="ss-current" value="10">
-        </div>
-        <div class="c3">
-            <label>Reference Voltage (V)</label>
-            <input type="text" id="ss-vref" value="0.8">
-        </div>
-        <div class="c3">
-            <button onclick="calcSoftStart()">Calculate</button>
-        </div>
-    </div>
-
-    <div id="ss-results" class="results">
-        <div class="result-grid">
-            <div class="result-item">
-                <span class="label">Soft-Start Time</span>
-                <span class="value" id="ss-time">—</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Max Slew Rate</span>
-                <span class="value" id="ss-slew">—</span>
-            </div>
-        </div>
-    </div>
-
-    <script>
-    function calcSoftStart() {
-        const css = AD.num('ss-cap');
-        const iss = AD.num('ss-current') * 1e-6;
-        const vref = AD.num('ss-vref');
-
-        if (!css || !iss || !vref) {
-            document.getElementById('ss-time').textContent = 'Invalid input';
-            return;
-        }
-
-        const tss = (css * vref) / iss;
-        const slewRate = vref / tss;  // V/s
-
-        document.getElementById('ss-time').textContent = AD.fmt(tss, 3) + 's';
-        document.getElementById('ss-slew').textContent = AD.fmt(slewRate, 3) + 'V/s';
+        // Frequency indicator
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('f = ' + AD.formatValue(freq, 'Hz'), mL + 10, mT + 20);
+        ctx.fillText('ζ = ' + damp.toFixed(2), mL + 10, mT + 35);
     }
-    </script>
-</section>
 
-<!-- Multi-Phase VRM Design -->
-<section class="card">
-    <h3>Multi-Phase VRM for CPU Core</h3>
-    <p>
-        CPU core rails require 50-100+ amps at very low voltages (0.6-1.2V). A single-phase
-        buck cannot handle this—<strong>multi-phase</strong> designs split the current and
-        improve transient response.
-    </p>
-
-    <div class="diagram-box">
-        <h4>4-Phase VRM Architecture</h4>
-        <canvas id="vrm-architecture-canvas" width="850" height="450" style="width:100%;max-width:850px;background:#0d1117;border-radius:8px;"></canvas>
-    </div>
-
-    <h4>Multi-Phase Ripple Calculator</h4>
-    <div class="controls">
-        <div class="c3">
-            <label>Number of Phases</label>
-            <input type="range" id="vrm-phases" min="1" max="8" value="4" step="1">
-            <span id="vrm-phases-val">4</span>
-        </div>
-        <div class="c3">
-            <label>Duty Cycle (%)</label>
-            <input type="range" id="vrm-duty" min="5" max="50" value="10" step="1">
-            <span id="vrm-duty-val">10%</span>
-        </div>
-        <div class="c3">
-            <label>Current per Phase (A)</label>
-            <input type="range" id="vrm-iph" min="5" max="30" value="15" step="1">
-            <span id="vrm-iph-val">15A</span>
-        </div>
-        <div class="c3">
-            <label>Inductor (nH)</label>
-            <input type="range" id="vrm-l" min="100" max="500" value="220" step="10">
-            <span id="vrm-l-val">220nH</span>
-        </div>
-    </div>
-
-    <div id="vrm-results" class="results">
-        <div class="result-grid">
-            <div class="result-item">
-                <span class="label">Total Current</span>
-                <span class="value" id="vrm-itotal">60A</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Output Voltage</span>
-                <span class="value" id="vrm-vout">1.2V</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Single Phase Ripple</span>
-                <span class="value" id="vrm-rip1">—</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Multi-Phase Ripple</span>
-                <span class="value" id="vrm-ripn">—</span>
-            </div>
-        </div>
-        <div class="result-grid">
-            <div class="result-item">
-                <span class="label">Ripple Reduction</span>
-                <span class="value" id="vrm-reduction">—</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Power Output</span>
-                <span class="value" id="vrm-pout">—</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Input Current (from 12V)</span>
-                <span class="value" id="vrm-iin">—</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Switching Freq (typical)</span>
-                <span class="value" id="vrm-fsw">500kHz</span>
-            </div>
-        </div>
-    </div>
-
-    <script>
-    (function() {
-        const vrmIds = ['vrm-phases', 'vrm-duty', 'vrm-iph', 'vrm-l'];
-
-        function updateVRM() {
-            const n = parseInt(document.getElementById('vrm-phases').value);
-            const d = AD.num('vrm-duty') / 100;
-            const iph = AD.num('vrm-iph');
-            const l = AD.num('vrm-l') * 1e-9;
-            const vin = 12;
-            const fsw = 500e3;
-
-            // Update displays
-            document.getElementById('vrm-phases-val').textContent = n;
-            document.getElementById('vrm-duty-val').textContent = (d*100).toFixed(0) + '%';
-            document.getElementById('vrm-iph-val').textContent = iph + 'A';
-            document.getElementById('vrm-l-val').textContent = (l*1e9).toFixed(0) + 'nH';
-
-            const vout = vin * d;
-            const itotal = n * iph;
-            const pout = vout * itotal;
-
-            // Single phase inductor current ripple
-            const deltaI1 = (vin - vout) * d / (l * fsw);
-
-            // Multi-phase ripple reduction factor (depends on duty cycle and phase count)
-            // Simplified: at D ≈ 1/N, ripple cancels almost completely
-            const effectiveD = d * n;
-            let rippleReduction;
-            if (effectiveD <= 1) {
-                rippleReduction = n;  // Good cancellation
-            } else {
-                rippleReduction = n / 2;  // Partial cancellation
-            }
-
-            const deltaIn = deltaI1 / rippleReduction;
-            const iin = (pout / 0.9) / vin;  // Assume 90% efficiency
-
-            document.getElementById('vrm-itotal').textContent = itotal.toFixed(0) + 'A';
-            document.getElementById('vrm-vout').textContent = vout.toFixed(2) + 'V';
-            document.getElementById('vrm-rip1').textContent = deltaI1.toFixed(1) + 'A p-p';
-            document.getElementById('vrm-ripn').textContent = deltaIn.toFixed(2) + 'A p-p';
-            document.getElementById('vrm-reduction').textContent = rippleReduction.toFixed(1) + '×';
-            document.getElementById('vrm-pout').textContent = pout.toFixed(0) + 'W';
-            document.getElementById('vrm-iin').textContent = iin.toFixed(1) + 'A';
-        }
-
-        vrmIds.forEach(id => {
-            document.getElementById(id).addEventListener('input', updateVRM);
-        });
-
-        updateVRM();
-    })();
-    </script>
-</section>
-
-<!-- Thermal Management -->
-<section class="card">
-    <h3>Thermal Management and Power Budgeting</h3>
-    <p>
-        In a laptop's confined space, thermal management is critical. Power loss in regulators
-        must be dissipated without exceeding junction temperatures.
-    </p>
-
-    <div class="diagram-box">
-        <h4>Thermal Model</h4>
-        <canvas id="thermal-model-canvas" width="800" height="320" style="width:100%;max-width:800px;background:#0d1117;border-radius:8px;"></canvas>
-    </div>
-
-    <h4>Thermal Calculator</h4>
-    <div class="controls">
-        <div class="c3">
-            <label>Input Power (W)</label>
-            <input type="text" id="th-pin" value="10">
-        </div>
-        <div class="c3">
-            <label>Efficiency (%)</label>
-            <input type="range" id="th-eff" min="70" max="98" value="90" step="1">
-            <span id="th-eff-val">90%</span>
-        </div>
-        <div class="c3">
-            <label>θJA (°C/W)</label>
-            <input type="text" id="th-tja" value="35">
-        </div>
-        <div class="c3">
-            <label>Ambient (°C)</label>
-            <input type="text" id="th-tamb" value="45">
-        </div>
-    </div>
-
-    <div class="controls">
-        <div class="c6">
-            <button onclick="calcThermal()">Calculate Junction Temperature</button>
-        </div>
-    </div>
-
-    <div id="th-results" class="results">
-        <div class="result-grid">
-            <div class="result-item">
-                <span class="label">Power Dissipated</span>
-                <span class="value" id="th-pdiss">—</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Temperature Rise</span>
-                <span class="value" id="th-rise">—</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Junction Temperature</span>
-                <span class="value" id="th-tj">—</span>
-            </div>
-            <div class="result-item">
-                <span class="label">Margin to 125°C</span>
-                <span class="value" id="th-margin">—</span>
-            </div>
-        </div>
-    </div>
-
-    <script>
-    document.getElementById('th-eff').addEventListener('input', function() {
-        document.getElementById('th-eff-val').textContent = this.value + '%';
+    ['osc-type', 'osc-freq', 'osc-damp'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+        document.getElementById(id).addEventListener('change', update);
     });
 
-    function calcThermal() {
-        const pin = AD.num('th-pin');
-        const eff = AD.num('th-eff') / 100;
-        const tja = AD.num('th-tja');
-        const tamb = AD.num('th-tamb');
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('osc-schematic');
+        const svg = new SchematicSVG(550, 220);
 
-        if (!pin || !eff || !tja || isNaN(tamb)) {
-            document.getElementById('th-pdiss').textContent = 'Invalid';
-            return;
-        }
+        // Oscillating op-amp circuit
+        svg.text(30, 80, 'Vin', {fontSize: 10});
+        svg.wire([[50, 80], [100, 80]]);
 
-        const pout = pin * eff;
-        const pdiss = pin - pout;
-        const trise = pdiss * tja;
-        const tj = tamb + trise;
-        const margin = 125 - tj;
+        // Input resistor
+        svg.resistor(120, 80, {horizontal: true});
+        svg.text(120, 65, 'Rin', {fontSize: 9});
+        svg.wire([[140, 80], [180, 80]]);
 
-        document.getElementById('th-pdiss').textContent = pdiss.toFixed(2) + 'W';
-        document.getElementById('th-rise').textContent = trise.toFixed(1) + '°C';
-        document.getElementById('th-tj').textContent = tj.toFixed(1) + '°C';
-        document.getElementById('th-margin').textContent = margin.toFixed(1) + '°C';
-        document.getElementById('th-margin').style.color = margin > 20 ? 'var(--ok)' : 'var(--bad)';
+        // Op-amp
+        svg.opAmp(220, 90, {mirror: false});
+        svg.wire([[180, 80], [195, 80]]);
+        svg.wire([[180, 80], [180, 100], [195, 100]]);
+
+        // Feedback resistor
+        svg.wire([[245, 90], [280, 90], [280, 40], [180, 40], [180, 80]]);
+        svg.resistor(230, 40, {horizontal: true});
+        svg.text(230, 28, 'Rf', {fontSize: 9});
+
+        // Compensation cap (the fix!)
+        svg.wire([[280, 90], [280, 60]]);
+        svg.capacitor(320, 40, {horizontal: true});
+        svg.text(320, 28, 'Cc', {fontSize: 9, fill: '#4af'});
+        svg.wire([[280, 40], [300, 40]]);
+        svg.wire([[340, 40], [360, 40], [360, 90], [280, 90]]);
+
+        // Output
+        svg.wire([[245, 90], [320, 90]]);
+
+        // Capacitive load (cause of instability)
+        svg.wire([[320, 90], [320, 110]]);
+        svg.capacitor(320, 130, {horizontal: false});
+        svg.text(335, 130, 'CL', {fontSize: 9, fill: '#f44'});
+        svg.wire([[320, 150], [320, 170]]);
+        svg.ground(320, 170);
+
+        svg.wire([[320, 90], [380, 90]]);
+        svg.text(390, 95, 'Vout', {fontSize: 10});
+
+        // Annotations
+        svg.text(100, 180, 'Capacitive load causes phase shift → oscillation', {fontSize: 10, fill: '#f44'});
+        svg.text(100, 195, 'Fix: Add Cc for pole-splitting compensation', {fontSize: 10, fill: '#4af'});
+
+        container.innerHTML = svg.render();
     }
-    </script>
-</section>
 
-<!-- Component Selection -->
-<section class="card">
-    <h3>Real Component Selection</h3>
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('osc-spice', {
+            title: 'Op-Amp Stability Analysis',
+            netlist: `* Op-Amp with Capacitive Load
+* Demonstrates oscillation from capacitive loading
 
-    <h4>Power Path Controllers</h4>
-    <table>
-        <thead>
-            <tr>
-                <th>Part Number</th>
-                <th>Manufacturer</th>
-                <th>VIN Range</th>
-                <th>Features</th>
-                <th>Application</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr><td>BQ24780S</td><td>TI</td><td>3.5-24V</td><td>SMBus, NVDC</td><td>Laptop</td></tr>
-            <tr><td>ISL9238A</td><td>Renesas</td><td>3.2-23.4V</td><td>I²C, USB-C</td><td>Laptop/Tablet</td></tr>
-            <tr><td>MP2696A</td><td>MPS</td><td>4.5-22V</td><td>Buck-boost path</td><td>USB-C laptop</td></tr>
-            <tr><td>BQ25700A</td><td>TI</td><td>3.5-24V</td><td>Buck-boost, OTG</td><td>2-in-1 tablet</td></tr>
-        </tbody>
-    </table>
+* Input
+Vin in 0 AC 1 PULSE(0 0.1 1u 10n 10n 100u 200u)
 
-    <h4>Multi-Phase VRM Controllers</h4>
-    <table>
-        <thead>
-            <tr>
-                <th>Part Number</th>
-                <th>Phases</th>
-                <th>VR Standard</th>
-                <th>Features</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr><td>ISL69269</td><td>8+1</td><td>IMVP9</td><td>Intel mobile VR</td></tr>
-            <tr><td>RAA229132</td><td>12+2</td><td>IMVP9.1</td><td>High-end laptop</td></tr>
-            <tr><td>RT3628AE</td><td>4</td><td>AMD SVI2</td><td>AMD mobile</td></tr>
-            <tr><td>SN1701042</td><td>6+2</td><td>IMVP8</td><td>Ultrabook</td></tr>
-        </tbody>
-    </table>
+* Op-amp (with realistic bandwidth)
+.subckt opamp inp inn out
+Rin inp inn 1MEG
+Egain int 0 inp inn 100k
+* Single pole at 10Hz (GBW = 1MHz)
+Rpole int out 1
+Cpole out 0 15.9u
+.ends
 
-    <h4>Point-of-Load Buck Converters</h4>
-    <table>
-        <thead>
-            <tr>
-                <th>Part Number</th>
-                <th>VIN</th>
-                <th>IOUT</th>
-                <th>Package</th>
-                <th>Features</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr><td>TPS62865</td><td>2.4-5.5V</td><td>4A</td><td>WCSP 1.2×0.8mm</td><td>Tiny, high efficiency</td></tr>
-            <tr><td>MP8756GD</td><td>2.7-5.5V</td><td>6A</td><td>QFN 2.5×3mm</td><td>Integrated inductorless</td></tr>
-            <tr><td>LTC3310S</td><td>2.25-5.5V</td><td>10A</td><td>LQFN 3×3mm</td><td>Silent Switcher</td></tr>
-            <tr><td>RAA210450</td><td>4.5-18V</td><td>5A</td><td>WLCSP</td><td>Wide VIN, small</td></tr>
-            <tr><td>TPS548A28</td><td>4.5-18V</td><td>8A</td><td>QFN 3×4mm</td><td>D-CAP3, fast transient</td></tr>
-        </tbody>
-    </table>
-</section>
+Xamp 0 fb out opamp
 
-<!-- SPICE Netlist -->
-<section class="card">
-    <h3>SPICE Simulation - Multi-Rail Startup Sequence</h3>
+* Feedback network
+Rin in fb 10k
+Rf fb out 10k
 
-    <div class="spice-netlist">
-        <h4>Power Sequencing Simulation</h4>
-        <pre id="spice-sequence">* Multi-Rail Power Sequencing Simulation
-* Demonstrates PGOOD-based daisy chain startup
+* Capacitive load (problem!)
+Cload out 0 1n  ; Try 10n for more oscillation
 
-.param VIN=12
+* Compensation cap (uncomment to fix)
+* Cc fb out 10p
 
-* Input supply with soft-start
-VIN vin 0 PULSE(0 {VIN} 1m 1m 0 100m 200m)
-
-* 3.3V Rail - Stage 1 (first to start)
-* Simplified buck model with enable and PGOOD
-Xbuck1 vin 0 v3p3 en1 pg1 buck_model VOUT=3.3 TSS=2m TPGD=0.5m
-Ven1 en1 0 PWL(0 0 1m 0 1.1m 5)  ; Enable at startup
-
-* 1.8V Rail - Stage 2 (waits for 3.3V PGOOD)
-Xbuck2 vin 0 v1p8 pg1 pg2 buck_model VOUT=1.8 TSS=1.5m TPGD=0.5m
-
-* 1.2V Rail - Stage 3 (waits for 1.8V PGOOD)
-Xbuck3 vin 0 v1p2 pg2 pg3 buck_model VOUT=1.2 TSS=1m TPGD=0.5m
-
-* CPU Core - Stage 4 (waits for 1.2V PGOOD)
-Xvcore vin 0 vcore pg3 pg4 buck_model VOUT=1.0 TSS=2m TPGD=0.5m
-
-* RESET signal - released after VCORE stable
-Vrst_ctrl rst_ctrl 0 PWL(0 0 10m 0 10.1m 3.3)
-Srst rst_out 0 pg4 0 SW_RST
-.model SW_RST SW(VT=2.5 VH=0.1 RON=10 ROFF=1MEG)
-
-* Load models
-RL1 v3p3 0 10       ; 330mA load on 3.3V
-RL2 v1p8 0 3.6      ; 500mA load on 1.8V
-RL3 v1p2 0 1.2      ; 1A load on 1.2V
-RLcore vcore 0 0.05 ; 20A load on VCore
-
-* Buck converter subcircuit (behavioral model)
-.SUBCKT buck_model vin gnd vout en pgood VOUT=3.3 TSS=2m TPGD=0.5m
-* Enable threshold
-Bcmp enablecomp 0 V= V(en) > 2 ? 1 : 0
-* Soft-start ramp
-Css ss gnd 100n IC=0
-Gss gnd ss VALUE={IF(V(enablecomp)>0.5, 10u, 0)}
-* Output voltage (tracks soft-start, then regulates)
-Evout vout_int gnd VALUE={MIN(V(ss)*{VOUT}/0.8, {VOUT})}
-Rout vout_int vout 0.1
-Cout vout gnd 100u IC=0
-* PGOOD (goes high when output > 90% of target)
-Bpgood pgood gnd V= DELAY(V(vout)>0.9*{VOUT} ? 3.3 : 0, {TPGD})
-.ENDS
-
-.tran 100u 25m 0 10u
-.control
-run
-plot v(v3p3) v(v1p8) v(v1p2) v(vcore) title 'Power Rail Startup Sequence'
-plot v(pg1) v(pg2) v(pg3) v(pg4) v(rst_out) title 'PGOOD and RESET Signals'
-.endc
-.end</pre>
-        <button onclick="AD.copyToClipboard(document.getElementById('spice-sequence').textContent)">Copy Netlist</button>
-    </div>
-</section>
-
-<!-- Verification Checklist -->
-<section class="card">
-    <h3>Power System Design Checklist</h3>
-    <div class="checklist" data-lesson="m23l5">
-        <label><input type="checkbox" data-k="1"><span>Define all voltage rails and current requirements</span></label>
-        <label><input type="checkbox" data-k="2"><span>Select topology for each rail (buck, LDO, charge pump)</span></label>
-        <label><input type="checkbox" data-k="3"><span>Verify sequencing requirements from processor datasheet</span></label>
-        <label><input type="checkbox" data-k="4"><span>Calculate efficiency cascade for all paths</span></label>
-        <label><input type="checkbox" data-k="5"><span>Size soft-start for acceptable inrush current</span></label>
-        <label><input type="checkbox" data-k="6"><span>Verify thermal limits at max ambient temperature</span></label>
-        <label><input type="checkbox" data-k="7"><span>Check input capacitor ripple current rating</span></label>
-        <label><input type="checkbox" data-k="8"><span>Ensure PGOOD thresholds meet POR requirements</span></label>
-        <label><input type="checkbox" data-k="9"><span>Design proper power-down sequence</span></label>
-        <label><input type="checkbox" data-k="10"><span>Add protection: OVP, OCP, thermal shutdown</span></label>
-    </div>
-</section>
-
-<!-- Exercises -->
-<section class="card">
-    <h3>Progressive Exercises</h3>
-
-    <div class="exercise-group">
-        <h4>Level 1: Fundamentals</h4>
-
-        <div class="exercise">
-            <p><strong>Exercise 1:</strong> A laptop requires 3.3V, 1.8V, 1.2V, and 0.9V rails. If generated in cascade from 12V with each stage at 90% efficiency, what is the overall efficiency to the 0.9V rail?</p>
-            <input type="text" id="ex1-ans" placeholder="Enter efficiency (%)">
-            <button onclick="checkEx(1, 65.61, 2)">Check</button>
-            <span id="ex1-fb" class="feedback"></span>
-            <div class="hint">Multiply: 0.90 × 0.90 × 0.90 × 0.90 = ?</div>
-        </div>
-
-        <div class="exercise">
-            <p><strong>Exercise 2:</strong> A buck converter has CSS = 47nF and ISS = 5µA charging to VREF = 0.6V. What is the soft-start time?</p>
-            <input type="text" id="ex2-ans" placeholder="Enter time (ms)">
-            <button onclick="checkEx(2, 5.64, 5)">Check</button>
-            <span id="ex2-fb" class="feedback"></span>
-            <div class="hint">tSS = CSS × VREF / ISS</div>
-        </div>
-
-        <div class="exercise">
-            <p><strong>Exercise 3:</strong> A regulator dissipates 2W in a QFN package with θJA = 40°C/W. If ambient is 50°C, what is the junction temperature?</p>
-            <input type="text" id="ex3-ans" placeholder="Enter temperature (°C)">
-            <button onclick="checkEx(3, 130, 2)">Check</button>
-            <span id="ex3-fb" class="feedback"></span>
-            <div class="hint">TJ = TAMB + PDISS × θJA</div>
-        </div>
-    </div>
-
-    <div class="exercise-group">
-        <h4>Level 2: Application</h4>
-
-        <div class="exercise">
-            <p><strong>Exercise 4:</strong> A 6-phase VRM delivers 90A at 1.0V to a CPU. If each phase runs at D=8.3% with L=200nH and fsw=500kHz from 12V, what is the per-phase inductor current ripple?</p>
-            <input type="text" id="ex4-ans" placeholder="Enter ripple (A p-p)">
-            <button onclick="checkEx(4, 9.17, 5)">Check</button>
-            <span id="ex4-fb" class="feedback"></span>
-            <div class="hint">ΔI = (VIN - VOUT) × D / (L × fsw)</div>
-        </div>
-
-        <div class="exercise">
-            <p><strong>Exercise 5:</strong> You need a 5ms delay between PGOOD and enabling the next stage. If using RC delay on EN pin with R=100kΩ, what capacitor is needed (assuming VTH = 0.63×VCC)?</p>
-            <input type="text" id="ex5-ans" placeholder="Enter capacitance (nF)">
-            <button onclick="checkEx(5, 50, 10)">Check</button>
-            <span id="ex5-fb" class="feedback"></span>
-            <div class="hint">For RC, V(t) = VCC(1-e^(-t/RC)). At t=τ, V=0.63VCC. So τ=RC=5ms.</div>
-        </div>
-
-        <div class="exercise">
-            <p><strong>Exercise 6:</strong> A power path controller switches between 20V adapter and 14.8V (4S) battery. If system load is 45W and charger efficiency is 92%, what is input current from adapter when charging at 30W?</p>
-            <input type="text" id="ex6-ans" placeholder="Enter current (A)">
-            <button onclick="checkEx(6, 3.88, 3)">Check</button>
-            <span id="ex6-fb" class="feedback"></span>
-            <div class="hint">Total input power = (45 + 30/0.92). Then IIN = PIN/20V</div>
-        </div>
-    </div>
-
-    <div class="exercise-group">
-        <h4>Level 3: Design Analysis</h4>
-
-        <div class="exercise">
-            <p><strong>Exercise 7:</strong> An ultrabook has these loads: 3.3V@2A, 1.8V@1.5A, 1.2V@3A, VCore@25A@0.9V. Calculate total power consumption.</p>
-            <input type="text" id="ex7-ans" placeholder="Enter power (W)">
-            <button onclick="checkEx(7, 34.8, 2)">Check</button>
-            <span id="ex7-fb" class="feedback"></span>
-            <div class="hint">Sum P = V×I for each rail</div>
-        </div>
-
-        <div class="exercise">
-            <p><strong>Exercise 8:</strong> For the ultrabook above, if average efficiency from 19V input is 88%, what is heat dissipated by all regulators combined?</p>
-            <input type="text" id="ex8-ans" placeholder="Enter heat (W)">
-            <button onclick="checkEx(8, 4.75, 5)">Check</button>
-            <span id="ex8-fb" class="feedback"></span>
-            <div class="hint">PIN = PLOAD/η. Heat = PIN - PLOAD</div>
-        </div>
-
-        <div class="exercise">
-            <p><strong>Exercise 9:</strong> A VRM must transition from 0.9V to 1.2V in 10µs for a DVFS event. If output capacitance is 500µF, what average current must the VRM provide during the transition (ignoring load current)?</p>
-            <input type="text" id="ex9-ans" placeholder="Enter current (A)">
-            <button onclick="checkEx(9, 15, 5)">Check</button>
-            <span id="ex9-fb" class="feedback"></span>
-            <div class="hint">I = C × dV/dt = 500µF × (0.3V / 10µs)</div>
-        </div>
-    </div>
-
-    <div class="exercise-group">
-        <h4>Level 4: System Integration</h4>
-
-        <div class="exercise">
-            <p><strong>Exercise 10:</strong> Design question: You're designing a power system with 4 rails. The processor requires 3.3V before 1.8V (>2ms gap), 1.8V before 1.2V (>1ms gap), and VCore last (>5ms after 1.2V). If each stage has 3ms soft-start plus 1ms PGOOD delay, what is minimum time from power-on to VCore stable?</p>
-            <input type="text" id="ex10-ans" placeholder="Enter time (ms)">
-            <button onclick="checkEx(10, 16, 5)">Check</button>
-            <span id="ex10-fb" class="feedback"></span>
-            <div class="hint">3.3V: 4ms, then wait 2ms, 1.8V: 4ms, wait 1ms, 1.2V: 4ms, wait 5ms, VCore... wait, re-check the sequence!</div>
-        </div>
-    </div>
-
-    <script>
-    function checkEx(n, expected, tolerance) {
-        const ans = parseFloat(document.getElementById('ex' + n + '-ans').value);
-        const fb = document.getElementById('ex' + n + '-fb');
-
-        if (isNaN(ans)) {
-            fb.textContent = 'Please enter a number';
-            fb.className = 'feedback incorrect';
-            return;
-        }
-
-        const error = Math.abs((ans - expected) / expected * 100);
-
-        if (error <= tolerance) {
-            fb.textContent = '✓ Correct!';
-            fb.className = 'feedback correct';
-        } else {
-            fb.textContent = '✗ Try again. Expected: ' + expected.toFixed(2);
-            fb.className = 'feedback incorrect';
-        }
+.tran 1n 50u
+.ac dec 100 1 10MEG
+.probe V(out) V(fb)
+.end`
+        });
     }
-    </script>
-</section>
 
-<!-- References -->
-<section class="card">
-    <h3>Industry References</h3>
-    <ul>
-        <li><strong>Intel IMVP9 Specification</strong> - Mobile VRM requirements for Intel processors</li>
-        <li><strong>AMD SVI2/SVI3 Protocol</strong> - AMD processor power interface specification</li>
-        <li><strong>TI SLVA470</strong> - Power Stage Designer Tool documentation</li>
-        <li><strong>Renesas ISL9238 Datasheet</strong> - Complete battery charger/power path controller</li>
-        <li><strong>TI SNVA829</strong> - Understanding Buck Power Stages</li>
-        <li><strong>AN-2162</strong> - Simple Success with Conducted EMI from DC-DC Converters</li>
-        <li><strong>JEDEC JESD209</strong> - LPDDR power sequencing requirements</li>
-    </ul>
-</section>
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('osc-checklist', {
+            title: 'Oscillation Debug Checklist',
+            items: [
+                'Measure oscillation frequency precisely',
+                'Check if oscillation is load-dependent',
+                'Verify power supply decoupling',
+                'Test with minimum load capacitance',
+                'Check feedback component values',
+                'Look for long PCB traces in feedback',
+                'Verify compensation network installed',
+                'Check for ground loops',
+                'Test at temperature extremes'
+            ]
+        });
+    }
 
-</lesson-content>
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('osc-exercises', {
+            exercises: [
+                {
+                    question: 'An op-amp oscillates at 2MHz. Its GBW is 10MHz. What is the approximate closed-loop gain?',
+                    answer: '5',
+                    solution: 'At oscillation, loop gain = 1 near the unity-gain frequency. f_osc ≈ GBW/Acl. Acl = 10MHz/2MHz = 5'
+                },
+                {
+                    question: 'Adding 100pF compensation cap stops oscillation. If the oscillation was at 1MHz, what pole did you create?',
+                    answer: '~1.6MHz',
+                    solution: 'The comp cap creates a dominant pole. If Rf = 10k, f = 1/(2π × 10k × 100p) = 159kHz. But effectively shifts crossover to safe margin.'
+                },
+                {
+                    question: 'Motor-boating occurs at 5Hz. Power supply has 100µF cap with 0.5Ω ESR. Is this the cause?',
+                    answer: 'Likely yes',
+                    solution: 'At 5Hz: Zc = 1/(2π × 5 × 100µ) = 318Ω. ESR = 0.5Ω. The capacitor is effective. But if multiple stages share this supply, the ESR creates coupling. Check for proper star grounding.'
+                }
+            ]
+        });
+    }
+
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>
