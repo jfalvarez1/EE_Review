@@ -1,0 +1,782 @@
+<!-- Module 17, Lesson 18: Detecting, Testing, and Fixing Monotonicity Issues -->
+<div class="lesson-content" data-module="17" data-lesson="18">
+
+    <div class="card">
+        <h2>Testing and Fixing Monotonicity Issues</h2>
+        <p>Learn practical methods to detect non-monotonic behavior in data converters and techniques to mitigate these issues in real designs.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Histogram Test</div>
+                <div class="v">Standard ADC DNL method</div>
+            </div>
+            <div class="box">
+                <div class="k">Servo Loop Test</div>
+                <div class="v">For DACs in feedback</div>
+            </div>
+            <div class="box">
+                <div class="k">Averaging</div>
+                <div class="v">Can mask missing codes</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Non-monotonic behavior often goes undetected until a control system fails in the field. Proactive testing using histogram methods (for ADCs) or servo-loop tests (for DACs) during design validation can catch these issues early. When guaranteed monotonicity is required, select converters that specify "monotonic by design" or "DNL < ±1 LSB guaranteed."
+            <br><br>
+            <em>Sources: <a href="https://www.analog.com/media/en/training-seminars/design-handbooks/Data-Conversion-Handbook/Chapter5.pdf" target="_blank">Analog Devices Data Conversion Handbook</a>, <a href="https://www.ersaelectronics.com/blog/adc-inl-dnl-missing-codes" target="_blank">ERSA Electronics</a></em>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Histogram-Based DNL Testing</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="test-samples">Number of Samples</label>
+                <input type="range" id="test-samples" min="1000" max="100000" step="1000" value="10000">
+                <span id="test-samples-val" class="mono">10k</span>
+            </div>
+            <div class="c3">
+                <label for="test-dnl-error">Worst DNL Error (LSB)</label>
+                <input type="range" id="test-dnl-error" min="-1.5" max="0.5" step="0.1" value="-0.5">
+                <span id="test-dnl-error-val" class="mono">-0.5 LSB</span>
+            </div>
+            <div class="c3">
+                <label for="test-noise">Input Noise (LSB rms)</label>
+                <input type="range" id="test-noise" min="0" max="2" step="0.1" value="0.3">
+                <span id="test-noise-val" class="mono">0.3 LSB</span>
+            </div>
+            <div class="c3">
+                <label for="test-averaging">Averaging Factor</label>
+                <select id="test-averaging">
+                    <option value="1">None (1x)</option>
+                    <option value="4">4x averaging</option>
+                    <option value="16">16x averaging</option>
+                    <option value="64">64x averaging</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="test-canvas" width="980" height="360"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Measured Max DNL</div>
+                <div class="v mono" id="test-measured-dnl">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Detected Missing Codes</div>
+                <div class="v mono" id="test-missing">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Monotonicity</div>
+                <div class="v mono" id="test-monotonic">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Test Confidence</div>
+                <div class="v mono" id="test-confidence">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Testing Methodology</h3>
+        <canvas id="testing-methodology-canvas" width="900" height="420"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Mitigation Strategies</h3>
+
+        <table class="table">
+            <tr>
+                <th>Strategy</th>
+                <th>When to Use</th>
+                <th>Effectiveness</th>
+                <th>Tradeoffs</th>
+            </tr>
+            <tr>
+                <td><strong>Select Guaranteed Monotonic Part</strong></td>
+                <td>New designs, critical applications</td>
+                <td style="color: var(--ok);">Best</td>
+                <td>May cost more, fewer options</td>
+            </tr>
+            <tr>
+                <td><strong>Signal Averaging</strong></td>
+                <td>ADC with missing codes</td>
+                <td style="color: var(--ok);">Good</td>
+                <td>Reduces bandwidth, adds latency</td>
+            </tr>
+            <tr>
+                <td><strong>Dithering</strong></td>
+                <td>DAC in audio or measurement</td>
+                <td style="color: var(--warn);">Moderate</td>
+                <td>Adds noise floor, complexity</td>
+            </tr>
+            <tr>
+                <td><strong>Calibration</strong></td>
+                <td>SAR/Pipeline ADCs with cal input</td>
+                <td style="color: var(--ok);">Good</td>
+                <td>Requires cal procedure, storage</td>
+            </tr>
+            <tr>
+                <td><strong>Use Sigma-Delta</strong></td>
+                <td>When speed allows</td>
+                <td style="color: var(--ok);">Best</td>
+                <td>Lower speed, latency</td>
+            </tr>
+            <tr>
+                <td><strong>Software Compensation</strong></td>
+                <td>Known bad codes, static systems</td>
+                <td style="color: var(--warn);">Moderate</td>
+                <td>Requires characterization per unit</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Signal Averaging Can Hide Missing Codes:</strong><br><br>
+            Averaging multiple ADC samples is a powerful technique that can effectively "recover" missing codes:
+            <ul style="margin: 10px 0 0 20px;">
+                <li>If code N is missing but N-1 and N+1 exist, averaging will produce N</li>
+                <li>This works because noise causes samples to occasionally hit adjacent codes</li>
+                <li>4x averaging reduces missing code impact by ~6dB</li>
+                <li>16x averaging can fully eliminate most missing code effects</li>
+            </ul>
+            <br>
+            <strong>However:</strong> This doesn't fix the underlying issue and adds latency. For control loops, the delay from averaging may cause instability. Use averaging for measurement, not control.
+            <br><br>
+            <em>Sources: <a href="https://www.ersaelectronics.com/blog/adc-inl-dnl-missing-codes" target="_blank">ERSA Electronics</a></em>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Design Guidelines Summary</h3>
+        <canvas id="design-checklist-canvas" width="900" height="400"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('test-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Use global Tektronix-style colors from AD framework
+    const TEK_COLORS = AD.TEK_COLORS;
+
+    function update() {
+        const numSamples = parseInt(document.getElementById('test-samples').value);
+        const dnlError = AD.num('test-dnl-error');
+        const noise = AD.num('test-noise');
+        const averaging = parseInt(document.getElementById('test-averaging').value);
+
+        document.getElementById('test-samples-val').textContent = (numSamples / 1000) + 'k';
+        document.getElementById('test-dnl-error-val').textContent = dnlError.toFixed(1) + ' LSB';
+        document.getElementById('test-noise-val').textContent = noise.toFixed(1) + ' LSB';
+
+        // Simulate 6-bit ADC histogram test
+        const bits = 6;
+        const codes = Math.pow(2, bits);
+        const errorCode = 32; // Place error at midpoint
+
+        // Generate histogram
+        const histogram = new Array(codes).fill(0);
+        const samplesPerCode = numSamples / codes;
+
+        // Create true DNL array
+        const trueDnl = new Array(codes).fill(0);
+        trueDnl[errorCode] = dnlError;
+
+        // Simulate sampling with noise and averaging
+        for (let s = 0; s < numSamples; s++) {
+            // Uniform input over full range
+            let idealCode = (s * codes / numSamples) % codes;
+
+            // Add noise
+            let actualCode = idealCode + (Math.random() - 0.5) * 2 * noise * 3;
+
+            // Apply DNL effect - if we're near the error code
+            if (Math.abs(actualCode - errorCode) < 1) {
+                if (dnlError < -1 && Math.random() < 0.5) {
+                    // Skip over missing code
+                    actualCode += 1;
+                }
+            }
+
+            // Quantize
+            let code = Math.round(actualCode);
+            code = Math.max(0, Math.min(codes - 1, code));
+
+            histogram[code]++;
+        }
+
+        // Apply averaging effect (simulated - redistributes counts)
+        if (averaging > 1) {
+            const smoothed = [...histogram];
+            for (let i = 1; i < codes - 1; i++) {
+                let sum = 0;
+                let count = 0;
+                for (let j = -Math.floor(averaging/4); j <= Math.floor(averaging/4); j++) {
+                    if (i + j >= 0 && i + j < codes) {
+                        sum += histogram[i + j];
+                        count++;
+                    }
+                }
+                smoothed[i] = Math.round(sum / count);
+            }
+            for (let i = 0; i < codes; i++) {
+                histogram[i] = Math.round(histogram[i] * 0.5 + smoothed[i] * 0.5);
+            }
+        }
+
+        // Calculate measured DNL
+        const avgHits = numSamples / codes;
+        const measuredDnl = histogram.map(h => (h / avgHits) - 1);
+        const maxDnl = Math.max(...measuredDnl);
+        const minDnl = Math.min(...measuredDnl);
+        const missingCodes = measuredDnl.filter((d, i) => histogram[i] < avgHits * 0.1).length;
+
+        document.getElementById('test-measured-dnl').textContent =
+            minDnl.toFixed(2) + ' to +' + maxDnl.toFixed(2) + ' LSB';
+
+        const missingEl = document.getElementById('test-missing');
+        missingEl.textContent = missingCodes;
+        missingEl.style.color = missingCodes > 0 ? 'var(--bad)' : 'var(--ok)';
+
+        const monoEl = document.getElementById('test-monotonic');
+        const isMonotonic = minDnl > -1;
+        monoEl.textContent = isMonotonic ? 'PASS' : 'FAIL';
+        monoEl.style.color = isMonotonic ? 'var(--ok)' : 'var(--bad)';
+
+        // Confidence based on samples per code
+        const confidence = Math.min(99, 100 * (1 - 1 / Math.sqrt(samplesPerCode)));
+        document.getElementById('test-confidence').textContent = confidence.toFixed(0) + '%';
+
+        plotHistogram(histogram, measuredDnl, avgHits, errorCode);
+    }
+
+    function plotHistogram(histogram, dnl, avgHits, errorCode) {
+        const w = canvas.width;
+        const h = canvas.height;
+        const codes = histogram.length;
+
+        ctx.fillStyle = '#0b0f16';
+        ctx.fillRect(0, 0, w, h);
+
+        const margin = { left: 60, right: 20, top: 30, bottom: 50 };
+        const plotW = w - margin.left - margin.right;
+        const plotH = (h - margin.top - margin.bottom - 30) / 2;
+
+        // Top plot: Histogram
+        const histMax = Math.max(...histogram) * 1.2;
+
+        // Grid
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        for (let i = 0; i <= 4; i++) {
+            const y = margin.top + (i / 4) * plotH;
+            ctx.beginPath();
+            ctx.moveTo(margin.left, y);
+            ctx.lineTo(margin.left + plotW, y);
+            ctx.stroke();
+        }
+
+        // Average line
+        const avgY = margin.top + plotH * (1 - avgHits / histMax);
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(margin.left, avgY);
+        ctx.lineTo(margin.left + plotW, avgY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Histogram bars
+        const barWidth = plotW / codes;
+        for (let i = 0; i < codes; i++) {
+            const x = margin.left + i * barWidth;
+            const barHeight = (histogram[i] / histMax) * plotH;
+            const y = margin.top + plotH - barHeight;
+
+            if (i === errorCode) {
+                ctx.fillStyle = TEK_COLORS.ref;
+            } else if (histogram[i] < avgHits * 0.3) {
+                ctx.fillStyle = '#FFA500';
+            } else {
+                ctx.fillStyle = TEK_COLORS.ch2;
+            }
+
+            ctx.fillRect(x, y, barWidth - 1, barHeight);
+        }
+
+        // Labels
+        ctx.fillStyle = TEK_COLORS.ch2;
+        ctx.font = 'bold 11px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Histogram (hits per code)', margin.left + 5, margin.top + 15);
+
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('Average', margin.left + plotW - 50, avgY - 5);
+
+        // Bottom plot: DNL
+        const dnlTop = margin.top + plotH + 30;
+        const dnlMax = Math.max(2, Math.max(...dnl.map(Math.abs)) * 1.2);
+
+        // Grid
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        for (let i = 0; i <= 4; i++) {
+            const y = dnlTop + (i / 4) * plotH;
+            ctx.beginPath();
+            ctx.moveTo(margin.left, y);
+            ctx.lineTo(margin.left + plotW, y);
+            ctx.stroke();
+        }
+
+        // Zero line
+        const zeroY = dnlTop + plotH / 2;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.beginPath();
+        ctx.moveTo(margin.left, zeroY);
+        ctx.lineTo(margin.left + plotW, zeroY);
+        ctx.stroke();
+
+        // -1 LSB threshold
+        const threshY = zeroY + (1 / dnlMax) * (plotH / 2);
+        ctx.strokeStyle = 'rgba(251, 113, 133, 0.5)';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(margin.left, threshY);
+        ctx.lineTo(margin.left + plotW, threshY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(251, 113, 133, 0.7)';
+        ctx.font = '9px ui-sans-serif';
+        ctx.fillText('-1 LSB (monotonicity limit)', margin.left + 5, threshY - 3);
+
+        // DNL bars
+        for (let i = 0; i < codes; i++) {
+            const x = margin.left + i * barWidth;
+            const barHeight = (dnl[i] / dnlMax) * (plotH / 2);
+
+            if (dnl[i] < -1) {
+                ctx.fillStyle = TEK_COLORS.ref;
+            } else if (dnl[i] < -0.5) {
+                ctx.fillStyle = '#FFA500';
+            } else {
+                ctx.fillStyle = TEK_COLORS.ch1;
+            }
+
+            ctx.fillRect(x, zeroY, barWidth - 1, -barHeight);
+        }
+
+        ctx.fillStyle = TEK_COLORS.ch1;
+        ctx.font = 'bold 11px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Calculated DNL (LSB)', margin.left + 5, dnlTop + 15);
+
+        // X-axis
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '11px ui-sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Code Number (0 to ' + (codes - 1) + ')', margin.left + plotW / 2, h - 10);
+
+        // Y-axis labels
+        ctx.textAlign = 'right';
+        ctx.fillText(histMax.toFixed(0), margin.left - 5, margin.top + 10);
+        ctx.fillText('0', margin.left - 5, margin.top + plotH);
+
+        ctx.fillText('+' + dnlMax.toFixed(1), margin.left - 5, dnlTop + 10);
+        ctx.fillText('0', margin.left - 5, zeroY + 4);
+        ctx.fillText('-' + dnlMax.toFixed(1), margin.left - 5, dnlTop + plotH);
+    }
+
+    ['test-samples', 'test-dnl-error', 'test-noise', 'test-averaging'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+        document.getElementById(id).addEventListener('change', update);
+    });
+
+    update();
+
+    // Testing Methodology Canvas
+    (function() {
+        const canvas = document.getElementById('testing-methodology-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+        // Method 1: Histogram Test
+        ctx.fillStyle = 'rgba(255,255,0,0.1)';
+        roundRect(ctx, 15, 15, 430, 190, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('METHOD 1: HISTOGRAM TEST (ADCs)', 25, 35);
+
+        // Flow diagram
+        const m1Boxes = ['Ramp Gen', 'LPF', 'ADC', 'Counter'];
+        let bx = 35;
+        m1Boxes.forEach((box, i) => {
+            ctx.fillStyle = 'rgba(255,255,0,0.2)';
+            roundRect(ctx, bx, 50, 70, 28, 4);
+            ctx.fill();
+            ctx.strokeStyle = TEK.ch1;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(box, bx + 35, 68);
+            if (i < 3) {
+                ctx.strokeStyle = '#666';
+                ctx.beginPath();
+                ctx.moveTo(bx + 70, 64);
+                ctx.lineTo(bx + 85, 64);
+                ctx.stroke();
+            }
+            bx += 90;
+        });
+
+        ctx.fillStyle = '#aaa';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        const m1Steps = [
+            '1. Count hits in each code bin',
+            '2. Avg = Total_Samples / Num_Codes',
+            '3. DNL(n) = (Hits(n)/Avg) - 1',
+            '4. INL(n) = Σ DNL(0 to n)',
+            '5. Flag codes with DNL < -0.9 LSB'
+        ];
+        m1Steps.forEach((s, i) => {
+            ctx.fillText(s, 30, 100 + i * 15);
+        });
+
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('Confidence: 100 samples/code → ±10%', 30, 185);
+        ctx.fillText('           10000 samples/code → ±1%', 30, 198);
+
+        // Method 2: Servo Loop
+        ctx.fillStyle = 'rgba(0,255,255,0.1)';
+        roundRect(ctx, 455, 15, 430, 190, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText('METHOD 2: SERVO LOOP (DACs)', 465, 35);
+
+        // Servo loop diagram
+        const sboxes = [
+            { label: 'Vref', x: 480, y: 55 },
+            { label: 'Comp', x: 560, y: 65 },
+            { label: 'Ctrl', x: 650, y: 65 },
+            { label: 'DAC', x: 560, y: 115 }
+        ];
+        sboxes.forEach(b => {
+            ctx.fillStyle = 'rgba(0,255,255,0.2)';
+            roundRect(ctx, b.x, b.y, 55, 25, 4);
+            ctx.fill();
+            ctx.strokeStyle = TEK.ch2;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(b.label, b.x + 27, b.y + 17);
+        });
+
+        // Connections
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(535, 67);
+        ctx.lineTo(560, 77);
+        ctx.moveTo(615, 77);
+        ctx.lineTo(650, 77);
+        ctx.moveTo(705, 77);
+        ctx.lineTo(730, 77);
+        ctx.moveTo(677, 90);
+        ctx.lineTo(677, 127);
+        ctx.lineTo(615, 127);
+        ctx.moveTo(560, 127);
+        ctx.lineTo(540, 127);
+        ctx.lineTo(540, 85);
+        ctx.stroke();
+
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Record', 735, 82);
+
+        ctx.fillStyle = '#aaa';
+        ctx.font = '10px monospace';
+        const m2Steps = [
+            '1. Step Vref by 1 LSB',
+            '2. Let servo find matching code',
+            '3. Record code difference',
+            '4. Non-monotonic → oscillation!'
+        ];
+        m2Steps.forEach((s, i) => {
+            ctx.fillText(s, 470, 160 + i * 15);
+        });
+
+        // Method 3: Quick Bench Check
+        ctx.fillStyle = 'rgba(0,255,0,0.1)';
+        roundRect(ctx, 15, 220, w - 30, 85, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('METHOD 3: QUICK BENCH CHECKS', w/2, 242);
+
+        const checks = [
+            { title: 'DAC', text: 'Triangle wave → scope for backward steps' },
+            { title: 'ADC', text: 'Pure sine → FFT shows harmonics' },
+            { title: 'Loop', text: 'Monitor setpoint vs actual for chattering' }
+        ];
+        let cx = 60;
+        checks.forEach(c => {
+            ctx.fillStyle = TEK.ch4;
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(c.title, cx + 100, 265);
+            ctx.fillStyle = '#aaa';
+            ctx.font = '9px monospace';
+            ctx.fillText(c.text, cx + 100, 285);
+            cx += 280;
+        });
+
+        // Source
+        ctx.fillStyle = '#666';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Source: Analog Devices Data Conversion Handbook, ERSA Electronics', 20, h - 90);
+    })();
+
+    // Design Checklist Canvas
+    (function() {
+        const canvas = document.getElementById('design-checklist-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+        // Header
+        ctx.fillStyle = 'rgba(255,255,0,0.1)';
+        roundRect(ctx, 15, 15, w - 30, 40, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('MONOTONICITY DESIGN CHECKLIST', w/2, 42);
+
+        // Checklist items
+        const items = [
+            { num: '1', title: 'IDENTIFY REQUIREMENTS', sub: ['Control loop → CRITICAL', 'Measurement → Preferred', 'Audio/video → Improves quality'] },
+            { num: '2', title: 'SELECT ARCHITECTURE', sub: ['Guaranteed mono → Sigma-Delta', 'Speed + mono → SAR + cal', 'DAC control → Segmented/R-2R'] },
+            { num: '3', title: 'CHECK DATASHEET', sub: ['"Monotonic by design"', 'DNL ≤ ±1 LSB', 'Temp range specs'] },
+            { num: '4', title: 'VALIDATE IN SYSTEM', sub: ['Histogram test (ADCs)', 'Servo loop (DACs)', 'Temp + voltage limits'] },
+            { num: '5', title: 'IMPLEMENT MITIGATIONS', sub: ['Averaging (if BW allows)', 'Dithering for DACs', 'LUT correction'] }
+        ];
+
+        let itemY = 70;
+        items.forEach((item, idx) => {
+            const col = idx < 3 ? 0 : 1;
+            const row = idx < 3 ? idx : idx - 3;
+            const ix = col === 0 ? 30 : 470;
+            const iy = 70 + row * 100;
+
+            // Number circle
+            ctx.beginPath();
+            ctx.arc(ix + 15, iy + 15, 15, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,0,0.3)';
+            ctx.fill();
+            ctx.strokeStyle = TEK.ch1;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = TEK.ch1;
+            ctx.font = 'bold 14px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(item.num, ix + 15, iy + 20);
+
+            // Title
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(item.title, ix + 40, iy + 12);
+
+            // Sub-items
+            ctx.fillStyle = '#aaa';
+            ctx.font = '10px monospace';
+            item.sub.forEach((s, si) => {
+                ctx.fillText('• ' + s, ix + 45, iy + 30 + si * 14);
+            });
+        });
+
+        // Red flags section
+        ctx.fillStyle = 'rgba(251,113,133,0.1)';
+        roundRect(ctx, 470, 270, 415, 115, 8);
+        ctx.fill();
+        ctx.strokeStyle = '#fb7185';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#fb7185';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('RED FLAGS IN DATASHEETS', 677, 295);
+
+        const redFlags = [
+            '"Monotonicity not guaranteed" → Avoid for control',
+            'DNL spec > ±1 LSB → Non-monotonic possible',
+            'No DNL specification → Assume worst case',
+            '"Typical" values only → Worst case unknown'
+        ];
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        redFlags.forEach((f, i) => {
+            ctx.fillStyle = '#fb7185';
+            ctx.fillText('✗', 485, 318 + i * 18);
+            ctx.fillStyle = '#ccc';
+            ctx.fillText(f, 500, 318 + i * 18);
+        });
+
+        ctx.fillStyle = '#666';
+        ctx.font = '10px monospace';
+        ctx.fillText('Source: Analog Devices, Microchip, TI App Notes', 20, h - 10);
+    })();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Control Loop with Non-Monotonic DAC',
+        netlist: `* Demonstration: Control Loop Oscillation from Non-Monotonic DAC
+* Shows how non-monotonicity causes instability
+
+* Setpoint (target position)
+VSET setpoint 0 DC 2.5
+
+* Error amplifier (integrating controller)
+* Vout tries to make Verror = 0
+EAMP error 0 setpoint feedback 1
+RINT error integ 100k
+CINT integ 0 1u
+EBUF ctrl 0 integ 0 1
+
+* DAC model (8-bit, 0-5V output)
+* Non-monotonic at code 128 (midpoint)
+EDAC dac_out 0 TABLE {V(ctrl)} =
++ (0, 0) (0.625, 0.625) (1.25, 1.25) (1.875, 1.875)
++ (2.48, 2.52)    ; Non-monotonic: output decreases then increases
++ (2.52, 2.48)    ; This creates the glitch at midpoint
++ (2.55, 2.55) (3.125, 3.125) (3.75, 3.75) (4.375, 4.375) (5, 5)
+
+* Plant (simple motor model)
+RMOTOR dac_out position 100
+CMOTOR position 0 100u
+* Mechanical inertia modeled as RC
+
+* Feedback (position sensor)
+ESENS feedback 0 position 0 1
+
+.TRAN 1u 100m
+
+.PROBE V(setpoint) V(position) V(ctrl) V(dac_out)
+.END
+
+* Watch position oscillate around 2.5V setpoint
+* The control loop fights the non-monotonic DAC region
+* Change EDAC table to monotonic and oscillation stops`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm22l4',
+        items: [
+            'Use histogram method to test ADC DNL (need many samples)',
+            'Servo loop test reveals DAC monotonicity issues',
+            'Averaging can mask missing codes but adds latency',
+            'Check datasheet for "guaranteed monotonic" specification',
+            'Test at temperature extremes - DNL often degrades'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'EX22-4',
+        type: 'numeric',
+        question: 'You are testing an 8-bit ADC using the histogram method with 100,000 samples. What is the expected statistical uncertainty in the DNL measurement (as a percentage)?',
+        hint: 'Samples per code = 100,000/256. Uncertainty ≈ 1/√(samples per code)',
+        expected: 5.1,
+        tolerance: 0.2,
+        unit: '%',
+        solution: 'Samples per code = 100,000/256 = 390.6. Uncertainty = 1/√390.6 = 0.051 = 5.1%',
+        explanation: 'With 390 samples per code on average, the statistical uncertainty is about 5%. This means a measured DNL of -0.5 LSB could actually be anywhere from -0.47 to -0.53 LSB. For better confidence, use more samples. Sources: Analog Devices Data Conversion Handbook'
+    });
+})();
+</script>

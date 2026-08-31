@@ -1,0 +1,514 @@
+<!-- Module 12, Lesson 15: Comprehensive Design Exercise - Sensor Amplifier -->
+<div class="lesson-content" data-module="12" data-lesson="15">
+
+    <div class="card">
+        <h2>Design Exercise: Precision Sensor Amplifier</h2>
+        <p>Apply your knowledge to design a complete sensor interface: from transducer signal conditioning to ADC-ready output.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Input Signal</div>
+                <div class="v">0-50mV differential</div>
+            </div>
+            <div class="box">
+                <div class="k">Output Range</div>
+                <div class="v">0-4.096V</div>
+            </div>
+            <div class="box">
+                <div class="k">Resolution</div>
+                <div class="v">16-bit (62.5µV/LSB)</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Design Challenge:</strong> The gain required is 4096V/50mV = 82×. This is too high for a single stage. Split into instrumentation amp (G=10) followed by single-ended gain stage (G=8.2).
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Design Calculator</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="sens-vin">V<sub>IN</sub> max (mV)</label>
+                <input type="text" id="sens-vin" value="50">
+            </div>
+            <div class="c3">
+                <label for="sens-vout">V<sub>OUT</sub> max (V)</label>
+                <input type="text" id="sens-vout" value="4.096">
+            </div>
+            <div class="c3">
+                <label for="sens-g1">INA Gain (G1)</label>
+                <input type="range" id="sens-g1" min="1" max="100" step="1" value="10">
+                <span id="sens-g1-val" class="mono">10×</span>
+            </div>
+            <div class="c3">
+                <label for="sens-noise">Op-amp Noise (nV/√Hz)</label>
+                <input type="range" id="sens-noise" min="1" max="50" step="1" value="10">
+                <span id="sens-noise-val" class="mono">10nV/√Hz</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="sens-canvas" width="980" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Total Gain</div>
+                <div class="v mono" id="sens-gtot">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Second Stage Gain</div>
+                <div class="v mono" id="sens-g2">—</div>
+            </div>
+            <div class="box">
+                <div class="k">RTI Noise</div>
+                <div class="v mono" id="sens-rti">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Effective Bits</div>
+                <div class="v mono" id="sens-enob">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Design Block Diagram</h3>
+        <div class="diagram-container">
+            <canvas id="sensor-chain-canvas" width="900" height="450" style="width:100%;max-width:900px;background:#0d1117;border-radius:8px;"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Error Budget Analysis</h3>
+
+        <table class="table">
+            <tr>
+                <th>Error Source</th>
+                <th>Specification</th>
+                <th>RTI Contribution</th>
+            </tr>
+            <tr>
+                <td>INA offset voltage</td>
+                <td>50µV max</td>
+                <td>50µV</td>
+            </tr>
+            <tr>
+                <td>INA offset drift</td>
+                <td>0.5µV/°C × 50°C</td>
+                <td>25µV</td>
+            </tr>
+            <tr>
+                <td>INA gain error</td>
+                <td>0.02% of 50mV</td>
+                <td>10µV equiv</td>
+            </tr>
+            <tr>
+                <td>Op-amp noise (10nV/√Hz)</td>
+                <td>10nV × √1000Hz</td>
+                <td>316nV rms</td>
+            </tr>
+            <tr>
+                <td>Resistor noise (Johnson)</td>
+                <td>√(4kTR×BW)</td>
+                <td>~100nV rms</td>
+            </tr>
+            <tr style="font-weight: bold;">
+                <td>Total RSS</td>
+                <td></td>
+                <td>~56µV (dc+ac)</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>16-bit Requirement:</strong> For 5V range, 1 LSB = 76µV. Total error budget must be <76µV for 16-bit resolution. Our 56µV is marginal - consider lower noise INA or averaging.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('sens-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const vinMax = AD.parseValue(document.getElementById('sens-vin').value) * 1e-3 || 0.05;
+        const voutMax = AD.parseValue(document.getElementById('sens-vout').value) || 4.096;
+        const g1 = AD.num('sens-g1');
+        const noise = AD.num('sens-noise');
+
+        document.getElementById('sens-g1-val').textContent = g1 + '×';
+        document.getElementById('sens-noise-val').textContent = noise + 'nV/√Hz';
+
+        // Total gain needed
+        const gTotal = voutMax / vinMax;
+        document.getElementById('sens-gtot').textContent = gTotal.toFixed(1) + '×';
+
+        // Second stage gain
+        const g2 = gTotal / g1;
+        document.getElementById('sens-g2').textContent = g2.toFixed(1) + '×';
+
+        // RTI noise (1kHz bandwidth)
+        const bw = 1000;
+        const vn = noise * 1e-9 * Math.sqrt(bw) * 1e6; // µVrms
+        document.getElementById('sens-rti').textContent = vn.toFixed(2) + 'µV rms';
+
+        // Effective number of bits
+        const lsb = voutMax / 65536; // 16-bit
+        const noiseAtOutput = vn * gTotal; // µV at output
+        const enob = 16 - Math.log2(6.6 * noiseAtOutput / (lsb * 1e6));
+        document.getElementById('sens-enob').textContent = enob.toFixed(1) + ' bits';
+
+        plotSignalChain(vinMax, g1, g2, gTotal);
+    }
+
+    function plotSignalChain(vinMax, g1, g2, gTotal) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Clear and setup
+        ctx.fillStyle = '#0b0f16';
+        ctx.fillRect(0, 0, w, h);
+
+        const margin = 60;
+        const plotW = w - 2 * margin;
+        const plotH = h - 2 * margin;
+
+        // Draw signal flow diagram
+        const stages = [
+            { name: 'Sensor', v: vinMax, color: 'rgba(110, 231, 255, 0.7)' },
+            { name: 'INA (G1)', v: vinMax * g1, color: 'rgba(52, 211, 153, 0.7)' },
+            { name: '2nd Stage', v: vinMax * gTotal, color: 'rgba(251, 191, 36, 0.7)' },
+            { name: 'ADC Input', v: vinMax * gTotal, color: 'rgba(251, 113, 133, 0.7)' }
+        ];
+
+        const stageWidth = plotW / stages.length;
+        const vMax = vinMax * gTotal * 1.2;
+
+        // Draw voltage bars
+        stages.forEach((stage, i) => {
+            const x = margin + i * stageWidth + stageWidth * 0.2;
+            const barW = stageWidth * 0.6;
+            const barH = (stage.v / vMax) * plotH;
+            const y = margin + plotH - barH;
+
+            ctx.fillStyle = stage.color;
+            ctx.fillRect(x, y, barW, barH);
+
+            // Label
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.font = '11px ui-sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(stage.name, x + barW / 2, margin + plotH + 20);
+
+            // Value
+            ctx.fillText(AD.fmtUnit(stage.v, 'V'), x + barW / 2, y - 5);
+        });
+
+        // Draw gain arrows
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '10px ui-sans-serif';
+
+        const gains = [g1, g2, 1];
+        for (let i = 0; i < 3; i++) {
+            const x1 = margin + i * stageWidth + stageWidth * 0.8;
+            const x2 = margin + (i + 1) * stageWidth + stageWidth * 0.2;
+            const y = margin + plotH * 0.3;
+
+            ctx.beginPath();
+            ctx.moveTo(x1, y);
+            ctx.lineTo(x2, y);
+            ctx.stroke();
+
+            // Arrow head
+            ctx.beginPath();
+            ctx.moveTo(x2, y);
+            ctx.lineTo(x2 - 8, y - 4);
+            ctx.lineTo(x2 - 8, y + 4);
+            ctx.fill();
+
+            // Gain label
+            ctx.textAlign = 'center';
+            if (gains[i] !== 1) {
+                ctx.fillText('×' + gains[i].toFixed(1), (x1 + x2) / 2, y - 8);
+            }
+        }
+
+        // Y-axis
+        ctx.textAlign = 'right';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        for (let i = 0; i <= 5; i++) {
+            const v = (i / 5) * vMax;
+            const y = margin + plotH - (v / vMax) * plotH;
+            ctx.fillText(AD.fmtUnit(v, 'V'), margin - 5, y + 4);
+        }
+
+        ctx.textAlign = 'center';
+    }
+
+    ['sens-vin', 'sens-vout', 'sens-g1', 'sens-noise'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Complete Sensor Amplifier',
+        netlist: `* Precision Sensor Amplifier
+* INA (G=10) + 2nd stage (G=8.2)
+
+* Sensor signal (Wheatstone bridge)
+VSENS inp inn DC 0 AC 25m SIN(0 25m 10)
+* 50mV differential, 10Hz signal
+
+* EMI input filter
+RIN1 inp in1_f 1k
+CIN1 in1_f gnd 10n
+RIN2 inn in2_f 1k
+CIN2 in2_f gnd 10n
+
+* Instrumentation Amp model (INA128)
+.SUBCKT INA128 inp inn out ref rg1 rg2 vcc vee
+* Simplified model with gain set by RG
+EGAIN out ref VALUE={10*(V(inp)-V(inn))}
+.ENDS
+
+* INA stage (G = 1 + 50k/RG = 10 → RG = 5.55k)
+XINA in1_f in2_f ina_out gnd rg1 rg2 vcc vee INA128
+RG rg1 rg2 5.55k
+
+* Second stage non-inverting (G = 8.2)
+* Using OPA2277 (low noise)
+EGAIN2 out2 gnd ina_out gnd 8.2
+
+* Anti-alias filter (2nd order, 25Hz)
+* Sallen-Key topology
+RAF out2 filt1 64k
+RBF filt1 filt2 64k
+CAF filt1 gnd 100n
+CBF filt2 adc_in 100n
+EBUF adc_in gnd filt2 gnd 1
+
+* Power
+VCC vcc gnd DC 5
+VEE vee gnd DC -5
+
+.AC DEC 100 0.1 10k
+.TRAN 1m 500m
+
+.PROBE V(adc_in) V(ina_out) V(inp,inn)
+.END
+
+* Verify: 25mV in → 2.048V out (half scale)
+* Check frequency response and noise`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm21l5',
+        items: [
+            'Define gain stages to avoid single-stage limits',
+            'Include EMI filtering at input',
+            'Calculate complete error budget (RTI)',
+            'Verify noise meets resolution requirement',
+            'Add anti-alias filter before ADC'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'EX21-5',
+        type: 'numeric',
+        question: 'A sensor signal of 0-20mV must drive a 12-bit ADC with 4.096V reference. What total gain is needed?',
+        hint: 'Gain = ADC full-scale / sensor full-scale',
+        expected: 204.8,
+        tolerance: 0.05,
+        unit: '×',
+        solution: 'Gain = 4.096V / 0.020V = 204.8',
+        explanation: 'This 205× gain is high for single stage. Use INA with G=20 followed by G=10.24 stage, or INA with G=100 and G=2.05 second stage.'
+    });
+})();
+
+// Sensor Signal Chain Canvas
+(function() {
+    const canvas = document.getElementById('sensor-chain-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Precision Sensor Amplifier - Complete Design', 30, 30);
+
+    // Helper to draw rounded rect
+    function roundRect(x, y, w, h, r, color, fill) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, r);
+        if (fill) {
+            ctx.fillStyle = fill;
+            ctx.fill();
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    // Signal chain blocks
+    const blocks = [
+        { x: 30, y: 80, w: 90, h: 60, label: 'Sensor', sublabel: '0-50mV diff', color: TEK.ch3 },
+        { x: 150, y: 80, w: 90, h: 60, label: 'EMI Filter', sublabel: 'RC input', color: '#555' },
+        { x: 270, y: 80, w: 100, h: 60, label: 'INA', sublabel: 'G=10', color: TEK.ch2 },
+        { x: 400, y: 80, w: 100, h: 60, label: 'Gain Stage', sublabel: 'G=8.2', color: TEK.ch2 },
+        { x: 530, y: 80, w: 100, h: 60, label: 'Anti-Alias', sublabel: '2nd order LP', color: '#555' },
+        { x: 660, y: 80, w: 100, h: 60, label: 'ADC', sublabel: '16-bit', color: TEK.ch4 }
+    ];
+
+    blocks.forEach(b => {
+        roundRect(b.x, b.y, b.w, b.h, 6, b.color);
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(b.label, b.x + b.w/2, b.y + 25);
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '9px monospace';
+        ctx.fillText(b.sublabel, b.x + b.w/2, b.y + 45);
+    });
+
+    // Arrows between blocks
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < blocks.length - 1; i++) {
+        const x1 = blocks[i].x + blocks[i].w;
+        const x2 = blocks[i+1].x;
+        const y = blocks[i].y + blocks[i].h/2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2 - 5, y);
+        ctx.stroke();
+        // Arrow head
+        ctx.beginPath();
+        ctx.moveTo(x2 - 5, y);
+        ctx.lineTo(x2 - 12, y - 4);
+        ctx.lineTo(x2 - 12, y + 4);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // Signal levels annotation
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    const levels = ['±25mV', '±25mV', '±250mV', '±2.05V', '±2.05V', '0-4.1V'];
+    levels.forEach((lvl, i) => {
+        ctx.fillText(lvl, blocks[i].x + blocks[i].w/2, blocks[i].y + blocks[i].h + 20);
+    });
+
+    // Error budget table
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(30, 190, 420, 230);
+
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Error Budget (RTI):', 50, 220);
+
+    // Table headers
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('Source', 50, 245);
+    ctx.fillText('Spec', 180, 245);
+    ctx.fillText('RTI (µV)', 320, 245);
+
+    // Separator
+    ctx.strokeStyle = '#374151';
+    ctx.beginPath();
+    ctx.moveTo(50, 255);
+    ctx.lineTo(430, 255);
+    ctx.stroke();
+
+    // Error sources
+    const errors = [
+        ['INA Offset', '50µV max', '50'],
+        ['INA Offset Drift', '0.5µV/°C × 50°C', '25'],
+        ['INA Gain Error', '0.02% of 50mV', '10'],
+        ['Op-amp Noise', '10nV/√Hz × √1kHz', '0.3 rms'],
+        ['Resistor Noise', 'Johnson noise', '0.1 rms'],
+        ['ADC Quantization', '62.5µV/LSB ÷ 82', '0.8 rms'],
+        ['Total (RSS)', '', '~56']
+    ];
+
+    ctx.fillStyle = '#e6edf3';
+    errors.forEach((err, i) => {
+        const y = 275 + i * 20;
+        if (i === errors.length - 1) {
+            ctx.fillStyle = TEK.ch4;
+            ctx.font = 'bold 10px monospace';
+        }
+        ctx.fillText(err[0], 50, y);
+        ctx.fillText(err[1], 180, y);
+        ctx.fillText(err[2], 340, y);
+    });
+
+    // Key design decisions
+    ctx.strokeRect(480, 190, 380, 230);
+
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('Key Design Decisions:', 500, 220);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    const decisions = [
+        '1. Split gain into two stages',
+        '   - INA handles diff input, CMR',
+        '   - 2nd stage adds remaining gain',
+        '',
+        '2. EMI filter at input',
+        '   - Protects INA from RFI',
+        '   - Matched R for diff balance',
+        '',
+        '3. Anti-alias before ADC',
+        '   - fc = fs/10 = 10kHz',
+        '   - Prevents aliasing of HF noise',
+        '',
+        '4. Ratiometric reference',
+        '   - Same ref for excitation & ADC',
+        '   - Cancels reference drift'
+    ];
+    decisions.forEach((d, i) => {
+        ctx.fillText(d, 500, 245 + i * 15);
+    });
+
+    // Requirements summary
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('Requirements Check:', 50, 440);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    ctx.fillText('✓ 16-bit resolution needs <76µV RTI noise → 56µV achieved', 70, 460);
+    ctx.fillText('✓ 0.1% accuracy needs <50µV offset → calibration required', 70, 480);
+})();
+</script>

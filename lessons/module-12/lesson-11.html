@@ -1,0 +1,546 @@
+<!-- Module 12, Lesson 11: BJT Deep Dive - Operating Regions & Non-Ideal Effects -->
+<div class="lesson-content" data-module="12" data-lesson="11">
+
+    <div class="card">
+        <h2>BJT Operating Regions & Practical Effects</h2>
+        <p>Understanding BJT operating regions, saturation voltage, and non-ideal effects is essential for robust circuit design.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Cutoff</div>
+                <div class="v">V<sub>BE</sub> < 0.5V, IC ≈ 0</div>
+            </div>
+            <div class="box">
+                <div class="k">Active</div>
+                <div class="v">V<sub>BE</sub> ≈ 0.7V, IC = β×IB</div>
+            </div>
+            <div class="box">
+                <div class="k">Saturation</div>
+                <div class="v">V<sub>CE</sub> < 0.2V, IC limited</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> In saturation, V<sub>CE(sat)</sub> is NOT zero - it ranges from 50mV to 500mV depending on IC/IB ratio. This voltage drop causes power dissipation and affects switching circuits.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: BJT Operating Regions</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="bjt-vcc">V<sub>CC</sub> (V)</label>
+                <input type="text" id="bjt-vcc" value="12">
+            </div>
+            <div class="c3">
+                <label for="bjt-rc">R<sub>C</sub> (Ω)</label>
+                <input type="text" id="bjt-rc" value="1k">
+            </div>
+            <div class="c3">
+                <label for="bjt-rb">R<sub>B</sub> (Ω)</label>
+                <input type="text" id="bjt-rb" value="100k">
+            </div>
+            <div class="c3">
+                <label for="bjt-vin">V<sub>IN</sub> (V)</label>
+                <input type="range" id="bjt-vin" min="0" max="5" step="0.1" value="0">
+                <span id="bjt-vin-val" class="mono">0V</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="bjt-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">I<sub>B</sub></div>
+                <div class="v mono" id="bjt-ib">—</div>
+            </div>
+            <div class="box">
+                <div class="k">I<sub>C</sub></div>
+                <div class="v mono" id="bjt-ic">—</div>
+            </div>
+            <div class="box">
+                <div class="k">V<sub>CE</sub></div>
+                <div class="v mono" id="bjt-vce">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Region</div>
+                <div class="v mono" id="bjt-region">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Operating Regions Detail</h3>
+        <canvas id="bjt-regions-canvas" width="900" height="340"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Non-Ideal Effects</h3>
+
+        <table class="table">
+            <tr>
+                <th>Effect</th>
+                <th>Description</th>
+                <th>Practical Impact</th>
+            </tr>
+            <tr>
+                <td>Early Effect</td>
+                <td>IC increases with VCE due to base width modulation</td>
+                <td>Output impedance ≈ VA/IC (finite, not infinite)</td>
+            </tr>
+            <tr>
+                <td>β variation</td>
+                <td>β changes with IC, VCE, temperature</td>
+                <td>Use emitter degeneration for stability</td>
+            </tr>
+            <tr>
+                <td>Storage Time</td>
+                <td>Delay exiting saturation (excess base charge)</td>
+                <td>Limits switching speed, use Schottky clamp</td>
+            </tr>
+            <tr>
+                <td>Thermal Runaway</td>
+                <td>IC increases with temp → more heat → higher IC</td>
+                <td>Use RE for negative feedback</td>
+            </tr>
+            <tr>
+                <td>VBE Tempco</td>
+                <td>VBE drops ~2mV/°C</td>
+                <td>Bias point shifts with temperature</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Parasitic Capacitances:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li><strong>C<sub>BC</sub> (C<sub>µ</sub>)</strong>: Base-collector junction, 1-10pF. Causes Miller effect!</li>
+                <li><strong>C<sub>BE</sub> (C<sub>π</sub>)</strong>: Base-emitter, 10-100pF. Limits input bandwidth.</li>
+                <li><strong>C<sub>CS</sub></strong>: Collector-substrate (in ICs), adds to output capacitance.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('bjt-canvas');
+    const ctx = canvas.getContext('2d');
+
+    const beta = 100;
+    const VBE_ON = 0.7;
+    const VA = 100; // Early voltage
+
+    function update() {
+        const vcc = AD.parseValue(document.getElementById('bjt-vcc').value) || 12;
+        const rc = AD.parseValue(document.getElementById('bjt-rc').value) || 1000;
+        const rb = AD.parseValue(document.getElementById('bjt-rb').value) || 100000;
+        const vin = AD.num('bjt-vin');
+
+        document.getElementById('bjt-vin-val').textContent = vin.toFixed(1) + 'V';
+
+        // Calculate operating point
+        let ib = 0, ic = 0, vce = vcc;
+        let region = 'Cutoff';
+
+        if (vin > VBE_ON) {
+            // Active or saturated
+            ib = (vin - VBE_ON) / rb;
+            const ic_active = beta * ib;
+            const vce_active = vcc - ic_active * rc;
+
+            if (vce_active > 0.2) {
+                // Active region
+                ic = ic_active;
+                vce = vce_active;
+                region = 'Active';
+            } else {
+                // Saturation
+                vce = 0.1 + 0.1 * (beta * ib * rc / vcc); // VCE(sat) varies
+                vce = Math.max(0.1, Math.min(0.3, vce));
+                ic = (vcc - vce) / rc;
+                region = 'Saturation';
+            }
+        }
+
+        document.getElementById('bjt-ib').textContent = AD.fmtUnit(ib, 'A');
+        document.getElementById('bjt-ic').textContent = AD.fmtUnit(ic, 'A');
+        document.getElementById('bjt-vce').textContent = vce.toFixed(2) + 'V';
+
+        const regionEl = document.getElementById('bjt-region');
+        regionEl.textContent = region;
+        regionEl.style.color = region === 'Active' ? 'var(--ok)' :
+                               region === 'Saturation' ? 'var(--warn)' : 'var(--text)';
+
+        plotOutputCharacteristics(vcc, rc, ib, ic, vce, region);
+    }
+
+    function plotOutputCharacteristics(vcc, rc, ib, ic, vce, region) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const icMax = vcc / rc * 1.5;
+        const vceMax = vcc * 1.1;
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: vceMax,
+            yMin: 0,
+            yMax: icMax * 1000, // mA
+            xLabel: 'VCE',
+            yLabel: 'IC',
+            xUnit: 'V',
+            yUnit: 'mA',
+            xDivs: 10,
+            yDivs: 8
+        });
+
+        // Draw load line
+        const N = 100;
+        const loadX = [];
+        const loadY = [];
+
+        for (let i = 0; i < N; i++) {
+            const v = (i / N) * vcc;
+            loadX.push(v);
+            loadY.push((vcc - v) / rc * 1000); // mA
+        }
+
+        AD.plotData(ctx, axes, loadX, loadY, {
+            color: 'rgba(251, 191, 36, 0.8)',
+            lineWidth: 2
+        });
+
+        // Draw IC curves for different IB values
+        const ibValues = [10e-6, 20e-6, 50e-6, 100e-6, 200e-6];
+
+        for (const ibVal of ibValues) {
+            const curveX = [];
+            const curveY = [];
+
+            for (let i = 0; i < N; i++) {
+                const v = (i / N) * vceMax;
+                curveX.push(v);
+
+                let icVal;
+                if (v < 0.2) {
+                    // Saturation region - IC rises sharply
+                    icVal = beta * ibVal * (v / 0.2) * (1 + v / VA);
+                } else {
+                    // Active region with Early effect
+                    icVal = beta * ibVal * (1 + v / VA);
+                }
+
+                curveY.push(icVal * 1000); // mA
+            }
+
+            AD.plotData(ctx, axes, curveX, curveY, {
+                color: 'rgba(110, 231, 255, 0.4)',
+                lineWidth: 1
+            });
+        }
+
+        // Mark operating point
+        if (ic > 0) {
+            const opPt = axes.toCanvas(vce, ic * 1000);
+            ctx.save();
+            ctx.fillStyle = region === 'Saturation' ? 'rgba(251, 113, 133, 0.95)' :
+                            region === 'Active' ? 'rgba(52, 211, 153, 0.95)' :
+                            'rgba(255, 255, 255, 0.5)';
+            ctx.beginPath();
+            ctx.arc(opPt.x, opPt.y, 8, 0, 2 * Math.PI);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.font = '10px ui-sans-serif';
+            ctx.fillText('Q-point', opPt.x + 12, opPt.y - 8);
+            ctx.fillText(region, opPt.x + 12, opPt.y + 8);
+            ctx.restore();
+        }
+
+        // Mark saturation region
+        ctx.save();
+        ctx.fillStyle = 'rgba(251, 113, 133, 0.1)';
+        const satPt = axes.toCanvas(0.3, 0);
+        ctx.fillRect(axes.left, axes.top, satPt.x - axes.left, axes.height);
+
+        ctx.fillStyle = 'rgba(251, 113, 133, 0.6)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('SAT', axes.left + 5, axes.top + 15);
+        ctx.restore();
+
+        AD.drawLegend(ctx, w - 180, axes.top + 15, [
+            { color: 'rgba(251, 191, 36, 0.8)', label: 'Load line' },
+            { color: 'rgba(110, 231, 255, 0.5)', label: 'IC curves' }
+        ]);
+    }
+
+    ['bjt-vcc', 'bjt-rc', 'bjt-rb', 'bjt-vin'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    // ==================== BJT REGIONS DETAIL CANVAS ====================
+    function drawBJTRegionsDetail() {
+        const canvas = document.getElementById('bjt-regions-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00'};
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Helper for rounded rect
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        // Left section: IC-VCE characteristic curve
+        const graphX = 50, graphY = 30, graphW = 350, graphH = 200;
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('BJT Operating Regions (NPN)', graphX + graphW/2, graphY - 10);
+
+        // Axes
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(graphX, graphY);
+        ctx.lineTo(graphX, graphY + graphH);
+        ctx.lineTo(graphX + graphW, graphY + graphH);
+        ctx.stroke();
+
+        // Axis labels
+        ctx.fillStyle = '#888';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('VCE', graphX + graphW/2, graphY + graphH + 25);
+        ctx.save();
+        ctx.translate(graphX - 25, graphY + graphH/2);
+        ctx.rotate(-Math.PI/2);
+        ctx.fillText('IC', 0, 0);
+        ctx.restore();
+
+        // Saturation region (shaded)
+        ctx.fillStyle = 'rgba(255, 100, 100, 0.2)';
+        ctx.fillRect(graphX, graphY, 50, graphH);
+        ctx.fillStyle = '#f44';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('SAT', graphX + 25, graphY + 20);
+
+        // Saturation boundary line
+        ctx.strokeStyle = '#f44';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(graphX + 50, graphY);
+        ctx.lineTo(graphX + 50, graphY + graphH);
+        ctx.stroke();
+
+        // IC curves for different IB
+        const ibLevels = [0.02, 0.04, 0.06, 0.08, 0.1];
+        ctx.lineWidth = 1.5;
+        ibLevels.forEach((ib, i) => {
+            ctx.strokeStyle = `rgba(0, 255, 255, ${0.4 + i * 0.12})`;
+            ctx.beginPath();
+            for (let x = 0; x <= 100; x++) {
+                const vce = (x / 100) * graphW;
+                let ic;
+                if (vce < 50) {
+                    // Saturation region
+                    ic = (vce / 50) * (ib * 100 * graphH * 0.8);
+                } else {
+                    // Active region with slight slope (Early effect)
+                    ic = ib * 100 * graphH * 0.8 * (1 + (vce - 50) / graphW * 0.1);
+                }
+                ic = Math.min(ic, graphH - 10);
+                const px = graphX + vce;
+                const py = graphY + graphH - ic;
+                if (x === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+        });
+
+        // Region labels
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Active Region', graphX + 180, graphY + 40);
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('IC = β × IB', graphX + 180, graphY + 58);
+        ctx.fillText('VBE ≈ 0.65-0.75V', graphX + 180, graphY + 73);
+        ctx.fillText('VCE > VCE(sat)', graphX + 180, graphY + 88);
+
+        // Cutoff label
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('Cutoff: IC ≈ 0', graphX + 60, graphY + graphH - 15);
+        ctx.fillText('VBE < 0.5V', graphX + 60, graphY + graphH - 3);
+
+        // VCE(sat) marker
+        ctx.fillStyle = '#f44';
+        ctx.font = '8px monospace';
+        ctx.fillText('VCE(sat)', graphX + 25, graphY + graphH + 15);
+        ctx.fillText('0.1-0.3V', graphX + 25, graphY + graphH + 25);
+
+        // Right section: Saturation voltage table
+        const tableX = 450, tableY = 30;
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        roundRect(tableX, tableY, 420, 160, 8);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Saturation Voltage VCE(sat)', tableX + 210, tableY + 25);
+
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Depends on IC/IB ratio (forced β):', tableX + 20, tableY + 50);
+
+        // Table data
+        const satData = [
+            {type: 'Light saturation:', ratio: 'IC/IB = 20-50', vce: 'VCE ≈ 200mV', color: TEK.ch4},
+            {type: 'Hard saturation:', ratio: 'IC/IB = 5-10', vce: 'VCE ≈ 100mV', color: TEK.ch2},
+            {type: 'Deep saturation:', ratio: 'IC/IB < 5', vce: 'VCE ≈ 50mV', color: TEK.ch3}
+        ];
+
+        satData.forEach((row, i) => {
+            const ry = tableY + 75 + i * 22;
+            ctx.fillStyle = row.color;
+            ctx.fillText(row.type, tableX + 30, ry);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(row.ratio, tableX + 180, ry);
+            ctx.fillStyle = row.color;
+            ctx.fillText('→ ' + row.vce, tableX + 310, ry);
+        });
+
+        // Trade-off note
+        ctx.strokeStyle = '#fa4';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(tableX + 20, tableY + 140);
+        ctx.lineTo(tableX + 400, tableY + 140);
+        ctx.stroke();
+        ctx.fillStyle = '#fa4';
+        ctx.font = '9px monospace';
+        ctx.fillText('Trade-off: Lower VCE(sat) requires more IB (more base drive power)', tableX + 20, tableY + 155);
+
+        // Bottom section: Key equations
+        const eqY = 210;
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(20, eqY, W - 40, 115);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Key Equations:', 35, eqY + 20);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText('Active:     IC = β × IB                   (current gain)', 35, eqY + 45);
+        ctx.fillText('Saturation: IC = (VCC - VCE(sat)) / RC    (load limited)', 35, eqY + 65);
+        ctx.fillText('Cutoff:     IC ≈ ICEO (leakage only)', 35, eqY + 85);
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('Check: If IC(calculated) > IC(sat-limit), transistor is in SATURATION', 35, eqY + 105);
+    }
+
+    update();
+    drawBJTRegionsDetail();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'BJT Operating Regions Analysis',
+        netlist: `* BJT Operating Region Demonstration
+* Sweep VIN to show cutoff → active → saturation
+
+* Power supply
+VCC vcc 0 DC 12
+
+* Input voltage (sweep)
+VIN vin 0 DC 0
+
+* Base resistor
+RB vin base 100k
+
+* NPN transistor (2N2222 model)
+Q1 coll base 0 Q2N2222
+.MODEL Q2N2222 NPN (IS=14.34F BF=255 VAF=74.03 BR=6.1
++  CJE=22.01P CJC=7.306P TF=0.5N TR=10N)
+
+* Collector resistor
+RC vcc coll 1k
+
+* DC sweep analysis
+.DC VIN 0 5 0.1
+
+* Also show transient (switching behavior)
+* VIN vin 0 PULSE(0 5 0 10n 10n 1u 2u)
+* .TRAN 0.1n 5u
+
+.PROBE V(coll) I(RC) V(base)
+.END
+
+* Watch VCE(coll) vs VIN
+* See transition from cutoff to active to saturation`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm21l1',
+        items: [
+            'Identify cutoff: VBE < 0.5V, IC ≈ 0',
+            'Identify active: VBE ≈ 0.7V, VCE > 0.3V',
+            'Identify saturation: VCE < 0.3V',
+            'Understand VCE(sat) depends on overdrive',
+            'Account for β variation with IC and temp'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'EX21-1',
+        type: 'numeric',
+        question: 'A BJT with β=100 has IC=5mA in saturation with VCE(sat)=0.2V. If VCC=5V and RC=1kΩ, what is the actual IC?',
+        hint: 'In saturation, IC is limited by the external circuit: IC = (VCC - VCE(sat)) / RC',
+        expected: 4.8,
+        tolerance: 0.05,
+        unit: 'mA',
+        solution: 'IC = (5V - 0.2V) / 1kΩ = 4.8mA',
+        explanation: 'In saturation, the transistor acts like a closed switch with ~0.2V drop. The current is determined by the load, not by β×IB.'
+    });
+})();
+</script>

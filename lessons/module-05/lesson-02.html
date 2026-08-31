@@ -1,704 +1,1173 @@
-<!-- Module 5, Lesson 2: BJT High-Frequency AC Model (Miller Effect & fT) -->
+<!-- Module 5, Lesson 2: The BJT Small-Signal Model -->
 <div class="lesson-content" data-module="5" data-lesson="2">
 
     <div class="card">
-        <h2>BJT High-Frequency AC Model</h2>
-        <p>At high frequencies, parasitic capacitances dominate BJT behavior. The <strong>hybrid-pi model</strong> with capacitors explains bandwidth limits, the Miller effect, and the transition frequency (fT).</p>
+        <h2>The BJT Small-Signal Model</h2>
+        <p>The previous lesson established the one structural fact about a bipolar transistor:
+        collector current is <em>exponential</em> in base-emitter voltage. That is a deeply
+        non-linear relationship, and nothing you learned about linear circuits &mdash;
+        superposition, impedance, transfer functions, Bode plots &mdash; applies to it.</p>
 
-        <div class="kv">
-            <div class="box">
-                <div class="k">Transition Frequency</div>
-                <div class="v mono">f<sub>T</sub> = g<sub>m</sub> / (2&pi;(C<sub>&pi;</sub> + C<sub>&mu;</sub>))</div>
+        <p>This lesson buys all of that back. The trick is to stop asking what the current
+        <em>is</em> and start asking how much it <em>changes</em>. Around a fixed operating point,
+        for small enough wiggles, an exponential is indistinguishable from a straight line, and a
+        straight line is a resistor and a controlled source &mdash; things you already know how to
+        solve.</p>
+
+        <div class="notice">
+            <strong>This is the most-used tool in analog design.</strong> Every gain expression in
+            the rest of this course &mdash; common-emitter, follower, cascode, differential pair,
+            mirror, op-amp input stage &mdash; is derived from the three parameters below. Learn
+            them properly here and the remaining thirty lessons are bookkeeping.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>1. Why you are allowed to linearize at all</h3>
+
+        <p>&ldquo;Small signal&rdquo; is usually asserted rather than justified. It deserves better,
+        because the justification tells you exactly how small is small &mdash; and the honest
+        answer is far smaller than most people assume.</p>
+
+        <p>Split every voltage and current into a DC operating point plus a signal. Capitals for
+        the bias, lower case for the signal:</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ i_C = I_S\,e^{(\vbe + v_{be})/\vt} = \underbrace{I_S e^{\vbe/\vt}}_{\ic}\;e^{v_{be}/\vt} = \ic\,e^{v_{be}/\vt} \]
+                <span class="drv-why">The bias factors out cleanly. This is a property of the
+                exponential specifically, and it is why bipolar hand analysis is so tractable.</span>
             </div>
-            <div class="box">
-                <div class="k">Miller Capacitance</div>
-                <div class="v mono">C<sub>Miller</sub> = C<sub>&mu;</sub>(1 + |A<sub>v</sub>|)</div>
+            <div class="drv-step">
+                \[ \text{write } x = \frac{v_{be}}{\vt}, \qquad \frac{i_C}{\ic} = e^{x} = 1 + x + \frac{x^2}{2} + \frac{x^3}{6} + \cdots \]
             </div>
-            <div class="box">
-                <div class="k">Input Pole</div>
-                <div class="v mono">f<sub>p</sub> = 1/(2&pi;R<sub>s</sub>C<sub>in</sub>)</div>
+            <div class="drv-step">
+                \[ \frac{i_c}{\ic} = \underbrace{x}_{\text{linear}} + \underbrace{\frac{x^2}{2} + \frac{x^3}{6} + \cdots}_{\text{the error you are throwing away}} \]
+                <span class="drv-why">Subtracting the 1 removes the bias term, leaving the signal
+                current \(i_c\). Keeping only \(x\) <em>is</em> the small-signal model.</span>
             </div>
-            <div class="box">
-                <div class="k">Gain-Bandwidth</div>
-                <div class="v mono">GBW &asymp; constant for CE</div>
+        </div>
+
+        <p>So the question &ldquo;is the model valid?&rdquo; is really &ldquo;is \(x^2/2\) small
+        compared to \(x\)?&rdquo;, which is just asking whether \(x/2\) is small. But that is a
+        vague statement about a static error. Do it properly, for a sinusoid, and you get a number
+        you can design with.</p>
+
+        <h4>The distortion this actually costs you</h4>
+
+        <p>Drive the base with \(v_{be} = \hat{V}\cos\omega t\), so \(x = a\cos\omega t\) with
+        \(a = \hat{V}/\vt\). The squared term folds down to DC and up to the second harmonic:</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ x^2 = a^2\cos^2\omega t = \frac{a^2}{2}\bigl(1 + \cos 2\omega t\bigr) \]
+                <span class="drv-why">The identity \(\cos^2\theta = (1+\cos2\theta)/2\). Half of
+                the distortion energy is a DC shift &mdash; the bias point <em>moves</em> when you
+                apply a signal, which is a real effect called bias shift.</span>
             </div>
+            <div class="drv-step">
+                \[ \text{fundamental amplitude} = a, \qquad \text{second harmonic} = \frac{1}{2}\cdot\frac{a^2}{2} = \frac{a^2}{4} \]
+            </div>
+            <div class="drv-step">
+                \[ \mathrm{HD}_2 = \frac{a^2/4}{a} = \frac{a}{4} = \frac{\hat{V}}{4\vt} \]
+            </div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">The small-signal criterion, quantified</span>
+            <p>Second-harmonic distortion is one quarter of the drive expressed in thermal
+            voltages. Inverting it:</p>
+            <p>\[ \hat{V} = 4\,\vt\,\mathrm{HD}_2 \]</p>
+            <p>\(1\%\) distortion needs \(\hat{V} = 4(25.85)(0.01) = \mathbf{1.03\,mV}\) peak.
+            \(10\%\) distortion &mdash; which is audibly awful &mdash; allows \(10.3\,\mathrm{mV}\).
+            <strong>That is where the famous &ldquo;keep \(v_{be}\) under 10 mV&rdquo; rule comes
+            from, and it is worth knowing that the rule buys you only ten percent.</strong> A
+            single bipolar stage is a badly distorting amplifier; negative feedback, emitter
+            degeneration and differential symmetry exist to fix it.</p>
         </div>
 
         <div class="notice">
-            <strong>Art of Electronics Insight:</strong> The Miller effect multiplies the small base-collector capacitance C&mu; (typically 2-8pF) by the voltage gain, often making it the dominant bandwidth limitation.
+            <strong>The exact answer, for the sceptical.</strong> The expansion above keeps two
+            terms. The exact harmonic content of \(e^{a\cos\omega t}\) is a classical result in
+            modified Bessel functions:
+            \[ e^{a\cos\omega t} = I_0(a) + 2\sum_{n=1}^{\infty} I_n(a)\cos n\omega t \]
+            so \(\mathrm{HD}_2 = I_2(a)/I_1(a)\) exactly. For small \(a\),
+            \(I_1 \to a/2\) and \(I_2 \to a^2/8\), giving \(a/4\) &mdash; the same answer. The
+            interactive below computes the harmonics numerically from the actual waveform, so you
+            can watch \(a/4\) start to under-predict as the drive grows.
         </div>
     </div>
 
     <div class="card">
-        <h3>Hybrid-Pi Model with Capacitances</h3>
-        <div class="schematic-container" id="sch-hybrid-pi"></div>
+        <h3>2. Transconductance: \(\gm = \ic/\vt\)</h3>
 
-        <table class="table" style="margin-top: 20px;">
-            <tr>
-                <th>Element</th>
-                <th>Name</th>
-                <th>Formula</th>
-                <th>Typical (2N3904 @ 1mA)</th>
-            </tr>
-            <tr>
-                <td class="mono">r<sub>&pi;</sub></td>
-                <td>Base spreading resistance</td>
-                <td class="mono">&beta;/g<sub>m</sub></td>
-                <td>3.9k&Omega;</td>
-            </tr>
-            <tr>
-                <td class="mono">g<sub>m</sub></td>
-                <td>Transconductance</td>
-                <td class="mono">I<sub>C</sub>/V<sub>T</sub></td>
-                <td>38.5mS</td>
-            </tr>
-            <tr>
-                <td class="mono">C<sub>&pi;</sub></td>
-                <td>Base-emitter capacitance</td>
-                <td class="mono">g<sub>m</sub>/(2&pi;f<sub>T</sub>) - C<sub>&mu;</sub></td>
-                <td>~35pF</td>
-            </tr>
-            <tr>
-                <td class="mono">C<sub>&mu;</sub></td>
-                <td>Base-collector capacitance</td>
-                <td class="mono">(from datasheet)</td>
-                <td>4pF</td>
-            </tr>
-            <tr>
-                <td class="mono">r<sub>o</sub></td>
-                <td>Output resistance (Early)</td>
-                <td class="mono">V<sub>A</sub>/I<sub>C</sub></td>
-                <td>100k&Omega;</td>
-            </tr>
-        </table>
+        <p>Transconductance is the slope of the transfer curve at the operating point &mdash;
+        signal current out per signal voltage in. Differentiate the exponential:</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \gm \equiv \left.\frac{\partial i_C}{\partial \vbe}\right|_{Q} = \frac{\partial}{\partial \vbe}\Bigl(I_S e^{\vbe/\vt}\Bigr) = \frac{I_S e^{\vbe/\vt}}{\vt} \]
+            </div>
+            <div class="drv-step">
+                \[ \gm = \frac{\ic}{\vt} \]
+                <span class="drv-why">The derivative of an exponential is the exponential itself,
+                so \(I_S\) and \(\vbe\) both vanish into \(\ic\).</span>
+            </div>
+            <div class="drv-step">
+                \[ \gm = \frac{1\,\mathrm{mA}}{25.85\,\mathrm{mV}} = 38.7\,\mathrm{mA/V} \quad\text{at 1 mA} \]
+            </div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">Why this is remarkable</span>
+            <p>There is <strong>no device parameter in it</strong>. Not area, not doping, not
+            \(\beta\), not \(I_S\). A power transistor the size of your thumbnail and a signal
+            transistor in a SOT-23, biased at the same current, have the same \(\gm\). Nothing
+            else in electronics is that clean, and it is the reason bipolar circuits are so
+            predictable: \(\gm\) is set entirely by a current <em>you</em> choose.</p>
+            <p>A useful shortcut worth memorising: \(\gm \approx 40\,\ic\) with \(\ic\) in mA and
+            \(\gm\) in mA/V. Equivalently \(1/\gm = 26\,\Omega\) at 1 mA, and it scales inversely
+            with current &mdash; \(260\,\Omega\) at \(100\,\mathrm{\mu A}\),
+            \(2.6\,\Omega\) at 10 mA.</p>
+        </div>
+
+        <div class="notice">
+            <strong>Compare the MOSFET, which is the whole reason this matters.</strong> A FET
+            gives \(\gm = 2\id/\vov\), so it needs \(\vov/(2\vt)\) times more current for the same
+            \(\gm\). At a typical \(\vov = 200\,\mathrm{mV}\) that is a factor of about
+            <strong>4</strong>. If a design is starved for current and needs gain &mdash; a
+            battery instrument, a low-noise front end &mdash; that factor is why the input stage
+            is bipolar.
+        </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: fT and Miller Effect Calculator</h3>
+        <h3>3. Input resistance: \(r_\pi = \beta/\gm\)</h3>
+
+        <p>\(\gm\) tells you the collector current. But the base is where you drive, and the base
+        draws current too. That current is what makes the transistor's input look resistive.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ i_b = \frac{i_c}{\beta} = \frac{\gm v_{be}}{\beta} \]
+                <span class="drv-why">\(\beta\) here is the <em>small-signal</em> current gain,
+                strictly \(\beta_{ac} = \partial i_C/\partial i_B\), often written \(h_{fe}\). It
+                is close to but not identical with the DC \(h_{FE}\).</span>
+            </div>
+            <div class="drv-step">
+                \[ r_\pi \equiv \frac{v_{be}}{i_b} = \frac{\beta}{\gm} = \frac{\beta\vt}{\ic} \]
+            </div>
+            <div class="drv-step">
+                \[ r_\pi = \frac{150 \times 25.85\,\mathrm{mV}}{1\,\mathrm{mA}} = 3.88\,\mathrm{k}\Omega \quad (\beta = 150,\ \ic = 1\,\mathrm{mA}) \]
+            </div>
+        </div>
+
+        <p>Two consequences worth internalising. First, \(r_\pi\) falls as you raise the current,
+        so <em>a bipolar stage's input impedance degrades exactly when you bias it for more
+        gain</em> &mdash; a trade-off with no MOSFET equivalent, since a FET gate draws nothing.
+        Second, \(r_\pi\) inherits all of \(\beta\)'s ugliness: \(\beta\) varies two-to-one across
+        a production lot and drifts with temperature and current, so \(r_\pi\) is the least
+        trustworthy of the three parameters. Good bipolar design avoids depending on it.</p>
+    </div>
+
+    <div class="card">
+        <h3>4. Output resistance and the Early effect</h3>
+
+        <p>An ideal current source does not care about the voltage across it. A real transistor
+        does, slightly: raising \(\vce\) widens the collector depletion region, which narrows the
+        neutral base, which shortens the distance carriers must diffuse and so raises \(\ic\).
+        That is <strong>base-width modulation</strong>, discovered by James Early.</p>
+
+        <p>Empirically the output curves, extrapolated backwards, all converge on a single point
+        on the voltage axis at \(-\va\). That gives the corrected current law:</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ i_C = I_S e^{\vbe/\vt}\left(1 + \frac{\vce}{\va}\right) \]
+                <span class="drv-why">\(\va\) is the Early voltage: typically 30&ndash;150 V for a
+                small-signal npn, and much lower &mdash; 10&ndash;30 V &mdash; for the lateral pnp
+                devices inside an IC.</span>
+            </div>
+            <div class="drv-step">
+                \[ \frac{1}{\ro} = \left.\frac{\partial i_C}{\partial \vce}\right|_{Q} = \frac{I_S e^{\vbe/\vt}}{\va} \approx \frac{\ic}{\va} \]
+            </div>
+            <div class="drv-step">
+                \[ \ro = \frac{\va}{\ic} = \frac{80\,\mathrm{V}}{1\,\mathrm{mA}} = 80\,\mathrm{k}\Omega \]
+            </div>
+        </div>
+
+        <h4>Intrinsic gain: the ceiling on one transistor</h4>
+
+        <p>Now multiply the two. This is the largest voltage gain a single transistor can produce,
+        achieved when the collector load is a perfect current source and nothing loads the
+        output:</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ A_{v,\max} = \gm \ro = \frac{\ic}{\vt}\cdot\frac{\va}{\ic} \]
+            </div>
+            <div class="drv-step">
+                \[ \boxed{\;\gm\ro = \frac{\va}{\vt}\;} \]
+                <span class="drv-why">The bias current cancels completely.</span>
+            </div>
+            <div class="drv-step">
+                \[ \gm\ro = \frac{80}{0.02585} \approx 3100 \quad (\approx 70\,\mathrm{dB}) \]
+            </div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">What this tells you</span>
+            <p>You cannot buy gain with current. Doubling \(\ic\) doubles \(\gm\) and halves
+            \(\ro\), and the product does not move. The <em>only</em> ways to raise a single
+            stage's intrinsic gain are to pick a process with a higher \(\va\), or to stop using
+            one transistor &mdash; which is precisely what the cascode does.</p>
+            <p>For a MOSFET the same product is \(\gm\ro = 2\va/\vov\), typically 20&ndash;200.
+            The bipolar's \(\va/\vt\) beats it by an order of magnitude or more, and that single
+            ratio is why precision op-amp input stages stayed bipolar for forty years.</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>5. The complete hybrid-&pi; model</h3>
+
+        <p>Put the three together. At low frequency &mdash; below the point where the junction
+        capacitances matter, which is the next lesson's subject &mdash; the entire transistor
+        collapses to this:</p>
+
+        <svg viewBox="0 0 560 250" class="circuit-diagram" style="max-width:560px;margin:1rem auto;display:block">
+            <!-- terminals -->
+            <text x="40" y="60" fill="rgba(200,200,200,0.9)" font-size="12">B</text>
+            <text x="500" y="60" fill="rgba(200,200,200,0.9)" font-size="12">C</text>
+            <text x="270" y="235" fill="rgba(200,200,200,0.9)" font-size="12">E</text>
+
+            <!-- base node -->
+            <line x1="50" y1="75" x2="150" y2="75" stroke="rgba(110,231,255,0.8)" stroke-width="2"/>
+            <circle cx="50" cy="75" r="4" fill="rgba(110,231,255,0.9)"/>
+
+            <!-- r-pi as a resistor box, vertical -->
+            <line x1="150" y1="75" x2="150" y2="100" stroke="rgba(110,231,255,0.8)" stroke-width="2"/>
+            <rect x="137" y="100" width="26" height="55" fill="none" stroke="rgba(110,231,255,0.9)" stroke-width="2"/>
+            <line x1="150" y1="155" x2="150" y2="185" stroke="rgba(110,231,255,0.8)" stroke-width="2"/>
+            <text x="175" y="126" fill="rgba(110,231,255,0.9)" font-size="12">r&#960;</text>
+            <text x="175" y="142" fill="rgba(200,200,200,0.6)" font-size="10">= &#946;/gm</text>
+
+            <!-- v_be label across r-pi -->
+            <line x1="112" y1="103" x2="112" y2="152" stroke="rgba(251,191,36,0.7)" stroke-width="1"/>
+            <line x1="108" y1="107" x2="112" y2="101" stroke="rgba(251,191,36,0.7)" stroke-width="1"/>
+            <line x1="116" y1="107" x2="112" y2="101" stroke="rgba(251,191,36,0.7)" stroke-width="1"/>
+            <text x="78" y="131" fill="rgba(251,191,36,0.9)" font-size="12">v</text>
+            <text x="88" y="135" fill="rgba(251,191,36,0.9)" font-size="9">be</text>
+
+            <!-- controlled current source: diamond -->
+            <polygon points="340,127 365,100 390,127 365,154" fill="none" stroke="rgba(52,211,153,0.9)" stroke-width="2"/>
+            <!-- arrow inside, pointing down = current from C into E -->
+            <line x1="365" y1="112" x2="365" y2="142" stroke="rgba(52,211,153,0.9)" stroke-width="2"/>
+            <polygon points="365,146 361,136 369,136" fill="rgba(52,211,153,0.9)"/>
+            <text x="400" y="124" fill="rgba(52,211,153,0.9)" font-size="12">gm&#183;v</text>
+            <text x="437" y="128" fill="rgba(52,211,153,0.9)" font-size="9">be</text>
+
+            <line x1="365" y1="75" x2="365" y2="100" stroke="rgba(110,231,255,0.8)" stroke-width="2"/>
+            <line x1="365" y1="154" x2="365" y2="185" stroke="rgba(110,231,255,0.8)" stroke-width="2"/>
+
+            <!-- ro, vertical resistor -->
+            <line x1="460" y1="75" x2="460" y2="100" stroke="rgba(110,231,255,0.8)" stroke-width="2"/>
+            <rect x="447" y="100" width="26" height="55" fill="none" stroke="rgba(110,231,255,0.9)" stroke-width="2"/>
+            <line x1="460" y1="155" x2="460" y2="185" stroke="rgba(110,231,255,0.8)" stroke-width="2"/>
+            <text x="482" y="126" fill="rgba(110,231,255,0.9)" font-size="12">ro</text>
+            <text x="482" y="142" fill="rgba(200,200,200,0.6)" font-size="10">= VA/IC</text>
+
+            <!-- collector rail -->
+            <line x1="365" y1="75" x2="490" y2="75" stroke="rgba(110,231,255,0.8)" stroke-width="2"/>
+            <circle cx="490" cy="75" r="4" fill="rgba(110,231,255,0.9)"/>
+            <circle cx="365" cy="75" r="3.5" fill="rgba(110,231,255,0.9)"/>
+            <circle cx="460" cy="75" r="3.5" fill="rgba(110,231,255,0.9)"/>
+
+            <!-- emitter rail -->
+            <line x1="150" y1="185" x2="460" y2="185" stroke="rgba(110,231,255,0.8)" stroke-width="2"/>
+            <line x1="275" y1="185" x2="275" y2="212" stroke="rgba(110,231,255,0.8)" stroke-width="2"/>
+            <circle cx="275" cy="212" r="4" fill="rgba(110,231,255,0.9)"/>
+            <circle cx="365" cy="185" r="3.5" fill="rgba(110,231,255,0.9)"/>
+            <circle cx="275" cy="185" r="3.5" fill="rgba(110,231,255,0.9)"/>
+            <circle cx="460" cy="185" r="3.5" fill="rgba(110,231,255,0.9)"/>
+        </svg>
+
+        <p class="fig-note">The low-frequency hybrid-&pi;. Three elements, and note what is
+        <em>absent</em>: no \(\beta\) appears explicitly (it hides inside \(r_\pi\)), no
+        exponential, no DC. The controlled source is the transistor; \(r_\pi\) is the price of
+        driving it; \(\ro\) is its imperfection.</p>
+
+        <div class="notice">
+            <strong>The control voltage is \(v_{be}\), not \(v_b\).</strong> The single most
+            common error in bipolar analysis is applying \(\gm v_{in}\) when the emitter is not at
+            signal ground. If there is anything in the emitter &mdash; a resistor, another
+            transistor, a bond wire &mdash; then \(v_{be} \neq v_{in}\) and you must solve for it.
+            The T-model below exists mostly to make that case easy.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>6. The T-model, and when to prefer it</h3>
+
+        <p>The hybrid-&pi; puts the input resistance in the base. The T-model puts it in the
+        emitter instead. They are algebraically identical &mdash; the same two-port, rearranged
+        &mdash; but each makes a different circuit trivial.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ i_e = i_b + i_c = \frac{i_c}{\beta} + i_c = i_c\frac{\beta+1}{\beta} = \frac{i_c}{\alpha} \]
+                <span class="drv-why">with \(\alpha = \beta/(\beta+1)\), which is 0.993 at
+                \(\beta = 150\) &mdash; near enough to 1 that it is usually dropped, but not when
+                you are looking at the base current itself.</span>
+            </div>
+            <div class="drv-step">
+                \[ r_e \equiv \frac{v_{be}}{i_e} = \frac{v_{be}}{\gm v_{be}/\alpha} = \frac{\alpha}{\gm} \approx \frac{1}{\gm} = \frac{\vt}{I_E} \]
+            </div>
+            <div class="drv-step">
+                \[ r_e = 25.9\,\Omega \text{ at } 1\,\mathrm{mA}, \qquad r_\pi = (\beta+1)\,r_e \]
+                <span class="drv-why">The same resistance seen from the base is
+                \((\beta+1)\) times larger &mdash; the impedance-reflection rule that makes the
+                emitter follower work.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Use</th><th>Model</th><th>Because</th></tr></thead>
+                <tbody>
+                    <tr><td>Common-emitter, emitter grounded</td><td>hybrid-&pi;</td>
+                        <td>\(v_{be} = v_{in}\) directly; \(A_v = -\gm R_C\) in one line.</td></tr>
+                    <tr><td>Emitter degeneration</td><td>T-model</td>
+                        <td>\(r_e\) and \(R_E\) are simply in series: \(A_v = -R_C/(r_e + R_E)\).</td></tr>
+                    <tr><td>Emitter follower</td><td>T-model</td>
+                        <td>The output divider \(R_E/(R_E + r_e)\) is visible without algebra.</td></tr>
+                    <tr><td>Common-base / cascode</td><td>T-model</td>
+                        <td>Input resistance is \(r_e\) by inspection.</td></tr>
+                    <tr><td>Anything with \(\ro\) mattering</td><td>hybrid-&pi;</td>
+                        <td>\(\ro\) sits naturally across the controlled source.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: how the three parameters move with bias</h3>
+        <p>Log axes on both, over four decades of collector current. Watch which lines are
+        parallel and which one is flat &mdash; the flat one is the intrinsic gain, and its
+        flatness is the result derived above.</p>
 
         <div class="controls">
-            <div class="c3">
-                <label for="hf-ic">I<sub>C</sub> (mA)</label>
-                <input type="range" id="hf-ic" min="0.1" max="50" step="0.1" value="1">
-                <span id="hf-ic-val" class="mono">1.0 mA</span>
+            <div class="c4">
+                <label for="ss-beta">Current gain \(\beta\)</label>
+                <input type="range" id="ss-beta" min="30" max="400" step="5" value="150">
+                <span class="range-value" id="ss-beta-val">150</span>
             </div>
-            <div class="c3">
-                <label for="hf-ft">f<sub>T</sub> (MHz)</label>
-                <input type="range" id="hf-ft" min="50" max="1000" step="10" value="300">
-                <span id="hf-ft-val" class="mono">300 MHz</span>
+            <div class="c4">
+                <label for="ss-va">Early voltage \(\va\)</label>
+                <input type="range" id="ss-va" min="10" max="200" step="5" value="80">
+                <span class="range-value" id="ss-va-val">80 V</span>
             </div>
-            <div class="c3">
-                <label for="hf-cmu">C<sub>&mu;</sub> (pF)</label>
-                <input type="range" id="hf-cmu" min="0.5" max="15" step="0.5" value="4">
-                <span id="hf-cmu-val" class="mono">4.0 pF</span>
+            <div class="c4">
+                <label for="ss-t">Temperature</label>
+                <input type="range" id="ss-t" min="-40" max="125" step="1" value="27">
+                <span class="range-value" id="ss-t-val">27 &deg;C</span>
             </div>
-            <div class="c3">
-                <label for="hf-beta">Beta (&beta;)</label>
-                <input type="range" id="hf-beta" min="50" max="400" step="10" value="150">
-                <span id="hf-beta-val" class="mono">150</span>
-            </div>
-            <div class="c3">
-                <label for="hf-rc">R<sub>C</sub> (k&Omega;)</label>
-                <input type="range" id="hf-rc" min="0.5" max="20" step="0.5" value="4.7">
-                <span id="hf-rc-val" class="mono">4.7 k&Omega;</span>
-            </div>
-            <div class="c3">
-                <label for="hf-rs">R<sub>S</sub> (k&Omega;)</label>
-                <input type="range" id="hf-rs" min="0.1" max="10" step="0.1" value="1">
-                <span id="hf-rs-val" class="mono">1.0 k&Omega;</span>
+            <div class="c4">
+                <label for="ss-ic">Operating current \(\ic\)</label>
+                <input type="range" id="ss-ic" min="-6" max="-2" step="0.05" value="-3">
+                <span class="range-value" id="ss-ic-val">1.00 mA</span>
             </div>
         </div>
 
-        <div class="kv">
-            <div class="box">
-                <div class="k">g<sub>m</sub></div>
-                <div class="v mono" id="hf-gm">-</div>
-            </div>
-            <div class="box">
-                <div class="k">r<sub>&pi;</sub></div>
-                <div class="v mono" id="hf-rpi">-</div>
-            </div>
-            <div class="box">
-                <div class="k">C<sub>&pi;</sub></div>
-                <div class="v mono" id="hf-cpi">-</div>
-            </div>
-            <div class="box">
-                <div class="k">|A<sub>v</sub>|</div>
-                <div class="v mono" id="hf-av">-</div>
-            </div>
+        <div class="canvas-wrap">
+            <canvas id="ss-canvas" width="660" height="320"></canvas>
         </div>
 
         <div class="kv">
-            <div class="box">
-                <div class="k">C<sub>Miller</sub></div>
-                <div class="v mono" id="hf-cmiller">-</div>
+            <div class="box"><div class="k">\(\vt\)</div><div class="v mono" id="ss-vt">&mdash;</div></div>
+            <div class="box"><div class="k">\(\gm = \ic/\vt\)</div><div class="v mono" id="ss-gm">&mdash;</div></div>
+            <div class="box"><div class="k">\(1/\gm\)</div><div class="v mono" id="ss-rem">&mdash;</div></div>
+            <div class="box"><div class="k">\(r_\pi = \beta/\gm\)</div><div class="v mono" id="ss-rpi">&mdash;</div></div>
+            <div class="box"><div class="k">\(\ro = \va/\ic\)</div><div class="v mono" id="ss-ro">&mdash;</div></div>
+            <div class="box"><div class="k">\(\gm\ro = \va/\vt\)</div><div class="v mono" id="ss-av">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="ss-note"></p>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: watch the linearization break</h3>
+        <p>The left panel is the exponential and its tangent at the operating point &mdash; the
+        tangent <em>is</em> \(\gm\). The right panel drives a sinusoid through both and shows what
+        comes out. Push the amplitude past a few millivolts and the positive half grows while the
+        negative half is squashed: that asymmetry is the second harmonic, and the readout compares
+        the measured value against the \(\hat{V}/4\vt\) prediction.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="ds-amp">Drive amplitude \(\hat{V}\)</label>
+                <input type="range" id="ds-amp" min="0.2" max="40" step="0.2" value="5">
+                <span class="range-value" id="ds-amp-val">5.0 mV</span>
             </div>
-            <div class="box">
-                <div class="k">C<sub>in,total</sub></div>
-                <div class="v mono" id="hf-cin">-</div>
+            <div class="c4">
+                <label for="ds-ic">Bias current \(\ic\)</label>
+                <input type="range" id="ds-ic" min="-5" max="-2" step="0.05" value="-3">
+                <span class="range-value" id="ds-ic-val">1.00 mA</span>
             </div>
-            <div class="box">
-                <div class="k">f<sub>-3dB</sub> (input)</div>
-                <div class="v mono" id="hf-f3db">-</div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="ds-canvas" width="660" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">\(a = \hat{V}/\vt\)</div><div class="v mono" id="ds-a">&mdash;</div></div>
+            <div class="box"><div class="k">\(\mathrm{HD}_2\) measured</div><div class="v mono" id="ds-hd2">&mdash;</div></div>
+            <div class="box"><div class="k">\(\mathrm{HD}_2\) predicted \(=a/4\)</div><div class="v mono" id="ds-hd2p">&mdash;</div></div>
+            <div class="box"><div class="k">\(\mathrm{HD}_3\) measured</div><div class="v mono" id="ds-hd3">&mdash;</div></div>
+            <div class="box"><div class="k">Bias shift in \(\ic\)</div><div class="v mono" id="ds-shift">&mdash;</div></div>
+            <div class="box"><div class="k">Gain error vs \(\gm\)</div><div class="v mono" id="ds-gerr">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="ds-note"></p>
+    </div>
+
+    <div class="card">
+        <h3>7. Worked example: a common-emitter stage, end to end</h3>
+
+        <p>Everything above, applied once. The DC design is taken as given &mdash; biasing is the
+        next lesson &mdash; so start from the operating point.</p>
+
+        <div id="ce-diagram"></div>
+        <p class="fig-note">The stage analysed below. \(C_{in}\) and \(C_E\) are open at DC and
+        short at signal frequencies, which is the entire reason the DC and AC analyses can be done
+        separately.</p>
+
+        <p><strong>Given:</strong> \(\ic = 1\,\mathrm{mA}\), \(\beta = 150\),
+        \(\va = 80\,\mathrm{V}\), \(R_C = 5\,\mathrm{k}\Omega\), \(V_{CC} = 10\,\mathrm{V}\),
+        emitter bypassed to ground at signal frequencies.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \gm = \frac{1\,\mathrm{mA}}{25.85\,\mathrm{mV}} = 38.68\,\mathrm{mA/V} \]
             </div>
-            <div class="box">
-                <div class="k">GBW</div>
-                <div class="v mono" id="hf-gbw">-</div>
+            <div class="drv-step">
+                \[ r_\pi = \frac{\beta}{\gm} = \frac{150}{0.03868} = 3878\,\Omega \]
             </div>
+            <div class="drv-step">
+                \[ \ro = \frac{\va}{\ic} = \frac{80}{10^{-3}} = 80\,\mathrm{k}\Omega \]
+            </div>
+            <div class="drv-step">
+                \[ A_v = -\gm\,(R_C \parallel \ro) = -0.03868 \times \frac{5000 \times 80000}{85000} = -0.03868 \times 4706 \]
+            </div>
+            <div class="drv-step">
+                \[ A_v = -182.0 \qquad (\text{45.2 dB}) \]
+                <span class="drv-why">Ignoring \(\ro\) entirely would have given \(-193.4\).
+                The Early effect costs 5.9% here &mdash; small, but it is the whole story when
+                \(R_C\) is replaced by a current source, as in an op-amp.</span>
+            </div>
+            <div class="drv-step">
+                \[ \zin = r_\pi = 3.88\,\mathrm{k}\Omega, \qquad \zout = R_C \parallel \ro = 4.71\,\mathrm{k}\Omega \]
+            </div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">The shortcut worth memorising</span>
+            <p>Substitute \(\gm = \ic/\vt\) into \(A_v = -\gm R_C\):</p>
+            <p>\[ A_v = -\frac{\ic R_C}{\vt} = -\frac{V_{R_C}}{\vt} \]</p>
+            <p><strong>The gain of a common-emitter stage is the DC voltage dropped across its
+            collector resistor, divided by 26 mV.</strong> Here that is
+            \(5\,\mathrm{V}/25.85\,\mathrm{mV} = 193\), matching the long calculation before
+            \(\ro\) is included &mdash; and it needed no device parameters at all.</p>
+            <p>This also settles a question people ask repeatedly: why is single-stage gain
+            limited to a couple of hundred? Because \(V_{R_C}\) cannot exceed the supply, and
+            a 10 V supply divided by 26 mV is 387 &mdash; before you leave any room for signal
+            swing. Higher gain needs a current-source load, where the relevant voltage becomes
+            \(\va\) rather than \(V_{CC}\), and you land back on \(\gm\ro\).</p>
         </div>
     </div>
 
     <div class="card">
-        <h3>Frequency Response Visualization</h3>
-        <div class="canvas-wrap">
-            <canvas id="hf-bode" width="980" height="320"></canvas>
-        </div>
-    </div>
+        <h3>8. Where the model stops being true</h3>
 
-    <div class="card">
-        <h3>fT vs IC Characteristic</h3>
-        <p>Transition frequency varies with collector current. It peaks at a "sweet spot" and drops at both low and high currents.</p>
+        <p>Every model needs its validity stated, or it will be used somewhere it does not apply.
+        The hybrid-&pi; above has four boundaries.</p>
 
-        <div class="canvas-wrap">
-            <canvas id="ft-vs-ic" width="980" height="280"></canvas>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Boundary</th><th>Condition</th><th>What happens past it</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td>Signal amplitude</td>
+                        <td>\(\hat{V} \ll 4\vt\,\)</td>
+                        <td>Second-harmonic distortion at \(\hat{V}/4\vt\), plus a DC bias shift.
+                            \(1\,\mathrm{mV}\) for 1%.</td>
+                    </tr>
+                    <tr>
+                        <td>Frequency</td>
+                        <td>below \(f_\beta = f_T/\beta\)</td>
+                        <td>\(C_\pi\) and \(C_\mu\) shunt the model; gain rolls off and the Miller
+                            effect multiplies \(C_\mu\). That is the next lesson.</td>
+                    </tr>
+                    <tr>
+                        <td>Operating region</td>
+                        <td>\(\vce > V_{CE(sat)} \approx 0.2\,\mathrm{V}\)</td>
+                        <td>In saturation the collector junction forwards; \(\gm\) collapses and
+                            the model is meaningless. Check the DC first, always.</td>
+                    </tr>
+                    <tr>
+                        <td>Current density</td>
+                        <td>below the high-injection knee</td>
+                        <td>At high \(\ic\), injected carrier density approaches base doping and
+                            \(\gm \to \ic/2\vt\) &mdash; half what you expected. Also \(\beta\)
+                            falls off at both current extremes.</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
         <div class="notice">
-            <strong>Key Observation:</strong> fT peaks around 10-50mA for most small-signal BJTs, then drops due to high-level injection effects. At low currents, C&pi; dominates; at high currents, transit time limits increase.
+            <strong>One element deliberately omitted.</strong> A real transistor has a base
+            spreading resistance \(r_b\) &mdash; tens to a few hundred ohms of physical silicon
+            between the base contact and the active region &mdash; in series with \(r_\pi\). It
+            does nothing to low-frequency gain, so it is left out here, but it dominates two
+            things you will meet later: the noise of a bipolar amplifier, where it is a plain
+            thermal-noise resistor, and the high-frequency input pole, where it works against
+            \(C_\pi\).
         </div>
     </div>
 
     <div class="card">
-        <h3>Design Strategies for High Bandwidth</h3>
+        <h3>Problem Set &mdash; the small-signal model</h3>
+        <p class="lesson-description">Every one is answerable from this lesson. Levels 1&ndash;2
+        exercise the parameters; 3&ndash;4 ask you to invert a result or carry it into territory
+        it was not derived for.</p>
 
-        <table class="table">
-            <tr>
-                <th>Strategy</th>
-                <th>Effect on Bandwidth</th>
-                <th>Trade-off</th>
-            </tr>
-            <tr>
-                <td>Reduce R<sub>S</sub> (source impedance)</td>
-                <td>Higher f<sub>-3dB</sub> &prop; 1/R<sub>S</sub></td>
-                <td>May need buffer stage</td>
-            </tr>
-            <tr>
-                <td>Use cascode configuration</td>
-                <td>Eliminates Miller effect</td>
-                <td>Reduced output swing</td>
-            </tr>
-            <tr>
-                <td>Emitter degeneration</td>
-                <td>Reduces effective gain, reduces Miller</td>
-                <td>Lower overall gain</td>
-            </tr>
-            <tr>
-                <td>Choose high-f<sub>T</sub> transistor</td>
-                <td>Lower C<sub>&pi;</sub> and C<sub>&mu;</sub></td>
-                <td>Often more expensive</td>
-            </tr>
-            <tr>
-                <td>Operate at optimal I<sub>C</sub></td>
-                <td>Maximize f<sub>T</sub></td>
-                <td>Power consumption trade-off</td>
-            </tr>
-        </table>
+        <div class="pset">
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">1</span><span class="problem-level level-1">Level 1</span></div>
+                <p>A transistor is biased at \(\ic = 250\,\mathrm{\mu A}\) with \(\beta = 200\)
+                and \(\va = 60\,\mathrm{V}\). Find \(\gm\), \(r_\pi\), \(\ro\) and \(\gm\ro\).
+                Take \(\vt = 25.9\,\mathrm{mV}\).</p>
+                <details><summary>Solution</summary>
+                <p>\[ \gm = \frac{250\times10^{-6}}{0.0259} = 9.65\,\mathrm{mA/V} \]</p>
+                <p>\[ r_\pi = \frac{200}{9.65\times10^{-3}} = 20.7\,\mathrm{k}\Omega \]</p>
+                <p>\[ \ro = \frac{60}{250\times10^{-6}} = 240\,\mathrm{k}\Omega \]</p>
+                <p>\[ \gm\ro = \frac{60}{0.0259} = 2317 \]</p>
+                <p>Note the last one needed neither the current nor \(\beta\).</p>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">2</span><span class="problem-level level-1">Level 1</span></div>
+                <p>A common-emitter stage runs from 12 V and drops 6 V across \(R_C\). Estimate
+                its gain in one step, then state the assumption you just made.</p>
+                <details><summary>Solution</summary>
+                <p>\[ |A_v| \approx \frac{V_{R_C}}{\vt} = \frac{6}{0.0259} = 232 \]</p>
+                <p>The assumption is that \(\ro \gg R_C\) and that the emitter is at signal ground
+                &mdash; fully bypassed, with no degeneration left in the signal path. If the
+                emitter had even \(26\,\Omega\) unbypassed at 1 mA, the gain would halve.</p>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">3</span><span class="problem-level level-2">Level 2</span></div>
+                <p>You need \(\gm = 20\,\mathrm{mA/V}\). What collector current does a BJT need?
+                What drain current does a MOSFET operating at \(\vov = 250\,\mathrm{mV}\) need?
+                What is the ratio, and where does it come from?</p>
+                <details><summary>Solution</summary>
+                <p>BJT: \(\ic = \gm\vt = 0.020 \times 0.0259 = 518\,\mathrm{\mu A}\).</p>
+                <p>FET: \(\id = \gm\vov/2 = 0.020 \times 0.250/2 = 2.5\,\mathrm{mA}\).</p>
+                <p>Ratio \(= 2.5\,\mathrm{mA}/518\,\mathrm{\mu A} = 4.83\), which is exactly
+                \(\vov/(2\vt) = 0.250/0.0518 = 4.83\). The currents cancel out of the ratio, so it
+                depends only on how hard the FET's gate is overdriven &mdash; never on how much
+                \(\gm\) you asked for.</p>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">4</span><span class="problem-level level-2">Level 2</span></div>
+                <p>An amplifier must deliver less than \(0.5\%\) second-harmonic distortion from a
+                single common-emitter stage with no feedback. What is the largest input amplitude,
+                and what output amplitude does that give at a gain of 150?</p>
+                <details><summary>Solution</summary>
+                <p>\[ \hat{V} = 4\vt\,\mathrm{HD}_2 = 4(0.0259)(0.005) = 518\,\mathrm{\mu V} \]</p>
+                <p>Output \(= 150 \times 518\,\mathrm{\mu V} = 77.7\,\mathrm{mV}\) peak.</p>
+                <p>That is a strikingly small output for a stage running off a 10 V supply &mdash;
+                under 1% of the available swing. It is the quantitative reason a single bare
+                bipolar stage is never used for anything demanding, and why the fix is feedback,
+                degeneration or a differential pair rather than a better transistor.</p>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">5</span><span class="problem-level level-2">Level 2</span></div>
+                <p>Show that \(r_\pi = (\beta+1)r_e\) starting from the definitions of both, and
+                explain in one sentence what physical fact the factor \((\beta+1)\) represents.</p>
+                <details><summary>Solution</summary>
+                <p>\[ r_e = \frac{v_{be}}{i_e}, \qquad r_\pi = \frac{v_{be}}{i_b}, \qquad i_e = (\beta+1)\,i_b \]</p>
+                <p>\[ \frac{r_\pi}{r_e} = \frac{i_e}{i_b} = \beta + 1 \]</p>
+                <p>The same voltage appears across the same junction either way; only the current
+                you divide it by changes. The base carries \((\beta+1)\) times less current than
+                the emitter, so any resistance looks \((\beta+1)\) times larger from there &mdash;
+                the impedance reflection that makes the emitter follower a useful buffer.</p>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">6</span><span class="problem-level level-3">Level 3</span></div>
+                <p>A stage is biased at 1 mA at 27 &deg;C and delivers a gain of 180. The
+                equipment is qualified to 85 &deg;C. Assuming the bias current is held constant by
+                a current source and \(\va\) does not change, what is the gain at 85 &deg;C, and
+                is that the dominant temperature effect in a real circuit?</p>
+                <details><summary>Solution</summary>
+                <p>Gain \(\propto \gm \propto 1/\vt \propto 1/T\) with \(T\) absolute:</p>
+                <p>\[ \frac{A_{85}}{A_{27}} = \frac{300.15}{358.15} = 0.838 \]</p>
+                <p>\[ A_{85} = 180 \times 0.838 = 151 \]</p>
+                <p>A 16% loss, which matters but is predictable. It is <em>not</em> the dominant
+                effect in most real circuits: if the bias is set by a resistor rather than a
+                current source, \(\vbe\) falling at about \(-2\,\mathrm{mV/^\circ C}\) shifts
+                \(\ic\) far more than 16%, and \(\beta\) rises with temperature as well. The
+                lesson is that a current-source bias converts a large, poorly controlled drift
+                into a small, calculable one.</p>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">7</span><span class="problem-level level-3">Level 3</span></div>
+                <p>An emitter follower drives \(R_L = 600\,\Omega\) with \(I_E = 2\,\mathrm{mA}\)
+                and \(\beta = 120\). Using the T-model, find the voltage gain and the input
+                resistance looking into the base. Then find the output resistance if the source
+                driving the base has \(R_S = 10\,\mathrm{k}\Omega\).</p>
+                <details><summary>Solution</summary>
+                <p>\[ r_e = \frac{\vt}{I_E} = \frac{0.0259}{0.002} = 12.95\,\Omega \]</p>
+                <p>Gain is the divider formed by \(r_e\) and the load:</p>
+                <p>\[ A_v = \frac{R_L}{R_L + r_e} = \frac{600}{612.95} = 0.979 \]</p>
+                <p>Input resistance reflects the load up by \((\beta+1)\):</p>
+                <p>\[ \zin = (\beta+1)(r_e + R_L) = 121 \times 612.95 = 74.2\,\mathrm{k}\Omega \]</p>
+                <p>Output resistance reflects the source impedance <em>down</em> by the same
+                factor, in series with \(r_e\):</p>
+                <p>\[ \zout = r_e + \frac{R_S}{\beta+1} = 12.95 + \frac{10000}{121} = 12.95 + 82.6 = 95.6\,\Omega \]</p>
+                <p>A \(10\,\mathrm{k}\Omega\) source has been turned into a \(96\,\Omega\) one at
+                the cost of 2% of the signal. That transformation, in both directions, is the
+                entire purpose of the follower.</p>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">8</span><span class="problem-level level-4">Level 4</span></div>
+                <p>A common-emitter stage has an unbypassed emitter resistor \(R_E\). Derive the
+                gain including \(R_E\), show that it becomes independent of the transistor when
+                \(R_E \gg r_e\), and find the value of \(R_E\) that reduces second-harmonic
+                distortion by a factor of ten. Comment on what you paid for it.</p>
+                <details><summary>Solution</summary>
+                <p>With the T-model, the signal sees \(r_e\) and \(R_E\) in series in the emitter,
+                and the same current flows out of the collector (to within \(\alpha\)):</p>
+                <p>\[ i_e = \frac{v_{in}}{r_e + R_E}, \qquad v_{out} = -\alpha\,i_e R_C \]</p>
+                <p>\[ A_v = -\frac{\alpha R_C}{r_e + R_E} \approx -\frac{R_C}{r_e + R_E} \]</p>
+                <p>When \(R_E \gg r_e\) this collapses to \(A_v \approx -R_C/R_E\) &mdash; a ratio
+                of two resistors, with no \(\gm\), no \(\beta\) and no \(\vt\) in it. That is why
+                degenerated stages are reproducible across parts and temperature.</p>
+                <p>For distortion: degeneration is local series feedback with loop gain
+                \(1 + \gm R_E = 1 + R_E/r_e\), and it divides distortion by that factor. For a
+                factor of ten:</p>
+                <p>\[ 1 + \frac{R_E}{r_e} = 10 \;\Rightarrow\; R_E = 9\,r_e \]</p>
+                <p>At 1 mA, \(r_e = 25.9\,\Omega\), so \(R_E = 233\,\Omega\).</p>
+                <p><strong>What it cost:</strong> exactly the same factor of ten in gain. That is
+                not a coincidence and it is the central bargain of feedback &mdash; you are
+                trading gain you have for linearity you want, one for one. It also costs headroom
+                (\(233\,\Omega \times 1\,\mathrm{mA} = 233\,\mathrm{mV}\) of supply) and it raises
+                the input-referred noise slightly. It buys, besides linearity, a higher
+                \(\zin = (\beta+1)(r_e+R_E) = 121 \times 259 = 31\,\mathrm{k}\Omega\) instead of
+                \(3.1\,\mathrm{k}\Omega\).</p>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <div class="lab">
+        <h3>Lab &mdash; measure \(\gm\), and catch it changing with current</h3>
+        <div class="lab-meta">
+            <span><strong>Time</strong> 60 min</span>
+            <span><strong>Skill</strong> AC gain measurement; bias sweeps; distortion by ear and eye</span>
+            <span><strong>Parts</strong> 2N3904, resistors, 10 &micro;F caps, signal generator, scope</span>
+        </div>
+
+        <p>\(\gm = \ic/\vt\) is a strong claim: gain should be exactly proportional to bias
+        current, with no device parameter anywhere. This measures that over a decade and a half,
+        and then deliberately breaks the small-signal assumption to see the distortion appear at
+        the amplitude the theory predicts.</p>
+
+        <p><strong>Circuit.</strong> Common emitter: \(V_{CC} = 10\,\mathrm{V}\),
+        \(R_C = 5.1\,\mathrm{k}\Omega\), emitter to ground through \(R_E = 1\,\mathrm{k}\Omega\)
+        bypassed by \(10\,\mathrm{\mu F}\), base biased by a divider, input coupled through
+        \(10\,\mathrm{\mu F}\). Set the bias by choosing the divider so the emitter sits at the
+        voltage that gives the current you want &mdash; \(I_E \approx V_E/R_E\).</p>
+
+        <ol class="lab-steps">
+            <li class="lab-step">Bias for \(V_E = 1.0\,\mathrm{V}\), so \(I_E \approx 1\,\mathrm{mA}\).
+                Confirm with a DMM across \(R_E\) &mdash; do not trust the design value.</li>
+            <li class="lab-step">Apply a \(1\,\mathrm{kHz}\) sine, amplitude turned <em>down</em>
+                until the output is a clean \(200\,\mathrm{mV}\) peak-to-peak. Measure input and
+                output on the scope and compute the gain.</li>
+            <li class="lab-step">Compute the predicted gain two ways: \(|A_v| = \gm(R_C\parallel \ro)\)
+                using the measured current, and the shortcut \(V_{R_C}/\vt\). They should agree to
+                a few percent.</li>
+            <li class="lab-step">Repeat at \(V_E = 0.3, 0.5, 2.0, 3.0\,\mathrm{V}\). Tabulate
+                measured gain against measured \(I_E\).</li>
+            <li class="lab-step">Plot gain against \(I_E\). It should be a straight line through
+                the origin. Fit the slope and extract \(\vt\) from it, since
+                \(|A_v| = I_E R_C/\vt\).</li>
+            <li class="lab-step">Return to 1 mA. Now raise the input amplitude in steps and watch
+                the output on the scope with the vertical position and gain cranked so you can see
+                the waveform shape. Note the amplitude at which asymmetry first becomes visible.</li>
+            <li class="lab-step">Remove the emitter bypass capacitor and repeat step 6. Note how
+                much further you can push it.</li>
+        </ol>
+
+        <div class="table-wrap">
+            <table class="lab-table">
+                <thead><tr><th>\(V_E\)</th><th>Measured \(I_E\)</th><th>\(V_{out}/V_{in}\)</th><th>Predicted \(V_{R_C}/\vt\)</th></tr></thead>
+                <tbody>
+                    <tr><td>0.3 V</td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr>
+                    <tr><td>0.5 V</td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr>
+                    <tr><td>1.0 V</td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr>
+                    <tr><td>2.0 V</td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr>
+                    <tr><td>3.0 V</td><td><input type="text"></td><td><input type="text"></td><td><input type="text"></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="lab-expect">
+            <strong>What you should find.</strong> Gain rising in proportion to current, and a
+            fitted \(\vt\) within a few millivolts of \(26\,\mathrm{mV}\) &mdash; you will have
+            measured Boltzmann's constant over the electron charge with a signal generator and a
+            scope. Visible asymmetry should appear somewhere around \(10\,\mathrm{mV}\) peak at
+            the base, which is the \(10\%\) HD\(_2\) point. Removing the bypass capacitor should
+            let you push roughly \((1 + R_E/r_e)\) times harder &mdash; about 40&times; at 1 mA
+            with \(R_E = 1\,\mathrm{k}\Omega\) &mdash; while giving up the same factor in gain.
+            <br><br>
+            <strong>Where it goes wrong, and why that is the interesting part.</strong> At the
+            highest bias the gain will fall <em>below</em> the line. Two reasons compete, and
+            telling them apart is the point of the exercise. First, at \(V_E = 3\,\mathrm{V}\) and
+            \(I_C = 3\,\mathrm{mA}\), the drop across \(R_C\) is \(15\,\mathrm{V}\) &mdash; more
+            than the supply, so the transistor is in saturation and the model does not apply at
+            all. Check \(V_C\) before believing any measurement. Second, even when it is in the
+            active region, the scope probe's \(10\,\mathrm{M\Omega}\parallel 12\,\mathrm{pF}\) and
+            the finite bypass impedance both eat gain. Compute \(1/(2\pi f C)\) for the
+            \(10\,\mathrm{\mu F}\) bypass at 1 kHz: it is \(16\,\Omega\), which is comparable with
+            \(r_e = 8.6\,\Omega\) at 3 mA. Your &ldquo;bypassed&rdquo; emitter is not bypassed.
+        </div>
     </div>
 
     <div class="card">
-        <h3>SPICE Netlist</h3>
-        <div id="hf-spice"></div>
-    </div>
-
-    <div class="card">
-        <h3>Verification Checklist</h3>
-        <div id="hf-checklist"></div>
-    </div>
-
-    <div class="card">
-        <h3>Practice Exercises</h3>
-        <div id="hf-exercises"></div>
+        <h3>What you now have</h3>
+        <div class="kv">
+            <div class="box"><div class="k">\(\gm\)</div><div class="v">\(\ic/\vt\) &mdash; no device parameters, \(\approx 40\ic\) in mA/V</div></div>
+            <div class="box"><div class="k">\(r_\pi\)</div><div class="v">\(\beta/\gm\) &mdash; falls as you bias harder, and inherits \(\beta\)'s spread</div></div>
+            <div class="box"><div class="k">\(\ro\)</div><div class="v">\(\va/\ic\) &mdash; the Early effect, and the reason the cascode exists</div></div>
+            <div class="box"><div class="k">\(\gm\ro\)</div><div class="v">\(\va/\vt \approx 3000\) &mdash; bias-independent ceiling on one transistor</div></div>
+            <div class="box"><div class="k">\(r_e\)</div><div class="v">\(\vt/I_E \approx 1/\gm\) &mdash; the T-model's handle, \(26\,\Omega\) at 1 mA</div></div>
+            <div class="box"><div class="k">Validity</div><div class="v">\(\hat{V} = 4\vt\mathrm{HD_2}\) &mdash; about 1 mV for 1% distortion</div></div>
+        </div>
+        <p>Next: the same model with the two junction capacitances added, which is where the
+        Miller effect appears and where a stage's bandwidth is decided.</p>
     </div>
 
 </div>
 
 <script>
-(function() {
-    const TEK = AD.TEK_COLORS;
+(function () {
+    const K = 1.380649e-23, Q = 1.602176634e-19;
+    const vtOf = tC => K * (tC + 273.15) / Q;
 
-    // ===== HYBRID-PI SCHEMATIC =====
-    (function() {
-        const container = document.getElementById('sch-hybrid-pi');
-        if (!container || typeof AD === 'undefined' || !AD.Schematic) return;
+    const eng = (x, unit, digits) => {
+        const a = Math.abs(x);
+        let s = 1, p = '';
+        if (a >= 1e6) { s = 1e6; p = 'M'; }
+        else if (a >= 1e3) { s = 1e3; p = 'k'; }
+        else if (a >= 1) { s = 1; p = ''; }
+        else if (a >= 1e-3) { s = 1e-3; p = 'm'; }
+        else if (a >= 1e-6) { s = 1e-6; p = 'µ'; }
+        else { s = 1e-9; p = 'n'; }
+        return (x / s).toFixed(digits === undefined ? 2 : digits) + ' ' + p + unit;
+    };
 
-        const S = AD.Schematic;
-        const sch = S.create(container, { width: 520, height: 240 });
-
-        // Node positions
-        const bX = 60, bY = 120;    // Base input
-        const b2X = 140, b2Y = 120;  // After rb
-        const eX = 260, eY = 200;    // Emitter
-        const cX = 400, cY = 50;     // Collector output
-        const gndY = 220;
-
-        // Base resistance rb (external)
-        sch.resistor(bX, bY, 'horizontal', { label: 'rb', value: '~100Ω' });
-        const rb = S.resistorTerminals(bX, bY, 'horizontal');
-        const binX = bX - 25;
-        sch.wire([[binX, bY], [rb.start.x, rb.start.y]]);
-        sch.nodeLabel(binX, bY, 'B', { dx: -8, dy: 4, anchor: 'end' });
-
-        // rπ (base to emitter)
-        const rpiX = b2X + 30, rpiY = bY + 20;
-        sch.resistor(rpiX, rpiY, 'vertical', { label: 'rπ' });
-        const rpi = S.resistorTerminals(rpiX, rpiY, 'vertical');
-
-        // Cπ in parallel with rπ
-        const cpiX = rpiX + 50;
-        sch.capacitor(cpiX, rpiY, 'vertical', { label: 'Cπ' });
-        const cpi = S.capacitorTerminals(cpiX, rpiY, 'vertical');
-
-        // Connect rb to rπ/Cπ top
-        sch.wire([[rb.end.x, rb.end.y], [b2X + 30, bY]]);
-        sch.wire([[b2X + 30, bY], [rpi.start.x, rpi.start.y]]);
-        sch.wire([[rpi.start.x, rpi.start.y], [cpi.start.x, cpi.start.y]]);
-        sch.junction(rpi.start.x, rpi.start.y);
-
-        // Emitter node
-        sch.wire([[rpi.end.x, rpi.end.y], [eX, eY]]);
-        sch.wire([[cpi.end.x, cpi.end.y], [eX, eY]]);
-        sch.junction(eX, eY);
-        sch.wire([[eX, eY], [eX, gndY]]);
-        sch.ground(eX, gndY);
-        sch.text(eX + 28, eY + 18, 'E', { anchor: 'start' });
-
-        // Cμ (Miller capacitor) from B' to C
-        const cmuX = 260, cmuY = 50;
-        sch.capacitor(cmuX, cmuY, 'horizontal', { label: 'Cμ' });
-        const cmu = S.capacitorTerminals(cmuX, cmuY, 'horizontal');
-        sch.wire([[b2X + 30, bY], [b2X + 30, cmuY]]);
-        sch.wire([[b2X + 30, cmuY], [cmu.start.x, cmu.start.y]]);
-        sch.wire([[cmu.end.x, cmu.end.y], [cX, cmuY]]);
-        sch.junction(b2X + 30, bY);
-
-        // Controlled current source gm*vπ
-        const gmX = 340, gmY = 120;
-        sch.currentSource(gmX, gmY, 'vertical');
-        sch.text(gmX - 30, gmY + 10, 'gm·vπ', { size: 11, anchor: 'end' });
-        sch.wire([[gmX, gmY], [gmX, cmuY]]);
-        sch.wire([[gmX, cmuY], [cX, cmuY]]);
-        sch.wire([[gmX, gmY + 50], [gmX, eY]]);
-        sch.wire([[gmX, eY], [eX, eY]]);
-        sch.junction(gmX, eY);
-
-        // ro (output resistance)
-        const roX = cX - 20, roY = cmuY + 30;
-        sch.resistor(roX, roY, 'vertical', { label: 'ro' });
-        const ro = S.resistorTerminals(roX, roY, 'vertical');
-        sch.wire([[cX, cmuY], [ro.start.x, ro.start.y]]);
-        sch.wire([[ro.end.x, ro.end.y], [cX - 20, eY]]);
-        sch.wire([[cX - 20, eY], [gmX, eY]]);
-        sch.junction(cX, cmuY);
-
-        // Collector output
-        const cOutX = cX + 40;
-        sch.wire([[cX, cmuY], [cOutX, cmuY]]);
-        sch.nodeLabel(cOutX, cmuY, 'C', { dx: 8, dy: 4, anchor: 'start' });
-
-        sch.finalize();
-    })();
-
-    // ===== CALCULATOR =====
-    const icEl = document.getElementById('hf-ic');
-    const ftEl = document.getElementById('hf-ft');
-    const cmuEl = document.getElementById('hf-cmu');
-    const betaEl = document.getElementById('hf-beta');
-    const rcEl = document.getElementById('hf-rc');
-    const rsEl = document.getElementById('hf-rs');
-    if (!icEl) return;
-
-    const bodeCanvas = document.getElementById('hf-bode');
-    const bodeCtx = bodeCanvas ? bodeCanvas.getContext('2d') : null;
-
-    function update() {
-        const ic = parseFloat(icEl.value) * 1e-3;
-        const ft = parseFloat(ftEl.value) * 1e6;
-        const cmu = parseFloat(cmuEl.value) * 1e-12;
-        const beta = parseFloat(betaEl.value);
-        const rc = parseFloat(rcEl.value) * 1e3;
-        const rs = parseFloat(rsEl.value) * 1e3;
-
-        // Update displays
-        document.getElementById('hf-ic-val').textContent = (ic * 1e3).toFixed(1) + ' mA';
-        document.getElementById('hf-ft-val').textContent = (ft / 1e6).toFixed(0) + ' MHz';
-        document.getElementById('hf-cmu-val').textContent = (cmu * 1e12).toFixed(1) + ' pF';
-        document.getElementById('hf-beta-val').textContent = beta;
-        document.getElementById('hf-rc-val').textContent = (rc / 1e3).toFixed(1) + ' kΩ';
-        document.getElementById('hf-rs-val').textContent = (rs / 1e3).toFixed(1) + ' kΩ';
-
-        // Calculate parameters
-        const vt = 0.026;
-        const gm = ic / vt;
-        const rpi = beta / gm;
-        const cTotal = gm / (2 * Math.PI * ft);
-        const cpi = Math.max(cTotal - cmu, 1e-12);
-
-        // Voltage gain (mid-band)
-        const av = gm * rc;
-
-        // Miller capacitance
-        const cMiller = cmu * (1 + av);
-        const cin = cpi + cMiller;
-
-        // Input pole frequency
-        const rIn = rs * rpi / (rs + rpi);  // Parallel of Rs and rπ
-        const f3db = 1 / (2 * Math.PI * rIn * cin);
-
-        // Gain-bandwidth product
-        const gbw = av * f3db;
-
-        // Update results
-        document.getElementById('hf-gm').textContent = AD.fmtUnit(gm, 'S');
-        document.getElementById('hf-rpi').textContent = AD.fmtUnit(rpi, 'Ω');
-        document.getElementById('hf-cpi').textContent = AD.fmtUnit(cpi, 'F');
-        document.getElementById('hf-av').textContent = av.toFixed(1);
-        document.getElementById('hf-cmiller').textContent = AD.fmtUnit(cMiller, 'F');
-        document.getElementById('hf-cin').textContent = AD.fmtUnit(cin, 'F');
-        document.getElementById('hf-f3db').textContent = AD.fmtUnit(f3db, 'Hz');
-        document.getElementById('hf-gbw').textContent = AD.fmtUnit(gbw, 'Hz');
-
-        // Plot Bode diagram
-        if (bodeCtx) {
-            plotBode(av, f3db, ft);
-        }
-    }
-
-    function plotBode(av, f3db, ft) {
-        const w = bodeCanvas.width, h = bodeCanvas.height;
-        const margin = { left: 60, right: 20, top: 20, bottom: 40 };
-        const plotW = w - margin.left - margin.right;
-        const plotH = h - margin.top - margin.bottom;
-
-        // Clear
-        bodeCtx.fillStyle = '#0d1117';
-        bodeCtx.fillRect(0, 0, w, h);
-
-        // Frequency range (log scale)
-        const fMin = 1e3, fMax = 1e9;
-        const dbMin = -20, dbMax = 60;
-
-        function fToX(f) {
-            return margin.left + (Math.log10(f / fMin) / Math.log10(fMax / fMin)) * plotW;
-        }
-        function dbToY(db) {
-            return margin.top + plotH - ((db - dbMin) / (dbMax - dbMin)) * plotH;
-        }
-
-        // Grid
-        bodeCtx.strokeStyle = 'rgba(255,255,255,0.08)';
-        bodeCtx.lineWidth = 1;
-        for (let exp = 3; exp <= 9; exp++) {
-            const x = fToX(Math.pow(10, exp));
-            bodeCtx.beginPath();
-            bodeCtx.moveTo(x, margin.top);
-            bodeCtx.lineTo(x, margin.top + plotH);
-            bodeCtx.stroke();
-        }
-        for (let db = dbMin; db <= dbMax; db += 20) {
-            const y = dbToY(db);
-            bodeCtx.beginPath();
-            bodeCtx.moveTo(margin.left, y);
-            bodeCtx.lineTo(margin.left + plotW, y);
-            bodeCtx.stroke();
-        }
-
-        // 0dB line
-        bodeCtx.strokeStyle = 'rgba(255,255,255,0.25)';
-        bodeCtx.beginPath();
-        bodeCtx.moveTo(margin.left, dbToY(0));
-        bodeCtx.lineTo(margin.left + plotW, dbToY(0));
-        bodeCtx.stroke();
-
-        // Plot gain curve (single-pole approximation)
-        const avDb = 20 * Math.log10(av);
-        bodeCtx.strokeStyle = TEK.ch1;
-        bodeCtx.lineWidth = 2.5;
-        bodeCtx.beginPath();
-
-        let first = true;
-        for (let exp = 3; exp <= 9; exp += 0.05) {
-            const f = Math.pow(10, exp);
-            // Single-pole rolloff
-            const gain = av / Math.sqrt(1 + Math.pow(f / f3db, 2));
-            // Add high-frequency rolloff at fT
-            const hfRolloff = 1 / Math.sqrt(1 + Math.pow(f / ft, 2));
-            const totalGain = gain * hfRolloff;
-            const db = 20 * Math.log10(Math.max(totalGain, 0.001));
-
-            const x = fToX(f);
-            const y = dbToY(db);
-
-            if (first) { bodeCtx.moveTo(x, y); first = false; }
-            else bodeCtx.lineTo(x, y);
-        }
-        bodeCtx.stroke();
-
-        // Mark f-3dB
-        bodeCtx.strokeStyle = TEK.ch2;
-        bodeCtx.setLineDash([5, 5]);
-        bodeCtx.beginPath();
-        bodeCtx.moveTo(fToX(f3db), margin.top);
-        bodeCtx.lineTo(fToX(f3db), margin.top + plotH);
-        bodeCtx.stroke();
-        bodeCtx.setLineDash([]);
-
-        // Mark fT
-        bodeCtx.strokeStyle = TEK.ch3;
-        bodeCtx.setLineDash([5, 5]);
-        bodeCtx.beginPath();
-        bodeCtx.moveTo(fToX(ft), margin.top);
-        bodeCtx.lineTo(fToX(ft), margin.top + plotH);
-        bodeCtx.stroke();
-        bodeCtx.setLineDash([]);
-
-        // Labels
-        bodeCtx.fillStyle = 'rgba(255,255,255,0.8)';
-        bodeCtx.font = '11px ui-sans-serif';
-        bodeCtx.textAlign = 'center';
-
-        // X-axis labels
-        ['1k', '10k', '100k', '1M', '10M', '100M', '1G'].forEach((label, i) => {
-            bodeCtx.fillText(label, fToX(Math.pow(10, i + 3)), h - 8);
-        });
-
-        // Y-axis labels
-        bodeCtx.textAlign = 'right';
-        for (let db = dbMin; db <= dbMax; db += 20) {
-            bodeCtx.fillText(db + 'dB', margin.left - 8, dbToY(db) + 4);
-        }
-
-        // Legend
-        bodeCtx.textAlign = 'left';
-        bodeCtx.fillStyle = TEK.ch1;
-        bodeCtx.fillText('Gain', w - 120, 30);
-        bodeCtx.fillStyle = TEK.ch2;
-        bodeCtx.fillText('f-3dB: ' + AD.fmtUnit(f3db, 'Hz'), w - 120, 50);
-        bodeCtx.fillStyle = TEK.ch3;
-        bodeCtx.fillText('fT: ' + AD.fmtUnit(ft, 'Hz'), w - 120, 70);
-    }
-
-    // ===== fT vs IC PLOT =====
-    (function() {
-        const canvas = document.getElementById('ft-vs-ic');
+    // ================================================ parameters vs bias
+    (function paramPlot() {
+        const canvas = document.getElementById('ss-canvas');
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
-        const w = canvas.width, h = canvas.height;
+        const W = canvas.width, H = canvas.height;
 
-        // Model fT vs IC (peaks around 10-50mA, drops at extremes)
-        function ftModel(ic) {
-            const icMa = ic * 1000;
-            const ftPeak = 350e6;
-            // Low current: fT limited by Cπ dominance
-            const lowFactor = 1 / (1 + 1 / icMa);
-            // High current: fT drops due to high-level injection
-            const highFactor = 1 / (1 + icMa / 100);
-            return ftPeak * lowFactor * highFactor;
-        }
+        const ml = 58, mr = 78, mt = 26, mb = 42;
+        const pw = W - ml - mr, ph = H - mt - mb;
 
-        const margin = { left: 60, right: 20, top: 20, bottom: 40 };
-        const plotW = w - margin.left - margin.right;
-        const plotH = h - margin.top - margin.bottom;
+        // decades of collector current on x
+        const IL0 = -6, IL1 = -2;
+        // ohms / (A/V) share a decade axis: plot everything as a decade span
+        const YL0 = -3, YL1 = 6;
 
-        // Clear
-        ctx.fillStyle = '#0d1117';
-        ctx.fillRect(0, 0, w, h);
+        const xOf = i => ml + (Math.log10(i) - IL0) / (IL1 - IL0) * pw;
+        const yOf = v => mt + ph - (Math.log10(v) - YL0) / (YL1 - YL0) * ph;
 
-        // Axes (log-log)
-        const icMin = 0.01e-3, icMax = 200e-3;
-        const ftMin = 10e6, ftMax = 500e6;
-
-        function icToX(ic) {
-            return margin.left + (Math.log10(ic / icMin) / Math.log10(icMax / icMin)) * plotW;
-        }
-        function ftToY(ft) {
-            return margin.top + plotH - (Math.log10(ft / ftMin) / Math.log10(ftMax / ftMin)) * plotH;
-        }
-
-        // Grid
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-        for (let exp = -5; exp <= -1; exp++) {
-            const x = icToX(Math.pow(10, exp));
+        function curve(fn, colour, dash) {
+            ctx.strokeStyle = colour;
+            ctx.lineWidth = 2;
+            ctx.setLineDash(dash || []);
             ctx.beginPath();
-            ctx.moveTo(x, margin.top);
-            ctx.lineTo(x, margin.top + plotH);
+            let first = true;
+            for (let l = IL0; l <= IL1 + 1e-9; l += 0.02) {
+                const i = Math.pow(10, l);
+                const y = yOf(fn(i));
+                if (y < mt - 2 || y > mt + ph + 2) { first = true; continue; }
+                const x = xOf(i);
+                if (first) { ctx.moveTo(x, y); first = false; } else { ctx.lineTo(x, y); }
+            }
             ctx.stroke();
+            ctx.setLineDash([]);
         }
-        for (let exp = 7; exp <= 9; exp++) {
-            const y = ftToY(Math.pow(10, exp));
+
+        function update() {
+            const beta = AD.num('ss-beta');
+            const va = AD.num('ss-va');
+            const tC = AD.num('ss-t');
+            const ic = Math.pow(10, AD.num('ss-ic'));
+            const VT = vtOf(tC);
+
+            AD.setText('ss-beta-val', beta.toFixed(0));
+            AD.setText('ss-va-val', va.toFixed(0) + ' V');
+            AD.setText('ss-t-val', tC.toFixed(0) + ' °C');
+            AD.setText('ss-ic-val', eng(ic, 'A'));
+
+            ctx.clearRect(0, 0, W, H);
+
+            // grid
+            ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+            ctx.lineWidth = 1;
+            ctx.font = '10px ui-monospace, monospace';
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.textAlign = 'right';
+            for (let d = YL0; d <= YL1; d++) {
+                const y = yOf(Math.pow(10, d));
+                ctx.beginPath(); ctx.moveTo(ml, y); ctx.lineTo(ml + pw, y); ctx.stroke();
+                ctx.fillText('1e' + d, ml - 5, y + 3);
+            }
+            ctx.textAlign = 'center';
+            for (let d = IL0; d <= IL1; d++) {
+                const x = xOf(Math.pow(10, d));
+                ctx.beginPath(); ctx.moveTo(x, mt); ctx.lineTo(x, mt + ph); ctx.stroke();
+                const lbl = d >= -3 ? (Math.pow(10, d + 3)).toFixed(0) + ' mA'
+                                    : (Math.pow(10, d + 6)).toFixed(0) + ' µA';
+                ctx.fillText(lbl, x, mt + ph + 15);
+            }
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.35)';
             ctx.beginPath();
-            ctx.moveTo(margin.left, y);
-            ctx.lineTo(margin.left + plotW, y);
+            ctx.moveTo(ml, mt); ctx.lineTo(ml, mt + ph); ctx.lineTo(ml + pw, mt + ph);
             ctx.stroke();
+
+            // the four curves
+            curve(i => i / VT, '#34d399');                 // gm, rises
+            curve(i => beta * VT / i, '#6ee7ff');          // r-pi, falls
+            curve(i => va / i, '#fb923c');                 // ro, falls
+            curve(() => va / VT, '#fbbf24', [6, 4]);       // gm*ro, flat
+
+            // operating point markers
+            const ic_ = Math.min(Math.max(ic, Math.pow(10, IL0)), Math.pow(10, IL1));
+            ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(xOf(ic_), mt); ctx.lineTo(xOf(ic_), mt + ph);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            [[ic_ / VT, '#34d399'], [beta * VT / ic_, '#6ee7ff'],
+             [va / ic_, '#fb923c'], [va / VT, '#fbbf24']].forEach(p => {
+                const y = yOf(p[0]);
+                if (y < mt || y > mt + ph) return;
+                ctx.fillStyle = p[1];
+                ctx.beginPath(); ctx.arc(xOf(ic_), y, 4, 0, 6.284); ctx.fill();
+            });
+
+            // legend, right margin
+            ctx.textAlign = 'left';
+            ctx.font = '10px ui-monospace, monospace';
+            [['gm  A/V', '#34d399'], ['rπ  Ω', '#6ee7ff'],
+             ['ro  Ω', '#fb923c'], ['gm·ro', '#fbbf24']].forEach((p, k) => {
+                ctx.fillStyle = p[1];
+                ctx.fillRect(ml + pw + 8, mt + 8 + k * 18, 10, 3);
+                ctx.fillText(p[0], ml + pw + 22, mt + 14 + k * 18);
+            });
+
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.fillText('collector current', ml + pw / 2, H - 8);
+
+            // readouts
+            const gm = ic / VT, rpi = beta / gm, ro = va / ic;
+            AD.setText('ss-vt', (VT * 1000).toFixed(2) + ' mV');
+            AD.setText('ss-gm', eng(gm, 'A/V'));
+            AD.setText('ss-rem', eng(1 / gm, 'Ω'));
+            AD.setText('ss-rpi', eng(rpi, 'Ω'));
+            AD.setText('ss-ro', eng(ro, 'Ω'));
+            AD.setText('ss-av', (gm * ro).toFixed(0) + '  (' +
+                       (20 * Math.log10(gm * ro)).toFixed(1) + ' dB)');
+
+            AD.setText('ss-note',
+                'gm rises in proportion to current and rπ and ro both fall in inverse ' +
+                'proportion — parallel lines of opposite slope on log axes. Their product ' +
+                'gm·ro = ' + (gm * ro).toFixed(0) + ' is the dashed horizontal line: ' +
+                'moving the bias slides the dots along the sloped curves but never moves that ' +
+                'one. Raising VA lifts it; raising the temperature lowers it, because VT is in ' +
+                'the denominator.');
         }
 
-        // Plot fT curve
-        ctx.strokeStyle = TEK.ch1;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        let first = true;
-        for (let logIc = -5; logIc <= -0.7; logIc += 0.05) {
-            const ic = Math.pow(10, logIc);
-            const ft = ftModel(ic);
-            const x = icToX(ic);
-            const y = ftToY(ft);
-            if (first) { ctx.moveTo(x, y); first = false; }
-            else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-
-        // Highlight optimal range
-        ctx.fillStyle = 'rgba(52, 211, 153, 0.15)';
-        const x1 = icToX(5e-3), x2 = icToX(50e-3);
-        ctx.fillRect(x1, margin.top, x2 - x1, plotH);
-
-        // Labels
-        ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.font = '11px ui-sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('IC (A) - Log Scale', margin.left + plotW / 2, h - 8);
-
-        ctx.save();
-        ctx.translate(15, margin.top + plotH / 2);
-        ctx.rotate(-Math.PI / 2);
-        ctx.fillText('fT (Hz) - Log Scale', 0, 0);
-        ctx.restore();
-
-        // IC axis labels
-        ['10µ', '100µ', '1m', '10m', '100m'].forEach((label, i) => {
-            ctx.fillText(label, icToX(Math.pow(10, -5 + i)), h - 25);
+        ['ss-beta', 'ss-va', 'ss-t', 'ss-ic'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', update);
         });
-
-        // fT axis labels
-        ctx.textAlign = 'right';
-        ['10M', '50M', '100M', '200M', '500M'].forEach((label, i) => {
-            const ft = [10e6, 50e6, 100e6, 200e6, 500e6][i];
-            ctx.fillText(label, margin.left - 8, ftToY(ft) + 4);
-        });
-
-        // Annotations
-        ctx.fillStyle = '#34d399';
-        ctx.textAlign = 'center';
-        ctx.fillText('Optimal IC range', (x1 + x2) / 2, margin.top + 20);
+        update();
     })();
 
-    // Bind events
-    [icEl, ftEl, cmuEl, betaEl, rcEl, rsEl].forEach(el => {
-        if (el) el.addEventListener('input', update);
-    });
-    update();
+    // ================================================ distortion
+    (function distortion() {
+        const canvas = document.getElementById('ds-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const half = W / 2;
 
-    // ===== SPICE =====
-    new SpiceNetlistWidget('hf-spice', {
-        title: 'CE Amplifier AC Analysis (Frequency Response)',
-        netlist: `* CE Amplifier Frequency Response
-.include 2N3904.lib
+        function update() {
+            const vhat = AD.num('ds-amp') / 1000;      // volts
+            const ic = Math.pow(10, AD.num('ds-ic'));
+            const VT = vtOf(27);
+            const a = vhat / VT;
 
-VCC vcc 0 DC 12
-VIN in 0 AC 1m SIN(0 10m 1k)
+            AD.setText('ds-amp-val', (vhat * 1000).toFixed(1) + ' mV');
+            AD.setText('ds-ic-val', eng(ic, 'A'));
 
-* Bias network
-R1 vcc base 47k
-R2 base 0 10k
-RC vcc col 4.7k
-RE emitter 0 1k
-CE emitter 0 100u  ; Bypass capacitor
+            ctx.clearRect(0, 0, W, H);
 
-* Coupling capacitors
-CIN in base 1u
-COUT col out 1u
-RL out 0 10k
+            const mt = 26, mb = 34;
+            const ph = H - mt - mb;
 
-Q1 col base emitter 2N3904
+            // ---------- left: the exponential and its tangent
+            (function transfer() {
+                const ml = 46, pw = half - ml - 18;
+                // x axis: v_be about the bias, +/- 60 mV
+                const XM = 0.06;
+                // y axis: normalised current 0..4
+                const YM = 4;
+                const xOf = v => ml + (v + XM) / (2 * XM) * pw;
+                const yOf = r => mt + ph - Math.min(r, YM) / YM * ph;
 
-.AC DEC 20 100 100Meg
-.PROBE V(out) V(in)
-.END
+                ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+                ctx.lineWidth = 1;
+                for (let r = 1; r <= YM; r++) {
+                    const y = yOf(r);
+                    ctx.beginPath(); ctx.moveTo(ml, y); ctx.lineTo(ml + pw, y); ctx.stroke();
+                }
+                ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+                ctx.beginPath();
+                ctx.moveTo(ml, mt); ctx.lineTo(ml, mt + ph); ctx.lineTo(ml + pw, mt + ph);
+                ctx.stroke();
 
-* Look for:
-* 1. Mid-band gain
-* 2. Low-frequency pole (coupling caps)
-* 3. High-frequency pole (Miller effect)
-* 4. fT rolloff at very high frequencies`
-    });
+                // drive band
+                ctx.fillStyle = 'rgba(251,191,36,0.13)';
+                ctx.fillRect(xOf(-vhat), mt, xOf(vhat) - xOf(-vhat), ph);
 
-    // ===== CHECKLIST =====
-    new ChecklistWidget('hf-checklist', {
-        lessonKey: 'm1l21',
-        items: [
-            'Understand the hybrid-pi model elements: rπ, gm, Cπ, Cμ, ro',
-            'Calculate transconductance gm = IC/VT',
-            'Explain why Cμ causes the Miller effect',
-            'Calculate Miller capacitance: CMiller = Cμ(1 + |Av|)',
-            'Find the input pole frequency f-3dB = 1/(2πRin·Cin)',
-            'Know fT = gm/(2π(Cπ + Cμ))',
-            'Understand gain-bandwidth trade-off',
-            'Recognize cascode eliminates Miller effect',
-            'Know fT varies with IC (peaks at optimal current)'
-        ]
-    });
+                // tangent: 1 + x
+                ctx.strokeStyle = 'rgba(251,146,60,0.85)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([5, 4]);
+                ctx.beginPath();
+                ctx.moveTo(xOf(-XM), yOf(Math.max(1 - XM / VT, 0)));
+                ctx.lineTo(xOf(XM), yOf(1 + XM / VT));
+                ctx.stroke();
+                ctx.setLineDash([]);
 
-    // ===== EXERCISES =====
-    const exercises = [
-        {
-            id: 'M1L21-1',
-            type: 'numeric',
-            question: 'A BJT has IC = 2mA, β = 150, fT = 300MHz, and Cμ = 4pF. Calculate Cπ.',
-            hint: 'First find gm, then use fT = gm/(2π(Cπ + Cμ))',
-            expected: 37,
-            tolerance: 5,
-            unit: 'pF',
-            solution: 'gm = 2mA/26mV = 77mS. Cπ + Cμ = gm/(2πfT) = 77mS/(2π×300MHz) = 41pF. Cπ = 41 - 4 = 37pF'
-        },
-        {
-            id: 'M1L21-2',
-            type: 'numeric',
-            question: 'A CE amplifier has voltage gain |Av| = 50 and Cμ = 3pF. What is the Miller capacitance?',
-            hint: 'CMiller = Cμ × (1 + |Av|)',
-            expected: 153,
-            tolerance: 5,
-            unit: 'pF',
-            solution: 'CMiller = 3pF × (1 + 50) = 3pF × 51 = 153pF'
-        },
-        {
-            id: 'M1L21-3',
-            type: 'choice',
-            question: 'Which technique most effectively eliminates the Miller effect in a BJT amplifier?',
-            choices: [
-                { text: 'Add emitter degeneration resistor', correct: false, explanation: 'This reduces gain and thus Miller capacitance, but doesn\'t eliminate it.' },
-                { text: 'Use a cascode configuration', correct: true, explanation: 'Correct! The cascode keeps the CE stage\'s collector at nearly constant voltage, eliminating the voltage swing that causes Miller multiplication.' },
-                { text: 'Increase collector current', correct: false, explanation: 'Higher IC increases gm but doesn\'t address Miller effect directly.' },
-                { text: 'Use a larger value of RC', correct: false, explanation: 'Larger RC increases gain, which worsens Miller effect.' }
-            ]
-        },
-        {
-            id: 'M1L21-4',
-            type: 'numeric',
-            question: 'A CE stage has Cin = 200pF and is driven from RS = 1kΩ. What is the -3dB frequency?',
-            hint: 'f-3dB = 1/(2πRS×Cin)',
-            expected: 796,
-            tolerance: 50,
-            unit: 'kHz',
-            solution: 'f-3dB = 1/(2π × 1kΩ × 200pF) = 1/(2π × 200ns) = 796kHz'
+                // exponential
+                ctx.strokeStyle = '#34d399';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                let first = true;
+                for (let v = -XM; v <= XM; v += XM / 120) {
+                    const r = Math.exp(v / VT);
+                    const y = yOf(r);
+                    if (r > YM) { first = true; continue; }
+                    const x = xOf(v);
+                    if (first) { ctx.moveTo(x, y); first = false; } else { ctx.lineTo(x, y); }
+                }
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                ctx.beginPath(); ctx.arc(xOf(0), yOf(1), 4, 0, 6.284); ctx.fill();
+
+                ctx.font = '10px ui-monospace, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = 'rgba(255,255,255,0.65)';
+                ctx.fillText('exponential vs its tangent', ml + pw / 2, mt - 10);
+                ctx.fillText('v_be  (±60 mV)', ml + pw / 2, H - 8);
+                ctx.textAlign = 'right';
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.fillText('4×IC', ml - 5, yOf(4) + 3);
+                ctx.fillText('IC', ml - 5, yOf(1) + 3);
+            })();
+
+            // ---------- right: the output waveform, and its harmonics
+            const N = 512;
+            const wave = new Array(N);
+            for (let k = 0; k < N; k++) {
+                wave[k] = Math.exp(a * Math.cos(2 * Math.PI * k / N));
+            }
+            // Fourier coefficients of the actual waveform
+            function coef(n) {
+                let s = 0;
+                for (let k = 0; k < N; k++) s += wave[k] * Math.cos(2 * Math.PI * n * k / N);
+                return 2 * s / N;
+            }
+            const c0 = coef(0) / 2, c1 = coef(1), c2 = coef(2), c3 = coef(3);
+            const hd2 = Math.abs(c2 / c1), hd3 = Math.abs(c3 / c1);
+
+            (function waveform() {
+                const ml = half + 30, pw = W - ml - 20;
+                const peak = Math.max(...wave), trough = Math.min(...wave);
+                const lo = Math.min(trough, 1 - a * 1.2), hi = Math.max(peak, 1 + a * 1.2);
+                const yOf = r => mt + ph - (r - lo) / (hi - lo) * ph;
+                const xOf = k => ml + k / N * pw;
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(ml, mt); ctx.lineTo(ml, mt + ph); ctx.lineTo(ml + pw, mt + ph);
+                ctx.stroke();
+
+                // the bias line, and the shifted average
+                ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath(); ctx.moveTo(ml, yOf(1)); ctx.lineTo(ml + pw, yOf(1)); ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.strokeStyle = 'rgba(251,191,36,0.55)';
+                ctx.setLineDash([2, 4]);
+                ctx.beginPath(); ctx.moveTo(ml, yOf(c0)); ctx.lineTo(ml + pw, yOf(c0)); ctx.stroke();
+                ctx.setLineDash([]);
+
+                // the linear prediction
+                ctx.strokeStyle = 'rgba(251,146,60,0.75)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                for (let k = 0; k < N; k++) {
+                    const r = 1 + a * Math.cos(2 * Math.PI * k / N);
+                    const x = xOf(k), y = yOf(r);
+                    if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // the true output
+                ctx.strokeStyle = '#34d399';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let k = 0; k < N; k++) {
+                    const x = xOf(k), y = yOf(wave[k]);
+                    if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                ctx.font = '10px ui-monospace, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = 'rgba(255,255,255,0.65)';
+                ctx.fillText('collector current out', ml + pw / 2, mt - 10);
+                ctx.fillText('one cycle', ml + pw / 2, H - 8);
+
+                ctx.textAlign = 'left';
+                ctx.fillStyle = '#34d399';
+                ctx.fillText('true', ml + 4, mt + 12);
+                ctx.fillStyle = 'rgba(251,146,60,0.9)';
+                ctx.fillText('linear model', ml + 4, mt + 25);
+                ctx.fillStyle = 'rgba(251,191,36,0.9)';
+                ctx.fillText('shifted average', ml + 4, mt + 38);
+            })();
+
+            const pred = a / 4;
+            AD.setText('ds-a', a.toFixed(3));
+            AD.setText('ds-hd2', (hd2 * 100).toFixed(2) + ' %');
+            AD.setText('ds-hd2p', (pred * 100).toFixed(2) + ' %');
+            AD.setText('ds-hd3', (hd3 * 100).toFixed(3) + ' %');
+            AD.setText('ds-shift', '+' + ((c0 - 1) * 100).toFixed(2) + ' % of IC  (' +
+                       eng((c0 - 1) * ic, 'A') + ')');
+            AD.setText('ds-gerr', ((c1 / a - 1) * 100).toFixed(2) + ' %');
+
+            const err = Math.abs(pred - hd2) / Math.max(hd2, 1e-12) * 100;
+            AD.setText('ds-note',
+                'At ' + (vhat * 1000).toFixed(1) + ' mV peak the measured HD2 is ' +
+                (hd2 * 100).toFixed(2) + '% against a predicted ' + (pred * 100).toFixed(2) +
+                '% — the two-term expansion is ' + err.toFixed(1) + '% off. ' +
+                (vhat < 0.011
+                    ? 'Below about 10 mV the approximation is trustworthy and the two waveforms ' +
+                      'are hard to tell apart by eye, even though HD2 is already ' +
+                      (hd2 * 100).toFixed(1) + '%. Distortion is far easier to measure than to see.'
+                    : 'Past roughly 10 mV the true waveform visibly parts company with the ' +
+                      'linear one, a third harmonic appears, and the average current has risen ' +
+                      (((c0 - 1) * 100).toFixed(1)) + '% above the bias — the transistor is ' +
+                      'rectifying its own signal, which shifts the operating point you designed.'));
         }
-    ];
 
-    const exContainer = document.getElementById('hf-exercises');
-    exercises.forEach((ex, i) => {
-        const div = document.createElement('div');
-        div.id = `exercise-m1l21-${i}`;
-        div.style.marginBottom = '15px';
-        exContainer.appendChild(div);
-        new ExerciseWidget(`exercise-m1l21-${i}`, ex);
-    });
+        ['ds-amp', 'ds-ic'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', update);
+        });
+        update();
+    })();
+
+    // ================================================ the CE schematic
+    (function schematic() {
+        const host = document.getElementById('ce-diagram');
+        if (!host || typeof ComponentModels === 'undefined') return;
+
+        // An npn's pins are offset from the part's own x: base at x-25, and
+        // BOTH collector and emitter at x+15 (y-35 and y+35). So the vertical
+        // collector/emitter column is not the transistor's x - it is x+15.
+        const MX = 330, MY = 175;
+        const CX = MX + 15;   // collector and emitter column, 345
+        const BX = 225;       // bias divider column, which is also Cin's right pin
+
+        host.innerHTML = ComponentModels.diagram({
+            width: 520, height: 360, title: 'Common-emitter stage',
+            parts: [
+                { key: 'vcc',       x: MX,  y: 50,  label: '+10 V', labelPos: 'right' },
+                { key: 'resistor',  x: BX,  y: 105, rotate: 90, label: 'R1', value: '68 k', labelPos: 'left' },
+                { key: 'resistor',  x: CX,  y: 105, rotate: 90, label: 'RC', value: '5 k', labelPos: 'right' },
+                { key: 'npn',       x: MX,  y: MY,  label: 'Q1', labelPos: 'right' },
+                { key: 'resistor',  x: BX,  y: 280, rotate: 90, label: 'R2', value: '12 k', labelPos: 'left' },
+                { key: 'resistor',  x: CX,  y: 280, rotate: 90, label: 'RE', value: '1 k', labelPos: 'left' },
+                { key: 'capacitor', x: 200, y: MY,  label: 'Cin', labelPos: 'top' },
+                { key: 'capacitor', x: 400, y: 280, rotate: 90, label: 'CE', labelPos: 'right' },
+                { key: 'port',      x: 140, y: MY,  rotate: 180, label: 'in', labelPos: 'top' },
+                { key: 'port',      x: 450, y: 140, label: 'out', labelPos: 'right' },
+                { key: 'ground',    x: BX,  y: 325 },
+                { key: 'ground',    x: CX,  y: 325 },
+                { key: 'ground',    x: 400, y: 325 }
+            ],
+            wires: [
+                // supply rail across the tops of R1 and RC
+                [[MX, 60], [MX, 70]],
+                [[BX, 70], [CX, 70]],
+                [[BX, 70], [BX, 80]],
+                [[CX, 70], [CX, 80]],
+                // collector node, and the output tap off it
+                [[CX, 130], [CX, 140]],
+                [[CX, 140], [435, 140]],
+                // emitter, its resistor and the bypass cap across it
+                [[CX, 210], [CX, 255]],
+                [[CX, 255], [400, 255]],
+                [[CX, 305], [CX, 315]],
+                [[400, 305], [400, 315]],
+                // base node: divider centre, coupling cap and the base itself
+                [[BX, 130], [BX, 255]],
+                [[BX, 305], [BX, 315]],
+                [[BX, MY], [MX - 25, MY]],
+                [[155, MY], [175, MY]]
+            ],
+            dots: [[MX, 70], [CX, 140], [BX, MY], [CX, 255]],
+            texts: []
+        });
+    })();
 })();
 </script>

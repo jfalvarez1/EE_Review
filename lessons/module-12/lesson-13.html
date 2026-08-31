@@ -1,0 +1,611 @@
+<!-- Module 12, Lesson 13: Op-Amp Stability & Compensation -->
+<div class="lesson-content" data-module="12" data-lesson="13">
+
+    <div class="card">
+        <h2>Op-Amp Stability & Compensation</h2>
+        <p>Op-amps can oscillate when phase shift reaches 180° at frequencies where gain > 1. Understanding stability requires analyzing the loop gain.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Phase Margin</div>
+                <div class="v">180° - phase @ unity gain</div>
+            </div>
+            <div class="box">
+                <div class="k">Stable</div>
+                <div class="v">PM > 45° typical</div>
+            </div>
+            <div class="box">
+                <div class="k">Ringing</div>
+                <div class="v">PM 30-45°</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Capacitive loads add a pole in the feedback loop. A 100pF load on a typical op-amp can reduce phase margin from 60° to 20°, causing ringing or oscillation.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Phase Margin Analysis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="opamp-gbw">GBW Product (MHz)</label>
+                <input type="range" id="opamp-gbw" min="1" max="100" step="1" value="10">
+                <span id="opamp-gbw-val" class="mono">10MHz</span>
+            </div>
+            <div class="c3">
+                <label for="opamp-gain">Closed-Loop Gain</label>
+                <input type="range" id="opamp-gain" min="1" max="100" step="1" value="10">
+                <span id="opamp-gain-val" class="mono">10×</span>
+            </div>
+            <div class="c3">
+                <label for="opamp-cload">C<sub>LOAD</sub> (pF)</label>
+                <input type="range" id="opamp-cload" min="0" max="1000" step="10" value="0">
+                <span id="opamp-cload-val" class="mono">0pF</span>
+            </div>
+            <div class="c3">
+                <label for="opamp-riso">R<sub>ISO</sub> (Ω)</label>
+                <input type="range" id="opamp-riso" min="0" max="200" step="10" value="0">
+                <span id="opamp-riso-val" class="mono">0Ω</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="opamp-canvas" width="980" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Bandwidth</div>
+                <div class="v mono" id="opamp-bw">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Phase Margin</div>
+                <div class="v mono" id="opamp-pm">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Pole from C<sub>L</sub></div>
+                <div class="v mono" id="opamp-pole">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Stability</div>
+                <div class="v mono" id="opamp-stable">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Compensation Techniques</h3>
+        <div class="diagram-container">
+            <canvas id="compensation-canvas" width="850" height="500" style="width:100%;max-width:850px;background:#0d1117;border-radius:8px;"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Stability Rules of Thumb</h3>
+
+        <table class="table">
+            <tr>
+                <th>Condition</th>
+                <th>Typical Phase Margin</th>
+                <th>Response</th>
+            </tr>
+            <tr>
+                <td>PM > 70°</td>
+                <td>Well damped</td>
+                <td>No overshoot</td>
+            </tr>
+            <tr>
+                <td>PM 45-70°</td>
+                <td>Acceptable</td>
+                <td>Some overshoot (5-20%)</td>
+            </tr>
+            <tr>
+                <td>PM 30-45°</td>
+                <td>Marginal</td>
+                <td>Significant ringing</td>
+            </tr>
+            <tr>
+                <td>PM < 30°</td>
+                <td>Unstable</td>
+                <td>Oscillation likely</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Hidden Capacitive Loads:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>Long PCB traces: ~1pF/cm</li>
+                <li>Coax cables: 30-100pF/m</li>
+                <li>Scope probes: 10-15pF</li>
+                <li>ADC input: 5-20pF</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('opamp-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const gbw = AD.num('opamp-gbw') * 1e6;
+        const gain = AD.num('opamp-gain');
+        const cload = AD.num('opamp-cload') * 1e-12;
+        const riso = AD.num('opamp-riso');
+
+        document.getElementById('opamp-gbw-val').textContent = (gbw / 1e6).toFixed(0) + 'MHz';
+        document.getElementById('opamp-gain-val').textContent = gain + '×';
+        document.getElementById('opamp-cload-val').textContent = (cload * 1e12).toFixed(0) + 'pF';
+        document.getElementById('opamp-riso-val').textContent = riso + 'Ω';
+
+        // Closed-loop bandwidth
+        const bw = gbw / gain;
+        document.getElementById('opamp-bw').textContent = AD.fmtUnit(bw, 'Hz');
+
+        // Pole from capacitive load (assuming Rout ~ 50Ω for typical op-amp)
+        const rout = 50 + riso;
+        const fpole = cload > 0 ? 1 / (2 * Math.PI * rout * cload) : Infinity;
+
+        if (cload > 0) {
+            document.getElementById('opamp-pole').textContent = AD.fmtUnit(fpole, 'Hz');
+        } else {
+            document.getElementById('opamp-pole').textContent = '—';
+        }
+
+        // Phase margin (simplified)
+        // At unity gain crossover, phase from dominant pole + load pole
+        const fug = gbw; // Unity gain frequency
+        let pmBase = 90; // Degrees, from dominant pole
+        let pmLoad = 0;
+
+        if (cload > 0) {
+            pmLoad = Math.atan(fug / fpole) * 180 / Math.PI;
+        }
+
+        const pm = pmBase - pmLoad;
+        const pmEl = document.getElementById('opamp-pm');
+        pmEl.textContent = pm.toFixed(0) + '°';
+        pmEl.style.color = pm > 45 ? 'var(--ok)' : pm > 30 ? 'var(--warn)' : 'var(--bad)';
+
+        const stableEl = document.getElementById('opamp-stable');
+        if (pm > 45) {
+            stableEl.textContent = 'Stable';
+            stableEl.style.color = 'var(--ok)';
+        } else if (pm > 30) {
+            stableEl.textContent = 'Marginal';
+            stableEl.style.color = 'var(--warn)';
+        } else {
+            stableEl.textContent = 'Unstable!';
+            stableEl.style.color = 'var(--bad)';
+        }
+
+        plotBode(gbw, gain, cload, riso, rout);
+    }
+
+    function plotBode(gbw, gain, cload, riso, rout) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const fMin = 100;
+        const fMax = gbw * 10;
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: Math.log10(fMin),
+            xMax: Math.log10(fMax),
+            yMin: -20,
+            yMax: 80,
+            xLabel: 'Frequency',
+            yLabel: 'Gain',
+            xUnit: 'Hz',
+            yUnit: 'dB',
+            xDivs: 8,
+            yDivs: 10
+        });
+
+        const N = 200;
+        const fData = [];
+        const gainOpen = [];
+        const gainClosed = [];
+
+        const fpole = cload > 0 ? 1 / (2 * Math.PI * rout * cload) : 1e12;
+
+        for (let i = 0; i < N; i++) {
+            const logF = Math.log10(fMin) + (i / N) * (Math.log10(fMax) - Math.log10(fMin));
+            const f = Math.pow(10, logF);
+            fData.push(logF);
+
+            // Open loop gain (single pole at f1 = GBW/Aol_dc)
+            const f1 = gbw / 1e5; // Dominant pole
+            let aol = 1e5 / Math.sqrt(1 + Math.pow(f / f1, 2));
+
+            // Add load pole effect
+            if (cload > 0) {
+                aol = aol / Math.sqrt(1 + Math.pow(f / fpole, 2));
+            }
+
+            gainOpen.push(20 * Math.log10(aol));
+
+            // Closed loop gain
+            const beta = 1 / gain;
+            const acl = aol / (1 + aol * beta);
+            gainClosed.push(20 * Math.log10(acl));
+        }
+
+        // Plot open loop (dashed)
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        AD.plotData(ctx, axes, fData, gainOpen, {
+            color: 'rgba(251, 191, 36, 0.5)',
+            lineWidth: 1
+        });
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        // Plot closed loop
+        AD.plotData(ctx, axes, fData, gainClosed, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2
+        });
+
+        // Mark target gain
+        ctx.save();
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
+        ctx.setLineDash([3, 3]);
+        const gainDb = 20 * Math.log10(gain);
+        const gainPt = axes.toCanvas(Math.log10(fMin), gainDb);
+        ctx.beginPath();
+        ctx.moveTo(axes.left, gainPt.y);
+        ctx.lineTo(axes.left + axes.width, gainPt.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('G=' + gain, axes.left + axes.width - 40, gainPt.y - 5);
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'Closed-loop gain' },
+            { color: 'rgba(251, 191, 36, 0.5)', label: 'Open-loop gain' }
+        ]);
+    }
+
+    ['opamp-gbw', 'opamp-gain', 'opamp-cload', 'opamp-riso'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Op-Amp Stability with Capacitive Load',
+        netlist: `* Op-Amp Stability Analysis with CLOAD
+
+* Op-amp model (simplified with finite GBW)
+.SUBCKT OPAMP inp inn out
+EOUT out 0 LAPLACE {V(inp)-V(inn)} {1e5/(1+s/(2*3.14*10))}
+* This gives AOL=100dB, single pole at 10Hz, GBW=10MHz
+.ENDS
+
+* Supply (not modeled in simplified version)
+* VCC vcc 0 DC 15
+* VEE vee 0 DC -15
+
+* Input signal (AC analysis)
+VIN inp 0 DC 0 AC 1
+
+* Non-inverting amplifier (G=10)
+XAMP inp fb out OPAMP
+RF out fb 9k
+RI fb 0 1k
+
+* Capacitive load (try different values)
+CLOAD out 0 100p
+
+* Isolation resistor (uncomment to add)
+* RISO out out_iso 50
+* CLOAD out_iso 0 100p
+
+.AC DEC 100 1 100MEG
+
+.PROBE VDB(out) VP(out)
+.END
+
+* Without RISO: peaking at high frequency
+* With RISO: reduced peaking, stable`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm21l3',
+        items: [
+            'Check op-amp stability with expected load',
+            'Add isolation resistor for capacitive loads',
+            'Verify phase margin > 45°',
+            'Consider hidden capacitances (traces, cables)',
+            'Test step response for ringing'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'EX21-3',
+        type: 'numeric',
+        question: 'An op-amp with 100Ω output resistance drives 500pF. What is the pole frequency from this load?',
+        hint: 'fp = 1/(2π × Rout × Cload)',
+        expected: 3.18,
+        tolerance: 0.1,
+        unit: 'MHz',
+        solution: 'fp = 1/(2π × 100Ω × 500pF) = 1/(314×10⁻⁹) = 3.18 MHz',
+        explanation: 'This pole adds phase shift. If the op-amp unity-gain frequency is near 3 MHz, stability is severely compromised. Add isolation resistor to move pole higher.'
+    });
+})();
+
+// Compensation Techniques Canvas
+(function() {
+    const canvas = document.getElementById('compensation-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Op-Amp Compensation Techniques for Capacitive Loads', 30, 30);
+
+    // Helper function to draw op-amp symbol
+    function drawOpAmp(x, y, size) {
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y - size);
+        ctx.lineTo(x, y + size);
+        ctx.lineTo(x + size * 1.5, y);
+        ctx.closePath();
+        ctx.stroke();
+        // + and - inputs
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('+', x + 8, y + size/2 + 3);
+        ctx.fillText('-', x + 8, y - size/2 + 3);
+    }
+
+    // Technique 1: Isolation Resistor
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('1. Isolation Resistor (RISO)', 30, 80);
+
+    drawOpAmp(80, 140, 25);
+
+    // Output with RISO
+    ctx.strokeStyle = '#e6edf3';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(118, 140);
+    ctx.lineTo(150, 140);
+    ctx.stroke();
+
+    // RISO resistor
+    ctx.beginPath();
+    ctx.moveTo(150, 140);
+    for (let i = 0; i < 6; i++) {
+        ctx.lineTo(155 + i * 8, 140 + (i % 2 === 0 ? -8 : 8));
+    }
+    ctx.lineTo(200, 140);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '10px monospace';
+    ctx.fillText('RISO', 165, 125);
+    ctx.fillText('20-100Ω', 160, 170);
+
+    // CLOAD capacitor
+    ctx.strokeStyle = '#e6edf3';
+    ctx.beginPath();
+    ctx.moveTo(200, 140);
+    ctx.lineTo(230, 140);
+    ctx.lineTo(230, 160);
+    ctx.moveTo(220, 160);
+    ctx.lineTo(240, 160);
+    ctx.moveTo(220, 170);
+    ctx.lineTo(240, 170);
+    ctx.moveTo(230, 170);
+    ctx.lineTo(230, 200);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.fillText('CLOAD', 245, 170);
+
+    // Feedback back to op-amp (before RISO)
+    ctx.strokeStyle = TEK.ch4;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(145, 140);
+    ctx.lineTo(145, 90);
+    ctx.lineTo(60, 90);
+    ctx.lineTo(60, 128);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = '9px monospace';
+    ctx.fillText('FB before RISO', 85, 85);
+
+    // Technique 2: In-Loop Compensation
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('2. In-Loop Compensation (Cf)', 300, 80);
+
+    drawOpAmp(350, 140, 25);
+
+    // Output with Cf
+    ctx.strokeStyle = '#e6edf3';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(388, 140);
+    ctx.lineTo(450, 140);
+    ctx.stroke();
+
+    // CLOAD
+    ctx.beginPath();
+    ctx.moveTo(450, 140);
+    ctx.lineTo(450, 160);
+    ctx.moveTo(440, 160);
+    ctx.lineTo(460, 160);
+    ctx.moveTo(440, 170);
+    ctx.lineTo(460, 170);
+    ctx.moveTo(450, 170);
+    ctx.lineTo(450, 200);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('CLOAD', 465, 170);
+
+    // Feedback with Cf
+    ctx.strokeStyle = TEK.ch4;
+    ctx.beginPath();
+    ctx.moveTo(450, 140);
+    ctx.lineTo(450, 100);
+    ctx.lineTo(330, 100);
+    ctx.lineTo(330, 128);
+    ctx.stroke();
+
+    // Cf capacitor in feedback
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(370, 100);
+    ctx.lineTo(370, 85);
+    ctx.moveTo(365, 85);
+    ctx.lineTo(375, 85);
+    ctx.moveTo(365, 78);
+    ctx.lineTo(375, 78);
+    ctx.moveTo(370, 78);
+    ctx.lineTo(370, 60);
+    ctx.lineTo(420, 60);
+    ctx.lineTo(420, 100);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '10px monospace';
+    ctx.fillText('Cf', 380, 72);
+    ctx.font = '9px monospace';
+    ctx.fillText('(adds zero)', 390, 55);
+
+    // Technique 3: Snubber
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('3. Output Snubber (Rs-Cs)', 580, 80);
+
+    drawOpAmp(630, 140, 25);
+
+    // Output
+    ctx.strokeStyle = '#e6edf3';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(668, 140);
+    ctx.lineTo(720, 140);
+    ctx.stroke();
+
+    // Snubber network Rs-Cs
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(720, 140);
+    ctx.lineTo(720, 160);
+    // Rs
+    for (let i = 0; i < 4; i++) {
+        ctx.lineTo(720 + (i % 2 === 0 ? -5 : 5), 165 + i * 6);
+    }
+    ctx.lineTo(720, 190);
+    // Cs
+    ctx.moveTo(710, 190);
+    ctx.lineTo(730, 190);
+    ctx.moveTo(710, 200);
+    ctx.lineTo(730, 200);
+    ctx.moveTo(720, 200);
+    ctx.lineTo(720, 220);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '9px monospace';
+    ctx.fillText('Rs', 730, 175);
+    ctx.fillText('Cs', 730, 200);
+
+    // CLOAD (to the right of output)
+    ctx.strokeStyle = '#e6edf3';
+    ctx.beginPath();
+    ctx.moveTo(720, 140);
+    ctx.lineTo(780, 140);
+    ctx.lineTo(780, 160);
+    ctx.moveTo(770, 160);
+    ctx.lineTo(790, 160);
+    ctx.moveTo(770, 170);
+    ctx.lineTo(790, 170);
+    ctx.moveTo(780, 170);
+    ctx.lineTo(780, 220);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('CLOAD', 795, 170);
+
+    // Summary table
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(30, 270, 790, 200);
+
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Comparison:', 50, 295);
+
+    // Headers
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = '10px monospace';
+    ctx.fillText('Technique', 50, 320);
+    ctx.fillText('Pros', 200, 320);
+    ctx.fillText('Cons', 450, 320);
+    ctx.fillText('When to Use', 650, 320);
+
+    // Separator line
+    ctx.strokeStyle = '#374151';
+    ctx.beginPath();
+    ctx.moveTo(50, 330);
+    ctx.lineTo(800, 330);
+    ctx.stroke();
+
+    ctx.fillStyle = '#e6edf3';
+    const rows = [
+        ['RISO', 'Simple, effective', 'Reduces DC precision', 'General purpose'],
+        ['In-loop Cf', 'Maintains DC accuracy', 'May need tuning', 'Precision apps'],
+        ['Snubber Rs-Cs', 'No gain change', 'Power dissipation', 'Heavy loads']
+    ];
+
+    rows.forEach((row, i) => {
+        const y = 355 + i * 40;
+        ctx.fillStyle = TEK.ch3;
+        ctx.fillText(row[0], 50, y);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText(row[1], 200, y);
+        ctx.fillStyle = '#fb7185';
+        ctx.fillText(row[2], 450, y);
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText(row[3], 650, y);
+    });
+})();
+</script>

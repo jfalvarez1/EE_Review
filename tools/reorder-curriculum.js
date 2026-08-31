@@ -42,44 +42,52 @@ const DRY = process.argv.includes('--dry');
 
 // New module sequence, given as CURRENT module ids.
 //
-// The catalogue was already re-sequenced once, so this is no longer a wholesale
-// reordering - it inserts the new Semiconductors and Diodes module at the point
-// the syllabus puts it, after feedback and before the transistor, and shifts
-// everything below it down by one.
+// IDENTITY at the moment: the modules are already in teaching order, so this
+// list only exists to reorder LESSONS. Leaving a stale non-identity order here
+// is the sharpest edge on this tool - it is a valid permutation, so the
+// validator accepts it, and it silently shuffles all 27 modules a second time.
+// The --dry run is the guard: it prints "M07 <- M06" style mappings, and any
+// arrow that should be an identity is the warning.
 const MODULE_ORDER = [
-    1,   // Op-Amp Fundamentals
-    2,   // Advanced Applications
-    3,   // Feedback Theory & Stability
-    27,  // Semiconductors and Diodes   <- inserted here
-    4,   // Transistor Intuition (BJT)
-    5,   // FET/MOSFET Fundamentals
-    6,   // Output Stages & Complementary Circuits
-    7,   // Advanced Analog Blocks
-    8,   // Oscillators & Timing Circuits
-    9,   // Practical Skills
-    10,  // Design Trade-offs Workshop
-    11,  // Practice Problems & Exercises
-    12,  // Power Electronics Applications
-    13,  // Power Supply Design
-    14,  // Battery Management
-    15,  // Audio Applications
-    16,  // Data Conversion Applications
-    17,  // Sensor Interface
-    18,  // Digital Interface Electrical Design
-    19,  // Communication Protocols - Electrical Level
-    20,  // RF Analog
-    21,  // EMI/EMC Design
-    22,  // Real-World Scenarios
-    23,  // Troubleshooting & Debug
-    24,  // Real-World System Design
-    25,  // Complex Real-World Projects
-    26   // Power Systems & the Grid (ERCOT / AEP)
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27
 ];
 
-// Every module is already in the right internal order, so nothing to permute.
-// Entries here are validated as permutations of the module they name, so a
-// stale plan aborts rather than scrambling the lessons.
-const LESSON_ORDER = {};
+// Entries are validated as permutations of the module they name, so a stale
+// plan aborts rather than scrambling the lessons.
+const LESSON_ORDER = {
+    // BJTs: the small-signal model was written last and appended at 37, but it
+    // is the tool every later lesson uses. It belongs at position 2, before the
+    // high-frequency model that adds capacitors to it and before the amplifier
+    // topologies whose gain expressions it supplies.
+    5: [1, 37, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36]
+};
+
+// Lessons that are in the wrong MODULE, given as current coordinates. Each is
+// removed from its module and appended to the destination in the order listed;
+// both modules are then renumbered 1..n.
+//
+// This is not a reordering, it is a correction. Both groups below have been
+// misfiled since the project's first commit: nine lessons were glued to the
+// front of the module that happened to follow the one they belonged to, so
+// "RF Analog" opened on five general exercise sets and "EMI/EMC Design" opened
+// on four lessons about ADC monotonicity. Neither module's own subject started
+// until halfway down its list.
+//
+// A move and a LESSON_ORDER entry for the same module would be ambiguous - the
+// order would be written in ids that the move invalidates - so that is refused.
+// STALENESS IS THE HAZARD HERE, exactly as it is for MODULE_ORDER. A move is
+// written in coordinates, and after it runs those coordinates name a DIFFERENT
+// lesson - 21-1 was "Exercise Set A" before the correction below and is
+// "Matching Networks" after it. Re-running a spent plan is therefore valid and
+// silently wrong. Empty it once applied, and read --dry before every run.
+//
+// APPLIED: the exercise sets A-E moved 21 -> 12 (generic practice, not RF), and
+// the four monotonicity/DNL lessons moved 22 -> 17 (converter specifications,
+// not EMC). Both groups had been misfiled since the first commit, which left
+// "RF Analog" and "EMI/EMC Design" each opening on another module's subject.
+const MOVES = [];
 
 // ---------------------------------------------------------------- load
 
@@ -89,21 +97,82 @@ const C = global.window.CURRICULUM || global.CURRICULUM;
 
 const pad = n => String(n).padStart(2, '0');
 
+// ---------------------------------------------------------------- moves
+// Work on a copy in which every lesson remembers where it came from, because
+// after a move its id no longer says where its file is.
+
+const work = C.modules.map(m => ({
+    id: m.id,
+    title: m.title,
+    description: m.description,
+    lessons: m.lessons.map(l => Object.assign({}, l, { _origM: m.id, _origL: l.id }))
+}));
+
+const moveProblems = [];
+const takenFrom = new Set();
+const touched = new Set();
+
+MOVES.forEach(mv => {
+    const key = mv.from.join('/');
+    if (takenFrom.has(key)) moveProblems.push(`lesson ${key} is moved twice`);
+    takenFrom.add(key);
+
+    const src = work.find(m => m.id === mv.from[0]);
+    if (!src) { moveProblems.push(`move source module ${mv.from[0]} does not exist`); return; }
+    if (!src.lessons.some(l => l._origL === mv.from[1])) {
+        moveProblems.push(`module ${mv.from[0]} has no lesson ${mv.from[1]}`);
+        return;
+    }
+    if (!work.find(m => m.id === mv.to)) {
+        moveProblems.push(`move destination module ${mv.to} does not exist`);
+        return;
+    }
+    if (mv.to === mv.from[0]) {
+        moveProblems.push(`lesson ${key} is "moved" to its own module`);
+    }
+    touched.add(mv.from[0]);
+    touched.add(mv.to);
+});
+
+touched.forEach(id => {
+    if (LESSON_ORDER[id]) {
+        moveProblems.push(`module ${id} appears in both MOVES and LESSON_ORDER - ` +
+                          `the order would be written in ids the move invalidates`);
+    }
+});
+
+if (moveProblems.length) {
+    console.error('ABORTED — the MOVES plan does not describe this curriculum:\n');
+    moveProblems.forEach(p => console.error('  ' + p));
+    process.exit(1);
+}
+
+// Detach first, then append, so a move never sees a half-updated module.
+const detached = MOVES.map(mv => {
+    const src = work.find(m => m.id === mv.from[0]);
+    const i = src.lessons.findIndex(l => l._origL === mv.from[1]);
+    return { lesson: src.lessons.splice(i, 1)[0], to: mv.to };
+});
+detached.forEach(d => work.find(m => m.id === d.to).lessons.push(d.lesson));
+
+// Renumber every module, so ids are contiguous again.
+work.forEach(m => m.lessons.forEach((l, i) => { l.id = i + 1; }));
+
 // ---------------------------------------------------------------- validate
 
 const problems = [];
 
 const seen = new Set(MODULE_ORDER);
 if (seen.size !== MODULE_ORDER.length) problems.push('MODULE_ORDER has duplicates');
-if (MODULE_ORDER.length !== C.modules.length) {
-    problems.push(`MODULE_ORDER has ${MODULE_ORDER.length}, curriculum has ${C.modules.length}`);
+if (MODULE_ORDER.length !== work.length) {
+    problems.push(`MODULE_ORDER has ${MODULE_ORDER.length}, curriculum has ${work.length}`);
 }
-for (const m of C.modules) {
+for (const m of work) {
     if (!seen.has(m.id)) problems.push(`module ${m.id} missing from MODULE_ORDER`);
 }
 
 for (const [oldMod, order] of Object.entries(LESSON_ORDER)) {
-    const mod = C.modules.find(m => m.id === Number(oldMod));
+    const mod = work.find(m => m.id === Number(oldMod));
     if (!mod) { problems.push(`LESSON_ORDER references unknown module ${oldMod}`); continue; }
     const have = mod.lessons.map(l => l.id).sort((a, b) => a - b).join(',');
     const want = order.slice().sort((a, b) => a - b).join(',');
@@ -120,19 +189,22 @@ if (problems.length) {
 
 // ---------------------------------------------------------------- map
 
+// The key is where the FILE currently is, which after a move is no longer the
+// lesson's id - hence _origM/_origL rather than the module and id in hand.
 // oldKey "m/l" -> { newM, newL, title }
 const map = new Map();
 const newModules = [];
 
 MODULE_ORDER.forEach((oldModId, mi) => {
-    const mod = C.modules.find(m => m.id === oldModId);
+    const mod = work.find(m => m.id === oldModId);
     const newModId = mi + 1;
     const order = LESSON_ORDER[oldModId] || mod.lessons.map(l => l.id);
 
     const lessons = order.map((oldLessonId, li) => {
         const les = mod.lessons.find(l => l.id === oldLessonId);
-        map.set(`${oldModId}/${oldLessonId}`, {
-            newM: newModId, newL: li + 1, title: les.title
+        map.set(`${les._origM}/${les._origL}`, {
+            newM: newModId, newL: li + 1, title: les.title,
+            movedFrom: les._origM === newModId ? null : les._origM
         });
         return Object.assign({}, les, { id: li + 1 });
     });
@@ -151,6 +223,22 @@ if (DRY) {
     newModules.forEach(m => {
         console.log(`  M${pad(m.id)} <- M${pad(m.oldId)}  ${m.title}  (${m.lessons.length})`);
     });
+    if (MOVES.length) {
+        console.log('\nCROSS-MODULE MOVES\n');
+        for (const [oldKey, h] of map) {
+            if (!h.movedFrom) continue;
+            const dest = newModules.find(m => m.id === h.newM);
+            console.log(`  ${oldKey.replace('/', '-')}  ->  ${h.newM}-${h.newL}   ` +
+                        `${h.title}\n        into ${dest.title}`);
+        }
+        console.log('\n  resulting sizes:');
+        [...touched].sort((a, b) => a - b).forEach(id => {
+            const nm = newModules.find(m => m.oldId === id);
+            const was = C.modules.find(m => m.id === id).lessons.length;
+            console.log(`    M${pad(nm.id)}  ${was} -> ${nm.lessons.length}   ${nm.title}`);
+        });
+    }
+
     console.log('\nLESSON MOVES in reordered modules\n');
     Object.keys(LESSON_ORDER).forEach(oldMod => {
         const nm = newModules.find(m => m.oldId === Number(oldMod));
