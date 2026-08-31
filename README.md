@@ -1,6 +1,6 @@
 # EE Review — Analog Design & Power Systems Study Guide
 
-A browser-based quick-reference study guide for electrical engineering. **26 modules, 350
+A browser-based quick-reference study guide for electrical engineering. **26 modules, 354
 lessons**, each one short enough to read in a sitting: the concept, the equations that matter,
 a worked example with real numbers, an interactive calculator, and the gotchas that only show
 up on a bench or in the field.
@@ -8,7 +8,7 @@ up on a bench or in the field.
 It is deliberately **not** a course you work through in order. Open the sidebar, jump to the
 thing you need to remember, and leave.
 
-![The welcome screen, showing 26 modules and 350 lessons](docs/images/welcome.png)
+![The welcome screen, showing 26 modules and 354 lessons](docs/images/welcome.png)
 
 ---
 
@@ -38,7 +38,7 @@ JavaScript.
 | 11–15 | Oscillators and timing, digital interfacing, comms protocols, analog blocks, practice problems |
 | 16–20 | Real-world scenarios, troubleshooting, power supply design, battery management, sensor interfacing |
 | 21–25 | RF analog, EMI/EMC, system design, complex projects, feedback theory and stability |
-| **26** | **Power systems and the grid (ERCOT / AEP)** |
+| **26** | **Power systems and the grid (ERCOT / AEP)**, including four lessons on transmission line design and speccing |
 
 Module 26 is the newest and the odd one out: undergraduate power-systems theory (per unit,
 symmetrical components, the swing equation, power flow) paired with how the Texas grid and a
@@ -62,14 +62,14 @@ index.html               The application shell and welcome screen
 components.html          Searchable symbol + parameter reference
 assets/
   ad-framework.js        AD namespace: parsing, waveform generation, DSP, canvas plotting
-  component-models.js    Component model catalog — 66 symbols, ported from circuit_toy
+  component-models.js    Component model catalog — 67 symbols, ported from circuit_toy
   schematic-svg.js       Schematic engine: symbol drawing, DRC, pre-built circuit generators
   schematic-normalize.js Post-render normalisation of hand-written lesson SVGs
   curriculum.js          Curriculum data + AppState, Navigation and Router
   exercises.js           108 exercises across 8 sets and 4 difficulty levels
   widgets.js             Oscilloscope, calculator and exercise widgets
   styles.css             The whole stylesheet
-lessons/module-NN/       350 lesson fragments, one HTML file each
+lessons/module-NN/       354 lesson fragments, one HTML file each
 tools/                   Headless validators (see Testing)
 docs/                    Troubleshooting notes and README images
 split_pdfs/              Reference PDFs (see Licensing note below)
@@ -103,7 +103,7 @@ it works.
 ## The component model catalog
 
 `assets/component-models.js` is the single source of truth for schematic symbols. It holds
-**66 components across 12 categories**, each carrying geometry, electrical parameters,
+**67 components across 12 categories**, each carrying geometry, electrical parameters,
 governing equations, and study notes.
 
 The models are ported from the component system in **circuit_toy**, a C/SDL2 circuit simulator
@@ -189,9 +189,34 @@ for (const m of CURRICULUM.modules) {
 }
 ```
 
-Latest run: **350 lessons, 2,430 controls, 470 canvases, zero JavaScript errors.** Four lessons
-(7-5, 24-3, 25-3, 25-4) can still display `NaN` under deliberately out-of-range input, and one
-canvas (`identify-topology-canvas` in 25-2) has no drawing code behind it at all.
+Latest run: **354 lessons, 2,529 controls, 483 canvases, zero JavaScript errors.**
+
+### Three checks worth running after any change
+
+**1. Calculator liveness.** Press each Calculate button, perturb every input, press again.
+If the output never changes, that calculator ignores its inputs. This found 11 dead
+calculators — the whole of module 12 plus one other — where the reader could type anything
+and nothing happened. All 90 respond now.
+
+**2. Diagram geometry.** Walk the rendered SVG of every diagram and check the block-diagram
+rules: orthogonal segments only, no wire endpoint in empty space, no overlapping text or
+collinear wires. Note that `getBBox()` on a transformed `<g>` returns *local* coordinates —
+transform through `getCTM()` or the results are nonsense. All 19 catalog diagrams pass, with
+one declared exception (the conductor in the span diagram is a catenary and is drawn curved).
+
+**3. Contrast.** Any SVG stroke below about 3:1 against `#0b0f16` is invisible. 106 lesson
+files were authored against a white page and stroke in `#333` (1.52:1). `schematic-normalize.js`
+now remaps those at load — 2,706 elements across the course — but new hand-authored diagrams
+should use theme colours directly.
+
+### Known remaining
+
+- Three lessons (24-3, 25-3, 25-4) can display `NaN` under deliberately out-of-range input.
+- `identify-topology-canvas` in 25-2 has no drawing code behind it at all.
+- 17 components across 9 lesson files are still drawn as plain rectangles where a real symbol
+  is required (mostly transistors). A context-aware audit separates these from the ~350
+  rectangles that are legitimately rectangles — physical cross-sections, functional blocks,
+  and IEC-style resistors.
 
 ---
 
@@ -201,6 +226,15 @@ canvas (`identify-topology-canvas` in 25-2) has no drawing code behind it at all
 back to the field's default when it is blank or unparseable, and clamps to the element's
 `min`/`max`. That is what stops a cleared box from rendering `NaN` in the results panel and a
 negative resistance from producing infinite gain.
+
+> **It takes an element ID, not a value.** `AD.num(document.getElementById('x').value)`
+> evaluates `getElementById("100k")` → `null` → `NaN`. 152 call sites had this; where they
+> had a `|| fallback` the bug was invisible and the control was simply dead. If you want to
+> parse a raw string, `AD.parseValue('4.7k')` is the one that does that.
+
+`AD.parseValue` understands SI multipliers *and* a trailing unit, so `3.3V`, `50pF`, `1us`,
+`4mA` and `10kohm` all parse. `AD.fmtInt(x)` prints a thousands-separated integer — use it for
+amps and volts, where `AD.fmt` would collapse 1,339 A to an unhelpful "1k".
 
 **Formatting.** `AD.fmt(x)` renders engineering notation and already returns `—` for anything
 non-finite. `AD.fmtUnit(x, 'Ω')` appends a unit.
