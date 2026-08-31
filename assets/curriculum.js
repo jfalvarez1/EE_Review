@@ -316,6 +316,16 @@ const CURRICULUM = {
                     title: 'Industry Op-Amp Selection Guide',
                     description: 'Choosing the right op-amp for your application',
                     topics: ['General purpose', 'Precision', 'High-speed', 'Low-power']
+                },
+                // Written for the learning path. It is the FIRST step there and
+                // the last entry here, because the catalogue orders by topic and
+                // the path orders by what has to be understood first.
+                {
+                    id: 15,
+                    title: 'The Ideal Amplifier',
+                    description: 'Gain, Zin, Zout, and why there are exactly four kinds of amplifier',
+                    topics: ['Four amplifier types', 'Source loading derivation',
+                             'Zin/Rs error rule', 'Real input stages: LM358 to LMP7721']
                 }
             ]
         },
@@ -2687,6 +2697,11 @@ const Router = {
             return;
         }
 
+        if (hash === 'path') {
+            this.showPath();
+            return;
+        }
+
         const match = hash.match(/^module-(\d+)\/lesson-(\d+)$/);
         if (match) {
             const moduleId = parseInt(match[1]);
@@ -2695,6 +2710,77 @@ const Router = {
         } else {
             this.showWelcome();
         }
+    },
+
+    /**
+     * The ordered spine, as opposed to the sidebar's topic catalogue. See
+     * assets/learning-path.js for why the two differ and which one is the
+     * teaching order.
+     */
+    showPath() {
+        const content = document.getElementById('lesson-content');
+        if (!content || !window.LEARNING_PATH) return;
+
+        this.navGeneration++;
+        if (this.clearStaleTimers) this.clearStaleTimers();
+        WidgetFactory.destroyAll();
+
+        document.getElementById('breadcrumb').innerHTML =
+            '<span class="breadcrumb-module">Learning path</span>';
+
+        const done = AD.getProgress().lessons || {};
+        const total = LEARNING_PATH.total();
+        let complete = 0;
+        LEARNING_PATH.steps().forEach(s => {
+            if (s.ref && done['m' + s.ref[0] + 'l' + s.ref[1]]) complete++;
+        });
+
+        const esc = (s) => String(s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        let html = `
+            <div class="card">
+                <h2>The learning path</h2>
+                <p>The sidebar groups lessons by topic, which is what you want when you already
+                know the subject and need to look something up. It is a poor order to learn in:
+                it opens with 35 lessons of transistor internals, and does not explain negative
+                feedback until module 25 &mdash; even though the op-amp rules in module 2 are
+                only true because of it.</p>
+                <p>This is the other view. One route through, foundation first, each step saying
+                what it earns you. ${complete} of ${total} steps complete.</p>
+            </div>`;
+
+        LEARNING_PATH.STAGES.forEach((stage, si) => {
+            html += `<div class="card">
+                <h3>${si + 1}. ${esc(stage.title)}</h3>
+                <p class="lesson-description">${esc(stage.blurb)}</p>
+                <ol class="path-steps">`;
+
+            stage.steps.forEach(step => {
+                const isDone = step.ref && done['m' + step.ref[0] + 'l' + step.ref[1]];
+                const href = step.ref
+                    ? `#module-${step.ref[0]}/lesson-${step.ref[1]}`
+                    : null;
+                const tag = step.ref
+                    ? `<span class="topic-tag">M${step.ref[0]}&middot;${step.ref[1]}</span>`
+                    : `<span class="topic-tag" style="opacity:.75">written for this path</span>`;
+                const title = href
+                    ? `<a href="${href}">${esc(step.title)}</a>`
+                    : `<span>${esc(step.title)}</span>`;
+
+                html += `<li class="path-step${isDone ? ' is-done' : ''}">
+                    <div class="path-step-head">${isDone ? '&#10003; ' : ''}${title} ${tag}</div>
+                    <div class="path-step-earns">${esc(step.earns)}</div>
+                </li>`;
+            });
+
+            html += `</ol></div>`;
+        });
+
+        const welcomeCard = content.querySelector('.welcome-card');
+        if (welcomeCard) welcomeCard.style.display = 'none';
+        content.innerHTML = html;
+        content.scrollTop = 0;
     },
 
     showWelcome() {
