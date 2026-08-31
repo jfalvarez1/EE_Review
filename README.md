@@ -219,11 +219,16 @@ went missing before.
 
 ## A note on `split_pdfs/`
 
-This directory contains ~121 MB of split PDFs of *The Art of Electronics*, the *Analog Pocket
-Reference* and TI's *Analog Engineer's Circuit Cookbook*. These are third-party copyrighted
-works and are **not** licensed for redistribution. If this repository is public, consider
-removing them from history (`git filter-repo`) and adding `split_pdfs/` to `.gitignore`.
-Nothing in the application reads them at runtime.
+The reference PDFs (*The Art of Electronics*, the *Analog Pocket Reference*, TI's *Analog
+Engineer's Circuit Cookbook*) are third-party copyrighted works and are **not** licensed for
+redistribution.
+
+They were **removed from git history on 2026-08-31** with `git filter-repo`, and `split_pdfs/`
+is now in `.gitignore`. Keep your own copies locally if you want them — nothing in the
+application reads them at runtime, so the app works without the directory present.
+
+The `split_pdfs.py`, `resplit_pdfs.py` and `split_analog_ref.py` scripts remain, so you can
+regenerate the split files from your own copies of the source documents.
 
 ---
 
