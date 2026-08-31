@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Netlist - what the diagrams actually connect</title>
+<style>
+    body { background: #0b0f16; color: #e6edf3; font: 12.5px ui-monospace, Consolas, monospace; margin: 20px; }
+    h1 { font-size: 15px; }
+    pre { white-space: pre-wrap; line-height: 1.45; }
+    .bad { color: #fb7185; }
+    .ok { color: #34d399; }
+</style>
+</head>
+<body>
+<h1>Netlist</h1>
+<div id="status">running...</div>
+<pre id="out"></pre>
+
+<script src="../assets/ad-framework.js"></script>
+<script src="../assets/widgets.js"></script>
+<script src="../assets/component-models.js"></script>
+<script src="../assets/schematic-svg.js"></script>
+<script src="../assets/schematic-normalize.js"></script>
+<script src="../assets/curriculum.js"></script>
+<script src="../assets/exercises.js"></script>
+
+<div id="stage" style="position:absolute; left:-10000px; top:0; width:1000px;">
+    <div id="lesson-content"></div>
+</div>
+
+<!--
+    The geometry audit proves a wire is orthogonal, on-grid and lands on
+    something. It says nothing about WHICH pin it lands on, so a diagram can
+    pass it cleanly while connecting a MOSFET's drain where its source belongs.
+
+    This resolves every wire endpoint to a pin and prints the resulting nets,
+    so the connections can actually be read. It also reports the two things
+    that are always wrong:
+
+      UNCONNECTED PIN   a device terminal nothing reaches
+      ONE-PIN NET       a wire that ends on a single pin and goes nowhere
+
+    Nets are built by union-find over pin positions and wire vertices. Wires
+    merge along their own vertices, at a shared endpoint, where an endpoint
+    lands in the interior of another wire (a T), and at any declared junction
+    dot. Two wires that merely cross, with no dot, are left unconnected - that
+    is the schematic convention and the whole reason dots exist.
+-->
+<script>
+(function () {
+    'use strict';
+
+    var TOL = 6;
+    var captured = [];
+
+    // Record every spec that goes through diagram(), then render as normal.
+    var realDiagram = ComponentModels.diagram;
+    ComponentModels.diagram = function (spec) {
+        captured.push(spec);
+        return realDiagram.apply(this, arguments);
+    };
+
+    function key(x, y) { return Math.round(x) + ',' + Math.round(y); }
+
+    function makeDSU() {
+        var parent = {};
+        function find(a) {
+            if (parent[a] === undefined) parent[a] = a;
+            while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; }
+            return a;
+        }
+        return {
+            find: find,
+            union: function (a, b) { var ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; }
+        };
+    }
+
+    function near(ax, ay, bx, by, t) {
+        return Math.abs(ax - bx) <= (t || TOL) && Math.abs(ay - by) <= (t || TOL);
+    }
+
+    // Does (px,py) lie on the segment a-b (which is horizontal or vertical)?
+    function onSegment(px, py, a, b) {
+        if (Math.abs(a[1] - b[1]) < 0.6) {
+            return Math.abs(py - a[1]) <= 1.5 &&
+                   px >= Math.min(a[0], b[0]) - 1 && px <= Math.max(a[0], b[0]) + 1;
+        }
+        if (Math.abs(a[0] - b[0]) < 0.6) {
+            return Math.abs(px - a[0]) <= 1.5 &&
+                   py >= Math.min(a[1], b[1]) - 1 && py <= Math.max(a[1], b[1]) + 1;
+        }
+        return false;
+    }
+
+    /**
+     * Pins that are open by design, and must not be reported as defects.
+     *
+     *   busbar a/b      A bus is a node, not a two-terminal device. Its ends
+     *                   are where the bus stops being drawn; leaving them
+     *                   open is the convention, not an omission.
+     *   opamp vcc/vee   Supply pins are routinely left off a signal schematic.
+     *   port a          A port IS the open end - that is its whole purpose.
+     *   ct secondary    Drawn to show the CT exists; the metering burden is
+     *                   usually a separate drawing.
+     *
+     * Everything else - a transistor terminal, a capacitor plate, a resistor
+     * end - has to go somewhere.
+     */
+    function openByDesign(kind, pin) {
+        if (kind === 'busbar') return true;
+        if (kind === 'port' || kind === 'testpoint') return true;
+        if (kind === 'opamp' && (pin === 'vcc' || pin === 'vee')) return true;
+        if (kind === 'comparator' && (pin === 'vcc' || pin === 'vee')) return true;
+        if (kind === 'ct' && pin === 'secondary') return true;
+        if (kind === 'pt' && pin === 'secondary') return true;
+        // A relay's trip output goes to the breaker's operating mechanism, not
+        // to a terminal in the power circuit. On a one-line it is drawn as a
+        // control line to the breaker symbol, which has no pin for it.
+        if (kind === 'relay_device' && pin === 'trip') return true;
+        return false;
+    }
+
+    function netlist(spec) {
+        var dsu = makeDSU();
+        var pins = [];      // {node, part, pin, x, y}
+        var i, j, k;
+
+        (spec.parts || []).forEach(function (p, pi) {
+            var r = ComponentModels.draw(p.key, p);
+            if (!r || !r.pins) return;
+            Object.keys(r.pins).forEach(function (name) {
+                var pt = r.pins[name];
+                pins.push({
+                    node: key(pt.x, pt.y),
+                    // Identity is the part's INDEX, not its label. A one-line
+                    // routinely carries four breakers all labelled "52";
+                    // keying on the label merges them and reports a short
+                    // between two devices that are metres apart.
+                    id: pi,
+                    part: p.label || (p.key + '#' + pi),
+                    kind: p.key,
+                    pin: name,
+                    x: pt.x, y: pt.y
+                });
+            });
+        });
+
+        // Blocks have no pin registry; treat their outline as a terminal area.
+        var blocks = (spec.blocks || []).map(function (b, bi) {
+            var w = b.w || 80, h = b.h || 60;
+            return { name: [].concat(b.label || ['block#' + bi])[0],
+                     x0: b.x - w/2 - TOL, x1: b.x + w/2 + TOL,
+                     y0: b.y - h/2 - TOL, y1: b.y + h/2 + TOL };
+        });
+
+        var wires = spec.wires || [];
+        var segs = [];
+
+        // Two pins at the same point are connected, wire or no wire - parts
+        // placed terminal-to-terminal are a normal way to draw a connection.
+        pins.forEach(function (a) {
+            pins.forEach(function (b) {
+                if (a !== b && a.id !== b.id && near(a.x, a.y, b.x, b.y, 1)) {
+                    dsu.union(a.node, b.node);
+                }
+            });
+        });
+
+        // A busbar conducts along its whole length, so a drop that leaves from
+        // the middle of the bar is connected to it. Modelling only its two end
+        // pins would report every such drop as floating - which is how most
+        // one-lines are actually drawn.
+        (spec.parts || []).forEach(function (p, pi) {
+            if (p.key !== 'busbar') return;
+            var r = ComponentModels.draw(p.key, p);
+            if (!r || !r.pins || !r.pins.a || !r.pins.b) return;
+            var a = [r.pins.a.x, r.pins.a.y], b = [r.pins.b.x, r.pins.b.y];
+            segs.push([a, b]);
+            dsu.union(key(a[0], a[1]), key(b[0], b[1]));
+        });
+        wires.forEach(function (pts) {
+            for (i = 0; i + 1 < pts.length; i++) {
+                dsu.union(key(pts[i][0], pts[i][1]), key(pts[i+1][0], pts[i+1][1]));
+                segs.push([pts[i], pts[i+1]]);
+            }
+        });
+
+        // A pin connects if a wire vertex sits on it OR if a wire simply runs
+        // over it. A rail that passes through a terminal on its way somewhere
+        // else is connected to that terminal - that is what a rail is.
+        wires.forEach(function (pts) {
+            pts.forEach(function (pt) {
+                pins.forEach(function (pn) {
+                    if (near(pt[0], pt[1], pn.x, pn.y)) dsu.union(key(pt[0], pt[1]), pn.node);
+                });
+            });
+        });
+        segs.forEach(function (s) {
+            pins.forEach(function (pn) {
+                if (onSegment(pn.x, pn.y, s[0], s[1])) {
+                    dsu.union(pn.node, key(s[0][0], s[0][1]));
+                }
+            });
+        });
+
+        // endpoint landing mid-wire = a T junction
+        wires.forEach(function (pts) {
+            [pts[0], pts[pts.length - 1]].forEach(function (e) {
+                segs.forEach(function (s) {
+                    if (onSegment(e[0], e[1], s[0], s[1])) {
+                        dsu.union(key(e[0], e[1]), key(s[0][0], s[0][1]));
+                    }
+                });
+            });
+        });
+
+        // declared junction dots merge everything passing through them
+        (spec.dots || []).forEach(function (d) {
+            segs.forEach(function (s) {
+                if (onSegment(d[0], d[1], s[0], s[1])) {
+                    dsu.union(key(d[0], d[1]), key(s[0][0], s[0][1]));
+                }
+            });
+            pins.forEach(function (pn) {
+                if (near(d[0], d[1], pn.x, pn.y)) dsu.union(key(d[0], d[1]), pn.node);
+            });
+        });
+
+        // group pins by net
+        var nets = {};
+        pins.forEach(function (pn) {
+            var root = dsu.find(pn.node);
+            (nets[root] = nets[root] || []).push(pn);
+        });
+
+        // which pins nothing reaches at all
+        var unconnected = pins.filter(function (pn) {
+            var hit = false;
+            wires.forEach(function (pts) {
+                pts.forEach(function (pt) { if (near(pt[0], pt[1], pn.x, pn.y)) hit = true; });
+            });
+            segs.forEach(function (s) { if (onSegment(pn.x, pn.y, s[0], s[1])) hit = true; });
+            pins.forEach(function (o) {
+                if (o !== pn && o.id !== pn.id && near(o.x, o.y, pn.x, pn.y, 1)) hit = true;
+            });
+            blocks.forEach(function (b) {
+                if (pn.x >= b.x0 && pn.x <= b.x1 && pn.y >= b.y0 && pn.y <= b.y1) hit = true;
+            });
+            return !hit && !openByDesign(pn.kind, pn.pin);
+        });
+
+        // A device with both terminals on one net is shorted out - the wire
+        // bypasses it. That is invisible in a rendering and fatal in a
+        // schematic, so it gets its own check.
+        var shorted = [];
+        var seen = {};
+        pins.forEach(function (a) {
+            pins.forEach(function (b) {
+                if (a === b || a.id !== b.id || a.pin === b.pin) return;
+                if (a.kind === 'busbar') return;      // a bus IS one node
+                if (dsu.find(a.node) !== dsu.find(b.node)) return;
+                var k = a.id + '|' + [a.pin, b.pin].sort().join('|');
+                if (seen[k]) return;
+                seen[k] = true;
+                shorted.push(a.part + ' (' + a.kind + '): ' + a.pin + ' and ' + b.pin +
+                             ' are the same net');
+            });
+        });
+
+        // Which nets touch a block, so a wire that ends on an IC is not
+        // mistaken for a wire that ends nowhere.
+        var reachesBlock = {};
+        wires.forEach(function (pts) {
+            var touches = false;
+            pts.forEach(function (pt) {
+                blocks.forEach(function (b) {
+                    if (pt[0] >= b.x0 && pt[0] <= b.x1 && pt[1] >= b.y0 && pt[1] <= b.y1) {
+                        touches = true;
+                    }
+                });
+            });
+            if (touches) pts.forEach(function (pt) { reachesBlock[dsu.find(key(pt[0], pt[1]))] = true; });
+        });
+
+        // A declared junction dot is also a destination. Some figures are
+        // silhouettes rather than circuits - the phase-configuration drawing
+        // marks conductor positions with dots, not with parts - and a spine
+        // running from a ground symbol up to those dots is complete as drawn.
+        (spec.dots || []).forEach(function (d) {
+            reachesBlock[dsu.find(key(d[0], d[1]))] = true;
+            segs.forEach(function (s) {
+                if (onSegment(d[0], d[1], s[0], s[1])) {
+                    reachesBlock[dsu.find(key(s[0][0], s[0][1]))] = true;
+                }
+            });
+        });
+
+        return { nets: nets, pins: pins, unconnected: unconnected,
+                 blocks: blocks, shorted: shorted, dsu: dsu,
+                 reachesBlock: reachesBlock };
+    }
+
+    var LESSONS = [
+        'module-05/lesson-11', 'module-05/lesson-16', 'module-06/lesson-12',
+        'module-10/lesson-09', 'module-23/lesson-18', 'module-23/lesson-23',
+        'module-24/lesson-01', 'module-24/lesson-02',
+        'module-26/lesson-01', 'module-26/lesson-02', 'module-26/lesson-03',
+        'module-26/lesson-04', 'module-26/lesson-05', 'module-26/lesson-06',
+        'module-26/lesson-07', 'module-26/lesson-08', 'module-26/lesson-09',
+        'module-26/lesson-10', 'module-26/lesson-11', 'module-26/lesson-15',
+        'module-26/lesson-16', 'module-26/lesson-17', 'module-26/lesson-18'
+    ];
+
+    var pane = document.getElementById('lesson-content');
+    var lines = [];
+    var problems = 0;
+
+    LESSONS.forEach(function (rel) {
+        captured.length = 0;
+        var x = new XMLHttpRequest();
+        x.open('GET', '../lessons/' + rel + '.html', false);
+        try { x.send(null); } catch (e) { return; }
+        if (x.status !== 200) return;
+
+        pane.innerHTML = x.responseText;
+        var scripts = pane.querySelectorAll('script');
+        for (var s = 0; s < scripts.length; s++) {
+            var old = scripts[s], fresh = document.createElement('script');
+            if (old.src) fresh.src = old.src;
+            else fresh.textContent = (window.Router && Router.scopeLessonScript)
+                ? Router.scopeLessonScript(old.textContent) : old.textContent;
+            try { old.parentNode.replaceChild(fresh, old); } catch (e) {}
+        }
+
+        captured.forEach(function (spec, si) {
+            var r = netlist(spec);
+            lines.push('');
+            lines.push('=== ' + rel + (captured.length > 1 ? '  [' + si + ']' : '') +
+                       '  ' + (spec.title || ''));
+
+            Object.keys(r.nets).forEach(function (root) {
+                var members = r.nets[root];
+                var names = members.map(function (m) { return m.part + '.' + m.pin; });
+                var flag = '';
+                // A net with one pin is only a defect if it goes nowhere. A
+                // gate running to a driver IC, or a ground stub under a
+                // controller, reaches a block - which has no pin registry but
+                // is absolutely a destination.
+                if (members.length === 1 &&
+                    !openByDesign(members[0].kind, members[0].pin) &&
+                    !r.reachesBlock[root]) {
+                    flag = '   <-- ONE-PIN NET';
+                    problems++;
+                }
+                lines.push('    net: ' + names.join('  +  ') + flag);
+            });
+
+            r.shorted.forEach(function (s) {
+                lines.push('    SHORTED: ' + s);
+                problems++;
+            });
+
+            r.unconnected.forEach(function (pn) {
+                lines.push('    UNCONNECTED PIN: ' + pn.part + '.' + pn.pin +
+                           ' (' + pn.kind + ') at ' + pn.x + ',' + pn.y);
+                problems++;
+            });
+            // Every pin's true position, so a fix can be wired to the pin
+            // rather than to an assumed offset. Rotation moves pins in ways
+            // that are easy to get wrong: rotate:90 sends an nmos drain from
+            // (x+15, y-35) to (x+35, y+15).
+            if (r.unconnected.length) {
+                var byPart = {};
+                r.pins.forEach(function (pn) {
+                    (byPart[pn.part] = byPart[pn.part] || []).push(pn.pin + '(' + pn.x + ',' + pn.y + ')');
+                });
+                Object.keys(byPart).forEach(function (p) {
+                    lines.push('      pins ' + p + ': ' + byPart[p].join(' '));
+                });
+            }
+            if (r.blocks.length) {
+                lines.push('    blocks: ' + r.blocks.map(function (b) { return b.name; }).join(', '));
+            }
+        });
+        pane.innerHTML = '';
+    });
+
+    document.getElementById('out').textContent = lines.join('\n');
+    document.getElementById('status').innerHTML =
+        '<span class="' + (problems ? 'bad' : 'ok') + '">' + problems +
+        ' connection problems</span>';
+    window.__netProblems = problems;
+    window.__netText = lines.join('\n');
+})();
+</script>
+</body>
+</html>

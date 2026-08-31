@@ -191,7 +191,12 @@ for (const m of CURRICULUM.modules) {
 
 Latest run: **354 lessons, 2,529 controls, 483 canvases, zero JavaScript errors.**
 
-### Three checks worth running after any change
+### Four checks worth running after any change
+
+All four are in `_audit/`, as pages you open against a running server:
+`_audit/audit-all.html` (geometry, all 24 generated schematics in one load),
+`_audit/netlist.html` (connectivity), `_audit/sweep-all.html` (every lesson,
+every control). They are development tools and are not loaded by the app.
 
 **1. Calculator liveness.** Press each Calculate button, perturb every input, press again.
 If the output never changes, that calculator ignores its inputs. This found 11 dead
@@ -200,23 +205,61 @@ and nothing happened. All 90 respond now.
 
 **2. Diagram geometry.** Walk the rendered SVG of every diagram and check the block-diagram
 rules: orthogonal segments only, no wire endpoint in empty space, no overlapping text or
-collinear wires. Note that `getBBox()` on a transformed `<g>` returns *local* coordinates —
-transform through `getCTM()` or the results are nonsense. All 19 catalog diagrams pass, with
-one declared exception (the conductor in the span diagram is a catenary and is drawn curved).
+collinear wires. All 24 generated schematics pass.
 
-**3. Contrast.** Any SVG stroke below about 3:1 against `#0b0f16` is invisible. 106 lesson
+Two traps, both of which cost real time here. `getBBox()` on a transformed `<g>` returns
+*local* coordinates — transform through `getCTM()`, and take the root inverse **once per
+SVG**, because taking it per element forces a layout flush each time and turns a two-second
+audit into a two-minute hang. And scope the audit to `svg.circuit-diagram[role="img"]`: the
+class alone is not enough, since hand-authored plots wear it too, and a Bode curve is nothing
+but diagonals with two loose ends. Reporting those is how an audit stops being worth reading.
+
+**3. Connectivity.** Geometry proves a wire is orthogonal, on-grid and lands on *something*.
+It says nothing about *which pin*, and that gap hid real breakage: a diagram can pass the
+geometry audit cleanly while the pass transistor is not in the circuit at all.
+
+`_audit/netlist.html` resolves every wire endpoint to a pin and prints the resulting nets, so
+the connections can be read rather than assumed. It reports unconnected pins, one-pin nets,
+and devices with both terminals on the same node — a short that is invisible in a rendering
+and fatal in a schematic. It found 212 problems on its first run, including six MOSFET gates
+with no drive at all, two hot-swap FETs wired 15 px off their own pins, and three series
+breakers the line ran straight through.
+
+Rotation is where most of it came from. `rotate: 90` sends an nmos's pins from
+`gate(x-25, y) drain(x+15, y-35) source(x+15, y+35)` to
+`gate(x, y-25) drain(x+35, y+15) source(x-35, y+15)` — so a rail drawn along the device's
+centre line misses both power terminals. Wire to the pins the catalogue reports, never to an
+assumed offset.
+
+Some open ends are correct and the checker knows it: a busbar's two ends (a bus is a node,
+and it conducts along its whole length), a port, an op-amp's supply pins, a CT secondary, and
+a relay's trip output, which goes to the breaker's operating mechanism rather than to a
+terminal in the power circuit.
+
+**4. Contrast.** Any SVG stroke below about 3:1 against `#0b0f16` is invisible. 106 lesson
 files were authored against a white page and stroke in `#333` (1.52:1). `schematic-normalize.js`
 now remaps those at load — 2,706 elements across the course — but new hand-authored diagrams
 should use theme colours directly.
 
+### Current state
+
+Full sweep, 354 lessons: **4,497 controls, 483 canvases, 0 JavaScript errors, 0 non-finite
+readouts, 0 geometry findings, 0 connection problems.**
+
+Every control that the sweep could drive non-finite now declares an admissible range, so
+`AD.num` clamps it. Sixty of them had no `min`/`max` at all, which is why a reader could type
+a zero resistance and get `Infinity` in the results panel.
+
 ### Known remaining
 
-- Three lessons (24-3, 25-3, 25-4) can display `NaN` under deliberately out-of-range input.
-- `identify-topology-canvas` in 25-2 has no drawing code behind it at all.
-- 17 components across 9 lesson files are still drawn as plain rectangles where a real symbol
-  is required (mostly transistors). A context-aware audit separates these from the ~350
-  rectangles that are legitimately rectangles — physical cross-sections, functional blocks,
-  and IEC-style resistors.
+- `schematic-svg.js` reports five DRC findings of its own through `console.warn` /
+  `console.error`: two duplicate segments (module 1-7, 11-4) and a `10nF` value label
+  overlapping a component keepout in the oscillator builders used by module 11-1. These are
+  inside shared builder code rather than in a lesson, and the affected figures render
+  acceptably; they are worth fixing but were left alone rather than destabilising a builder
+  many lessons share.
+- Op-amp supply pins are drawn unconnected throughout, which is the usual convention on a
+  signal schematic but is not literally complete.
 
 ---
 

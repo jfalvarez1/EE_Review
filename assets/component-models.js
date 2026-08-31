@@ -2835,8 +2835,12 @@ const ComponentModels = (() => {
             ['line', -30, 0, -16, 0],
             ['circle', 0, 0, 16],
             ['line', 16, 0, 30, 0],
-            ['text', 0, 5, '51', { size: 12, weight: 'bold' }]
+            // The number in the circle is the device's ANSI function code, so
+            // it has to follow the device: pass device: '21' for a distance
+            // element, '87' for a differential, and so on.
+            ['text', 0, 5, '$device', { size: 12, weight: 'bold' }]
         ],
+        opDefaults: { device: '51' },
         params: [
             { key: 'device', label: 'ANSI device number', unit: '', typ: '51', note: '50 inst OC, 51 time OC, 21 distance, 87 differential, 79 recloser, 27/59 under/overvoltage, 81 frequency' },
             { key: 'pickup', label: 'Pickup current', unit: 'A', typ: '5', note: 'Secondary amps' },
@@ -2973,7 +2977,23 @@ const ComponentModels = (() => {
         }, options || {});
 
         const parts = [];
-        for (const op of model.ops) parts.push(opToSVG(op, o.color));
+        // A few symbols carry text that belongs to the individual device
+        // rather than to the type: a protective relay's circle holds its ANSI
+        // device number, and drawing 51 on a distance element states the wrong
+        // function. Any text op written as '$name' takes its value from the
+        // placement's `name` option, falling back to the model's default.
+        for (const op of model.ops) {
+            let drawOp = op;
+            if (op[0] === 'text' && typeof op[3] === 'string' && op[3].charAt(0) === '$') {
+                const field = op[3].slice(1);
+                const supplied = o[field];
+                const fallback = (model.opDefaults && model.opDefaults[field]) || '';
+                drawOp = op.slice();
+                drawOp[3] = (supplied === undefined || supplied === null || supplied === '')
+                    ? fallback : String(supplied);
+            }
+            parts.push(opToSVG(drawOp, o.color));
+        }
 
         // Labels are emitted OUTSIDE the rotated group, so text always reads
         // left to right no matter how the body is turned. This is the biggest

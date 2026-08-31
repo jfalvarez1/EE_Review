@@ -52,9 +52,20 @@
         return s;
     }
 
+    // Ranges are written the way the lessons write values - "1k", "100p",
+    // "10G" - so they must go through the same parser the calculators use.
+    // parseFloat("1k") is 1, which made the sweep test a value a thousand
+    // times below the declared minimum and report a failure the app cannot
+    // actually reach.
+    function bound(el, attr) {
+        var raw = el.getAttribute(attr);
+        if (raw === null) return NaN;
+        return (window.AD && AD.parseNumValue) ? AD.parseNumValue(raw) : parseFloat(raw);
+    }
+
     function valuesFor(el, quick) {
-        var lo = parseFloat(el.getAttribute('min'));
-        var hi = parseFloat(el.getAttribute('max'));
+        var lo = bound(el, 'min');
+        var hi = bound(el, 'max');
         var out = [];
         if (el.tagName === 'SELECT') {
             for (var i = 0; i < el.options.length; i++) out.push(el.options[i].value);

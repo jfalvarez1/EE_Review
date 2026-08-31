@@ -168,8 +168,8 @@
             <label>Clock Frequency: <input type="text" id="jit-freq" value="100M" style="width:70px;"> Hz</label>
             <label>Phase Noise @ 10kHz: <input type="text" id="jit-pn10k" value="-110" style="width:60px;"> dBc/Hz</label>
             <label>Phase Noise @ 100kHz: <input type="text" id="jit-pn100k" value="-130" style="width:60px;"> dBc/Hz</label>
-            <label>Integration Start: <input type="text" id="jit-fstart" value="10k" style="width:60px;"> Hz</label>
-            <label>Integration Stop: <input type="text" id="jit-fstop" value="10M" style="width:60px;"> Hz</label>
+            <label>Integration Start: <input type="text" id="jit-fstart" value="10k" style="width:60px;" min="1" max="1G"> Hz</label>
+            <label>Integration Stop: <input type="text" id="jit-fstop" value="10M" style="width:60px;" min="10" max="10G"> Hz</label>
             <button onclick="calculateJitter()">Calculate</button>
         </div>
         <div id="jit-results" class="results"></div>
@@ -233,7 +233,14 @@
             const pn10k = AD.num('jit-pn10k') || -110;
             const pn100k = AD.num('jit-pn100k') || -130;
             const fstart = AD.num('jit-fstart') || 10e3;
-            const fstop = AD.num('jit-fstop') || 10e6;
+            let fstop = AD.num('jit-fstop') || 10e6;
+
+            // The integration band has to run upward. With fstop below fstart
+            // the log ratio goes negative, the integrated phase noise goes
+            // negative with it, and the sqrt below returns NaN - so the panel
+            // printed "NaN" rather than saying the band was inverted. Hold the
+            // stop frequency a decade above the start instead.
+            if (!(fstop > fstart)) fstop = fstart * 10;
 
             // Estimate slope from two phase noise points
             const slope = (pn100k - pn10k) / Math.log10(100e3 / 10e3); // dB/decade
@@ -252,13 +259,22 @@
             if (slope > -15) {
                 // Flatter slope, dominated by close-in noise
                 integratedPN = L10k * fstart * Math.log(fstop / fstart);
+            } else if (fstop > Math.max(fstart, 100e3)) {
+                // Steeper slope: integrate the far-out floor across the part
+                // of the band that actually lies above the 100 kHz point the
+                // floor was measured at.
+                integratedPN = L100k * (fstop - Math.max(fstart, 100e3));
             } else {
-                // Steeper slope, use far-out noise floor
-                integratedPN = L100k * (fstop - 100e3);
+                // The whole band sits below that reference, so there is no
+                // far-out region to integrate. Use the close-in form instead -
+                // subtracting the region below the reference would have given
+                // zero jitter and a -Infinity dBc readout.
+                integratedPN = L10k * fstart * Math.log(fstop / fstart);
             }
 
-            // RMS phase in radians
-            const phaseRMS = Math.sqrt(2 * integratedPN);
+            // RMS phase in radians. Clamped at zero so no rounding path can
+            // hand a negative to sqrt.
+            const phaseRMS = Math.sqrt(2 * Math.max(0, integratedPN));
 
             // Convert to jitter
             const jitterRMS = phaseRMS / (2 * Math.PI * freq);

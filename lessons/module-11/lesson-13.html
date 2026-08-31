@@ -82,7 +82,7 @@
     <div class="card">
         <h3>PWM Calculator</h3>
         <div class="controls">
-            <label>Timer clock: <input type="text" id="pwm-fclk" value="72M" style="width:70px;"> Hz</label>
+            <label>Timer clock: <input type="text" id="pwm-fclk" value="72M" style="width:70px;" min="1k" max="1G"> Hz</label>
             <label>PWM frequency: <input type="text" id="pwm-fpwm" value="20k" style="width:70px;"> Hz</label>
             <label>Desired resolution: <input type="text" id="pwm-bits" value="10" style="width:50px;"> bits</label>
             <label>Mode: <select id="pwm-mode">
@@ -247,7 +247,14 @@
             const periodRequired = fclk / (fpwm * modeDiv);
             const prescalerIdeal = periodRequired / steps;
             const prescaler = Math.max(1, Math.ceil(prescalerIdeal));
-            const period = Math.round(fclk / (fpwm * prescaler * modeDiv));
+            // A timer needs at least one count per PWM period. Ask for a PWM
+            // frequency at or above the timer clock and this rounds to zero,
+            // which took the resolution to log2(0) = -Infinity and the achieved
+            // frequency to a divide by zero. Clamping to 1 keeps the readout
+            // real, and the flag below says why it cannot be met.
+            const rawPeriod = fclk / (fpwm * prescaler * modeDiv);
+            const period = Math.max(1, Math.round(rawPeriod));
+            const clockTooSlow = rawPeriod < 1;
             const actualBits = Math.log2(period);
 
             // Actual frequency
@@ -260,7 +267,9 @@
             const maxFpwm = fclk / (steps * modeDiv);
 
             // Maximum resolution at given frequency
-            const maxBits = Math.log2(fclk / (fpwm * modeDiv));
+            // Floored at zero: a negative bit count is not a resolution, it is
+            // the statement that this clock cannot make this frequency at all.
+            const maxBits = Math.max(0, Math.log2(fclk / (fpwm * modeDiv)));
 
             let html = '<h4>Timer Configuration</h4>';
             html += '<table class="data-table">';
@@ -286,6 +295,11 @@
             // Recommendations
             html += '<h4>Application Notes</h4>';
             html += '<ul>';
+            if (clockTooSlow) {
+                html += '<li style="color:#e74c3c;">The timer clock is too slow for this PWM frequency: ' +
+                        AD.fmtUnit(fclk, 'Hz') + ' gives less than one count per period at ' +
+                        AD.fmtUnit(fpwm, 'Hz') + '. Raise the clock or lower the PWM frequency.</li>';
+            }
             if (fpwm < 20e3) {
                 html += '<li style="color:#f39c12;">PWM below 20kHz may be audible</li>';
             }

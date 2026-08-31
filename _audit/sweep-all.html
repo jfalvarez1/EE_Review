@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Full sweep - every lesson, every control</title>
+<style>
+    body { background: #0b0f16; color: #e6edf3; font: 13px ui-monospace, Consolas, monospace; margin: 20px; }
+    h1 { font-size: 15px; }
+    pre { white-space: pre-wrap; }
+    .ok { color: #34d399; }
+    .bad { color: #fb7185; }
+</style>
+</head>
+<body>
+<h1>Full sweep</h1>
+<div id="status">loading curriculum...</div>
+<pre id="out"></pre>
+
+<!--
+    The same asset set index.html loads, in the same order. Loading a subset
+    makes every lesson that uses a widget report a ReferenceError that says
+    nothing about the lesson - 262 of them on the first run here.
+-->
+<script src="../assets/ad-framework.js"></script>
+<script src="../assets/widgets.js"></script>
+<script src="../assets/component-models.js"></script>
+<script src="../assets/schematic-svg.js"></script>
+<script src="../assets/schematic-normalize.js"></script>
+<script src="../assets/curriculum.js"></script>
+<script src="../assets/exercises.js"></script>
+<script src="diagram-audit.js"></script>
+<script src="calc-sweep.js"></script>
+
+<div id="stage" style="position:absolute; left:-10000px; top:0; width:1000px;">
+    <div id="lesson-content"></div>
+</div>
+
+<!--
+    Loads every lesson fragment in turn, executes its scripts, and reports:
+      * uncaught JavaScript errors
+      * readouts that come back NaN / Infinity / undefined
+      * geometry findings on any generated schematic
+
+    It runs in setTimeout chunks rather than one blocking loop so the page
+    stays responsive and progress can be polled from outside while it works.
+
+    Timers are cleared between lessons: several lessons start animation loops,
+    and letting 350 of them accumulate turns the tail of the run into noise
+    that has nothing to do with the lesson being measured.
+-->
+<script>
+(function () {
+    'use strict';
+
+    var pane = document.getElementById('lesson-content');
+    var out = document.getElementById('out');
+    var status = document.getElementById('status');
+
+    var C = window.CURRICULUM;
+    var lessons = [];
+    if (C && C.modules) {
+        for (var m = 0; m < C.modules.length; m++) {
+            var mod = C.modules[m];
+            var dir = 'module-' + String(mod.id).replace(/^(\d)$/, '0$1');
+            for (var l = 0; l < mod.lessons.length; l++) {
+                var n = l + 1;
+                lessons.push(dir + '/lesson-' + (n < 10 ? '0' + n : n));
+            }
+        }
+    }
+
+    var results = [];
+    var errors = [];
+    window.addEventListener('error', function (e) {
+        errors.push((e.message || 'error') + ' @ ' + (e.filename || '') + ':' + (e.lineno || ''));
+    });
+
+    // schematic-svg.js runs its own DRC and reports through console.error /
+    // console.warn rather than by throwing, so an error listener alone never
+    // sees it. Those are the most valuable findings the app produces about
+    // itself - "text overlaps component keepout", "duplicate segment" - and
+    // an audit that ignores them is measuring the wrong thing.
+    ['error', 'warn'].forEach(function (level) {
+        var original = console[level].bind(console);
+        console[level] = function () {
+            var msg = Array.prototype.map.call(arguments, function (a) {
+                return (a && a.stack) ? String(a.message || a) : String(a);
+            }).join(' ');
+            // MathJax re-registers itself on every lesson that includes it,
+            // which is an artifact of loading 354 fragments into one document.
+            if (msg.indexOf('MathJax') === -1 && msg.indexOf('only a getter') === -1) {
+                errors.push('console.' + level + ': ' + msg);
+            }
+            original.apply(null, arguments);
+        };
+    });
+
+    function get(url) {
+        var x = new XMLHttpRequest();
+        try { x.open('GET', url, false); x.send(null); } catch (e) { return null; }
+        return x.status === 200 ? x.responseText : null;
+    }
+
+    // Anything a lesson starts gets torn down before the next one loads.
+    function clearTimers() {
+        var top = setTimeout(function () {}, 0);
+        for (var i = 0; i < top; i++) {
+            try { clearTimeout(i); clearInterval(i); } catch (e) {}
+        }
+        if (window.cancelAnimationFrame) {
+            var r = requestAnimationFrame(function () {});
+            for (var j = 0; j < r; j++) { try { cancelAnimationFrame(j); } catch (e) {} }
+        }
+    }
+
+    var idx = 0;
+    var totals = { lessons: 0, missing: 0, controls: 0, canvases: 0,
+                   jsErrors: 0, nanProblems: 0, geometry: 0 };
+
+    function step() {
+        var CHUNK = 6;
+        for (var c = 0; c < CHUNK && idx < lessons.length; c++, idx++) {
+            var rel = lessons[idx];
+            errors.length = 0;
+            clearTimers();
+
+            var html = get('../lessons/' + rel + '.html');
+            if (html === null) {
+                totals.missing++;
+                results.push({ lesson: rel, missing: true });
+                continue;
+            }
+            totals.lessons++;
+
+            pane.innerHTML = html;
+            var scripts = pane.querySelectorAll('script');
+            for (var s = 0; s < scripts.length; s++) {
+                var old = scripts[s];
+                var fresh = document.createElement('script');
+                if (old.src) {
+                    fresh.src = old.src;
+                } else {
+                    // Use the router's own scoping so this measures what the
+                    // app actually runs. Without it every lesson's top-level
+                    // consts land in one shared global scope and the second
+                    // lesson to declare a name throws a redeclaration error
+                    // that never happens in the app.
+                    fresh.textContent = (window.Router && Router.scopeLessonScript)
+                        ? Router.scopeLessonScript(old.textContent)
+                        : old.textContent;
+                }
+                try { old.parentNode.replaceChild(fresh, old); } catch (e) {
+                    errors.push('inject: ' + e);
+                }
+            }
+
+            var ctrls = pane.querySelectorAll('input,select').length;
+            var canv = pane.querySelectorAll('canvas').length;
+            totals.controls += ctrls;
+            totals.canvases += canv;
+
+            var sweep = { problems: [] };
+            try { sweep = window.__sweepPage({ quick: true }) || sweep; } catch (e) {
+                errors.push('sweep: ' + e);
+            }
+
+            var geo = { findings: [] };
+            try { geo = window.__auditPage(rel) || geo; } catch (e) {
+                errors.push('audit: ' + e);
+            }
+
+            totals.jsErrors += errors.length;
+            totals.nanProblems += sweep.problems.length;
+            totals.geometry += geo.findings.length;
+
+            if (errors.length || sweep.problems.length || geo.findings.length) {
+                results.push({
+                    lesson: rel,
+                    errors: errors.slice(0, 4),
+                    nan: sweep.problems.slice(0, 4),
+                    geometry: geo.findings.slice(0, 6)
+                });
+            }
+            pane.innerHTML = '';
+        }
+
+        status.textContent = 'swept ' + idx + ' / ' + lessons.length + ' ...';
+        window.__progress = idx;
+
+        if (idx < lessons.length) {
+            setTimeout(step, 0);
+        } else {
+            finish();
+        }
+    }
+
+    function finish() {
+        var lines = [];
+        for (var i = 0; i < results.length; i++) {
+            var r = results[i];
+            if (r.missing) { lines.push('MISSING  ' + r.lesson); continue; }
+            lines.push('FAIL  ' + r.lesson);
+            for (var e = 0; e < r.errors.length; e++) lines.push('        js:  ' + r.errors[e]);
+            for (var n = 0; n < r.nan.length; n++) {
+                lines.push('        nan: ' + r.nan[n].id + '=' + JSON.stringify(r.nan[n].value) +
+                           '  ' + r.nan[n].kind);
+            }
+            for (var g = 0; g < r.geometry.length; g++) {
+                lines.push('        geo: ' + r.geometry[g].rule + '  ' + r.geometry[g].at);
+            }
+        }
+        out.textContent = lines.length ? lines.join('\n') : '(no failures)';
+        var clean = !totals.jsErrors && !totals.nanProblems && !totals.geometry && !totals.missing;
+        status.innerHTML = '<span class="' + (clean ? 'ok' : 'bad') + '">' +
+            totals.lessons + ' lessons, ' + totals.controls + ' controls, ' +
+            totals.canvases + ' canvases | ' + totals.jsErrors + ' js errors, ' +
+            totals.nanProblems + ' NaN readouts, ' + totals.geometry + ' geometry findings, ' +
+            totals.missing + ' missing</span>';
+        window.__totals = totals;
+        window.__results = results;
+        window.__done = true;
+    }
+
+    window.__done = false;
+    window.__totals = null;
+    if (!lessons.length) {
+        status.textContent = 'could not read curriculum';
+        window.__done = true;
+    } else {
+        status.textContent = 'sweeping ' + lessons.length + ' lessons...';
+        setTimeout(step, 0);
+    }
+})();
+</script>
+</body>
+</html>
