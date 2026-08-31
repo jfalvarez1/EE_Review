@@ -1,0 +1,380 @@
+<!-- Module 10, Lesson 1: Class A Output Stages -->
+<div class="lesson-content" data-module="10" data-lesson="1">
+
+    <div class="card">
+        <h2>Class A Output Stages</h2>
+        <p>Class A amplifiers bias the output transistor to conduct continuously throughout the entire signal cycle. This eliminates crossover distortion but wastes significant power as heat.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Max Efficiency</div>
+                <div class="v mono">η<sub>max</sub> = 25% (resistive load)</div>
+            </div>
+            <div class="box">
+                <div class="k">Quiescent Power</div>
+                <div class="v mono">P<sub>Q</sub> = V<sub>cc</sub> × I<sub>bias</sub></div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> In Class A, the transistor always conducts at least I<sub>bias</sub>. Even with no signal, it dissipates V×I continuously. Maximum output occurs when transistor swings between 2×I<sub>bias</sub> and 0, but average current stays at I<sub>bias</sub>.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Class A Efficiency</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="classa-vcc">V<sub>CC</sub> (V)</label>
+                <input type="range" id="classa-vcc" min="5" max="30" step="1" value="12">
+                <span id="classa-vcc-val" class="mono">12V</span>
+            </div>
+            <div class="c3">
+                <label for="classa-ibias">I<sub>bias</sub> (mA)</label>
+                <input type="range" id="classa-ibias" min="10" max="500" step="10" value="100">
+                <span id="classa-ibias-val" class="mono">100mA</span>
+            </div>
+            <div class="c3">
+                <label for="classa-swing">Output Swing (%)</label>
+                <input type="range" id="classa-swing" min="0" max="100" step="5" value="50">
+                <span id="classa-swing-val" class="mono">50%</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="classa-canvas" width="980" height="250"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Quiescent Power</div>
+                <div class="v mono" id="classa-pq">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Output Power</div>
+                <div class="v mono" id="classa-pout">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Efficiency</div>
+                <div class="v mono" id="classa-eff">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Transistor Dissipation</div>
+                <div class="v mono" id="classa-pdiss">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Class A Topologies</h3>
+
+        <table class="table">
+            <tr>
+                <th>Topology</th>
+                <th>Load</th>
+                <th>Max η</th>
+                <th>Notes</th>
+            </tr>
+            <tr>
+                <td>Common Emitter</td>
+                <td>Resistive</td>
+                <td>25%</td>
+                <td>Simple, poor efficiency</td>
+            </tr>
+            <tr>
+                <td>Emitter Follower</td>
+                <td>Resistive</td>
+                <td>25%</td>
+                <td>Unity gain, low Zout</td>
+            </tr>
+            <tr>
+                <td>Transformer Coupled</td>
+                <td>Reactive</td>
+                <td>50%</td>
+                <td>Better efficiency, expensive</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Thermal Considerations</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Max Dissipation</div>
+                <div class="v">At zero signal! (Not max output)</div>
+            </div>
+            <div class="box">
+                <div class="k">Heatsink Sizing</div>
+                <div class="v mono">R<sub>θJA</sub> < (T<sub>j,max</sub> - T<sub>amb</sub>) / P<sub>diss</sub></div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>Thermal Runaway:</strong> BJT current increases with temperature. Without thermal feedback (emitter resistor), the transistor can overheat and fail. Always include thermal stabilization.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('classa-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const vcc = parseFloat(document.getElementById('classa-vcc').value);
+        const ibias = parseFloat(document.getElementById('classa-ibias').value) / 1000;
+        const swing = parseFloat(document.getElementById('classa-swing').value) / 100;
+
+        document.getElementById('classa-vcc-val').textContent = vcc + 'V';
+        document.getElementById('classa-ibias-val').textContent = (ibias * 1000) + 'mA';
+        document.getElementById('classa-swing-val').textContent = (swing * 100) + '%';
+
+        // Quiescent power from supply
+        const pq = vcc * ibias;
+
+        // Output power (assuming resistive load = Vcc/Ibias)
+        const rload = vcc / ibias;
+        const vout_peak = swing * vcc / 2; // Half swing for AC
+        const pout = (vout_peak * vout_peak) / (2 * rload);
+
+        // Efficiency
+        const eff = (pout / pq) * 100;
+
+        // Transistor dissipation
+        const pdiss = pq - pout;
+
+        document.getElementById('classa-pq').textContent = AD.fmtUnit(pq, 'W');
+        document.getElementById('classa-pout').textContent = AD.fmtUnit(pout, 'W');
+        document.getElementById('classa-eff').textContent = eff.toFixed(1) + '%';
+        document.getElementById('classa-pdiss').textContent = AD.fmtUnit(pdiss, 'W');
+
+        plotClassA(vcc, ibias, swing);
+    }
+
+    function plotClassA(vcc, ibias, swing) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        const N = 500;
+        const ic = [];
+        const vce = [];
+
+        for (let i = 0; i < N; i++) {
+            const phase = (i / N) * 3 * 2 * Math.PI;
+            const signal = swing * Math.sin(phase);
+
+            // Collector current varies around bias
+            const icVal = ibias * (1 + signal);
+            ic.push(Math.max(0, icVal));
+
+            // VCE is complement (as Ic goes up, Vce goes down)
+            const vceVal = vcc / 2 * (1 - signal);
+            vce.push(Math.max(0, vceVal));
+        }
+
+        // Plot Ic (top half)
+        const icMax = ibias * 2;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ic.forEach((i, idx) => {
+            const x = (idx / N) * w;
+            const y = h * 0.05 + (1 - i / icMax) * h * 0.4;
+            if (idx === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.restore();
+
+        // Plot VCE (bottom half)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        vce.forEach((v, idx) => {
+            const x = (idx / N) * w;
+            const y = h * 0.55 + (1 - v / vcc) * h * 0.4;
+            if (idx === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.restore();
+
+        // Bias level lines
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.setLineDash([5, 5]);
+        // Ic bias
+        const yBias = h * 0.05 + (1 - 1 / 2) * h * 0.4;
+        ctx.beginPath();
+        ctx.moveTo(0, yBias);
+        ctx.lineTo(w, yBias);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        // Labels
+        ctx.save();
+        ctx.font = '12px ui-sans-serif';
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.fillText('Ic (collector current)', 10, 20);
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.fillText('Vce (collector-emitter)', 10, h * 0.55 + 20);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText('Ibias = ' + (ibias * 1000).toFixed(0) + 'mA', w - 120, 20);
+        ctx.restore();
+    }
+
+    ['classa-vcc', 'classa-ibias', 'classa-swing'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Class A Emitter Follower',
+        netlist: `* Class A Emitter Follower Output Stage
+
+.MODEL NPN1 NPN (BF=100 IS=1e-14)
+
+Q1 vcc in out NPN1
+
+* Bias current source (could be resistor)
+IBIAS out 0 DC 100m
+
+* Supply
+VCC vcc 0 DC 12
+
+* Input signal
+VIN in 0 DC 6 AC 1 SIN(6 3 1k)
+
+* Load resistor
+RLOAD out 0 120  ; 12V/100mA = 120 ohm
+
+.TRAN 0.01m 5m
+
+.PROBE V(out) V(in) I(IBIAS)
+.END
+
+* Note: Q1 always conducts - no crossover
+* Efficiency is poor but distortion is low`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm10l1',
+        items: [
+            'Know Class A max efficiency is 25%',
+            'Calculate quiescent power',
+            'Understand thermal design importance',
+            'Know transistor dissipation is max at idle',
+            'Recognize when Class A is appropriate'
+        ]
+    });
+
+    // Exercises - Output Stage problems
+    const container = document.getElementById('exercise-container');
+    container.innerHTML = '<h4>Output Stage Problems (6 exercises)</h4>';
+
+    const exercises = [
+        {
+            id: 'I1-1-1',
+            type: 'numeric',
+            question: 'A Class A stage runs from 15V with 200mA bias. What is the quiescent power?',
+            hint: 'Pq = Vcc × Ibias',
+            expected: 3,
+            tolerance: 0.01,
+            unit: 'W',
+            solution: 'Pq = 15V × 0.2A = 3W',
+            explanation: 'This 3W is dissipated as heat continuously, even with no signal.'
+        },
+        {
+            id: 'I1-1-2',
+            type: 'numeric',
+            question: 'Class A maximum efficiency is 25%. If you deliver 1W to a load, what is the minimum power from the supply?',
+            hint: 'Efficiency = Pout/Pin × 100%',
+            expected: 4,
+            tolerance: 0.1,
+            unit: 'W',
+            solution: 'Pin = Pout/Efficiency = 1W/0.25 = 4W',
+            explanation: '3W is wasted as heat in the output devices. Class A is very inefficient.'
+        },
+        {
+            id: 'I1-1-3',
+            type: 'choice',
+            question: 'Which amplifier class is best for battery-powered audio with 4W output?',
+            choices: [
+                { text: 'Class A - lowest distortion', correct: false },
+                { text: 'Class B - simple design', correct: false },
+                { text: 'Class AB - good compromise', correct: false },
+                { text: 'Class D - highest efficiency', correct: true }
+            ],
+            solution: 'Class D achieves >90% efficiency, critical for battery life. Audio Class D ICs are mature technology.',
+            explanation: 'Class D switches output devices fully on/off, minimizing power dissipation.'
+        },
+        {
+            id: 'I1-1-4',
+            type: 'numeric',
+            question: 'A push-pull Class B stage has VCC = ±12V driving 8Ω. What is the maximum output power?',
+            hint: 'Pmax = Vpk²/(2×RL) where Vpk ≈ VCC - Vsat',
+            expected: 8,
+            tolerance: 0.5,
+            unit: 'W',
+            solution: 'Assuming Vsat ≈ 1V: Vpk = 11V. Pmax = 11²/(2×8) = 121/16 ≈ 7.6W',
+            explanation: 'Real-world saturation voltage reduces available swing.'
+        },
+        {
+            id: 'I1-1-5',
+            type: 'numeric',
+            question: 'Class AB bias is set to 10mA quiescent. With VBE = 0.65V, what resistor across the base-emitter junctions gives this?',
+            hint: 'This is a VBE multiplier. R = 2×VBE / Ibias',
+            expected: 130,
+            tolerance: 5,
+            unit: 'Ω',
+            solution: 'Each transistor gets VBE = 0.65V. Total = 1.3V. R = 1.3V/10mA = 130Ω',
+            explanation: 'The VBE multiplier (bias spreader) sets quiescent current to minimize crossover distortion.'
+        },
+        {
+            id: 'I1-1-6',
+            type: 'choice',
+            question: 'What causes crossover distortion in Class B output stages?',
+            choices: [
+                { text: 'Transistor saturation', correct: false },
+                { text: 'Base current stealing', correct: false },
+                { text: 'Dead zone around zero crossing', correct: true },
+                { text: 'Thermal runaway', correct: false }
+            ],
+            solution: 'Near zero output, neither transistor conducts due to the ~0.6V turn-on threshold.',
+            explanation: 'Class AB adds small bias current so both devices conduct slightly at zero crossing.'
+        }
+    ];
+
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-m10l1-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-m10l1-${i}`, ex);
+    });
+})();
+</script>

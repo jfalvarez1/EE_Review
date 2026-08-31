@@ -1,0 +1,720 @@
+<!-- Module 17, Lesson 10: Systematic Debug Methodology -->
+<div class="lesson-content" data-module="17" data-lesson="10">
+
+    <div class="card">
+        <h2>Systematic Debug Methodology</h2>
+        <p>Random poking wastes time. Learn a systematic approach to debugging that efficiently isolates problems in any electronic system, from simple circuits to complex mixed-signal designs.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Observe</div>
+                <div class="v">Gather symptoms first</div>
+            </div>
+            <div class="box">
+                <div class="k">Hypothesize</div>
+                <div class="v">Form testable theories</div>
+            </div>
+            <div class="box">
+                <div class="k">Test</div>
+                <div class="v">Design decisive experiments</div>
+            </div>
+            <div class="box">
+                <div class="k">Iterate</div>
+                <div class="v">Refine until solved</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>The Golden Rule:</strong> Never make more than one change at a time. If you change two things and it works, you don't know which fixed it. If it doesn't work, you don't know which broke it more.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Debug Decision Tree</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="dbg-symptom">Primary Symptom</label>
+                <select id="dbg-symptom">
+                    <option value="dead">Completely dead</option>
+                    <option value="partial">Partial function</option>
+                    <option value="intermittent">Intermittent</option>
+                    <option value="noise">Noise/interference</option>
+                    <option value="drift">Drift over time</option>
+                    <option value="outofspec">Out of specification</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="dbg-when">When did it start?</label>
+                <select id="dbg-when">
+                    <option value="new">New build (never worked)</option>
+                    <option value="sudden">Sudden failure</option>
+                    <option value="gradual">Gradual degradation</option>
+                    <option value="change">After a change</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="dbg-type">Circuit Type</label>
+                <select id="dbg-type">
+                    <option value="power">Power supply</option>
+                    <option value="analog">Analog signal</option>
+                    <option value="digital">Digital logic</option>
+                    <option value="mixed">Mixed signal</option>
+                    <option value="rf">RF/wireless</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="dbg-canvas" width="980" height="400"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">First Check</div>
+                <div class="v mono" id="dbg-first">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Likely Cause</div>
+                <div class="v mono" id="dbg-cause">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Key Tool</div>
+                <div class="v mono" id="dbg-tool">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>The Debug Process</h3>
+        <canvas id="debug-process-canvas" width="900" height="380"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Common Debug Patterns</h3>
+
+        <table class="table">
+            <tr>
+                <th>Pattern</th>
+                <th>Indicates</th>
+                <th>Check</th>
+            </tr>
+            <tr>
+                <td>Works at first, then fails</td>
+                <td>Thermal issue</td>
+                <td>Temperature, cooling, derating</td>
+            </tr>
+            <tr>
+                <td>Works cold, fails when touched</td>
+                <td>Cracked solder joint</td>
+                <td>Visual, flex board, reflow</td>
+            </tr>
+            <tr>
+                <td>Fails only under load</td>
+                <td>Power/current limit</td>
+                <td>Voltage drop, current draw</td>
+            </tr>
+            <tr>
+                <td>Fails when other circuit active</td>
+                <td>Crosstalk, EMI, ground</td>
+                <td>Isolation, shielding, grounding</td>
+            </tr>
+            <tr>
+                <td>Fails at certain times</td>
+                <td>External interference</td>
+                <td>Motors, HVAC, RF sources</td>
+            </tr>
+            <tr>
+                <td>Marginal/border-line operation</td>
+                <td>Component tolerance stack</td>
+                <td>Measure actual values, temperature</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Debug Toolkit</h3>
+        <div id="dbg-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>Documentation Template</h3>
+        <div id="dbg-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Master Debug Checklist</h3>
+        <div id="dbg-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="dbg-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('dbg-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+
+    const debugGuide = {
+        dead: {
+            new: {first: 'Check power rails', cause: 'Assembly error, short, open', tool: 'DMM continuity + voltage'},
+            sudden: {first: 'Smell for burnt parts', cause: 'Component failure, ESD', tool: 'Visual + DMM'},
+            gradual: {first: 'Check electrolytic caps', cause: 'Cap dry-out, solder fatigue', tool: 'ESR meter, visual'},
+            change: {first: 'Revert the change', cause: 'The change you made', tool: 'Comparison to working state'}
+        },
+        partial: {
+            new: {first: 'Verify all ICs have power', cause: 'Missing connection, wrong value', tool: 'DMM at each supply pin'},
+            sudden: {first: 'Isolate working vs broken', cause: 'Single component failure', tool: 'Signal tracer, scope'},
+            gradual: {first: 'Check aging components', cause: 'Degradation, contamination', tool: 'Component substitution'},
+            change: {first: 'Diff before/after', cause: 'Unintended consequence', tool: 'Version comparison'}
+        },
+        intermittent: {
+            new: {first: 'Check solder joints', cause: 'Cold joint, insufficient solder', tool: 'Magnification, flex test'},
+            sudden: {first: 'Thermal cycling test', cause: 'Cracked joint, flaky component', tool: 'Freeze spray, heat gun'},
+            gradual: {first: 'Environmental factors', cause: 'Humidity, contamination', tool: 'Controlled environment test'},
+            change: {first: 'Timing/race condition', cause: 'Marginal timing', tool: 'Scope, logic analyzer'}
+        },
+        noise: {
+            new: {first: 'Check grounding scheme', cause: 'Ground loop, poor layout', tool: 'Spectrum analyzer, scope'},
+            sudden: {first: 'What changed externally?', cause: 'New interference source', tool: 'EMI sniffer, AM radio'},
+            gradual: {first: 'Check decoupling caps', cause: 'Cap degradation', tool: 'ESR meter, scope on rails'},
+            change: {first: 'Review layout changes', cause: 'Coupling path created', tool: 'Near-field probe'}
+        },
+        drift: {
+            new: {first: 'Thermal design review', cause: 'Tempco mismatch, self-heating', tool: 'IR camera, temp logging'},
+            sudden: {first: 'Reference/bias circuit', cause: 'Reference failure', tool: 'DMM long-term logging'},
+            gradual: {first: 'Age-related drift', cause: 'Component aging', tool: 'Calibration comparison'},
+            change: {first: 'Thermal equilibrium', cause: 'Changed thermal environment', tool: 'Thermal monitoring'}
+        },
+        outofspec: {
+            new: {first: 'Verify component values', cause: 'Wrong value, tolerance', tool: 'LCR meter, DMM'},
+            sudden: {first: 'Component failure', cause: 'Partial failure mode', tool: 'Substitution test'},
+            gradual: {first: 'Aging/wear', cause: 'Specification drift', tool: 'Full characterization'},
+            change: {first: 'Review change impact', cause: 'Parameter interaction', tool: 'Simulation comparison'}
+        }
+    };
+
+    function update() {
+        const symptom = document.getElementById('dbg-symptom').value || 'dead';
+        const when = document.getElementById('dbg-when').value || 'new';
+        const type = document.getElementById('dbg-type').value || 'power';
+
+        const guide = (debugGuide[symptom] && debugGuide[symptom][when]) || debugGuide.dead.new;
+
+        document.getElementById('dbg-first').textContent = guide.first;
+        document.getElementById('dbg-cause').textContent = guide.cause;
+        document.getElementById('dbg-tool').textContent = guide.tool;
+
+        // Draw debug flowchart
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        // Title
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Debug Flow for: ' + symptom.toUpperCase() + ' system (' + type + ')', W/2, 25);
+
+        // Draw flowchart boxes
+        const boxW = 140, boxH = 50;
+        const startX = 50, startY = 50;
+        const spacing = 160;
+
+        // Step boxes
+        const steps = [
+            {title: '1. OBSERVE', desc: 'Document symptoms', color: '#4af'},
+            {title: '2. BASICS', desc: guide.first, color: '#fa4'},
+            {title: '3. ISOLATE', desc: 'Divide & conquer', color: '#ff4'},
+            {title: '4. HYPOTHESIZE', desc: guide.cause, color: '#f4f'},
+            {title: '5. TEST', desc: guide.tool, color: '#4f4'},
+            {title: '6. FIX', desc: 'Verify solution', color: '#4ff'}
+        ];
+
+        steps.forEach((step, i) => {
+            const x = startX + (i % 3) * (boxW + 50);
+            const y = startY + Math.floor(i / 3) * (boxH + 60);
+
+            // Box
+            ctx.fillStyle = '#222';
+            ctx.fillRect(x, y, boxW, boxH);
+            ctx.strokeStyle = step.color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, boxW, boxH);
+
+            // Text
+            ctx.fillStyle = step.color;
+            ctx.font = '11px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(step.title, x + boxW/2, y + 18);
+
+            ctx.fillStyle = '#fff';
+            ctx.font = '9px monospace';
+            // Word wrap description
+            const words = step.desc.split(' ');
+            let line = '';
+            let lineY = y + 32;
+            words.forEach(word => {
+                if ((line + word).length > 18) {
+                    ctx.fillText(line.trim(), x + boxW/2, lineY);
+                    line = word + ' ';
+                    lineY += 12;
+                } else {
+                    line += word + ' ';
+                }
+            });
+            ctx.fillText(line.trim(), x + boxW/2, lineY);
+
+            // Arrows
+            if (i < 5) {
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                if (i === 2) {
+                    // Wrap to next row
+                    ctx.moveTo(x + boxW, y + boxH/2);
+                    ctx.lineTo(x + boxW + 25, y + boxH/2);
+                    ctx.lineTo(x + boxW + 25, y + boxH + 30);
+                    ctx.lineTo(startX - 25, y + boxH + 30);
+                    ctx.lineTo(startX - 25, y + boxH + 60 + boxH/2);
+                    ctx.lineTo(startX, y + boxH + 60 + boxH/2);
+                } else if (i < 2 || i > 2) {
+                    ctx.moveTo(x + boxW, y + boxH/2);
+                    ctx.lineTo(x + boxW + 50, y + boxH/2);
+                }
+                ctx.stroke();
+                // Arrow head
+                if (i !== 2 && i < 5) {
+                    const ax = x + boxW + 45;
+                    const ay = y + boxH/2;
+                    ctx.beginPath();
+                    ctx.moveTo(ax, ay - 5);
+                    ctx.lineTo(ax + 10, ay);
+                    ctx.lineTo(ax, ay + 5);
+                    ctx.stroke();
+                }
+            }
+        });
+
+        // Quick reference panel on right
+        const panelX = 550, panelY = 50;
+        ctx.fillStyle = '#111';
+        ctx.fillRect(panelX, panelY, 400, 160);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(panelX, panelY, 400, 160);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Quick Reference: ' + type.toUpperCase(), panelX + 10, panelY + 20);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+
+        const tips = {
+            power: ['Check input voltage first', 'Measure output under load', 'Look for hot components', 'Verify feedback loop'],
+            analog: ['Check DC bias points', 'Look for oscillation', 'Verify signal levels', 'Check for saturation'],
+            digital: ['Verify power to all ICs', 'Check clock presence', 'Look at reset state', 'Use logic analyzer'],
+            mixed: ['Start with power', 'Isolate analog from digital', 'Check ADC/DAC refs', 'Look for coupling'],
+            rf: ['Check impedance matching', 'Verify LO presence', 'Look for spurious', 'Shield and test']
+        };
+
+        tips[type].forEach((tip, i) => {
+            ctx.fillText('• ' + tip, panelX + 20, panelY + 45 + i * 15);
+        });
+
+        // Common mistakes
+        ctx.fillStyle = '#f44';
+        ctx.fillText('Common mistakes:', panelX + 10, panelY + 120);
+        ctx.fillStyle = '#fa4';
+        ctx.font = '9px monospace';
+        ctx.fillText('• Changing multiple things at once', panelX + 20, panelY + 135);
+        ctx.fillText('• Not documenting what you tried', panelX + 20, panelY + 148);
+
+        // Decision aid
+        ctx.fillStyle = '#111';
+        ctx.fillRect(50, 240, 900, 140);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(50, 240, 900, 140);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Decision Matrix: What to check based on symptoms', 70, 260);
+
+        // Matrix
+        ctx.font = '9px monospace';
+        const matrix = [
+            ['Symptom', 'Power', 'Ground', 'Signal', 'Timing', 'Thermal'],
+            ['Dead', '★★★', '★★☆', '☆☆☆', '☆☆☆', '★☆☆'],
+            ['Partial', '★★☆', '★☆☆', '★★★', '★☆☆', '★☆☆'],
+            ['Intermittent', '★☆☆', '★★☆', '★☆☆', '★★☆', '★★★'],
+            ['Noise', '★★☆', '★★★', '★★☆', '☆☆☆', '☆☆☆'],
+            ['Drift', '★☆☆', '☆☆☆', '★★☆', '☆☆☆', '★★★']
+        ];
+
+        matrix.forEach((row, i) => {
+            row.forEach((cell, j) => {
+                const cx = 100 + j * 130;
+                const cy = 280 + i * 18;
+                ctx.fillStyle = i === 0 ? '#4af' : (cell.includes('★★★') ? '#4f4' : (cell.includes('★★') ? '#fa4' : '#888'));
+                ctx.fillText(cell, cx, cy);
+            });
+        });
+    }
+
+    ['dbg-symptom', 'dbg-when', 'dbg-type'].forEach(id => {
+        document.getElementById(id).addEventListener('change', update);
+    });
+
+    // Debug toolkit diagram
+    function drawSchematic() {
+        const container = document.getElementById('dbg-schematic');
+        const svg = new SchematicSVG(700, 200);
+
+        svg.text(50, 25, 'Essential Debug Toolkit:', {fontSize: 12, fill: '#4af'});
+
+        // Tool icons and descriptions
+        const tools = [
+            {x: 50, name: 'DMM', use: 'Voltage, continuity'},
+            {x: 150, name: 'Scope', use: 'Waveforms, timing'},
+            {x: 260, name: 'Current', use: 'Power analysis'},
+            {x: 360, name: 'LCR', use: 'Component values'},
+            {x: 460, name: 'Logic', use: 'Digital signals'},
+            {x: 560, name: 'Thermal', use: 'Hot spots'}
+        ];
+
+        tools.forEach(tool => {
+            svg.rect(tool.x, 50, 80, 50, {fill: 'none', stroke: '#888'});
+            svg.text(tool.x + 40, 75, tool.name, {fontSize: 11, fill: '#fff'});
+            svg.text(tool.x + 40, 120, tool.use, {fontSize: 9, fill: '#888'});
+        });
+
+        svg.text(50, 160, 'Pro tip: Start with the simplest tool (DMM) before reaching for complex equipment.', {fontSize: 10, fill: '#fa4'});
+        svg.text(50, 180, 'Many problems are found with just voltage and continuity checks.', {fontSize: 10, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // Documentation template
+    function initSpice() {
+        new SpiceNetlistWidget('dbg-spice', {
+            title: 'Debug Log Template',
+            netlist: `* DEBUG LOG TEMPLATE
+* Copy and fill out for each debug session
+
+* ============ IDENTIFICATION ============
+* Date: YYYY-MM-DD
+* System: [Board/Product name]
+* Serial: [Unit identifier]
+* Reporter: [Name]
+
+* ============ SYMPTOMS ============
+* Primary symptom: [Exact description]
+* When occurs: [Always / Sometimes / Conditions]
+* When started: [Date, event, change]
+* What still works: [List working functions]
+
+* ============ ENVIRONMENT ============
+* Temperature: [Ambient °C]
+* Power source: [Battery/Supply, voltage]
+* Connected to: [Other equipment]
+* Last known good: [Date, state]
+
+* ============ OBSERVATIONS ============
+* Visual: [Burnt parts, bad solder, etc]
+* Smell: [Burnt, chemical, none]
+* Sound: [Clicks, hum, buzzing]
+* Touch: [Hot spots - be careful!]
+
+* ============ MEASUREMENTS ============
+* Supply voltages:
+*   Vin = ___ V (expected: ___ V)
+*   Vcc = ___ V (expected: ___ V)
+*   Vdd = ___ V (expected: ___ V)
+*
+* Key signals:
+*   [Signal 1] = ___ (expected: ___)
+*   [Signal 2] = ___ (expected: ___)
+
+* ============ TESTS PERFORMED ============
+* Test 1: [Description]
+*   Result: [Pass/Fail, measurement]
+*   Conclusion: [What this tells us]
+*
+* Test 2: [Description]
+*   Result: [Pass/Fail, measurement]
+*   Conclusion: [What this tells us]
+
+* ============ ROOT CAUSE ============
+* Component: [Part designator, value]
+* Failure mode: [Open, short, drift, etc]
+* Why it failed: [If known]
+
+* ============ FIX APPLIED ============
+* Action: [Replaced C5, fixed solder, etc]
+* Verified: [How confirmed working]
+* Prevention: [How to avoid in future]`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('dbg-checklist', {
+            title: 'Master Debug Checklist',
+            items: [
+                'Document the symptom exactly as observed',
+                'Note what changed before problem appeared',
+                'Check all power supply voltages at loads',
+                'Verify ground continuity throughout',
+                'Check for hot components (careful!)',
+                'Inspect for visible damage or bad solder',
+                'Verify clock/oscillator is running',
+                'Check reset and enable pins',
+                'Test with known-good components if available',
+                'Make only ONE change at a time',
+                'Record every test and result',
+                'Verify fix solves original problem',
+                'Check for unintended side effects'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('dbg-exercises', {
+            exercises: [
+                {
+                    question: 'A circuit works on the bench but fails in the enclosure. What should you check first?',
+                    answer: 'Thermal/cooling',
+                    solution: 'The enclosure restricts airflow, causing higher temperatures. Use IR camera or thermocouple to compare temperatures. Also check for grounding differences between bench and enclosure setup.'
+                },
+                {
+                    question: 'Replacing an op-amp fixed the problem temporarily, but it fails again after a week. What is the likely root cause?',
+                    answer: 'The op-amp is not the root cause',
+                    solution: 'The op-amp is a victim, not the cause. Something is stressing or damaging it: ESD, overvoltage, latch-up from inputs exceeding rails, excessive power dissipation, or oscillation. Find what is killing the op-amps.'
+                },
+                {
+                    question: 'You measure correct DC voltages everywhere but the circuit still does not work. What type of problem is this likely to be?',
+                    answer: 'AC/dynamic problem',
+                    solution: 'DC measurements miss: oscillation, noise, timing issues, signal integrity problems, clocking errors. Use oscilloscope to check waveforms, not just DC levels. Look at power supply under load, check for AC riding on DC.'
+                }
+            ]
+        });
+    }
+
+    // ==================== DEBUG PROCESS CANVAS ====================
+    function drawDebugProcess() {
+        const canvas = document.getElementById('debug-process-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Helper for rounded rect
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        const steps = [
+            {
+                step: '1',
+                title: 'OBSERVE',
+                color: TEK.ch1,
+                subtitle: "Don't touch yet!",
+                items: ['What is the symptom?', 'When does it occur?', 'What changed recently?', 'What still works?', 'Document everything']
+            },
+            {
+                step: '2',
+                title: 'VERIFY BASICS',
+                color: TEK.ch2,
+                subtitle: 'Check fundamentals',
+                items: ['Power: V at every IC?', 'Ground: Continuous?', 'Clock: Present, freq?', 'Reset: Proper state?', 'Connections: Soldered?']
+            },
+            {
+                step: '3',
+                title: 'DIVIDE & CONQUER',
+                color: TEK.ch3,
+                subtitle: 'Isolate the problem',
+                items: ['Split system in half', 'Test each half', 'Narrow to block', 'Signal injection']
+            },
+            {
+                step: '4',
+                title: 'HYPOTHESIZE',
+                color: '#FF6600',
+                subtitle: 'Form theories',
+                items: ['Based on symptoms', 'Must be falsifiable', 'Predict results', 'Consider alternatives']
+            },
+            {
+                step: '5',
+                title: 'TEST',
+                color: TEK.ch4,
+                subtitle: 'Decisive experiments',
+                items: ['Design measurement', 'Change ONE variable', 'Record results', 'Accept or reject']
+            },
+            {
+                step: '6',
+                title: 'FIX & VERIFY',
+                color: '#4af',
+                subtitle: 'Implement solution',
+                items: ['Implement fix', 'Verify symptom gone', 'Check side effects', 'Document root cause']
+            }
+        ];
+
+        const boxW = 140;
+        const boxH = 155;
+        const gap = 8;
+        const startX = 10;
+        const startY = 10;
+
+        steps.forEach((s, i) => {
+            const x = startX + i * (boxW + gap);
+
+            // Main box
+            ctx.fillStyle = '#1a1a2e';
+            roundRect(x, startY, boxW, boxH, 8);
+            ctx.fill();
+            ctx.strokeStyle = s.color;
+            ctx.lineWidth = 2;
+            roundRect(x, startY, boxW, boxH, 8);
+            ctx.stroke();
+
+            // Step number circle
+            ctx.fillStyle = s.color;
+            ctx.beginPath();
+            ctx.arc(x + 20, startY + 25, 14, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 14px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(s.step, x + 20, startY + 30);
+
+            // Title
+            ctx.fillStyle = s.color;
+            ctx.font = 'bold 11px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(s.title, x + 40, startY + 28);
+
+            // Subtitle
+            ctx.fillStyle = '#888';
+            ctx.font = '9px monospace';
+            ctx.fillText(s.subtitle, x + 10, startY + 48);
+
+            // Items
+            ctx.fillStyle = '#ccc';
+            ctx.font = '8px monospace';
+            s.items.forEach((item, j) => {
+                ctx.fillText('• ' + item, x + 10, startY + 68 + j * 14);
+            });
+
+            // Arrow to next
+            if (i < steps.length - 1) {
+                const arrowX = x + boxW + 1;
+                const arrowY = startY + boxH / 2;
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(arrowX, arrowY);
+                ctx.lineTo(arrowX + gap - 2, arrowY);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(arrowX + gap - 5, arrowY - 4);
+                ctx.lineTo(arrowX + gap - 1, arrowY);
+                ctx.lineTo(arrowX + gap - 5, arrowY + 4);
+                ctx.stroke();
+            }
+        });
+
+        // Bottom section: Golden rule
+        const ruleY = 175;
+        ctx.strokeStyle = '#f44';
+        ctx.lineWidth = 2;
+        roundRect(10, ruleY, W - 20, 50, 6);
+        ctx.stroke();
+
+        ctx.fillStyle = '#f44';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('THE GOLDEN RULE', W/2, ruleY + 20);
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText('Never make more than ONE change at a time. If you change two things, you learn nothing.', W/2, ruleY + 40);
+
+        // Iteration loop arrow
+        const loopY = 240;
+        ctx.strokeStyle = '#4af';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(W - 50, ruleY + 55);
+        ctx.lineTo(W - 50, loopY + 20);
+        ctx.lineTo(80, loopY + 20);
+        ctx.lineTo(80, loopY + 60);
+        ctx.stroke();
+        // Arrow head
+        ctx.beginPath();
+        ctx.moveTo(75, loopY + 55);
+        ctx.lineTo(80, loopY + 65);
+        ctx.lineTo(85, loopY + 55);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Iterate until solved', W/2, loopY + 15);
+
+        // Summary box
+        const sumY = loopY + 45;
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(10, sumY, W - 20, 90);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Debug Success Factors:', 25, sumY + 20);
+
+        const factors = [
+            {icon: '✓', text: 'Patience - rushing leads to mistakes', color: '#4f4'},
+            {icon: '✓', text: 'Systematic approach - follow the process', color: '#4f4'},
+            {icon: '✓', text: 'Documentation - write everything down', color: '#4f4'},
+            {icon: '✓', text: 'One change at a time - isolate variables', color: '#4f4'},
+            {icon: '✓', text: 'Verify assumptions - measure, don\'t assume', color: '#4f4'}
+        ];
+
+        factors.forEach((f, i) => {
+            const fx = 25 + (i < 3 ? 0 : 400);
+            const fy = sumY + 40 + (i % 3) * 16;
+            ctx.fillStyle = f.color;
+            ctx.font = '9px monospace';
+            ctx.fillText(f.icon + ' ' + f.text, fx, fy);
+        });
+    }
+
+    update();
+    drawSchematic();
+    drawDebugProcess();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

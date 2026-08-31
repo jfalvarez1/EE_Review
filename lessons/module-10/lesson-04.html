@@ -1,0 +1,333 @@
+<!-- Module 10, Lesson 4: Current and Voltage Protection -->
+<div class="lesson-content" data-module="10" data-lesson="4">
+
+    <div class="card">
+        <h2>Output Protection Circuits</h2>
+        <p>Output stages must survive short circuits, overloads, and reverse voltages. Protection circuits limit stress while allowing normal operation—critical for reliable products.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Current Limiting</div>
+                <div class="v mono">I<sub>max</sub> = V<sub>sense</sub> / R<sub>sense</sub></div>
+            </div>
+            <div class="box">
+                <div class="k">Foldback Limiting</div>
+                <div class="v mono">Reduces I<sub>limit</sub> as V<sub>out</sub> drops</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Simple current limiting still allows high power dissipation (Isupply × Vdrop). Foldback reduces current as output shorts, limiting power in the output device.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Current Limit Comparison</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="prot-vsupply">V<sub>supply</sub> (V)</label>
+                <input type="range" id="prot-vsupply" min="5" max="30" step="1" value="15">
+                <span id="prot-vsupply-val" class="mono">15V</span>
+            </div>
+            <div class="c3">
+                <label for="prot-ilim">I<sub>limit</sub> (A)</label>
+                <input type="range" id="prot-ilim" min="0.1" max="5" step="0.1" value="1">
+                <span id="prot-ilim-val" class="mono">1.0A</span>
+            </div>
+            <div class="c3">
+                <label for="prot-mode">Protection Mode</label>
+                <select id="prot-mode">
+                    <option value="constant">Constant Current</option>
+                    <option value="foldback" selected>Foldback</option>
+                    <option value="hiccup">Hiccup Mode</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="prot-canvas" width="980" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Short-Circuit Current</div>
+                <div class="v mono" id="prot-isc">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Max Dissipation</div>
+                <div class="v mono" id="prot-pdiss">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Safe Operating Area</div>
+                <div class="v mono" id="prot-soa">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Protection Methods</h3>
+
+        <table class="table">
+            <tr>
+                <th>Method</th>
+                <th>Mechanism</th>
+                <th>Pros/Cons</th>
+            </tr>
+            <tr>
+                <td>Sense Resistor</td>
+                <td>Voltage drop triggers limit</td>
+                <td>Simple, adds loss</td>
+            </tr>
+            <tr>
+                <td>Foldback</td>
+                <td>Reduces Ilim as Vout drops</td>
+                <td>Low SOA stress, can latch</td>
+            </tr>
+            <tr>
+                <td>Hiccup/Restart</td>
+                <td>Shuts off, retries periodically</td>
+                <td>Lowest dissipation, glitchy</td>
+            </tr>
+            <tr>
+                <td>Thermal Shutdown</td>
+                <td>Monitors die temperature</td>
+                <td>Ultimate protection, needs reset</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Reverse Voltage Protection</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Series Diode</div>
+                <div class="v">Simple, drops Vf, wastes power</div>
+            </div>
+            <div class="box">
+                <div class="k">P-FET (ideal diode)</div>
+                <div class="v">Low loss, turns off for reverse</div>
+            </div>
+            <div class="box">
+                <div class="k">TVS/Clamp</div>
+                <div class="v">Limits voltage transients</div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>ESD Protection:</strong> Outputs exposed to the outside world need ESD protection. TVS diodes or internal clamps shunt ESD strikes to the rails.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('prot-canvas');
+    const vsupplyEl = document.getElementById('prot-vsupply');
+    const ilimEl = document.getElementById('prot-ilim');
+    const modeEl = document.getElementById('prot-mode');
+    if (!canvas || !vsupplyEl || !ilimEl || !modeEl) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    function update() {
+        const vsupply = parseFloat(vsupplyEl.value);
+        const ilim = parseFloat(ilimEl.value);
+        const mode = modeEl.value || 'constant';
+
+        document.getElementById('prot-vsupply-val').textContent = vsupply + 'V';
+        document.getElementById('prot-ilim-val').textContent = ilim.toFixed(1) + 'A';
+
+        let isc, pdiss;
+
+        switch (mode) {
+            case 'constant':
+                isc = ilim;
+                pdiss = vsupply * ilim;
+                break;
+            case 'foldback':
+                isc = ilim * 0.3; // Folds back to 30%
+                pdiss = vsupply * isc;
+                break;
+            case 'hiccup':
+                isc = ilim * 0.1; // Average is ~10% of peak
+                pdiss = vsupply * isc;
+                break;
+        }
+
+        document.getElementById('prot-isc').textContent = isc.toFixed(2) + 'A';
+        document.getElementById('prot-pdiss').textContent = AD.fmtUnit(pdiss, 'W');
+
+        const soaOk = pdiss < 5; // Assume 5W limit
+        document.getElementById('prot-soa').textContent = soaOk ? 'OK' : 'EXCEEDED';
+        document.getElementById('prot-soa').style.color = soaOk ? 'var(--ok)' : 'var(--bad)';
+
+        plotProtection(vsupply, ilim, mode);
+    }
+
+    function plotProtection(vsupply, ilim, mode) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        // I vs Vout characteristic
+        const N = 100;
+        const curves = [];
+
+        for (let m of ['constant', 'foldback', 'hiccup']) {
+            const curve = [];
+            for (let i = 0; i <= N; i++) {
+                const vout = (i / N) * vsupply;
+                let iout;
+
+                if (m === 'constant') {
+                    iout = ilim;
+                } else if (m === 'foldback') {
+                    // Foldback: decreases as Vout decreases
+                    const foldbackStart = vsupply * 0.5;
+                    if (vout > foldbackStart) {
+                        iout = ilim;
+                    } else {
+                        iout = ilim * 0.3 + (ilim * 0.7) * (vout / foldbackStart);
+                    }
+                } else {
+                    // Hiccup: averages low
+                    iout = ilim * 0.1;
+                }
+                curve.push({ v: vout, i: iout });
+            }
+            curves.push({ mode: m, data: curve });
+        }
+
+        const colors = {
+            constant: 'rgba(251, 113, 133, 0.9)',
+            foldback: 'rgba(52, 211, 153, 0.9)',
+            hiccup: 'rgba(110, 231, 255, 0.9)'
+        };
+
+        const imax = ilim * 1.2;
+
+        curves.forEach(c => {
+            ctx.save();
+            ctx.strokeStyle = colors[c.mode];
+            ctx.lineWidth = c.mode === mode ? 3 : 1;
+            if (c.mode !== mode) ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+
+            c.data.forEach((pt, i) => {
+                const x = (pt.v / vsupply) * (w - 100) + 50;
+                const y = h - 30 - (pt.i / imax) * (h - 60);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        });
+
+        // Labels
+        ctx.save();
+        ctx.font = '12px ui-sans-serif';
+        ctx.fillStyle = 'white';
+        ctx.fillText('Vout →', w - 60, h - 10);
+        ctx.save();
+        ctx.translate(20, h/2);
+        ctx.rotate(-Math.PI/2);
+        ctx.fillText('Iout →', 0, 0);
+        ctx.restore();
+
+        ctx.fillStyle = colors.constant;
+        ctx.fillText('Constant', w - 120, 20);
+        ctx.fillStyle = colors.foldback;
+        ctx.fillText('Foldback', w - 120, 35);
+        ctx.fillStyle = colors.hiccup;
+        ctx.fillText('Hiccup', w - 120, 50);
+        ctx.restore();
+    }
+
+    ['prot-vsupply', 'prot-ilim'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+    document.getElementById('prot-mode').addEventListener('change', update);
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Simple Current Limit',
+        netlist: `* Current Limiting Circuit
+* Using sense resistor and BJT
+
+.MODEL NPN1 NPN (BF=100 IS=1e-14)
+
+* Main pass transistor
+Q1 vin base out NPN1
+
+* Current sense resistor
+RSENSE out load 0.1  ; 100mΩ
+
+* Limit transistor
+Q2 base sense 0 NPN1
+
+* Sense voltage
+* Q2 turns on when Vsense > 0.6V
+* Ilimit = 0.6V / 0.1Ω = 6A
+
+* Bias
+VIN vin 0 DC 15
+RBIAS vin base 1k
+
+* Variable load
+RLOAD load 0 10  ; Change to simulate overload
+
+.DC RLOAD 100 0.1 -1
+
+.PROBE V(out) I(RSENSE)
+.END
+
+* When I > 6A, Q2 steals base current
+* limiting output current`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm10l4',
+        items: [
+            'Know current limiting with sense resistor',
+            'Understand foldback reduces SOA stress',
+            'Calculate short-circuit power dissipation',
+            'Know thermal shutdown as backup',
+            'Understand ESD protection needs'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'I1-4',
+        type: 'numeric',
+        question: 'A current limit circuit uses a 0.2Ω sense resistor. Q2 turns on at Vbe = 0.6V. What is the current limit?',
+        hint: 'Ilimit = Vbe / Rsense',
+        expected: 3,
+        tolerance: 0.01,
+        unit: 'A',
+        solution: 'Ilimit = 0.6V / 0.2Ω = 3A',
+        explanation: 'When current through Rsense creates 0.6V drop, Q2 conducts and steals base drive from the pass transistor, limiting current.'
+    });
+})();
+</script>

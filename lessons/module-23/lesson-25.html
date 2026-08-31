@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 25: Medical Analog Front-End (ECG/PPG) - EE Learning</title>
+    <link rel="stylesheet" href="../../assets/main.css">
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <a href="../../index.html" class="home-link">EE Learning</a>
+        </div>
+        <nav class="lesson-nav">
+            <a href="lesson-24.html" class="prev-link">Previous</a>
+            <a href="../index.html" class="module-link">Module 23</a>
+            <span class="next-link disabled">End of Module</span>
+        </nav>
+    </header>
+
+    <main>
+        <article class="lesson">
+            <h1>Medical Analog Front-End (ECG/PPG)</h1>
+
+            <section class="intro">
+                <p>Medical devices require specialized analog front-ends (AFE) to acquire tiny biopotential signals from the human body. ECG (electrocardiogram) and PPG (photoplethysmography) are foundational biosignal types found in wearables, patient monitors, and diagnostic equipment. This lesson covers the circuit design challenges unique to medical applications.</p>
+
+                <div class="key-concepts">
+                    <h3>Industry Applications</h3>
+                    <ul>
+                        <li><strong>Wearable Health Monitors</strong> - Smartwatches, fitness bands</li>
+                        <li><strong>Patient Monitors</strong> - Hospital bedside units</li>
+                        <li><strong>Diagnostic ECG</strong> - 12-lead clinical systems</li>
+                        <li><strong>Pulse Oximeters</strong> - SpO2 measurement</li>
+                        <li><strong>Implantable Devices</strong> - Pacemakers, ICDs</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>1. ECG Signal Characteristics</h2>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Typical Value</th>
+                            <th>Design Implication</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Signal Amplitude</td>
+                            <td>0.5 - 5 mV</td>
+                            <td>Requires high gain (1000×)</td>
+                        </tr>
+                        <tr>
+                            <td>Frequency Range</td>
+                            <td>0.05 - 150 Hz</td>
+                            <td>Careful filtering needed</td>
+                        </tr>
+                        <tr>
+                            <td>DC Offset (electrode)</td>
+                            <td>±300 mV</td>
+                            <td>AC coupling or DC servo</td>
+                        </tr>
+                        <tr>
+                            <td>Common-Mode Signal</td>
+                            <td>Up to 1.5 V</td>
+                            <td>High CMRR needed (>80dB)</td>
+                        </tr>
+                        <tr>
+                            <td>Source Impedance</td>
+                            <td>1 kΩ - 1 MΩ</td>
+                            <td>Very high input impedance</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>ECG Waveform Components</h3>
+
+<div class="svg-container" style="max-width: 600px; margin: 20px auto;">
+    <canvas id="ecg-waveform-canvas" width="600" height="320" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;"></canvas>
+</div>
+<script>
+(function() {
+    const canvas = document.getElementById('ecg-waveform-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+
+    // Background
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('ECG Waveform Components', W/2, 25);
+
+    // Grid lines
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 0.5;
+    for (let x = 50; x < 560; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 50);
+        ctx.lineTo(x, 200);
+        ctx.stroke();
+    }
+    for (let y = 70; y < 220; y += 25) {
+        ctx.beginPath();
+        ctx.moveTo(50, y);
+        ctx.lineTo(550, y);
+        ctx.stroke();
+    }
+
+    // Baseline
+    const baseY = 145;
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(50, baseY);
+    ctx.lineTo(550, baseY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // ECG waveform
+    ctx.strokeStyle = '#4ade80';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(50, baseY);
+    // Flat before P
+    ctx.lineTo(100, baseY);
+    // P wave
+    ctx.quadraticCurveTo(120, baseY - 20, 140, baseY);
+    // PR segment
+    ctx.lineTo(170, baseY);
+    // Q wave
+    ctx.lineTo(180, baseY + 10);
+    // R wave (big spike)
+    ctx.lineTo(200, baseY - 80);
+    // S wave
+    ctx.lineTo(220, baseY + 25);
+    // ST segment
+    ctx.lineTo(260, baseY);
+    // T wave
+    ctx.quadraticCurveTo(290, baseY - 35, 320, baseY);
+    // Flat after T
+    ctx.lineTo(380, baseY);
+    // Second heartbeat - P wave
+    ctx.quadraticCurveTo(400, baseY - 20, 420, baseY);
+    ctx.lineTo(450, baseY);
+    // Q
+    ctx.lineTo(460, baseY + 10);
+    // R
+    ctx.lineTo(480, baseY - 80);
+    // S
+    ctx.lineTo(500, baseY + 25);
+    ctx.lineTo(540, baseY);
+    ctx.lineTo(550, baseY);
+    ctx.stroke();
+
+    // Labels
+    ctx.fillStyle = '#ff6b6b';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('P', 130, baseY - 30);
+    ctx.fillText('Q', 180, baseY + 30);
+    ctx.fillText('R', 200, baseY - 90);
+    ctx.fillText('S', 220, baseY + 45);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText('T', 290, baseY - 45);
+
+    // Time axis
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(50, 210);
+    ctx.lineTo(550, 210);
+    ctx.stroke();
+
+    // Time markers
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('0', 50, 225);
+    ctx.fillText('0.2', 170, 225);
+    ctx.fillText('0.4', 290, 225);
+    ctx.fillText('0.6', 410, 225);
+    ctx.fillText('seconds', 500, 225);
+
+    // Legend
+    ctx.fillStyle = '#0d0d1a';
+    ctx.fillRect(50, 245, 500, 65);
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(50, 245, 500, 65);
+
+    ctx.fillStyle = '#ff6b6b';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('P wave: Atrial depolarization (~0.1mV)', 70, 265);
+    ctx.fillStyle = '#4ade80';
+    ctx.fillText('QRS complex: Ventricular depolarization (~1mV)', 70, 283);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText('T wave: Ventricular repolarization (~0.3mV)', 70, 301);
+})();
+</script>
+            </section>
+
+            <section>
+                <h2>2. ECG Front-End Architecture</h2>
+
+                <div class="svg-container" style="max-width: 700px; margin: 20px auto;">
+                    <svg viewBox="0 0 700 280" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;">
+                        <text x="350" y="25" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">Single-Lead ECG Front-End</text>
+
+                        <!-- Electrodes -->
+                        <circle cx="50" cy="100" r="15" fill="none" stroke="#ff6b6b" stroke-width="2"/>
+                        <text x="50" y="105" fill="#ff6b6b" font-size="10" text-anchor="middle">LA</text>
+
+                        <circle cx="50" cy="180" r="15" fill="none" stroke="#4ade80" stroke-width="2"/>
+                        <text x="50" y="185" fill="#4ade80" font-size="10" text-anchor="middle">RA</text>
+
+                        <circle cx="50" cy="240" r="15" fill="none" stroke="#888" stroke-width="2"/>
+                        <text x="50" y="245" fill="#888" font-size="10" text-anchor="middle">RL</text>
+
+                        <!-- Protection and filtering -->
+                        <line x1="65" y1="100" x2="100" y2="100" stroke="#ff6b6b" stroke-width="2"/>
+                        <line x1="65" y1="180" x2="100" y2="180" stroke="#4ade80" stroke-width="2"/>
+
+                        <rect x="100" y="80" width="50" height="120" fill="#1a2a3a" stroke="#fbbf24" stroke-width="1"/>
+                        <text x="125" y="130" fill="#fbbf24" font-size="8" text-anchor="middle">ESD</text>
+                        <text x="125" y="145" fill="#fbbf24" font-size="8" text-anchor="middle">RFI</text>
+                        <text x="125" y="160" fill="#fbbf24" font-size="8" text-anchor="middle">Filter</text>
+
+                        <!-- Instrumentation Amp -->
+                        <line x1="150" y1="100" x2="200" y2="100" stroke="#ff6b6b" stroke-width="2"/>
+                        <line x1="150" y1="180" x2="200" y2="180" stroke="#4ade80" stroke-width="2"/>
+
+                        <polygon points="200,80 200,200 280,140" fill="#1a3a2a" stroke="#00d4ff" stroke-width="2"/>
+                        <text x="230" y="135" fill="#00d4ff" font-size="9" text-anchor="middle">INA</text>
+                        <text x="230" y="150" fill="#888" font-size="8" text-anchor="middle">G=10</text>
+
+                        <!-- INA output -->
+                        <line x1="280" y1="140" x2="320" y2="140" stroke="#00d4ff" stroke-width="2"/>
+
+                        <!-- High-pass filter -->
+                        <rect x="320" y="120" width="60" height="40" fill="#1a2a3a" stroke="#a855f7" stroke-width="1"/>
+                        <text x="350" y="135" fill="#a855f7" font-size="8" text-anchor="middle">HPF</text>
+                        <text x="350" y="150" fill="#888" font-size="7" text-anchor="middle">0.05Hz</text>
+
+                        <line x1="380" y1="140" x2="420" y2="140" stroke="#a855f7" stroke-width="2"/>
+
+                        <!-- Second stage gain -->
+                        <polygon points="420,120 420,160 480,140" fill="#1a3a2a" stroke="#00d4ff" stroke-width="2"/>
+                        <text x="445" y="145" fill="#00d4ff" font-size="9" text-anchor="middle">G=100</text>
+
+                        <line x1="480" y1="140" x2="520" y2="140" stroke="#00d4ff" stroke-width="2"/>
+
+                        <!-- Low-pass filter -->
+                        <rect x="520" y="120" width="60" height="40" fill="#1a2a3a" stroke="#4ade80" stroke-width="1"/>
+                        <text x="550" y="135" fill="#4ade80" font-size="8" text-anchor="middle">LPF</text>
+                        <text x="550" y="150" fill="#888" font-size="7" text-anchor="middle">150Hz</text>
+
+                        <line x1="580" y1="140" x2="620" y2="140" stroke="#4ade80" stroke-width="2"/>
+
+                        <!-- ADC -->
+                        <rect x="620" y="120" width="50" height="40" fill="#1a3a2a" stroke="#fbbf24" stroke-width="2"/>
+                        <text x="645" y="145" fill="#fbbf24" font-size="10" text-anchor="middle">ADC</text>
+
+                        <!-- Right leg drive -->
+                        <line x1="65" y1="240" x2="240" y2="240" stroke="#888" stroke-width="2"/>
+                        <line x1="240" y1="240" x2="240" y2="200" stroke="#888" stroke-width="2"/>
+
+                        <rect x="220" y="220" width="40" height="30" fill="#1a2a3a" stroke="#ff6b6b" stroke-width="1"/>
+                        <text x="240" y="238" fill="#ff6b6b" font-size="7" text-anchor="middle">RLD</text>
+
+                        <line x1="240" y1="200" x2="260" y2="200" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+                        <text x="265" y="195" fill="#888" font-size="7">CM sense</text>
+
+                        <!-- Labels -->
+                        <text x="350" y="265" fill="#888" font-size="9" text-anchor="middle">Total Gain: 10 × 100 = 1000 | Signal: 0.5-5mV → 0.5-5V</text>
+                    </svg>
+                </div>
+
+                <h3>Key Design Blocks</h3>
+
+                <h4>Instrumentation Amplifier (INA)</h4>
+                <ul>
+                    <li>Very high input impedance (>10 GΩ)</li>
+                    <li>High CMRR (>100 dB at DC, >80 dB at 50/60 Hz)</li>
+                    <li>Low noise (&lt;1 µVpp in 0.1-10Hz band)</li>
+                    <li>Examples: AD8421, INA333, MAX30003 (integrated AFE)</li>
+                </ul>
+
+                <h4>Right Leg Drive (RLD)</h4>
+                <ul>
+                    <li>Senses common-mode signal</li>
+                    <li>Inverts and feeds back to body via RL electrode</li>
+                    <li>Reduces effective CM voltage seen by INA</li>
+                    <li>Improves CMRR by 20-40 dB</li>
+                </ul>
+
+                <div class="formula-box">
+                    <h4>CMRR Requirement</h4>
+                    <p>With 1.5V CM signal and 1mV ECG, to keep CM interference < 10µV:</p>
+                    <p>\[ CMRR > 20\log_{10}\left(\frac{1.5V}{10\mu V}\right) = 103 \text{ dB} \]</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>3. PPG Signal Acquisition</h2>
+
+                <p>Photoplethysmography measures blood volume changes using light absorption:</p>
+
+                <h3>PPG Principle</h3>
+                <ul>
+                    <li>LED illuminates tissue (red ~660nm, IR ~940nm)</li>
+                    <li>Photodiode detects transmitted/reflected light</li>
+                    <li>Pulsatile blood flow modulates light absorption</li>
+                    <li>AC component (pulsatile) carries heart rate info</li>
+                    <li>Ratio of red/IR gives SpO2 (oxygen saturation)</li>
+                </ul>
+
+                <div class="svg-container" style="max-width: 600px; margin: 20px auto;">
+                    <svg viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;">
+                        <text x="300" y="25" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">PPG Signal Components</text>
+
+                        <!-- Waveform -->
+                        <rect x="50" y="45" width="500" height="130" fill="#0d0d1a" stroke="#444" stroke-width="1"/>
+
+                        <!-- DC component baseline -->
+                        <line x1="60" y1="130" x2="540" y2="130" stroke="#666" stroke-width="1" stroke-dasharray="4,4"/>
+                        <text x="545" y="135" fill="#666" font-size="9">DC</text>
+
+                        <!-- AC pulsatile waveform on top of DC -->
+                        <path d="M 60 130
+                                 C 80 130 90 100 110 100 C 130 100 140 125 160 130
+                                 C 180 130 190 100 210 100 C 230 100 240 125 260 130
+                                 C 280 130 290 100 310 100 C 330 100 340 125 360 130
+                                 C 380 130 390 100 410 100 C 430 100 440 125 460 130
+                                 C 480 130 490 100 510 100 C 530 100 540 125 540 130"
+                              stroke="#ff6b6b" stroke-width="2" fill="none"/>
+
+                        <!-- AC amplitude annotation -->
+                        <line x1="110" y1="100" x2="110" y2="130" stroke="#4ade80" stroke-width="1"/>
+                        <text x="125" y="118" fill="#4ade80" font-size="9">AC (0.5-2%)</text>
+
+                        <!-- DC level -->
+                        <line x1="60" y1="160" x2="60" y2="130" stroke="#fbbf24" stroke-width="2"/>
+                        <text x="75" y="155" fill="#fbbf24" font-size="9">DC (98%+)</text>
+
+                        <!-- Legend -->
+                        <text x="300" y="185" fill="#888" font-size="10" text-anchor="middle">AC/DC ratio: ~0.5-2% | Requires high dynamic range ADC or log amp</text>
+                    </svg>
+                </div>
+
+                <h3>PPG Front-End Design</h3>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Component</th>
+                            <th>Function</th>
+                            <th>Key Specs</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>LED Driver</td>
+                            <td>Pulsed current source, multiplexed R/IR</td>
+                            <td>10-50mA peak, fast settling</td>
+                        </tr>
+                        <tr>
+                            <td>Photodiode</td>
+                            <td>Light to current conversion</td>
+                            <td>Large area, low dark current</td>
+                        </tr>
+                        <tr>
+                            <td>TIA</td>
+                            <td>Current to voltage conversion</td>
+                            <td>Low noise, high bandwidth</td>
+                        </tr>
+                        <tr>
+                            <td>Ambient Light Reject</td>
+                            <td>Cancel DC from room lighting</td>
+                            <td>Synchronous sampling or modulation</td>
+                        </tr>
+                        <tr>
+                            <td>ADC</td>
+                            <td>Digitize signal</td>
+                            <td>18+ bits for AC/DC ratio</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
+                <h2>4. Integrated AFE Solutions</h2>
+
+                <p>Modern medical AFEs integrate most analog signal chain in a single chip:</p>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Part</th>
+                            <th>Application</th>
+                            <th>Features</th>
+                            <th>Power</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>MAX30003</td>
+                            <td>ECG</td>
+                            <td>Single-lead, integrated RLD, 85µW</td>
+                            <td>Ultra-low power</td>
+                        </tr>
+                        <tr>
+                            <td>ADS1292R</td>
+                            <td>ECG</td>
+                            <td>2-ch, 24-bit, respiration detection</td>
+                            <td>335µW/ch</td>
+                        </tr>
+                        <tr>
+                            <td>MAX30102</td>
+                            <td>PPG (SpO2)</td>
+                            <td>Integrated LED driver + PD + ADC</td>
+                            <td>600µA active</td>
+                        </tr>
+                        <tr>
+                            <td>AFE4900</td>
+                            <td>ECG + PPG</td>
+                            <td>Combo biosensor AFE</td>
+                            <td>Configurable</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="tip-box">
+                    <h4>Integrated vs Discrete Trade-offs</h4>
+                    <ul>
+                        <li><strong>Integrated:</strong> Smaller, faster design, optimized for application</li>
+                        <li><strong>Discrete:</strong> More flexibility, easier to debug, can optimize each stage</li>
+                        <li>For learning: Start with integrated AFE, understand signal chain</li>
+                        <li>For production: Integrated preferred for size/power</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>5. Safety and Regulatory</h2>
+
+                <h3>Patient Safety (IEC 60601-1)</h3>
+                <ul>
+                    <li><strong>Patient Leakage Current:</strong> < 10µA normal, < 50µA fault</li>
+                    <li><strong>Isolation:</strong> 4kV for CF (cardiac floating) devices</li>
+                    <li><strong>Defibrillator Protection:</strong> Withstand 5kV, 360J discharge</li>
+                </ul>
+
+                <div class="warning-box">
+                    <h4>Critical Safety Requirements</h4>
+                    <ul>
+                        <li>Use medical-rated isolation (reinforced insulation)</li>
+                        <li>Include input protection networks for defibrillator events</li>
+                        <li>Current-limit all electrode connections</li>
+                        <li>Fail-safe design: Fault conditions must not harm patient</li>
+                        <li>EMC compliance: IEC 60601-1-2 for immunity</li>
+                    </ul>
+                </div>
+
+                <h3>Electrode Interface Protection</h3>
+<div class="svg-container" style="max-width: 600px; margin: 20px auto;">
+    <canvas id="electrode-protection-canvas" width="600" height="320" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;"></canvas>
+</div>
+<script>
+(function() {
+    const canvas = document.getElementById('electrode-protection-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+
+    // Background
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Typical Input Protection Network', W/2, 25);
+
+    // Colors
+    const wire = '#4ade80';
+    const resistor = '#00d4ff';
+    const capacitor = '#fbbf24';
+    const tvs = '#ff6b6b';
+    const gnd = '#888';
+
+    const y = 80;
+
+    // Electrode input
+    ctx.fillStyle = wire;
+    ctx.beginPath();
+    ctx.arc(50, y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Electrode', 50, y - 20);
+
+    // Wire to R1
+    ctx.strokeStyle = wire;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(58, y);
+    ctx.lineTo(100, y);
+    ctx.stroke();
+
+    // R1 resistor
+    ctx.strokeStyle = resistor;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(100, y - 10, 60, 20);
+    ctx.fillStyle = resistor;
+    ctx.font = '10px monospace';
+    ctx.fillText('R1', 130, y + 5);
+
+    // Wire from R1 to junction 1
+    ctx.strokeStyle = wire;
+    ctx.beginPath();
+    ctx.moveTo(160, y);
+    ctx.lineTo(200, y);
+    ctx.stroke();
+
+    // Junction 1
+    ctx.fillStyle = wire;
+    ctx.beginPath();
+    ctx.arc(200, y, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // TVS down from junction 1
+    ctx.strokeStyle = gnd;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(200, y);
+    ctx.lineTo(200, y + 30);
+    ctx.stroke();
+
+    // TVS symbol (two back-to-back zeners)
+    ctx.strokeStyle = tvs;
+    ctx.lineWidth = 2;
+    // First zener
+    ctx.beginPath();
+    ctx.moveTo(190, y + 35);
+    ctx.lineTo(210, y + 45);
+    ctx.moveTo(210, y + 35);
+    ctx.lineTo(210, y + 55);
+    ctx.stroke();
+    // Second zener
+    ctx.beginPath();
+    ctx.moveTo(210, y + 55);
+    ctx.lineTo(190, y + 65);
+    ctx.moveTo(190, y + 55);
+    ctx.lineTo(190, y + 75);
+    ctx.stroke();
+    ctx.fillStyle = tvs;
+    ctx.font = '9px monospace';
+    ctx.fillText('TVS', 200, y + 95);
+
+    // TVS to GND
+    ctx.strokeStyle = gnd;
+    ctx.beginPath();
+    ctx.moveTo(200, y + 75);
+    ctx.lineTo(200, y + 105);
+    ctx.stroke();
+    // GND symbol
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(190, y + 105);
+    ctx.lineTo(210, y + 105);
+    ctx.stroke();
+
+    // Wire to R2
+    ctx.strokeStyle = wire;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(200, y);
+    ctx.lineTo(280, y);
+    ctx.stroke();
+
+    // R2 resistor
+    ctx.strokeStyle = resistor;
+    ctx.strokeRect(280, y - 10, 60, 20);
+    ctx.fillStyle = resistor;
+    ctx.font = '10px monospace';
+    ctx.fillText('R2', 310, y + 5);
+
+    // Wire from R2 to junction 2
+    ctx.strokeStyle = wire;
+    ctx.beginPath();
+    ctx.moveTo(340, y);
+    ctx.lineTo(380, y);
+    ctx.stroke();
+
+    // Junction 2
+    ctx.fillStyle = wire;
+    ctx.beginPath();
+    ctx.arc(380, y, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // C1 down from between R1 and R2
+    ctx.strokeStyle = gnd;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(250, y);
+    ctx.lineTo(250, y + 40);
+    ctx.stroke();
+    // Capacitor symbol
+    ctx.strokeStyle = capacitor;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(240, y + 40);
+    ctx.lineTo(260, y + 40);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(240, y + 50);
+    ctx.lineTo(260, y + 50);
+    ctx.stroke();
+    ctx.fillStyle = capacitor;
+    ctx.font = '9px monospace';
+    ctx.fillText('C1', 250, y + 70);
+    // C1 to GND
+    ctx.strokeStyle = gnd;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(250, y + 50);
+    ctx.lineTo(250, y + 85);
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(240, y + 85);
+    ctx.lineTo(260, y + 85);
+    ctx.stroke();
+
+    // C2 down from junction 2
+    ctx.strokeStyle = gnd;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(380, y);
+    ctx.lineTo(380, y + 40);
+    ctx.stroke();
+    // Capacitor symbol
+    ctx.strokeStyle = capacitor;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(370, y + 40);
+    ctx.lineTo(390, y + 40);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(370, y + 50);
+    ctx.lineTo(390, y + 50);
+    ctx.stroke();
+    ctx.fillStyle = capacitor;
+    ctx.font = '9px monospace';
+    ctx.fillText('C2', 380, y + 70);
+    // C2 to GND
+    ctx.strokeStyle = gnd;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(380, y + 50);
+    ctx.lineTo(380, y + 85);
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(370, y + 85);
+    ctx.lineTo(390, y + 85);
+    ctx.stroke();
+
+    // Wire to INA output
+    ctx.strokeStyle = wire;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(380, y);
+    ctx.lineTo(500, y);
+    ctx.stroke();
+
+    // Output connection
+    ctx.fillStyle = wire;
+    ctx.beginPath();
+    ctx.arc(500, y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = '11px monospace';
+    ctx.fillText('To INA', 540, y + 5);
+
+    // Specifications box
+    ctx.fillStyle = '#0d0d1a';
+    ctx.fillRect(80, 215, 440, 90);
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(80, 215, 440, 90);
+
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = resistor;
+    ctx.fillText('R1: 10-100kΩ (current limiting for defib)', 100, 235);
+    ctx.fillText('R2: 1-10kΩ (RFI filtering with C2)', 100, 252);
+    ctx.fillStyle = tvs;
+    ctx.fillText('TVS: ±15V clamp for ESD', 100, 269);
+    ctx.fillStyle = capacitor;
+    ctx.fillText('C1: 10-100nF (RFI bypass)', 320, 252);
+    ctx.fillText('C2: 10-100pF (additional RFI filtering)', 320, 269);
+})();
+</script>
+            </section>
+
+            <section>
+                <h2>6. Design Checklist</h2>
+
+                <div class="checklist">
+                    <h4>ECG Design</h4>
+                    <ul>
+                        <li>☐ INA with CMRR > 100dB at DC, >80dB at line frequency</li>
+                        <li>☐ Input impedance > 10MΩ (ideally > 1GΩ)</li>
+                        <li>☐ Noise < 10µVpp in ECG band</li>
+                        <li>☐ Right leg drive for improved CMRR</li>
+                        <li>☐ High-pass filter (0.05-0.5Hz) for DC rejection</li>
+                        <li>☐ Low-pass filter (40-150Hz depending on application)</li>
+                        <li>☐ Notch filter for 50/60Hz if needed</li>
+                    </ul>
+
+                    <h4>PPG Design</h4>
+                    <ul>
+                        <li>☐ LED driver with precise current control</li>
+                        <li>☐ Ambient light cancellation</li>
+                        <li>☐ High dynamic range for small AC/large DC</li>
+                        <li>☐ Synchronized sampling with LED pulses</li>
+                    </ul>
+
+                    <h4>Safety</h4>
+                    <ul>
+                        <li>☐ Patient leakage current within limits</li>
+                        <li>☐ Appropriate isolation for device classification</li>
+                        <li>☐ Defibrillator protection on electrode inputs</li>
+                        <li>☐ ESD protection for user contact</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>7. Exercises</h2>
+
+                <div class="exercise-box">
+                    <h4>Exercise 1: ECG Gain Distribution</h4>
+                    <p>An ECG system needs 1000× total gain. Propose a gain distribution for:</p>
+                    <ol>
+                        <li>INA stage (considering DC offset headroom)</li>
+                        <li>Second stage (after high-pass filter)</li>
+                        <li>Calculate the DC offset rejection needed if electrode offset is 300mV</li>
+                    </ol>
+                </div>
+
+                <div class="exercise-box">
+                    <h4>Exercise 2: CMRR Budget</h4>
+                    <p>A patient has 2V of 60Hz common-mode signal on their body. The ECG system should keep 60Hz interference below 50µV at the ADC input. Calculate required system CMRR.</p>
+                </div>
+
+                <div class="exercise-box">
+                    <h4>Exercise 3: PPG Dynamic Range</h4>
+                    <p>A PPG system has DC level of 2V and AC component of 20mV. If using a 16-bit ADC with 3V reference:</p>
+                    <ol>
+                        <li>What is the LSB size?</li>
+                        <li>How many bits represent the AC component?</li>
+                        <li>Would an 18-bit or 24-bit ADC provide significant benefit?</li>
+                    </ol>
+                </div>
+            </section>
+
+        </article>
+    </main>
+
+    <script src="../../assets/common.js"></script>
+
+    <footer>
+        <p>&copy; 2025 EE Learning Platform. Designed for BSEE graduates entering the hardware industry.</p>
+    </footer>
+</body>
+</html>

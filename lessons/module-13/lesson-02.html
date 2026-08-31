@@ -1,0 +1,428 @@
+<!-- Module 13, Lesson 2: SPI Signal Integrity -->
+<div class="lesson-content" data-module="13" data-lesson="2">
+
+    <div class="card">
+        <h2>SPI Signal Integrity</h2>
+        <p>SPI runs at higher speeds than I2C (up to 100MHz+) using push-pull drivers. This brings transmission line effects, crosstalk, and EMI challenges that require careful PCB design.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">SCLK</div>
+                <div class="v">Serial Clock (master drives)</div>
+            </div>
+            <div class="box">
+                <div class="k">MOSI</div>
+                <div class="v">Master Out, Slave In</div>
+            </div>
+            <div class="box">
+                <div class="k">MISO</div>
+                <div class="v">Master In, Slave Out</div>
+            </div>
+            <div class="box">
+                <div class="k">CS/SS</div>
+                <div class="v">Chip Select (active low)</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Unlike I2C, SPI uses push-pull drivers providing fast, defined edge rates. At speeds above ~10MHz, trace lengths become significant fractions of wavelength and require controlled impedance and termination.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: SPI Transmission Line Effects</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="spi-freq">SPI Clock (MHz)</label>
+                <input type="range" id="spi-freq" min="1" max="100" step="1" value="25">
+                <span id="spi-freq-val" class="mono">25 MHz</span>
+            </div>
+            <div class="c3">
+                <label for="spi-length">Trace Length (cm)</label>
+                <input type="range" id="spi-length" min="1" max="30" step="1" value="10">
+                <span id="spi-length-val" class="mono">10 cm</span>
+            </div>
+            <div class="c3">
+                <label for="spi-z0">Z<sub>0</sub> (Ω)</label>
+                <input type="text" id="spi-z0" value="50">
+            </div>
+            <div class="c3">
+                <label for="spi-zdrv">Driver Z (Ω)</label>
+                <input type="text" id="spi-zdrv" value="25">
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="spi-canvas" width="980" height="350"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Wavelength</div>
+                <div class="v mono" id="spi-wavelength">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Trace as λ fraction</div>
+                <div class="v mono" id="spi-fraction">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Propagation Delay</div>
+                <div class="v mono" id="spi-tpd">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Termination Needed?</div>
+                <div class="v mono" id="spi-term">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPI Mode Definitions</h3>
+
+        <table class="table">
+            <tr>
+                <th>Mode</th>
+                <th>CPOL</th>
+                <th>CPHA</th>
+                <th>Clock Idle</th>
+                <th>Data Sample</th>
+            </tr>
+            <tr>
+                <td>Mode 0</td>
+                <td>0</td>
+                <td>0</td>
+                <td>Low</td>
+                <td>Rising edge</td>
+            </tr>
+            <tr>
+                <td>Mode 1</td>
+                <td>0</td>
+                <td>1</td>
+                <td>Low</td>
+                <td>Falling edge</td>
+            </tr>
+            <tr>
+                <td>Mode 2</td>
+                <td>1</td>
+                <td>0</td>
+                <td>High</td>
+                <td>Falling edge</td>
+            </tr>
+            <tr>
+                <td>Mode 3</td>
+                <td>1</td>
+                <td>1</td>
+                <td>High</td>
+                <td>Rising edge</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>PCB Design Guidelines</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Trace Length</div>
+                <div class="v">Keep < λ/10 for no termination</div>
+            </div>
+            <div class="box">
+                <div class="k">Impedance</div>
+                <div class="v">Match driver Z to trace Z<sub>0</sub></div>
+            </div>
+            <div class="box">
+                <div class="k">Length Matching</div>
+                <div class="v">Match SCLK, MOSI, MISO within 5mm</div>
+            </div>
+            <div class="box">
+                <div class="k">Ground Return</div>
+                <div class="v">Continuous ground plane under traces</div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>Termination Options:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li><strong>Series:</strong> 22-33Ω at driver output, matches Z<sub>0</sub></li>
+                <li><strong>Parallel:</strong> Z<sub>0</sub> to ground at receiver, high power</li>
+                <li><strong>AC (RC):</strong> Series R + shunt C, lower power</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('spi-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const freq = parseFloat(document.getElementById('spi-freq').value) * 1e6;
+        const length = parseFloat(document.getElementById('spi-length').value) / 100; // cm to m
+        const z0 = AD.parseValue(document.getElementById('spi-z0').value) || 50;
+        const zdrv = AD.parseValue(document.getElementById('spi-zdrv').value) || 25;
+
+        document.getElementById('spi-freq-val').textContent = (freq / 1e6) + ' MHz';
+        document.getElementById('spi-length-val').textContent = (length * 100) + ' cm';
+
+        // Signal velocity in FR4 (approximately 0.5c)
+        const velocity = 0.5 * 3e8; // m/s
+        const wavelength = velocity / freq;
+        const fraction = length / wavelength;
+        const tpd = length / velocity;
+
+        document.getElementById('spi-wavelength').textContent = AD.fmtUnit(wavelength, 'm');
+        document.getElementById('spi-fraction').textContent = (fraction * 100).toFixed(1) + '% of λ';
+        document.getElementById('spi-tpd').textContent = AD.fmtUnit(tpd, 's');
+
+        const termEl = document.getElementById('spi-term');
+        if (fraction < 0.1) {
+            termEl.textContent = 'No (< λ/10)';
+            termEl.style.color = 'var(--ok)';
+        } else if (fraction < 0.25) {
+            termEl.textContent = 'Recommended';
+            termEl.style.color = 'var(--warn)';
+        } else {
+            termEl.textContent = 'Required';
+            termEl.style.color = 'var(--bad)';
+        }
+
+        plotSPI(freq, z0, zdrv, tpd, fraction);
+    }
+
+    function plotSPI(freq, z0, zdrv, tpd, fraction) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const period = 1 / freq;
+        const totalTime = 4 * period;
+
+        // Draw labeled axes
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: totalTime,
+            yMin: -0.5,
+            yMax: 4,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 's',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 8
+        });
+
+        // Generate SPI clock waveform with reflections
+        const N = 600;
+        const tData = [];
+        const vDriverData = [];
+        const vReceiverData = [];
+
+        const vcc = 3.3;
+        const riseTime = 2e-9; // 2ns rise time
+
+        // Reflection coefficient at receiver (assuming high-Z input)
+        const rhoLoad = (1e6 - z0) / (1e6 + z0); // ~1 (open circuit reflection)
+        const rhoDriver = (zdrv - z0) / (zdrv + z0);
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * totalTime;
+            tData.push(t);
+
+            // Ideal clock at driver
+            const clockCycle = Math.floor(t / period);
+            const withinPeriod = t - clockCycle * period;
+            let vIdeal;
+            if (withinPeriod < period / 2) {
+                vIdeal = vcc;
+            } else {
+                vIdeal = 0;
+            }
+
+            // Driver output with finite rise time
+            const edgePhase = withinPeriod % (period / 2);
+            let vDriver;
+            if (withinPeriod < period / 2) {
+                // Rising edge
+                if (edgePhase < riseTime) {
+                    vDriver = vcc * (edgePhase / riseTime);
+                } else {
+                    vDriver = vcc;
+                }
+            } else {
+                // Falling edge
+                if (edgePhase < riseTime) {
+                    vDriver = vcc * (1 - edgePhase / riseTime);
+                } else {
+                    vDriver = 0;
+                }
+            }
+            vDriverData.push(vDriver);
+
+            // Receiver sees delayed signal with reflections
+            let vReceiver = 0;
+            const numReflections = 5;
+
+            for (let r = 0; r <= numReflections; r++) {
+                const delay = (2 * r + 1) * tpd;
+                const tDelayed = t - delay;
+                if (tDelayed >= 0) {
+                    // Calculate what driver was doing at tDelayed
+                    const delayedCycle = Math.floor(tDelayed / period);
+                    const delayedWithin = tDelayed - delayedCycle * period;
+                    let delayedV;
+                    if (delayedWithin < period / 2) {
+                        const ep = delayedWithin;
+                        if (ep < riseTime) {
+                            delayedV = vcc * (ep / riseTime);
+                        } else {
+                            delayedV = vcc;
+                        }
+                    } else {
+                        const ep = delayedWithin - period / 2;
+                        if (ep < riseTime) {
+                            delayedV = vcc * (1 - ep / riseTime);
+                        } else {
+                            delayedV = 0;
+                        }
+                    }
+
+                    // Apply reflection coefficient
+                    const reflectionFactor = Math.pow(rhoLoad * rhoDriver, r) * (1 + rhoLoad);
+                    vReceiver += delayedV * reflectionFactor * (r === 0 ? 0.5 : 0.25); // Simplified
+                }
+            }
+
+            // Add overshoot/ringing based on impedance mismatch
+            if (fraction > 0.1) {
+                const ringing = 0.3 * Math.sin(2 * Math.PI * freq * 3 * t) * Math.exp(-t / (period * 2));
+                vReceiver += ringing * (fraction > 0.25 ? 1 : 0.5);
+            }
+
+            // Clamp and normalize
+            vReceiver = Math.max(0, Math.min(vcc * 1.3, vReceiver));
+            vReceiverData.push(vReceiver);
+        }
+
+        // Plot driver output
+        AD.plotData(ctx, axes, tData, vDriverData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2,
+            label: 'Driver output'
+        });
+
+        // Plot receiver input
+        AD.plotData(ctx, axes, tData, vReceiverData, {
+            color: 'rgba(251, 113, 133, 0.9)',
+            lineWidth: 2,
+            label: 'Receiver input'
+        });
+
+        // Legend
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'SCLK at driver' },
+            { color: 'rgba(251, 113, 133, 0.9)', label: 'SCLK at receiver' }
+        ]);
+
+        // Add note about trace length effect
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '11px ui-sans-serif';
+        if (fraction > 0.25) {
+            ctx.fillStyle = 'rgba(251, 113, 133, 0.9)';
+            ctx.fillText('Significant ringing - termination required!', w - 280, h - 60);
+        } else if (fraction > 0.1) {
+            ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+            ctx.fillText('Some ringing - consider termination', w - 250, h - 60);
+        } else {
+            ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+            ctx.fillText('Clean signal - no termination needed', w - 250, h - 60);
+        }
+        ctx.restore();
+    }
+
+    ['spi-freq', 'spi-length', 'spi-z0', 'spi-zdrv'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'SPI Transmission Line Model',
+        netlist: `* SPI Signal Integrity with Transmission Line
+
+* Driver (push-pull CMOS)
+.SUBCKT DRIVER in out vcc gnd
+MP out in vcc vcc PMOS W=20u L=0.35u
+MN out in gnd gnd NMOS W=10u L=0.35u
+.MODEL PMOS PMOS (VTO=-0.7 KP=50u)
+.MODEL NMOS NMOS (VTO=0.7 KP=110u)
+.ENDS
+
+* Series termination resistor
+RTERM driver_out tline_in 33
+
+* Transmission line (10cm, 50Ω, ~500ps delay)
+T1 tline_in 0 receiver_in 0 Z0=50 TD=500p
+
+* Receiver input capacitance
+CLOAD receiver_in 0 5p
+
+* Driver instance
+XDRV clk_in driver_out vcc 0 DRIVER
+
+* Clock signal (25MHz)
+VCLK clk_in 0 PULSE(0 3.3 0 1n 1n 20n 40n)
+
+* Supply
+VCC vcc 0 DC 3.3
+
+.TRAN 0.1n 200n
+
+.PROBE V(driver_out) V(receiver_in)
+.END
+
+* Compare with/without RTERM to see ringing reduction
+* Try longer TD (transmission line delay) for longer traces`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm13l2',
+        items: [
+            'Know SPI uses push-pull drivers',
+            'Calculate wavelength: λ = v/f, v ≈ 0.5c in FR4',
+            'Apply λ/10 rule for termination decision',
+            'Understand CPOL/CPHA mode definitions',
+            'Length-match clock and data traces'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'M2-2',
+        type: 'numeric',
+        question: 'A 50MHz SPI clock runs on FR4 PCB (velocity ≈ 1.5×10⁸ m/s). What is the maximum unterminated trace length using the λ/10 rule?',
+        hint: 'λ = v/f, max length = λ/10',
+        expected: 30,
+        tolerance: 0.1,
+        unit: 'cm',
+        solution: 'λ = 1.5×10⁸ / 50×10⁶ = 3m, max length = 3m / 10 = 30cm',
+        explanation: 'At 50MHz, traces up to 30cm can work without termination. But adding series termination (22-33Ω) is good practice for robustness.'
+    });
+})();
+</script>

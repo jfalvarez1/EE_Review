@@ -1,0 +1,405 @@
+<!-- Module 14, Lesson 2: Bandgap Voltage References -->
+<div class="lesson-content" data-module="14" data-lesson="2">
+
+    <div class="card">
+        <h2>Bandgap Voltage References</h2>
+        <p>Bandgap references produce a stable voltage (~1.2V) by combining two temperature-dependent voltages with opposite tempcos. This cancellation yields excellent temperature stability.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">V<sub>BE</sub> Tempco</div>
+                <div class="v mono">≈ -2.1 mV/°C (CTAT)</div>
+            </div>
+            <div class="box">
+                <div class="k">ΔV<sub>BE</sub> Tempco</div>
+                <div class="v mono">≈ +0.085 mV/°C (PTAT)</div>
+            </div>
+            <div class="box">
+                <div class="k">Bandgap Voltage</div>
+                <div class="v mono">≈ 1.205V @ 300K</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> V<sub>BE</sub> decreases with temperature (CTAT) while ΔV<sub>BE</sub> (difference between two transistors at different current densities) increases with temperature (PTAT). By scaling and summing them, the tempcos cancel.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Bandgap Cancellation</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="bg-temp">Temperature (°C)</label>
+                <input type="range" id="bg-temp" min="-40" max="125" step="5" value="25">
+                <span id="bg-temp-val" class="mono">25°C</span>
+            </div>
+            <div class="c3">
+                <label for="bg-ratio">Current Ratio (n)</label>
+                <input type="range" id="bg-ratio" min="2" max="20" step="1" value="8">
+                <span id="bg-ratio-val" class="mono">8</span>
+            </div>
+            <div class="c3">
+                <label for="bg-k">PTAT Multiplier (K)</label>
+                <input type="range" id="bg-k" min="5" max="30" step="1" value="17">
+                <span id="bg-k-val" class="mono">17</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="bg-canvas" width="980" height="350"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">V<sub>BE</sub></div>
+                <div class="v mono" id="bg-vbe">—</div>
+            </div>
+            <div class="box">
+                <div class="k">ΔV<sub>BE</sub></div>
+                <div class="v mono" id="bg-dvbe">—</div>
+            </div>
+            <div class="box">
+                <div class="k">V<sub>REF</sub></div>
+                <div class="v mono" id="bg-vref">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Tempco</div>
+                <div class="v mono" id="bg-tempco">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Bandgap Circuit Principle</h3>
+        <div class="diagram-container">
+            <canvas id="bandgap-principle-canvas" width="700" height="380" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+        </div>
+
+        <div class="warn">
+            <strong>Curvature Correction:</strong> First-order bandgaps have ~10-50 ppm/°C tempco. High-precision references add curvature compensation circuits to achieve <5 ppm/°C over the full temperature range.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Common Bandgap References</h3>
+
+        <table class="table">
+            <tr>
+                <th>Part</th>
+                <th>Voltage</th>
+                <th>Initial Accuracy</th>
+                <th>Tempco</th>
+            </tr>
+            <tr>
+                <td>LM4041</td>
+                <td>1.225V</td>
+                <td>±0.5%</td>
+                <td>100 ppm/°C</td>
+            </tr>
+            <tr>
+                <td>REF3012</td>
+                <td>1.25V</td>
+                <td>±0.2%</td>
+                <td>50 ppm/°C</td>
+            </tr>
+            <tr>
+                <td>LT1009</td>
+                <td>2.5V</td>
+                <td>±0.2%</td>
+                <td>20 ppm/°C</td>
+            </tr>
+            <tr>
+                <td>REF50xx</td>
+                <td>2.5/3.0/3.3V</td>
+                <td>±0.05%</td>
+                <td>3 ppm/°C</td>
+            </tr>
+            <tr>
+                <td>MAX6325</td>
+                <td>2.5V</td>
+                <td>±0.02%</td>
+                <td>1 ppm/°C</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const temp = parseFloat(document.getElementById('bg-temp').value);
+        const n = parseInt(document.getElementById('bg-ratio').value);
+        const K = parseInt(document.getElementById('bg-k').value);
+
+        document.getElementById('bg-temp-val').textContent = temp + '°C';
+        document.getElementById('bg-ratio-val').textContent = n;
+        document.getElementById('bg-k-val').textContent = K;
+
+        const T = temp + 273.15;
+        const T0 = 298.15; // 25°C
+
+        // VBE model: VBE(T) ≈ VBE0 + (T-T0) × dVBE/dT
+        const vbe0 = 0.65;
+        const dvbedt = -2.1e-3;
+        const vbe = vbe0 + (T - T0) * dvbedt;
+
+        // VT = kT/q
+        const vt = 8.617e-5 * T; // in V (k in eV/K)
+        const dvbe = vt * Math.log(n);
+
+        // Bandgap reference
+        const vref = vbe + K * dvbe;
+
+        // Calculate tempco over range
+        const T1 = -40 + 273.15;
+        const T2 = 125 + 273.15;
+        const vbe1 = vbe0 + (T1 - T0) * dvbedt;
+        const vbe2 = vbe0 + (T2 - T0) * dvbedt;
+        const vt1 = 8.617e-5 * T1;
+        const vt2 = 8.617e-5 * T2;
+        const vref1 = vbe1 + K * vt1 * Math.log(n);
+        const vref2 = vbe2 + K * vt2 * Math.log(n);
+        const tempco = (vref2 - vref1) / (125 - (-40)) * 1e6 / ((vref1 + vref2) / 2); // ppm/°C
+
+        document.getElementById('bg-vbe').textContent = (vbe * 1000).toFixed(1) + 'mV';
+        document.getElementById('bg-dvbe').textContent = (dvbe * 1000).toFixed(2) + 'mV';
+        document.getElementById('bg-vref').textContent = vref.toFixed(4) + 'V';
+        document.getElementById('bg-tempco').textContent = tempco.toFixed(1) + ' ppm/°C';
+
+        const tempcoEl = document.getElementById('bg-tempco');
+        if (Math.abs(tempco) < 20) {
+            tempcoEl.style.color = 'var(--ok)';
+        } else if (Math.abs(tempco) < 50) {
+            tempcoEl.style.color = 'var(--warn)';
+        } else {
+            tempcoEl.style.color = 'var(--bad)';
+        }
+
+        plotBandgap(K, n);
+    }
+
+    function plotBandgap(K, n) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const tempMin = -40;
+        const tempMax = 125;
+
+        // Draw labeled axes
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: tempMin,
+            xMax: tempMax,
+            yMin: 0.4,
+            yMax: 1.4,
+            xLabel: 'Temperature',
+            yLabel: 'Voltage',
+            xUnit: '°C',
+            yUnit: 'V',
+            xDivs: 11,
+            yDivs: 10
+        });
+
+        const N = 200;
+        const tempData = [];
+        const vbeData = [];
+        const dvbeData = [];
+        const vrefData = [];
+
+        const T0 = 298.15;
+        const vbe0 = 0.65;
+        const dvbedt = -2.1e-3;
+
+        for (let i = 0; i < N; i++) {
+            const temp = tempMin + (i / N) * (tempMax - tempMin);
+            const T = temp + 273.15;
+
+            const vbe = vbe0 + (T - T0) * dvbedt;
+            const vt = 8.617e-5 * T;
+            const dvbe = vt * Math.log(n);
+            const vref = vbe + K * dvbe;
+
+            tempData.push(temp);
+            vbeData.push(vbe);
+            dvbeData.push(K * dvbe); // Scaled for visibility
+            vrefData.push(vref);
+        }
+
+        // Plot VBE (CTAT)
+        AD.plotData(ctx, axes, tempData, vbeData, {
+            color: 'rgba(251, 113, 133, 0.8)',
+            lineWidth: 2,
+            label: 'VBE (CTAT)'
+        });
+
+        // Plot K×ΔVBE (PTAT)
+        AD.plotData(ctx, axes, tempData, dvbeData, {
+            color: 'rgba(251, 191, 36, 0.8)',
+            lineWidth: 2,
+            label: 'K×ΔVBE (PTAT)'
+        });
+
+        // Plot VREF (sum)
+        AD.plotData(ctx, axes, tempData, vrefData, {
+            color: 'rgba(52, 211, 153, 0.95)',
+            lineWidth: 3,
+            label: 'VREF = VBE + K×ΔVBE'
+        });
+
+        // Legend
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(251, 113, 133, 0.8)', label: 'VBE (−2.1mV/°C)' },
+            { color: 'rgba(251, 191, 36, 0.8)', label: 'K×ΔVBE (+PTAT)' },
+            { color: 'rgba(52, 211, 153, 0.95)', label: 'VREF (cancellation)' }
+        ]);
+
+        // Add annotation
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('Adjust K to minimize VREF slope', w - 220, h - 50);
+        ctx.restore();
+    }
+
+    ['bg-temp', 'bg-ratio', 'bg-k'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Bandgap Reference',
+        netlist: `* Simple Bandgap Reference Circuit
+
+.MODEL NPN1 NPN (IS=1e-15 BF=100)
+
+* Two transistors with different current densities
+* Q1: 1× area, Q2: 8× area (or 8 transistors in parallel)
+Q1 c1 b1 e1 NPN1
+Q2 c2 b2 e2 NPN1 8
+
+* Current sources
+I1 vcc c1 100u
+I2 vcc c2 100u
+
+* Connect bases together
+.CONNECT b1 b2
+
+* Resistor to generate PTAT current from ΔVBE
+RPTAT e1 e2 1k
+
+* VBE sensing
+RVBE e2 0 10k
+
+* Op-amp to sum VBE + K×ΔVBE
+* (Simplified representation)
+E1 vref 0 VALUE={V(e2) + 17*(V(e1)-V(e2))}
+
+VCC vcc 0 DC 5
+
+.DC TEMP -40 125 5
+
+.PROBE V(vref) V(e1) V(e2)
+.END
+
+* Sweep temperature to verify flat response
+* Adjust multiplier (17) to minimize tempco`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm14l2',
+        items: [
+            'Know VBE tempco ≈ -2.1 mV/°C (CTAT)',
+            'Understand ΔVBE = VT × ln(n) is PTAT',
+            'Know bandgap ≈ 1.2V at room temp',
+            'Recognize PTAT + CTAT cancellation',
+            'Understand curvature limits first-order design'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'N2-2',
+        type: 'numeric',
+        question: 'If VT = 26mV at 25°C and transistor current ratio n = 10, what is ΔVBE?',
+        hint: 'ΔVBE = VT × ln(n)',
+        expected: 59.9,
+        tolerance: 0.05,
+        unit: 'mV',
+        solution: 'ΔVBE = 26mV × ln(10) = 26mV × 2.303 = 59.9mV',
+        explanation: 'This PTAT voltage increases with temperature at about +0.085 mV/°C per unit of ln(n), providing the positive tempco to cancel VBE\'s negative tempco.'
+    });
+})();
+
+// Bandgap Principle Canvas
+(function() {
+    const canvas = document.getElementById('bandgap-principle-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 13px monospace';
+    ctx.fillText('V_REF = V_BE + K × ΔV_BE', 30, 30);
+
+    ctx.font = '11px monospace';
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('Where:', 30, 60);
+    ctx.fillText('• V_BE ≈ 0.65V at 25°C, tempco ≈ -2.1 mV/°C', 30, 80);
+    ctx.fillText('• ΔV_BE = VT × ln(n) = (kT/q) × ln(n)', 30, 100);
+    ctx.fillText('• VT = 26mV at 25°C, tempco ≈ +0.085 mV/°C per ln(n)', 30, 120);
+
+    ctx.fillStyle = TEK.ch2;
+    ctx.fillText('To cancel tempcos:', 30, 155);
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('• K × (+0.085 mV/°C) × ln(n) = -(-2.1 mV/°C)', 30, 175);
+    ctx.fillStyle = TEK.ch3;
+    ctx.fillText('• K × ln(n) ≈ 24.7', 30, 195);
+
+    // Example box
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(400, 40, 270, 130);
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('Example: n=8, K=17', 415, 65);
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('• K × ln(8) = 17 × 2.08 = 35.4', 415, 90);
+    ctx.fillText('• V_REF = 0.65 + 17 × 0.026 × 2.08', 415, 110);
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('       = 1.21V', 415, 130);
+
+    // Result box
+    ctx.strokeStyle = TEK.ch4;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(30, 230, 350, 40);
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Result: ~1.2V reference with near-zero tempco', 205, 257);
+})();
+</script>

@@ -1,0 +1,364 @@
+<!-- Module 5, Lesson 7: MOSFET Current Mirrors -->
+<div class="lesson-content" data-module="5" data-lesson="7">
+
+    <div class="card">
+        <h2>MOSFET Current Mirrors (Biasing in ICs)</h2>
+        <p>In analog ICs, current mirrors generate bias currents for differential pairs, active loads, and gain stages. MOSFET mirrors are compact and low-power, but real devices have <em>finite output resistance</em> and mismatch, so the mirrored current depends on V<sub>DS</sub> and device parameters.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Channel-length modulation</div>
+                <div class="v mono">I<sub>D</sub> &asymp; I<sub>D0</sub>(1 + &lambda;V<sub>DS</sub>)</div>
+            </div>
+            <div class="box">
+                <div class="k">Output resistance</div>
+                <div class="v mono">r<sub>o</sub> &asymp; 1 / (&lambda;I<sub>D</sub>)</div>
+            </div>
+            <div class="box">
+                <div class="k">Compliance (simple mirror)</div>
+                <div class="v mono">V<sub>out,min</sub> &asymp; V<sub>ov</sub></div>
+            </div>
+            <div class="box">
+                <div class="k">Compliance (cascode mirror)</div>
+                <div class="v mono">V<sub>out,min</sub> &asymp; 2&middot;V<sub>ov</sub></div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Design intuition:</strong> A simple mirror is usually “good enough” for biasing, but when you need high gain (large r<sub>o</sub>) you cascode the mirror to reduce V<sub>DS</sub> variation on the mirroring device.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Schematics</h3>
+        <div class="schematic-compare">
+            <div>
+                <div class="schematic-container" id="sch-m5l7-simple"></div>
+                <p class="muted" style="margin-top: 0.75rem;">Simple NMOS current mirror: M1 is diode-connected; M2 mirrors the current into the output node.</p>
+            </div>
+            <div>
+                <div class="schematic-container" id="sch-m5l7-cascode"></div>
+                <p class="muted" style="margin-top: 0.75rem;">Cascode mirror: adds two devices to boost output resistance, at the cost of higher required V<sub>out</sub>.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Mirror Error from &Delta;V<sub>DS</sub></h3>
+        <p>Even with perfectly matched devices, different V<sub>DS</sub> in the reference and output devices causes current error through channel-length modulation.</p>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="m5l7-id">I<sub>D</sub> (&micro;A)</label>
+                <input type="range" id="m5l7-id" min="10" max="2000" step="10" value="200">
+                <span id="m5l7-id-val" class="mono">200 &micro;A</span>
+            </div>
+            <div class="c3">
+                <label for="m5l7-lam">&lambda; (1/V)</label>
+                <input type="range" id="m5l7-lam" min="0.005" max="0.200" step="0.005" value="0.020">
+                <span id="m5l7-lam-val" class="mono">0.020</span>
+            </div>
+            <div class="c3">
+                <label for="m5l7-vdsref">V<sub>DS,ref</sub> (V)</label>
+                <input type="range" id="m5l7-vdsref" min="0.1" max="5" step="0.1" value="1.5">
+                <span id="m5l7-vdsref-val" class="mono">1.5 V</span>
+            </div>
+            <div class="c3">
+                <label for="m5l7-vdsout">V<sub>DS,out</sub> (V)</label>
+                <input type="range" id="m5l7-vdsout" min="0.1" max="5" step="0.1" value="2.0">
+                <span id="m5l7-vdsout-val" class="mono">2.0 V</span>
+            </div>
+            <div class="c3">
+                <label for="m5l7-vov">V<sub>ov</sub> (V)</label>
+                <input type="range" id="m5l7-vov" min="0.05" max="0.60" step="0.05" value="0.20">
+                <span id="m5l7-vov-val" class="mono">0.20 V</span>
+            </div>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">r<sub>o</sub> (single device)</div>
+                <div class="v mono" id="m5l7-ro">-</div>
+            </div>
+            <div class="box">
+                <div class="k">I<sub>out</sub>/I<sub>ref</sub></div>
+                <div class="v mono" id="m5l7-ratio">-</div>
+            </div>
+            <div class="box">
+                <div class="k">Mirror error</div>
+                <div class="v mono" id="m5l7-err">-</div>
+            </div>
+            <div class="box">
+                <div class="k">V<sub>out,min</sub> (simple / cascode)</div>
+                <div class="v mono" id="m5l7-comp">-</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="m5l7-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="m5l7-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="m5l7-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    if (typeof AD === 'undefined' || !AD.Schematic) return;
+
+    const S = AD.Schematic;
+
+    // ===== SCHEMATICS =====
+    function drawSimpleMirror() {
+        const container = document.getElementById('sch-m5l7-simple');
+        if (!container) return;
+
+        const sch = S.create(container, { width: 360, height: 240 });
+
+        const topY = 25;
+        const gndY = 215;
+        const mosY = 145;
+        const x1 = 120;
+        const x2 = 260;
+
+        const m1 = S.nmosTerminals(x1, mosY, false);
+        const m2 = S.nmosTerminals(x2, mosY, false);
+
+        sch.nmos(x1, mosY, { label: 'M1', showType: true });
+        sch.nmos(x2, mosY, { label: 'M2', showType: true });
+
+        // Sources to ground
+        sch.wire([[m1.source.x, m1.source.y], [m1.source.x, gndY]]);
+        sch.wire([[m2.source.x, m2.source.y], [m2.source.x, gndY]]);
+        sch.wire([[m1.source.x, gndY], [m2.source.x, gndY]]);
+        sch.ground((m1.source.x + m2.source.x) / 2, gndY);
+
+        // Shared gate node
+        sch.wire([[m1.gate.x, m1.gate.y], [m2.gate.x, m2.gate.y]]);
+        sch.dot(m1.gate.x, m1.gate.y);
+        sch.dot(m2.gate.x, m2.gate.y);
+
+        // Reference drain up to Iref, with a branch for diode-connection
+        const refBranchY = m1.drain.y - 15;
+        sch.wire([[m1.drain.x, m1.drain.y], [m1.drain.x, refBranchY], [m1.drain.x, topY]]);
+        sch.nodeLabel(m1.drain.x, topY, 'Iref');
+        sch.dot(m1.drain.x, refBranchY);
+
+        // Diode-connect M1 (drain-to-gate)
+        sch.wire([[m1.drain.x, refBranchY], [m1.gate.x, refBranchY], [m1.gate.x, m1.gate.y]]);
+        sch.dot(m1.gate.x, refBranchY);
+
+        // Output drain up to Iout
+        sch.wire([[m2.drain.x, m2.drain.y], [m2.drain.x, topY]]);
+        sch.nodeLabel(m2.drain.x, topY, 'Iout');
+
+        sch.finalize();
+    }
+
+    function drawCascodeMirror() {
+        const container = document.getElementById('sch-m5l7-cascode');
+        if (!container) return;
+
+        const sch = S.create(container, { width: 360, height: 240 });
+
+        const topY = 25;
+        const gndY = 215;
+        const topMosY = 90;
+        const botMosY = 180;
+        const x1 = 125;
+        const x2 = 265;
+
+        const m1 = S.nmosTerminals(x1, botMosY, false); // reference (bottom)
+        const m2 = S.nmosTerminals(x2, botMosY, false); // output (bottom)
+        const m3 = S.nmosTerminals(x1, topMosY, false); // reference cascode (top)
+        const m4 = S.nmosTerminals(x2, topMosY, false); // output cascode (top)
+
+        sch.nmos(x1, botMosY, { label: 'M1', showType: true });
+        sch.nmos(x2, botMosY, { label: 'M2', showType: true });
+        sch.nmos(x1, topMosY, { label: 'M3', showType: true });
+        sch.nmos(x2, topMosY, { label: 'M4', showType: true });
+
+        // Bottom sources to ground rail
+        sch.wire([[m1.source.x, m1.source.y], [m1.source.x, gndY]]);
+        sch.wire([[m2.source.x, m2.source.y], [m2.source.x, gndY]]);
+        sch.wire([[m1.source.x, gndY], [m2.source.x, gndY]]);
+        sch.ground((m1.source.x + m2.source.x) / 2, gndY);
+
+        // Stack connections (top source to bottom drain) - explicit wires to avoid "coincident pin" unconnected errors
+        sch.wire([[m3.source.x, m3.source.y], [m1.drain.x, m1.drain.y]]);
+        sch.wire([[m4.source.x, m4.source.y], [m2.drain.x, m2.drain.y]]);
+        sch.dot(m1.drain.x, m1.drain.y);
+        sch.dot(m2.drain.x, m2.drain.y);
+
+        // Shared mirror gate (M1/M2)
+        const gateBusY = m1.gate.y;
+        sch.wire([[m1.gate.x, gateBusY], [m2.gate.x, gateBusY]]);
+        sch.dot(m1.gate.x, gateBusY);
+        sch.dot(m2.gate.x, gateBusY);
+
+        // Diode-connection for reference bottom device: tie gate to drain node (at m1.drain)
+        const diodeY = m1.drain.y - 15;
+        sch.wire([[m1.drain.x, m1.drain.y], [m1.drain.x, diodeY], [m1.gate.x, diodeY], [m1.gate.x, gateBusY]]);
+        sch.dot(m1.drain.x, diodeY);
+
+        // Cascode gate bias (Vb) to M3/M4 gates
+        const vbY = m3.gate.y;
+        const vbLeftX = 35;
+        sch.wire([[m3.gate.x, vbY], [m4.gate.x, vbY]]);
+        sch.wire([[vbLeftX, vbY], [m3.gate.x, vbY]]);
+        sch.nodeLabel(vbLeftX, vbY, 'Vb');
+        sch.dot(m3.gate.x, vbY);
+        sch.dot(m4.gate.x, vbY);
+
+        // Top drains to Iref / Iout
+        sch.wire([[m3.drain.x, m3.drain.y], [m3.drain.x, topY]]);
+        sch.nodeLabel(m3.drain.x, topY, 'Iref');
+        sch.wire([[m4.drain.x, m4.drain.y], [m4.drain.x, topY]]);
+        sch.nodeLabel(m4.drain.x, topY, 'Iout');
+
+        sch.finalize();
+    }
+
+    drawSimpleMirror();
+    drawCascodeMirror();
+
+    // ===== CALCULATOR =====
+    const idEl = document.getElementById('m5l7-id');
+    const lamEl = document.getElementById('m5l7-lam');
+    const vdsRefEl = document.getElementById('m5l7-vdsref');
+    const vdsOutEl = document.getElementById('m5l7-vdsout');
+    const vovEl = document.getElementById('m5l7-vov');
+    if (!idEl || !lamEl || !vdsRefEl || !vdsOutEl || !vovEl) return;
+
+    function updateCalc() {
+        const idUa = parseFloat(idEl.value);
+        const lam = parseFloat(lamEl.value);
+        const vdsRef = parseFloat(vdsRefEl.value);
+        const vdsOut = parseFloat(vdsOutEl.value);
+        const vov = parseFloat(vovEl.value);
+
+        document.getElementById('m5l7-id-val').textContent = idUa.toFixed(0) + ' \u03bcA';
+        document.getElementById('m5l7-lam-val').textContent = lam.toFixed(3);
+        document.getElementById('m5l7-vdsref-val').textContent = vdsRef.toFixed(1) + ' V';
+        document.getElementById('m5l7-vdsout-val').textContent = vdsOut.toFixed(1) + ' V';
+        document.getElementById('m5l7-vov-val').textContent = vov.toFixed(2) + ' V';
+
+        const idA = idUa * 1e-6;
+        const ro = 1 / Math.max(lam * Math.max(idA, 1e-12), 1e-12);
+
+        const ratio = (1 + lam * vdsOut) / Math.max((1 + lam * vdsRef), 1e-9);
+        const errPct = (ratio - 1) * 100;
+
+        document.getElementById('m5l7-ro').textContent = AD.fmtUnit(ro, '\u03a9');
+        document.getElementById('m5l7-ratio').textContent = ratio.toFixed(4);
+        document.getElementById('m5l7-err').textContent = errPct.toFixed(2) + ' %';
+        document.getElementById('m5l7-comp').textContent = vov.toFixed(2) + ' V / ' + (2 * vov).toFixed(2) + ' V';
+    }
+
+    [idEl, lamEl, vdsRefEl, vdsOutEl, vovEl].forEach(el => el.addEventListener('input', updateCalc));
+    updateCalc();
+
+    // ===== SPICE =====
+    new SpiceNetlistWidget('m5l7-spice', {
+        title: 'MOSFET Current Mirrors (Simple + Cascode)',
+        netlist: `* MOSFET Current Mirrors (illustrative)
+* Notes:
+*  - Simple mirror: M1 diode-connected sets VGS, M2 mirrors.
+*  - Cascode mirror: adds M3/M4 for higher ro (bias Vb required).
+
+VDD vdd 0 DC 5
+
+* === Simple mirror ===
+IREF1 vdd nref1 DC 200u
+M1 nref1 nref1 0 0 NMOS W=10u L=1u
+M2 nout1 nref1 0 0 NMOS W=10u L=1u
+RLOAD1 vdd nout1 20k
+
+* === Cascode mirror (external Vb) ===
+IREF2 vdd nref2 DC 200u
+VBIAS vb 0 1.8
+
+* Reference branch
+M1C n1 n1 0 0 NMOS W=10u L=1u
+M3C nref2 vb n1 0 NMOS W=10u L=1u
+
+* Output branch
+M2C n2 n1 0 0 NMOS W=10u L=1u
+M4C nout2 vb n2 0 NMOS W=10u L=1u
+RLOAD2 vdd nout2 20k
+
+.model NMOS NMOS (LEVEL=1 VTO=0.7 KP=200u LAMBDA=0.02 GAMMA=0.4 PHI=0.7)
+.op
+.end`
+    });
+
+    // ===== CHECKLIST =====
+    new ChecklistWidget('m5l7-checklist', {
+        lessonKey: 'm5l7',
+        items: [
+            'Explain how diode-connecting sets VGS in a mirror',
+            'Relate mirror error to \u0394VDS via channel-length modulation',
+            'Estimate ro from \u03bb and ID',
+            'Define compliance voltage and why cascoding increases it',
+            'Know when to choose simple vs cascode mirror'
+        ]
+    });
+
+    // ===== EXERCISES =====
+    const exercises = [
+        {
+            id: 'M5L7-1',
+            type: 'numeric',
+            question: 'A device has \u03bb = 0.02 1/V and ID = 200\u03bcA. Estimate r_o.',
+            hint: 'r_o \u2248 1/(\u03bb ID)',
+            expected: 250000,
+            tolerance: 50000,
+            unit: '\u03a9',
+            solution: 'r_o \u2248 1/(0.02 * 200e-6) \u2248 250 k\u03a9'
+        },
+        {
+            id: 'M5L7-2',
+            type: 'numeric',
+            question: 'If \u03bb = 0.02 1/V, VDS,ref = 1.0V and VDS,out = 2.0V, what is Iout/Iref (matched devices)?',
+            hint: 'I \u221d (1 + \u03bbVDS)',
+            expected: 1.0198,
+            tolerance: 0.01,
+            unit: '',
+            solution: 'Ratio = (1+0.02*2)/(1+0.02*1) = 1.04/1.02 \u2248 1.0196'
+        },
+        {
+            id: 'M5L7-3',
+            type: 'choice',
+            question: 'What is the main cost of using a cascode current mirror?',
+            choices: [
+                { text: 'Lower output resistance', correct: false },
+                { text: 'Higher compliance voltage requirement', correct: true },
+                { text: 'Higher gate leakage current', correct: false },
+                { text: 'Eliminates matching requirements', correct: false }
+            ],
+            solution: 'Cascoding improves ro but needs extra VDS headroom across the stacked devices, raising Vout,min.'
+        }
+    ];
+
+    const exContainer = document.getElementById('m5l7-exercises');
+    if (!exContainer) return;
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-m5l7-${i}`;
+        div.style.marginBottom = '15px';
+        exContainer.appendChild(div);
+        new ExerciseWidget(`exercise-m5l7-${i}`, ex);
+    });
+})();
+</script>
+

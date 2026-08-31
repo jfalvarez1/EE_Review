@@ -1,0 +1,298 @@
+<!-- Module 5, Lesson 6: Gate Drive Design -->
+<div class="lesson-content" data-module="5" data-lesson="6">
+
+    <div class="card">
+        <h2>Gate Drive Design (Q<sub>g</sub>, R<sub>g</sub>, Miller)</h2>
+        <p>The MOSFET gate is mostly a capacitor. Switching speed is set by how fast your driver can move charge into and out of the gate, and how you control dV/dt and ringing with gate resistance and layout.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Switching Time (rule-of-thumb)</div>
+                <div class="v mono">t &asymp; Q<sub>g</sub> / I<sub>drv</sub></div>
+            </div>
+            <div class="box">
+                <div class="k">Gate Drive Power</div>
+                <div class="v mono">P<sub>gate</sub> = Q<sub>g</sub> &middot; V<sub>drv</sub> &middot; f<sub>sw</sub></div>
+            </div>
+            <div class="box">
+                <div class="k">Peak Gate Current (approx.)</div>
+                <div class="v mono">I<sub>pk</sub> &asymp; V<sub>drv</sub> / R<sub>g</sub></div>
+            </div>
+            <div class="box">
+                <div class="k">Miller Plateau</div>
+                <div class="v">C<sub>gd</sub> couples drain dV/dt into gate</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Practical rule:</strong> A fast MOSFET is a fast <em>capacitor</em>. If the driver is weak (or the loop inductance is high), your switching losses and EMI will be dominated by how you charge/discharge the gate.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Low-Side Gate Drive Schematic</h3>
+        <div class="schematic-container" id="sch-gate-drive-low"></div>
+        <p class="muted" style="margin-top: 0.75rem;">This is the basic building block for buck converters, motor phases, and low-side switching: a driver, a gate resistor, and a MOSFET switching a load.</p>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Gate Timing and Gate Power</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="gd-qg">Q<sub>g</sub> (nC)</label>
+                <input type="range" id="gd-qg" min="5" max="300" step="5" value="60">
+                <span id="gd-qg-val" class="mono">60 nC</span>
+            </div>
+            <div class="c3">
+                <label for="gd-vdrv">V<sub>drv</sub> (V)</label>
+                <input type="range" id="gd-vdrv" min="5" max="15" step="0.5" value="10">
+                <span id="gd-vdrv-val" class="mono">10.0 V</span>
+            </div>
+            <div class="c3">
+                <label for="gd-rg">R<sub>g</sub> (&Omega;)</label>
+                <input type="range" id="gd-rg" min="0.5" max="33" step="0.5" value="5">
+                <span id="gd-rg-val" class="mono">5.0 &Omega;</span>
+            </div>
+            <div class="c3">
+                <label for="gd-fsw">f<sub>sw</sub> (kHz)</label>
+                <input type="range" id="gd-fsw" min="10" max="1000" step="10" value="200">
+                <span id="gd-fsw-val" class="mono">200 kHz</span>
+            </div>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">I<sub>pk</sub> (approx)</div>
+                <div class="v mono" id="gd-ipk">-</div>
+            </div>
+            <div class="box">
+                <div class="k">t (Q<sub>g</sub>/I<sub>pk</sub>)</div>
+                <div class="v mono" id="gd-t">-</div>
+            </div>
+            <div class="box">
+                <div class="k">P<sub>gate</sub></div>
+                <div class="v mono" id="gd-pgate">-</div>
+            </div>
+            <div class="box">
+                <div class="k">E per Cycle</div>
+                <div class="v mono" id="gd-egate">-</div>
+            </div>
+        </div>
+
+        <div class="notice" style="border-color: var(--accent);">
+            <strong>Interpretation:</strong> Lowering R<sub>g</sub> reduces switching time but raises peak current and ringing/EMI risk. Your PCB layout and driver strength decide how low you can go.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    if (typeof AD === 'undefined') return;
+
+    // ===== SCHEMATIC =====
+    (function() {
+        const container = document.getElementById('sch-gate-drive-low');
+        if (!container || !AD.Schematic) return;
+
+        const Schematic = AD.Schematic;
+        const sch = Schematic.create(container, { width: 420, height: 260 });
+
+        const vddY = 30;
+        const gndY = 230;
+
+        // Switch NMOS (low-side)
+        const mosX = 300, mosY = 140;
+        const m1 = Schematic.nmosTerminals(mosX, mosY, false);
+        sch.nmos(mosX, mosY, { label: 'M1', showType: true });
+
+        // Load from VDD to drain
+        sch.vcc(m1.drain.x, vddY, { label: 'VDD' });
+        const rlTopY = vddY + 15;
+        sch.resistor(m1.drain.x, rlTopY, 'vertical', { label: 'RL', value: '10' });
+        const rl = Schematic.resistorTerminals(m1.drain.x, rlTopY, 'vertical');
+        sch.wire([[m1.drain.x, vddY], [rl.start.x, rl.start.y]]);
+        sch.wire([[rl.end.x, rl.end.y], [m1.drain.x, m1.drain.y]]);
+        // Vsw label - extend wire to label position
+        const vswLabelX = m1.drain.x + 25;
+        sch.wire([[m1.drain.x, m1.drain.y], [vswLabelX, m1.drain.y]]);
+        sch.nodeLabel(vswLabelX, m1.drain.y, 'Vsw');
+        sch.junction(m1.drain.x, m1.drain.y);
+
+        // Source to ground
+        sch.wire([[m1.source.x, m1.source.y], [m1.source.x, gndY]]);
+        sch.ground(m1.source.x, gndY);
+
+        // Gate driver as a voltage source
+        // Position it so the output (top terminal) is at the gate level
+        const drvX = 80;
+        const gateY = m1.gate.y;  // = 140
+        const drvTopY = gateY;    // Align voltage source top with gate level
+        sch.voltageSource(drvX, drvTopY, 'vertical', { label: 'VDRV', value: '0-10V' });
+        sch.wire([[drvX, drvTopY + 50], [drvX, gndY]]);
+        sch.ground(drvX, gndY);
+
+        // Gate resistor
+        const rgX = 130;
+        sch.resistor(rgX, gateY, 'horizontal', { label: 'Rg', value: '5' });
+        const rg = Schematic.resistorTerminals(rgX, gateY, 'horizontal');
+
+        // Driver output (top of voltage source) directly to Rg
+        // PWM label on the left side of the voltage source output
+        const pwmLabelX = drvX - 25;
+        sch.wire([[drvX, drvTopY], [pwmLabelX, drvTopY]]);
+        sch.nodeLabel(pwmLabelX, drvTopY, 'PWM');
+        sch.junction(drvX, drvTopY);
+        // Direct connection from voltage source top to Rg (same Y level)
+        sch.wire([[drvX, drvTopY], [rg.start.x, rg.start.y]]);
+
+        // Rg to MOS gate
+        sch.wire([[rg.end.x, rg.end.y], [m1.gate.x, m1.gate.y]]);
+        // Junction at gate (Rg and Rpd meet here)
+        sch.junction(m1.gate.x, m1.gate.y);
+
+        // Gate pulldown (optional)
+        const rpdX = m1.gate.x - 30;
+        const rpdTopY = gateY + 10;
+        sch.resistor(rpdX, rpdTopY, 'vertical', { label: 'Rpd', value: '100k' });
+        const rpd = Schematic.resistorTerminals(rpdX, rpdTopY, 'vertical');
+        sch.wire([[m1.gate.x, m1.gate.y], [rpdX, m1.gate.y], [rpd.start.x, rpd.start.y]]);
+        // Junction where Rpd taps off gate line
+        sch.junction(rpdX, m1.gate.y);
+        sch.wire([[rpd.end.x, rpd.end.y], [rpdX, gndY]]);
+        sch.ground(rpdX, gndY);
+
+        sch.finalize();
+    })();
+
+    // ===== CALCULATOR =====
+    const qgEl = document.getElementById('gd-qg');
+    const vdrvEl = document.getElementById('gd-vdrv');
+    const rgEl = document.getElementById('gd-rg');
+    const fswEl = document.getElementById('gd-fsw');
+    if (!qgEl || !vdrvEl || !rgEl || !fswEl) return;
+
+    function update() {
+        const qgNc = parseFloat(qgEl.value);
+        const vdrv = parseFloat(vdrvEl.value);
+        const rg = parseFloat(rgEl.value);
+        const fswKhz = parseFloat(fswEl.value);
+
+        document.getElementById('gd-qg-val').textContent = qgNc.toFixed(0) + ' nC';
+        document.getElementById('gd-vdrv-val').textContent = vdrv.toFixed(1) + ' V';
+        document.getElementById('gd-rg-val').textContent = rg.toFixed(1) + ' \u03a9';
+        document.getElementById('gd-fsw-val').textContent = fswKhz.toFixed(0) + ' kHz';
+
+        const qg = qgNc * 1e-9;          // C
+        const fsw = fswKhz * 1000;      // Hz
+
+        const ipk = vdrv / Math.max(rg, 0.1); // A (very rough)
+        const t = qg / Math.max(ipk, 1e-6);   // s
+        const egate = qg * vdrv;              // J per cycle
+        const pgate = egate * fsw;            // W
+
+        document.getElementById('gd-ipk').textContent = AD.fmtUnit(ipk, 'A');
+        document.getElementById('gd-t').textContent = AD.fmtUnit(t, 's');
+        document.getElementById('gd-egate').textContent = AD.fmtUnit(egate, 'J');
+        document.getElementById('gd-pgate').textContent = AD.fmtUnit(pgate, 'W');
+    }
+
+    [qgEl, vdrvEl, rgEl, fswEl].forEach(el => el.addEventListener('input', update));
+    update();
+
+    // ===== SPICE =====
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Low-Side Gate Drive (Level 1 MOS model)',
+        netlist: `* Low-Side Gate Drive Demo
+* Shows gate charge power and switching behavior (simple Level-1 model)
+
+VDD vdd 0 DC 12
+VDRV drv 0 PULSE(0 10 0 10n 10n 200n 1u)
+RG drv gate 5
+
+* Resistive load to VDD
+RL vdd drain 10
+
+* NMOS switch
+M1 drain gate 0 0 NMOS W=50u L=1u
+.model NMOS NMOS (LEVEL=1 VTO=2 KP=2m LAMBDA=0.02)
+
+.tran 0 5u 0 2n
+.probe V(gate) V(drain) I(VDD)
+.end`
+    });
+
+    // ===== CHECKLIST =====
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm5l6',
+        items: [
+            'Relate switching time to Qg and driver current',
+            'Estimate gate-drive power from Qg, Vdrv, and fsw',
+            'Explain the Miller plateau and Cgd coupling',
+            'Know why gate resistors reduce ringing and EMI',
+            'Identify when a dedicated gate driver IC is needed'
+        ]
+    });
+
+    // ===== EXERCISES =====
+    const exercises = [
+        {
+            id: 'M5L6-1',
+            type: 'numeric',
+            question: 'A MOSFET has Qg = 80nC and is driven with Vdrv = 10V at fsw = 250kHz. What is the gate-drive power?',
+            hint: 'Pgate = Qg x Vdrv x fsw',
+            expected: 0.2,
+            tolerance: 0.05,
+            unit: 'W',
+            solution: 'Pgate = 80e-9 C x 10 V x 250e3 1/s = 0.2 W'
+        },
+        {
+            id: 'M5L6-2',
+            type: 'numeric',
+            question: 'If Vdrv = 12V and Rg = 6\u03a9, what is the approximate peak gate current?',
+            hint: 'Ipk \u2248 Vdrv / Rg',
+            expected: 2,
+            tolerance: 0.2,
+            unit: 'A',
+            solution: 'Ipk \u2248 12V / 6\u03a9 = 2A'
+        },
+        {
+            id: 'M5L6-3',
+            type: 'choice',
+            question: 'What is the primary risk of making Rg too small?',
+            choices: [
+                { text: 'Higher DC conduction loss', correct: false },
+                { text: 'Excessive ringing/EMI and potential false turn-on', correct: true },
+                { text: 'Lower switching speed', correct: false },
+                { text: 'Higher MOSFET Vth', correct: false }
+            ],
+            solution: 'Small Rg increases peak gate current and di/dt, which can cause ringing, EMI, and Miller-induced false turn-on in half-bridges.'
+        }
+    ];
+
+    const exContainer = document.getElementById('exercise-container');
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-m5l6-${i}`;
+        div.style.marginBottom = '15px';
+        exContainer.appendChild(div);
+        new ExerciseWidget(`exercise-m5l6-${i}`, ex);
+    });
+})();
+</script>

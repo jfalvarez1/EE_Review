@@ -1,0 +1,720 @@
+<!-- Module 17, Lesson 8: EMI/RFI Debugging -->
+<div class="lesson-content" data-module="17" data-lesson="8">
+
+    <div class="card">
+        <h2>Debugging EMI/RFI Problems</h2>
+        <p>Electromagnetic interference causes mysterious failures, noise, and compliance failures. Learn to identify, locate, and fix EMI problems using systematic debug techniques.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Conducted</div>
+                <div class="v">Through wires/traces</div>
+            </div>
+            <div class="box">
+                <div class="k">Radiated</div>
+                <div class="v">Through air (E/H field)</div>
+            </div>
+            <div class="box">
+                <div class="k">Susceptibility</div>
+                <div class="v">Victim receives noise</div>
+            </div>
+            <div class="box">
+                <div class="k">Emissions</div>
+                <div class="v">Source creates noise</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Debug Insight:</strong> EMI = Source + Coupling Path + Victim. To fix, you can address any of these three. Usually easiest to break the coupling path or harden the victim.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: EMI Coupling Analysis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="emi-freq">Noise Frequency</label>
+                <input type="text" id="emi-freq" value="100M">
+            </div>
+            <div class="c3">
+                <label for="emi-dist">Distance (cm)</label>
+                <input type="range" id="emi-dist" min="1" max="100" step="1" value="10">
+                <span id="emi-dist-val" class="mono">10cm</span>
+            </div>
+            <div class="c3">
+                <label for="emi-type">Coupling Type</label>
+                <select id="emi-type">
+                    <option value="capacitive">Capacitive (E-field)</option>
+                    <option value="inductive">Inductive (H-field)</option>
+                    <option value="radiated">Radiated (far-field)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="emi-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Wavelength</div>
+                <div class="v mono" id="emi-lambda">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Near/Far Field</div>
+                <div class="v mono" id="emi-field">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Coupling Impedance</div>
+                <div class="v mono" id="emi-coupling">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Attenuation</div>
+                <div class="v mono" id="emi-atten">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Common EMI Symptoms and Sources</h3>
+
+        <table class="table">
+            <tr>
+                <th>Symptom</th>
+                <th>Likely Source</th>
+                <th>Frequency</th>
+                <th>Debug Approach</th>
+            </tr>
+            <tr>
+                <td>Noise synced to switching</td>
+                <td>SMPS, PWM motor</td>
+                <td>kHz-MHz + harmonics</td>
+                <td>Scope sync to switcher, filter</td>
+            </tr>
+            <tr>
+                <td>Noise when MCU active</td>
+                <td>Digital clock harmonics</td>
+                <td>Clock freq × N</td>
+                <td>Spread spectrum, shielding</td>
+            </tr>
+            <tr>
+                <td>RF pickup on audio</td>
+                <td>AM/FM/cell broadcast</td>
+                <td>500kHz - 2GHz</td>
+                <td>RF bypass caps, ferrites</td>
+            </tr>
+            <tr>
+                <td>ESD causing resets</td>
+                <td>Human body discharge</td>
+                <td>Broadband ns pulse</td>
+                <td>TVS diodes, filtering</td>
+            </tr>
+            <tr>
+                <td>Fails near motors/relays</td>
+                <td>Inductive switching</td>
+                <td>Broadband spikes</td>
+                <td>Snubbers, isolation</td>
+            </tr>
+            <tr>
+                <td>Fails EMC test</td>
+                <td>Design emissions</td>
+                <td>Per standard</td>
+                <td>Near-field probe, fix layout</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>EMI Debug Tools</h3>
+        <canvas id="emi-tools-canvas" width="900" height="320"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>EMI Filter Schematic</h3>
+        <div id="emi-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="emi-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Debug Checklist</h3>
+        <div id="emi-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="emi-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('emi-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    const c = 3e8; // Speed of light
+
+    function update() {
+        const freq = AD.parseValue(document.getElementById('emi-freq').value) || 100e6;
+        const dist = parseFloat(document.getElementById('emi-dist').value) || 10;
+        const couplingType = document.getElementById('emi-type').value;
+
+        document.getElementById('emi-dist-val').textContent = dist + 'cm';
+
+        const lambda = c / freq;
+        const distM = dist / 100;
+        const nearFieldBoundary = lambda / (2 * Math.PI);
+
+        const isNearField = distM < nearFieldBoundary;
+
+        let couplingZ, attenuation;
+        if (couplingType === 'capacitive') {
+            // Capacitive coupling: 1/(2πfC), C ~ ε0*A/d
+            const C_approx = 8.85e-12 * 0.001 / distM; // ~1cm² area
+            couplingZ = 1 / (2 * Math.PI * freq * C_approx);
+            attenuation = 20 * Math.log10(dist / 1); // Increases with distance
+        } else if (couplingType === 'inductive') {
+            // Inductive coupling: 2πfM, M decreases with distance
+            const M_approx = 1e-9 / (distM * distM); // Mutual inductance
+            couplingZ = 2 * Math.PI * freq * M_approx;
+            attenuation = 40 * Math.log10(dist / 1); // 1/r² for H-field
+        } else {
+            // Radiated: far-field, 1/r
+            couplingZ = 377; // Free space impedance
+            attenuation = 20 * Math.log10(distM) + 20 * Math.log10(freq) - 147.56;
+        }
+
+        document.getElementById('emi-lambda').textContent = lambda >= 1 ?
+            lambda.toFixed(1) + 'm' : (lambda * 100).toFixed(1) + 'cm';
+        document.getElementById('emi-field').textContent = isNearField ? 'Near field' : 'Far field';
+        document.getElementById('emi-coupling').textContent = AD.formatValue(couplingZ, 'Ω');
+        document.getElementById('emi-atten').textContent = attenuation.toFixed(0) + 'dB';
+
+        // Draw visualization
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        // Draw source and victim
+        const srcX = 150, srcY = H/2;
+        const victimX = 150 + dist * 5, victimY = H/2;
+
+        // Source (noisy circuit)
+        ctx.fillStyle = '#f44';
+        ctx.fillRect(srcX - 40, srcY - 30, 80, 60);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(srcX - 40, srcY - 30, 80, 60);
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('SOURCE', srcX, srcY - 10);
+        ctx.fillText('(Aggressor)', srcX, srcY + 10);
+
+        // Victim (sensitive circuit)
+        ctx.fillStyle = '#4af';
+        ctx.fillRect(victimX - 40, victimY - 30, 80, 60);
+        ctx.strokeStyle = '#fff';
+        ctx.strokeRect(victimX - 40, victimY - 30, 80, 60);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('VICTIM', victimX, victimY - 10);
+        ctx.fillText('(Sensitive)', victimX, victimY + 10);
+
+        // Draw coupling field
+        ctx.strokeStyle = couplingType === 'capacitive' ? '#ff0' :
+                          couplingType === 'inductive' ? '#f0f' : '#0ff';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+
+        if (couplingType === 'capacitive') {
+            // E-field lines
+            for (let i = -2; i <= 2; i++) {
+                ctx.beginPath();
+                ctx.moveTo(srcX + 40, srcY + i * 15);
+                ctx.bezierCurveTo(
+                    srcX + 80, srcY + i * 20,
+                    victimX - 80, victimY + i * 20,
+                    victimX - 40, victimY + i * 15
+                );
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#ff0';
+            ctx.font = '10px monospace';
+            ctx.fillText('E-field (capacitive)', (srcX + victimX) / 2, srcY - 60);
+        } else if (couplingType === 'inductive') {
+            // H-field loops
+            for (let r = 30; r <= 80; r += 20) {
+                ctx.beginPath();
+                ctx.arc(srcX, srcY, r, -0.5, 0.5);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#f0f';
+            ctx.font = '10px monospace';
+            ctx.fillText('H-field (inductive)', srcX, srcY - 60);
+        } else {
+            // Radiated waves
+            for (let r = 50; r < dist * 5; r += lambda * 100 / 3) {
+                ctx.beginPath();
+                ctx.arc(srcX, srcY, r, -0.8, 0.8);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#0ff';
+            ctx.font = '10px monospace';
+            ctx.fillText('Radiated (far-field)', (srcX + victimX) / 2, srcY - 60);
+        }
+        ctx.setLineDash([]);
+
+        // Distance indicator
+        ctx.strokeStyle = '#888';
+        ctx.beginPath();
+        ctx.moveTo(srcX + 40, srcY + 50);
+        ctx.lineTo(victimX - 40, srcY + 50);
+        ctx.stroke();
+        ctx.fillStyle = '#888';
+        ctx.fillText(dist + ' cm', (srcX + victimX) / 2, srcY + 70);
+
+        // Near/far field indicator
+        const nfX = srcX + nearFieldBoundary * 500;
+        if (nfX < W - 100 && nfX > srcX + 50) {
+            ctx.strokeStyle = '#4f4';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(nfX, mT);
+            ctx.lineTo(nfX, H - mB);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#4f4';
+            ctx.font = '10px monospace';
+            ctx.fillText('λ/2π boundary', nfX, mT + 15);
+        }
+
+        // Frequency info
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('f = ' + AD.formatValue(freq, 'Hz'), 50, 30);
+        ctx.fillText('λ = ' + (lambda >= 1 ? lambda.toFixed(2) + 'm' : (lambda*100).toFixed(1) + 'cm'), 50, 50);
+
+        // Fix suggestions
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        const fixes = {
+            capacitive: 'Fix: Shield, increase distance, reduce dV/dt',
+            inductive: 'Fix: Twist pairs, reduce loop area, reduce dI/dt',
+            radiated: 'Fix: Shielding, filtering, reduce antenna length'
+        };
+        ctx.fillText(fixes[couplingType], W/2, H - 15);
+    }
+
+    ['emi-freq', 'emi-dist', 'emi-type'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', update);
+        el.addEventListener('change', update);
+    });
+
+    // Schematic - EMI filter
+    function drawSchematic() {
+        const container = document.getElementById('emi-schematic');
+        const svg = new SchematicSVG(650, 240);
+
+        svg.text(50, 25, 'Typical EMI Input Filter:', {fontSize: 12, fill: '#4af'});
+
+        // Input
+        svg.text(30, 70, 'Line', {fontSize: 10});
+        svg.text(30, 150, 'Neutral', {fontSize: 10});
+
+        // X capacitor (across line)
+        svg.wire([[60, 70], [100, 70]]);
+        svg.wire([[60, 150], [100, 150]]);
+        svg.wire([[80, 70], [80, 100]]);
+        svg.capacitor(80, 110, {horizontal: false});
+        svg.wire([[80, 130], [80, 150]]);
+        svg.text(95, 115, 'Cx', {fontSize: 9});
+
+        // Common mode choke
+        svg.wire([[100, 70], [140, 70]]);
+        svg.wire([[100, 150], [140, 150]]);
+
+        // Choke symbol (two coupled inductors)
+        svg.inductor(160, 70, {horizontal: true});
+        svg.inductor(160, 150, {horizontal: true});
+        svg.text(160, 55, 'L (CM)', {fontSize: 9});
+
+        // Coupling dots
+        svg.text(148, 78, '•', {fontSize: 14});
+        svg.text(148, 142, '•', {fontSize: 14});
+
+        svg.wire([[180, 70], [220, 70]]);
+        svg.wire([[180, 150], [220, 150]]);
+
+        // Differential inductor
+        svg.inductor(240, 70, {horizontal: true});
+        svg.text(240, 55, 'Ld', {fontSize: 9});
+        svg.wire([[260, 70], [300, 70]]);
+        svg.wire([[220, 150], [300, 150]]);
+
+        // Y capacitors (to ground)
+        svg.wire([[300, 70], [300, 90]]);
+        svg.capacitor(300, 100, {horizontal: false});
+        svg.wire([[300, 120], [300, 150]]);
+
+        svg.wire([[300, 110], [330, 110]]);
+        svg.ground(330, 110);
+        svg.text(315, 95, 'Cy', {fontSize: 9});
+
+        // Another X cap
+        svg.wire([[300, 70], [340, 70]]);
+        svg.wire([[300, 150], [340, 150]]);
+        svg.wire([[320, 70], [320, 100]]);
+        svg.capacitor(320, 110, {horizontal: false});
+        svg.wire([[320, 130], [320, 150]]);
+        svg.text(335, 115, 'Cx', {fontSize: 9});
+
+        // Output
+        svg.wire([[340, 70], [380, 70]]);
+        svg.wire([[340, 150], [380, 150]]);
+        svg.text(390, 70, 'To', {fontSize: 10});
+        svg.text(390, 85, 'Load', {fontSize: 10});
+
+        // Annotations
+        svg.text(50, 200, 'Cx: X-cap (line-line) - DM filter, safety rated', {fontSize: 10, fill: '#888'});
+        svg.text(50, 215, 'Cy: Y-cap (line-ground) - CM filter, safety limited', {fontSize: 10, fill: '#888'});
+        svg.text(350, 200, 'CM choke: High impedance to common-mode', {fontSize: 10, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('emi-spice', {
+            title: 'EMI Filter Simulation',
+            netlist: `* EMI Filter Analysis
+* Common-mode and differential-mode filtering
+
+* Noise source (SMPS switching noise)
+Vnoise in 0 PULSE(0 5 0 10n 10n 500n 1u)
+
+* X capacitor (differential mode)
+Cx1 in n1 100n
+
+* Common-mode choke (two coupled inductors)
+L1 n1 n2 1m
+L2 0 n3 1m
+K1 L1 L2 0.99  ; Tightly coupled
+
+* Y capacitors (to ground)
+Cy1 n2 gnd 4.7n
+Cy2 n3 gnd 4.7n
+Rgnd gnd 0 1m  ; Ground impedance
+
+* Output X cap
+Cx2 n2 n3 100n
+
+* Load
+Rload n2 n3 100
+
+.tran 10n 10u
+.ac dec 100 10k 100MEG
+
+* Plot filter response
+.probe V(in) V(n2,n3)
+.end
+
+* Key points:
+* CM choke blocks common-mode current
+* X caps filter differential noise
+* Y caps shunt CM noise to ground
+* Check: Cy < 4.7nF for safety (leakage current)`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('emi-checklist', {
+            title: 'EMI Debug Checklist',
+            items: [
+                'Identify frequency of interference',
+                'Correlate with clock/switching frequencies',
+                'Use near-field probe to locate source',
+                'Check cable routing and shielding',
+                'Verify ground integrity and connections',
+                'Test with ferrite on cables',
+                'Check bypass capacitor placement',
+                'Verify filter component values at frequency',
+                'Test with temporary shielding',
+                'Measure common-mode vs differential-mode'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('emi-exercises', {
+            exercises: [
+                {
+                    question: 'A 100MHz clock has strong emissions at 300MHz. What causes this?',
+                    answer: '3rd harmonic of clock',
+                    solution: 'Digital clocks have odd harmonics: 3f, 5f, 7f, etc. The square wave contains 1/n amplitude at n×f. The 3rd harmonic (300MHz) is 1/3 amplitude of fundamental.'
+                },
+                {
+                    question: 'At 10MHz, what is the wavelength? Is 5cm distance near or far field?',
+                    answer: 'λ=30m, near field',
+                    solution: 'λ = c/f = 3×10⁸/10⁷ = 30m. Near field boundary = λ/2π ≈ 4.8m. 5cm << 4.8m, so definitely near field. H-field coupling dominates.'
+                },
+                {
+                    question: 'Adding ferrite bead reduces 50MHz noise but increases 5MHz noise. Why?',
+                    answer: 'Ferrite resonance',
+                    solution: 'Ferrite beads have a resonant frequency. Above resonance, they are inductive and attenuate. Below resonance, they may have low impedance or even negative reactance, providing less filtering or resonating with other components.'
+                }
+            ]
+        });
+    }
+
+    // ==================== EMI DEBUG TOOLS CANVAS ====================
+    function drawEMITools() {
+        const canvas = document.getElementById('emi-tools-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Helper for rounded rect
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        const colW = 170;
+        const colH = 145;
+        const gap = 10;
+        const startY = 10;
+
+        // Tool categories
+        const tools = [
+            {
+                title: 'NEAR-FIELD PROBES',
+                color: TEK.ch1,
+                items: [
+                    'H-field loop: B-field',
+                    'E-field probe: V nodes',
+                    'Use with SA or scope'
+                ],
+                icon: 'loop'
+            },
+            {
+                title: 'SPECTRUM ANALYZER',
+                color: TEK.ch2,
+                items: [
+                    'Identify frequencies',
+                    'Narrow = harmonics',
+                    'Broad = switching',
+                    'Compare to clocks'
+                ],
+                icon: 'spectrum'
+            },
+            {
+                title: 'CURRENT PROBE',
+                color: TEK.ch3,
+                items: [
+                    'Measure CM current',
+                    'CM = EMI antenna',
+                    'Fix: CM choke'
+                ],
+                icon: 'clamp'
+            },
+            {
+                title: 'OSCILLOSCOPE',
+                color: TEK.ch4,
+                items: [
+                    'Time domain noise',
+                    'Correlate activity',
+                    'High BW probing'
+                ],
+                icon: 'scope'
+            },
+            {
+                title: 'DIY TOOLS',
+                color: '#FF6600',
+                items: [
+                    'AM radio for LF',
+                    'Wire loop + scope',
+                    'Foil shield test'
+                ],
+                icon: 'diy'
+            }
+        ];
+
+        tools.forEach((tool, i) => {
+            const x = 10 + i * (colW + gap);
+
+            // Box
+            ctx.strokeStyle = tool.color;
+            ctx.lineWidth = 2;
+            roundRect(x, startY, colW, colH, 6);
+            ctx.stroke();
+
+            // Title
+            ctx.fillStyle = tool.color;
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(tool.title, x + colW/2, startY + 18);
+
+            // Draw icon
+            const iconX = x + colW/2;
+            const iconY = startY + 50;
+            ctx.strokeStyle = tool.color;
+            ctx.lineWidth = 1;
+
+            if (tool.icon === 'loop') {
+                // H-field loop
+                ctx.beginPath();
+                ctx.arc(iconX, iconY, 15, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(iconX, iconY + 15);
+                ctx.lineTo(iconX, iconY + 25);
+                ctx.stroke();
+            } else if (tool.icon === 'spectrum') {
+                // Spectrum peaks
+                ctx.beginPath();
+                ctx.moveTo(iconX - 20, iconY + 15);
+                ctx.lineTo(iconX - 15, iconY + 15);
+                ctx.lineTo(iconX - 12, iconY - 10);
+                ctx.lineTo(iconX - 9, iconY + 15);
+                ctx.lineTo(iconX - 3, iconY + 15);
+                ctx.lineTo(iconX, iconY);
+                ctx.lineTo(iconX + 3, iconY + 15);
+                ctx.lineTo(iconX + 9, iconY + 15);
+                ctx.lineTo(iconX + 12, iconY + 5);
+                ctx.lineTo(iconX + 15, iconY + 15);
+                ctx.lineTo(iconX + 20, iconY + 15);
+                ctx.stroke();
+            } else if (tool.icon === 'clamp') {
+                // Current clamp
+                ctx.beginPath();
+                ctx.arc(iconX, iconY, 12, Math.PI, 0);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(iconX, iconY, 12, 0, Math.PI);
+                ctx.stroke();
+                ctx.fillStyle = '#333';
+                ctx.fillRect(iconX - 5, iconY + 10, 10, 15);
+                ctx.strokeRect(iconX - 5, iconY + 10, 10, 15);
+            } else if (tool.icon === 'scope') {
+                // Oscilloscope screen
+                ctx.strokeRect(iconX - 18, iconY - 12, 36, 28);
+                ctx.beginPath();
+                ctx.moveTo(iconX - 15, iconY);
+                for (let j = 0; j < 30; j++) {
+                    ctx.lineTo(iconX - 15 + j, iconY + Math.sin(j * 0.5) * 8);
+                }
+                ctx.stroke();
+            } else if (tool.icon === 'diy') {
+                // Radio antenna
+                ctx.beginPath();
+                ctx.moveTo(iconX, iconY + 15);
+                ctx.lineTo(iconX, iconY - 15);
+                ctx.moveTo(iconX - 10, iconY - 10);
+                ctx.lineTo(iconX, iconY - 15);
+                ctx.lineTo(iconX + 10, iconY - 10);
+                ctx.stroke();
+            }
+
+            // Items
+            ctx.fillStyle = '#888';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'left';
+            tool.items.forEach((item, j) => {
+                ctx.fillText('• ' + item, x + 8, startY + 85 + j * 14);
+            });
+        });
+
+        // Bottom section: Usage tips
+        const tipsY = 170;
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(10, tipsY, W - 20, 140);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('EMI Debug Workflow:', 20, tipsY + 20);
+
+        // Workflow boxes
+        const workflow = [
+            {step: '1', label: 'IDENTIFY', desc: 'Find frequency', color: TEK.ch1},
+            {step: '2', label: 'LOCATE', desc: 'Near-field probe', color: TEK.ch2},
+            {step: '3', label: 'ANALYZE', desc: 'Source vs path', color: TEK.ch3},
+            {step: '4', label: 'FIX', desc: 'Filter/shield', color: TEK.ch4},
+            {step: '5', label: 'VERIFY', desc: 'Re-measure', color: '#FF6600'}
+        ];
+
+        workflow.forEach((w, i) => {
+            const wx = 40 + i * 170;
+            const wy = tipsY + 45;
+
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(wx, wy, 140, 45);
+            ctx.strokeStyle = w.color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(wx, wy, 140, 45);
+
+            ctx.fillStyle = w.color;
+            ctx.font = 'bold 12px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(w.step + '. ' + w.label, wx + 70, wy + 18);
+            ctx.fillStyle = '#888';
+            ctx.font = '10px monospace';
+            ctx.fillText(w.desc, wx + 70, wy + 35);
+
+            // Arrow
+            if (i < workflow.length - 1) {
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(wx + 145, wy + 22);
+                ctx.lineTo(wx + 162, wy + 22);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(wx + 157, wy + 17);
+                ctx.lineTo(wx + 167, wy + 22);
+                ctx.lineTo(wx + 157, wy + 27);
+                ctx.stroke();
+            }
+        });
+
+        // Key insight
+        ctx.fillStyle = '#fa4';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Key: EMI = Source + Path + Victim. Fix any of the three.', W/2, tipsY + 125);
+    }
+
+    update();
+    drawSchematic();
+    drawEMITools();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

@@ -1,0 +1,1539 @@
+<!-- Module 23, Lesson 2: Battery Management System Design -->
+<div class="lesson-content" data-module="23" data-lesson="2">
+
+    <div class="card">
+        <h2>Complete Battery Management System (BMS) Design</h2>
+        <p>Every smartphone, laptop, and portable device requires a sophisticated battery management system. This lesson covers the complete BMS design including charging, protection, fuel gauging, and thermal management.</p>
+
+        <div class="notice">
+            <strong>Industry Reference:</strong> Design practices based on <a href="https://www.analog.com/en/product-category/battery-charger-ic.html" target="_blank">Analog Devices Battery Charger ICs</a>, <a href="https://www.mouser.com/pdfdocs/isl94203wpbatterymanagementsystemtutorial.PDF" target="_blank">Intersil BMS Tutorial</a>, and <a href="https://www.analog.com/en/resources/technical-articles/a-closer-look-at-state-of-charge-and-state-health-estimation-tech.html" target="_blank">SOC/SOH Estimation Techniques</a>.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>BMS System Architecture</h3>
+        <canvas id="bms-architecture-canvas" width="900" height="380"></canvas>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Charger ICs</div>
+                <div class="v">BQ25890, MAX17055, LTC4162</div>
+            </div>
+            <div class="box">
+                <div class="k">Protection ICs</div>
+                <div class="v">BQ77915, ISL94203, S-8244</div>
+            </div>
+            <div class="box">
+                <div class="k">Fuel Gauge ICs</div>
+                <div class="v">BQ27441, MAX17048, STC3117</div>
+            </div>
+            <div class="box">
+                <div class="k">Combo PMICs</div>
+                <div class="v">MAX77818, BQ25700</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 1: CC-CV Charging Profile</h3>
+
+        <p>Li-ion batteries require Constant-Current / Constant-Voltage (CC-CV) charging with precise voltage regulation to maximize capacity while preventing damage.</p>
+
+        <div class="subsection">
+            <h4>Charging Phases</h4>
+
+            <table class="table">
+                <tr>
+                    <th>Phase</th>
+                    <th>Condition</th>
+                    <th>Action</th>
+                    <th>Typical Duration</th>
+                </tr>
+                <tr>
+                    <td>1. Pre-charge (Trickle)</td>
+                    <td>V<sub>cell</sub> < 3.0V</td>
+                    <td>I = 0.1C (10% of full)</td>
+                    <td>0-30 min</td>
+                </tr>
+                <tr>
+                    <td>2. Fast Charge (CC)</td>
+                    <td>3.0V < V<sub>cell</sub> < 4.2V</td>
+                    <td>I = 0.5-1C constant</td>
+                    <td>1-2 hours</td>
+                </tr>
+                <tr>
+                    <td>3. Saturation (CV)</td>
+                    <td>V<sub>cell</sub> = 4.2V</td>
+                    <td>V constant, I tapers</td>
+                    <td>30-60 min</td>
+                </tr>
+                <tr>
+                    <td>4. Termination</td>
+                    <td>I < 0.02-0.1C</td>
+                    <td>Charging stops</td>
+                    <td>—</td>
+                </tr>
+            </table>
+
+            <div class="warn">
+                <strong>Critical Voltage Accuracy:</strong> The 4.2V regulation must be within ±1% (±42mV). Under-voltage means reduced capacity; over-voltage causes accelerated degradation, gas generation, and fire risk.
+            </div>
+        </div>
+
+        <div class="subsection">
+            <h4>Interactive: CC-CV Charging Simulator</h4>
+
+            <div class="controls">
+                <div class="c3">
+                    <label for="chg-capacity">Cell Capacity (mAh)</label>
+                    <input type="range" id="chg-capacity" min="1000" max="5000" step="100" value="3000">
+                    <span id="chg-capacity-val" class="mono">3000mAh</span>
+                </div>
+                <div class="c3">
+                    <label for="chg-crate">Charge Rate (C)</label>
+                    <input type="range" id="chg-crate" min="0.2" max="2" step="0.1" value="1">
+                    <span id="chg-crate-val" class="mono">1.0C</span>
+                </div>
+                <div class="c3">
+                    <label for="chg-cells">Cells in Series</label>
+                    <input type="range" id="chg-cells" min="1" max="4" step="1" value="2">
+                    <span id="chg-cells-val" class="mono">2S</span>
+                </div>
+                <div class="c3">
+                    <label for="chg-vmax">V<sub>max</sub>/cell (V)</label>
+                    <input type="range" id="chg-vmax" min="4.1" max="4.35" step="0.05" value="4.2">
+                    <span id="chg-vmax-val" class="mono">4.20V</span>
+                </div>
+            </div>
+
+            <div class="canvas-wrap">
+                <canvas id="chg-canvas" width="980" height="300"></canvas>
+            </div>
+
+            <div class="kv">
+                <div class="box">
+                    <div class="k">CC Current</div>
+                    <div class="v mono" id="chg-icc">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Pack Voltage</div>
+                    <div class="v mono" id="chg-vpack">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Est. Charge Time</div>
+                    <div class="v mono" id="chg-time">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Max Power</div>
+                    <div class="v mono" id="chg-power">—</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 2: Battery Protection Circuit</h3>
+
+        <p>Protection circuits prevent dangerous conditions that could damage the battery or cause fire/explosion. The protection IC monitors cell voltages and current, controlling FETs to disconnect the battery.</p>
+
+        <div class="subsection">
+            <h4>Protection Parameters</h4>
+
+            <table class="table">
+                <tr>
+                    <th>Protection</th>
+                    <th>Threshold</th>
+                    <th>Action</th>
+                    <th>Recovery</th>
+                </tr>
+                <tr>
+                    <td>Overcharge (OVP)</td>
+                    <td>4.25-4.35V/cell</td>
+                    <td>Open charge FET</td>
+                    <td>V < 4.1V or charger removed</td>
+                </tr>
+                <tr>
+                    <td>Over-discharge (UVP)</td>
+                    <td>2.5-3.0V/cell</td>
+                    <td>Open discharge FET</td>
+                    <td>Charger connected</td>
+                </tr>
+                <tr>
+                    <td>Overcurrent (OCP)</td>
+                    <td>3-10A (design-dependent)</td>
+                    <td>Open discharge FET</td>
+                    <td>Load removed or timeout</td>
+                </tr>
+                <tr>
+                    <td>Short Circuit (SCP)</td>
+                    <td>20-50A (fast, µs response)</td>
+                    <td>Immediate FET off</td>
+                    <td>Load removed + delay</td>
+                </tr>
+                <tr>
+                    <td>Over-temperature</td>
+                    <td>45-60°C (charge), 60-80°C (discharge)</td>
+                    <td>Reduce or stop charging</td>
+                    <td>Temp returns to safe range</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="subsection">
+            <h4>Protection Circuit Schematic</h4>
+            <canvas id="protection-circuit-canvas" width="700" height="400" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+        </div>
+
+        <div class="subsection">
+            <h4>Multi-Cell Protection with Balancing</h4>
+
+            <p>For 2S+ packs, cell balancing is required to prevent one cell from reaching limits before others:</p>
+
+            <div class="kv">
+                <div class="box">
+                    <div class="k">Passive Balancing</div>
+                    <div class="v">Bleed resistors dissipate energy from high cells (simple, lossy)</div>
+                </div>
+                <div class="box">
+                    <div class="k">Active Balancing</div>
+                    <div class="v">Switch-mode transfer between cells (efficient, complex)</div>
+                </div>
+            </div>
+
+            <div class="notice">
+                <strong>Balancing Current:</strong> Typical passive balancing uses 50-200mA bleed current. For a 3000mAh pack with 5% cell mismatch (150mAh), balancing time = 150mAh / 100mA = 1.5 hours.
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 3: Fuel Gauge and SOC Estimation</h3>
+
+        <p>Accurate state-of-charge (SOC) estimation is challenging because battery capacity varies with temperature, age, and discharge rate. Modern fuel gauges combine multiple techniques.</p>
+
+        <div class="subsection">
+            <h4>SOC Estimation Methods</h4>
+
+            <table class="table">
+                <tr>
+                    <th>Method</th>
+                    <th>Principle</th>
+                    <th>Accuracy</th>
+                    <th>Limitations</th>
+                </tr>
+                <tr>
+                    <td>Coulomb Counting</td>
+                    <td>Integrate current over time: Q = ∫I dt</td>
+                    <td>±2-5%</td>
+                    <td>Drift over time, needs calibration</td>
+                </tr>
+                <tr>
+                    <td>OCV Lookup</td>
+                    <td>Map open-circuit voltage to SOC table</td>
+                    <td>±5-10%</td>
+                    <td>Needs rest period (no load)</td>
+                </tr>
+                <tr>
+                    <td>Kalman Filter</td>
+                    <td>Combine models with measurements</td>
+                    <td>±1-3%</td>
+                    <td>Complex, tuning required</td>
+                </tr>
+                <tr>
+                    <td>Impedance Tracking</td>
+                    <td>Correlate internal R with SOC/SOH</td>
+                    <td>±3-5%</td>
+                    <td>Temp and age dependent</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="subsection">
+            <h4>Coulomb Counting Implementation</h4>
+            <canvas id="coulomb-counter-canvas" width="700" height="320" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+        </div>
+
+        <div class="subsection">
+            <h4>Interactive: Coulomb Counter Simulation</h4>
+
+            <div class="controls">
+                <div class="c3">
+                    <label for="fg-capacity">Cell Capacity (mAh)</label>
+                    <input type="range" id="fg-capacity" min="1000" max="5000" step="100" value="3000">
+                    <span id="fg-capacity-val" class="mono">3000mAh</span>
+                </div>
+                <div class="c3">
+                    <label for="fg-load">Load Current (mA)</label>
+                    <input type="range" id="fg-load" min="100" max="2000" step="50" value="500">
+                    <span id="fg-load-val" class="mono">500mA</span>
+                </div>
+                <div class="c3">
+                    <label for="fg-soc">Starting SOC (%)</label>
+                    <input type="range" id="fg-soc" min="0" max="100" step="1" value="80">
+                    <span id="fg-soc-val" class="mono">80%</span>
+                </div>
+                <div class="c3">
+                    <label for="fg-temp">Temperature (°C)</label>
+                    <input type="range" id="fg-temp" min="-10" max="45" step="1" value="25">
+                    <span id="fg-temp-val" class="mono">25°C</span>
+                </div>
+            </div>
+
+            <div class="kv">
+                <div class="box">
+                    <div class="k">Remaining Capacity</div>
+                    <div class="v mono" id="fg-remain">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Run Time</div>
+                    <div class="v mono" id="fg-runtime">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Effective Capacity</div>
+                    <div class="v mono" id="fg-effcap">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Voltage (est.)</div>
+                    <div class="v mono" id="fg-voltage">—</div>
+                </div>
+            </div>
+
+            <p class="note">Note: Cold temperature reduces effective capacity by 10-30%. The fuel gauge must compensate for this.</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 4: Complete Phone BMS Design</h3>
+
+        <p>Modern smartphones integrate all BMS functions into the PMIC (Power Management IC). Here's a typical single-cell design:</p>
+
+        <div class="subsection">
+            <h4>Smartphone Battery Subsystem</h4>
+            <canvas id="smartphone-bms-canvas" width="800" height="420" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+        </div>
+
+        <div class="subsection">
+            <h4>Laptop Battery Pack (3S1P Example)</h4>
+
+            <p>Laptops use multi-cell packs with dedicated battery controllers:</p>
+
+            <table class="table">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Typical Value</th>
+                    <th>Notes</th>
+                </tr>
+                <tr>
+                    <td>Configuration</td>
+                    <td>3S1P or 4S1P</td>
+                    <td>11.1V or 14.8V nominal</td>
+                </tr>
+                <tr>
+                    <td>Capacity</td>
+                    <td>45-99Wh</td>
+                    <td>FAA limit: 100Wh per battery</td>
+                </tr>
+                <tr>
+                    <td>Charge Rate</td>
+                    <td>0.5-1C</td>
+                    <td>45W-100W chargers common</td>
+                </tr>
+                <tr>
+                    <td>Cell Balancing</td>
+                    <td>50-100mA passive</td>
+                    <td>Active for high-performance</td>
+                </tr>
+                <tr>
+                    <td>Fuel Gauge</td>
+                    <td>BQ40Z50, MAX17205</td>
+                    <td>SMBus interface to EC</td>
+                </tr>
+                <tr>
+                    <td>Pack Controller</td>
+                    <td>BQ77915, ISL94203</td>
+                    <td>Per-cell monitoring + FETs</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    // BMS Architecture Canvas
+    (function() {
+        const canvas = document.getElementById('bms-architecture-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+        // Title
+        ctx.fillStyle = 'rgba(110,231,255,0.1)';
+        roundRect(ctx, 15, 10, w - 30, 35, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('COMPLETE BATTERY MANAGEMENT SYSTEM', w/2, 33);
+
+        // Input stage
+        ctx.fillStyle = 'rgba(255,255,0,0.15)';
+        roundRect(ctx, 30, 60, 90, 50, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Input', 75, 80);
+        ctx.fillText('Protection', 75, 93);
+        ctx.fillStyle = '#888';
+        ctx.font = '8px monospace';
+        ctx.fillText('(OVP/TVS)', 75, 105);
+
+        // Charger IC
+        ctx.fillStyle = 'rgba(0,255,0,0.15)';
+        roundRect(ctx, 150, 55, 130, 100, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch4;
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText('Battery', 215, 75);
+        ctx.fillText('Charger IC', 215, 90);
+
+        // CC/CV modes inside charger
+        ctx.fillStyle = 'rgba(0,255,0,0.25)';
+        roundRect(ctx, 160, 100, 50, 22, 3);
+        ctx.fill();
+        ctx.fillStyle = '#aaa';
+        ctx.font = '8px monospace';
+        ctx.fillText('CC Mode', 185, 114);
+        roundRect(ctx, 220, 100, 50, 22, 3);
+        ctx.fill();
+        ctx.fillText('CV Mode', 245, 114);
+
+        // Battery Pack
+        ctx.fillStyle = 'rgba(255,102,255,0.15)';
+        roundRect(ctx, 310, 55, 120, 100, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch3;
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText('Battery Pack', 370, 75);
+        ctx.fillText('2S/3S/4S', 370, 90);
+
+        // Cells inside pack
+        for (let i = 0; i < 3; i++) {
+            ctx.fillStyle = 'rgba(255,102,255,0.25)';
+            roundRect(ctx, 325, 100 + i * 17, 90, 14, 2);
+            ctx.fill();
+            ctx.fillStyle = '#aaa';
+            ctx.font = '8px monospace';
+            ctx.fillText('Cell ' + (i + 1), 370, 110 + i * 17);
+        }
+
+        // System Load
+        ctx.fillStyle = 'rgba(0,255,255,0.15)';
+        roundRect(ctx, 460, 60, 100, 50, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch2;
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText('System Load', 510, 82);
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('(CPU, Display)', 510, 98);
+
+        // Arrows for main flow
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(120, 85);
+        ctx.lineTo(150, 85);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(280, 85);
+        ctx.lineTo(310, 85);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(430, 85);
+        ctx.lineTo(460, 85);
+        ctx.stroke();
+
+        // USB-C input label
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('USB-C/Adapter', 25, 55);
+        ctx.beginPath();
+        ctx.moveTo(75, 55);
+        ctx.lineTo(75, 60);
+        ctx.stroke();
+
+        // Bottom section: Protection, Thermal, Fuel Gauge
+        // Thermal Monitor
+        ctx.fillStyle = 'rgba(255,165,0,0.15)';
+        roundRect(ctx, 150, 180, 90, 50, 6);
+        ctx.fill();
+        ctx.strokeStyle = '#FFA500';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Thermal', 195, 200);
+        ctx.fillText('Monitor', 195, 213);
+        ctx.fillStyle = '#888';
+        ctx.font = '8px monospace';
+        ctx.fillText('(NTC)', 195, 225);
+
+        // Protection IC
+        ctx.fillStyle = 'rgba(251,113,133,0.15)';
+        roundRect(ctx, 270, 170, 110, 90, 6);
+        ctx.fill();
+        ctx.strokeStyle = '#fb7185';
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.fillText('Protection IC', 325, 190);
+        ctx.fillText('(AFE)', 325, 203);
+        ctx.fillStyle = '#aaa';
+        ctx.font = '8px monospace';
+        const prots = ['OVP', 'UVP', 'OCP', 'Balance', 'SCP'];
+        prots.forEach((p, i) => {
+            ctx.fillText('• ' + p, 290, 220 + i * 11);
+        });
+
+        // Fuel Gauge IC
+        ctx.fillStyle = 'rgba(52,211,153,0.15)';
+        roundRect(ctx, 420, 170, 150, 90, 6);
+        ctx.fill();
+        ctx.strokeStyle = '#34d399';
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.fillText('FUEL GAUGE IC', 495, 190);
+        ctx.fillStyle = '#aaa';
+        ctx.font = '8px monospace';
+        const fgFeatures = ['Coulomb counting', 'OCV lookup', 'SOC/SOH estimation', 'Remaining capacity'];
+        fgFeatures.forEach((f, i) => {
+            ctx.fillText('• ' + f, 435, 210 + i * 13);
+        });
+
+        // I2C/SMBus output
+        ctx.strokeStyle = '#34d399';
+        ctx.beginPath();
+        ctx.moveTo(570, 215);
+        ctx.lineTo(620, 215);
+        ctx.stroke();
+        ctx.fillStyle = '#34d399';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('I2C/SMBus', 625, 218);
+        ctx.fillText('to Host', 625, 230);
+
+        // Connection lines
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        // Charger to thermal
+        ctx.beginPath();
+        ctx.moveTo(215, 155);
+        ctx.lineTo(215, 175);
+        ctx.lineTo(195, 175);
+        ctx.lineTo(195, 180);
+        ctx.stroke();
+        // Battery to protection
+        ctx.beginPath();
+        ctx.moveTo(370, 155);
+        ctx.lineTo(370, 165);
+        ctx.lineTo(325, 165);
+        ctx.lineTo(325, 170);
+        ctx.stroke();
+        // Protection to fuel gauge
+        ctx.beginPath();
+        ctx.moveTo(380, 215);
+        ctx.lineTo(420, 215);
+        ctx.stroke();
+
+        // Source
+        ctx.fillStyle = '#666';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Based on: Analog Devices, Intersil BMS Tutorial', 20, h - 10);
+    })();
+
+    // Protection Circuit Canvas
+    (function() {
+        const canvas = document.getElementById('protection-circuit-canvas');
+        if (!canvas || typeof AD === 'undefined') return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+        const TEK = AD.TEK_COLORS;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        // Title
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('1-CELL LITHIUM-ION PROTECTION CIRCUIT (DW01A + FS8205A)', w/2, 22);
+
+        // PACK+ label at top
+        ctx.fillStyle = '#f87171';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('PACK+', w - 60, 55);
+        ctx.strokeStyle = '#f87171';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(w - 60, 60);
+        ctx.lineTo(w - 60, 95);
+        ctx.stroke();
+
+        // Li-Ion Cell
+        const cellX = 60, cellY = 100;
+        AD.roundRect(ctx, cellX, cellY, 90, 80, 6, { fill: '#1a2332', stroke: TEK.ch3, lineWidth: 2 });
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Li-Ion', cellX + 45, cellY + 28);
+        ctx.fillText('Cell', cellX + 45, cellY + 44);
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.fillText('3.7V nom', cellX + 45, cellY + 62);
+
+        // Cell + terminal
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cellX + 45, cellY);
+        ctx.lineTo(cellX + 45, cellY - 20);
+        ctx.lineTo(w - 60, cellY - 20);
+        ctx.lineTo(w - 60, 95);
+        ctx.stroke();
+
+        // DW01A Protection IC
+        const icX = 220, icY = 90;
+        AD.roundRect(ctx, icX, icY, 140, 100, 6, { fill: '#1a2332', stroke: TEK.ch2, lineWidth: 2 });
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('DW01A', icX + 70, icY + 25);
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.fillText('Protection IC', icX + 70, icY + 42);
+
+        // Pin labels
+        ctx.fillStyle = '#aaa';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('VCC', icX + 10, icY + 65);
+        ctx.fillText('GND', icX + 10, icY + 85);
+        ctx.textAlign = 'right';
+        ctx.fillText('CS', icX + 130, icY + 55);
+        ctx.fillText('OD', icX + 130, icY + 75);
+        ctx.fillText('OC', icX + 130, icY + 92);
+
+        // VCC connection from cell
+        ctx.strokeStyle = TEK.ch1;
+        ctx.beginPath();
+        ctx.moveTo(cellX + 90, cellY + 40);
+        ctx.lineTo(icX, icY + 62);
+        ctx.stroke();
+
+        // GND connection from cell
+        ctx.strokeStyle = '#666';
+        ctx.beginPath();
+        ctx.moveTo(cellX + 45, cellY + 80);
+        ctx.lineTo(cellX + 45, cellY + 100);
+        ctx.lineTo(icX - 20, cellY + 100);
+        ctx.lineTo(icX - 20, icY + 82);
+        ctx.lineTo(icX, icY + 82);
+        ctx.stroke();
+
+        // Rsense
+        const rsX = 450, rsY = 100;
+        AD.roundRect(ctx, rsX, rsY, 70, 40, 4, { fill: '#2a3a52', stroke: TEK.ch3, lineWidth: 1.5 });
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Rsense', rsX + 35, rsY + 18);
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('10mΩ', rsX + 35, rsY + 32);
+
+        // CS connection to Rsense
+        ctx.strokeStyle = TEK.ch2;
+        ctx.setLineDash([4, 2]);
+        ctx.beginPath();
+        ctx.moveTo(icX + 140, icY + 52);
+        ctx.lineTo(rsX, rsY + 20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // FS8205A Dual MOSFET
+        const mosX = 380, mosY = 200;
+        AD.roundRect(ctx, mosX, mosY, 120, 90, 6, { fill: '#1a2332', stroke: TEK.ch4, lineWidth: 2 });
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('FS8205A', mosX + 60, mosY + 22);
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('(Dual MOSFET)', mosX + 60, mosY + 38);
+
+        // M1 and M2 boxes
+        AD.roundRect(ctx, mosX + 15, mosY + 50, 40, 30, 3, { fill: '#2a4a4a', stroke: TEK.ch4, lineWidth: 1 });
+        ctx.fillStyle = '#aaa';
+        ctx.font = '9px monospace';
+        ctx.fillText('M1', mosX + 35, mosY + 62);
+        ctx.fillText('CHG', mosX + 35, mosY + 75);
+
+        AD.roundRect(ctx, mosX + 65, mosY + 50, 40, 30, 3, { fill: '#2a4a4a', stroke: TEK.ch4, lineWidth: 1 });
+        ctx.fillText('M2', mosX + 85, mosY + 62);
+        ctx.fillText('DSG', mosX + 85, mosY + 75);
+
+        // OD -> M1 connection
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(icX + 140, icY + 72);
+        ctx.lineTo(icX + 170, icY + 72);
+        ctx.lineTo(icX + 170, mosY + 65);
+        ctx.lineTo(mosX + 15, mosY + 65);
+        ctx.stroke();
+
+        // OC -> M2 connection
+        ctx.beginPath();
+        ctx.moveTo(icX + 140, icY + 89);
+        ctx.lineTo(icX + 185, icY + 89);
+        ctx.lineTo(icX + 185, mosY + 75);
+        ctx.lineTo(mosX + 65, mosY + 75);
+        ctx.stroke();
+
+        // Rsense to MOSFET
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(rsX + 35, rsY + 40);
+        ctx.lineTo(rsX + 35, mosY + 20);
+        ctx.lineTo(mosX + 60, mosY + 20);
+        ctx.lineTo(mosX + 60, mosY);
+        ctx.stroke();
+
+        // MOSFET output to PACK-
+        ctx.strokeStyle = '#666';
+        ctx.beginPath();
+        ctx.moveTo(mosX + 60, mosY + 90);
+        ctx.lineTo(mosX + 60, h - 50);
+        ctx.stroke();
+
+        // PACK- label at bottom
+        ctx.fillStyle = '#6b7280';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('PACK-', mosX + 60, h - 30);
+
+        // Ground from cell connects through
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(icX - 20, cellY + 100);
+        ctx.lineTo(icX - 20, h - 45);
+        ctx.lineTo(mosX + 50, h - 45);
+        ctx.stroke();
+
+        // Protection thresholds box
+        AD.roundRect(ctx, 30, h - 100, 300, 85, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Protection Thresholds (DW01A):', 45, h - 82);
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '9px monospace';
+        ctx.fillText('• Overcharge: 4.30V ±50mV', 45, h - 65);
+        ctx.fillText('• Over-discharge: 2.40V ±80mV', 45, h - 50);
+        ctx.fillText('• Overcurrent: 3A ±1A', 200, h - 65);
+        ctx.fillText('• Short circuit: 8A (µs response)', 200, h - 50);
+        ctx.fillText('• Rsense 10mΩ → I_trip = 150mV/10mΩ = 15A', 45, h - 32);
+    })();
+
+    // Coulomb Counter Fuel Gauge Canvas
+    (function() {
+        const canvas = document.getElementById('coulomb-counter-canvas');
+        if (!canvas || typeof AD === 'undefined') return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+        const TEK = AD.TEK_COLORS;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        // Title
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('COULOMB COUNTER FUEL GAUGE (Conceptual)', w/2, 25);
+
+        // PACK+ to SYSTEM+ rail at top
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(40, 55);
+        ctx.lineTo(w - 40, 55);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('PACK+', 40, 50);
+        ctx.textAlign = 'right';
+        ctx.fillText('SYSTEM+', w - 40, 50);
+
+        // Rsense resistor
+        const rsX = 100, rsY = 55;
+        ctx.strokeStyle = TEK.ch1;
+        ctx.beginPath();
+        ctx.moveTo(rsX, rsY);
+        ctx.lineTo(rsX, rsY + 25);
+        ctx.stroke();
+
+        AD.roundRect(ctx, rsX - 25, rsY + 25, 50, 35, 4, { fill: '#2a3a52', stroke: TEK.ch3, lineWidth: 1.5 });
+        ctx.fillStyle = '#fff';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Rsense', rsX, rsY + 42);
+        ctx.fillText('10mΩ', rsX, rsY + 54);
+
+        ctx.strokeStyle = TEK.ch1;
+        ctx.beginPath();
+        ctx.moveTo(rsX, rsY + 60);
+        ctx.lineTo(rsX, rsY + 85);
+        ctx.stroke();
+
+        // SENSE+/- labels
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('SENSE+', rsX - 30, rsY + 35);
+        ctx.fillText('SENSE-', rsX - 30, rsY + 70);
+
+        // Fuel Gauge IC box
+        const icX = 200, icY = 70, icW = 350, icH = 180;
+        AD.roundRect(ctx, icX, icY, icW, icH, 8, { fill: '#1a2332', stroke: TEK.ch2, lineWidth: 2 });
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('FUEL GAUGE IC', icX + icW/2, icY + 25);
+
+        // ADC block
+        const adcX = icX + 30, adcY = icY + 45;
+        AD.roundRect(ctx, adcX, adcY, 80, 50, 4, { fill: '#2a4a4a', stroke: TEK.ch4, lineWidth: 1.5 });
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.fillText('ADC', adcX + 40, adcY + 22);
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('16-bit', adcX + 40, adcY + 38);
+
+        // Coulomb Accumulator block
+        const accX = icX + 140, accY = icY + 45;
+        AD.roundRect(ctx, accX, accY, 100, 50, 4, { fill: '#2a4a4a', stroke: TEK.ch4, lineWidth: 1.5 });
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Coulomb', accX + 50, accY + 20);
+        ctx.fillText('Accumulator', accX + 50, accY + 35);
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('Q = ∫I dt', accX + 50, accY + 48);
+
+        // Arrow from ADC to Accumulator
+        AD.drawArrow(ctx, adcX + 80, adcY + 25, accX, accY + 25, { color: '#888', headSize: 6 });
+
+        // Temp Comp block
+        const tmpX = icX + 30, tmpY = icY + 115;
+        AD.roundRect(ctx, tmpX, tmpY, 70, 40, 4, { fill: '#4a2a4a', stroke: TEK.ch3, lineWidth: 1.5 });
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Temp', tmpX + 35, tmpY + 18);
+        ctx.fillText('Comp', tmpX + 35, tmpY + 32);
+
+        // SOC Algorithm block
+        const socX = icX + 130, socY = icY + 115;
+        AD.roundRect(ctx, socX, socY, 90, 40, 4, { fill: '#4a4a2a', stroke: TEK.ch1, lineWidth: 1.5 });
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.fillText('SOC', socX + 45, socY + 18);
+        ctx.fillText('Algorithm', socX + 45, socY + 32);
+
+        // Arrows connecting blocks
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(adcX + 40, adcY + 50);
+        ctx.lineTo(adcX + 40, tmpY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(accX + 50, accY + 50);
+        ctx.lineTo(accX + 50, socY);
+        ctx.stroke();
+
+        AD.drawArrow(ctx, tmpX + 70, tmpY + 20, socX, socY + 20, { color: '#888', headSize: 6 });
+
+        // I2C output arrow
+        AD.drawArrow(ctx, socX + 90, socY + 20, icX + icW, socY + 20, { color: TEK.ch4, headSize: 8 });
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('I2C', icX + icW + 10, socY + 24);
+        ctx.fillText('Data', icX + icW + 10, socY + 38);
+
+        // Input connections on left side
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+
+        // SENSE+ connection
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(rsX, rsY + 35);
+        ctx.lineTo(icX, icY + 55);
+        ctx.stroke();
+
+        // SENSE- connection
+        ctx.beginPath();
+        ctx.moveTo(rsX, rsY + 70);
+        ctx.lineTo(rsX, icY + 75);
+        ctx.lineTo(icX, icY + 75);
+        ctx.stroke();
+
+        // CELL+/- labels
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'right';
+        ctx.fillText('CELL+', icX - 10, icY + 120);
+        ctx.fillText('CELL-', icX - 10, icY + 145);
+        ctx.strokeStyle = '#666';
+        ctx.beginPath();
+        ctx.moveTo(icX - 5, icY + 117);
+        ctx.lineTo(icX, icY + 117);
+        ctx.moveTo(icX - 5, icY + 142);
+        ctx.lineTo(icX, icY + 142);
+        ctx.stroke();
+
+        // NTC connection
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'right';
+        ctx.fillText('NTC', icX - 10, icY + 170);
+        ctx.strokeStyle = TEK.ch3;
+        ctx.beginPath();
+        ctx.moveTo(icX - 5, icY + 167);
+        ctx.lineTo(icX + 35, icY + 167);
+        ctx.lineTo(icX + 35, tmpY + 40);
+        ctx.stroke();
+
+        ctx.fillStyle = '#666';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Temperature', icX + 65, icY + 175);
+
+        // SOC Formula box at bottom
+        AD.roundRect(ctx, 40, h - 70, 350, 55, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('SOC Calculation:', 55, h - 50);
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText('SOC(t) = SOC(t₀) - ∫(I/Q_max) dt × 100%', 55, h - 32);
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('Where Q_max is learned capacity (aging + temp adjusted)', 55, h - 18);
+    })();
+
+    // Smartphone BMS Canvas
+    (function() {
+        const canvas = document.getElementById('smartphone-bms-canvas');
+        if (!canvas || typeof AD === 'undefined') return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+        const TEK = AD.TEK_COLORS;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        // Title
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('SMARTPHONE BATTERY MANAGEMENT SYSTEM', w/2, 25);
+
+        // USB-C input
+        const usbX = 40, usbY = 55;
+        AD.roundRect(ctx, usbX, usbY, 70, 35, 4, { fill: '#2a3a52', stroke: TEK.ch1, lineWidth: 2 });
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('USB-C', usbX + 35, usbY + 22);
+
+        // CC/PD Controller
+        const pdX = 150, pdY = 50;
+        AD.roundRect(ctx, pdX, pdY, 110, 45, 5, { fill: '#1a2332', stroke: TEK.ch2, lineWidth: 1.5 });
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.fillText('CC/PD', pdX + 55, pdY + 18);
+        ctx.fillText('Controller', pdX + 55, pdY + 32);
+        ctx.fillStyle = '#888';
+        ctx.font = '8px monospace';
+        ctx.fillText('(FUSB302)', pdX + 55, pdY + 43);
+
+        // Arrow from USB to PD
+        AD.drawArrow(ctx, usbX + 70, usbY + 18, pdX, pdY + 20, { color: TEK.ch1, headSize: 6 });
+
+        // Negotiated voltage output
+        AD.drawArrow(ctx, pdX + 110, pdY + 20, pdX + 180, pdY + 20, { color: '#888', headSize: 6 });
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('5-20V', pdX + 125, pdY + 15);
+
+        // OVP/Current Limiter
+        const ovpX = 40, ovpY = 115;
+        AD.roundRect(ctx, ovpX, ovpY, 100, 55, 5, { fill: '#1a2332', stroke: TEK.ch3, lineWidth: 1.5 });
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('OVP/Current', ovpX + 50, ovpY + 22);
+        ctx.fillText('Limiter', ovpX + 50, ovpY + 36);
+        ctx.fillStyle = '#888';
+        ctx.font = '8px monospace';
+        ctx.fillText('(BQ24314)', ovpX + 50, ovpY + 50);
+
+        // Arrow from USB down to OVP
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(usbX + 35, usbY + 35);
+        ctx.lineTo(usbX + 35, ovpY);
+        ctx.stroke();
+
+        // Main Charger + Fuel Gauge Combo IC
+        const icX = 320, icY = 45, icW = 220, icH = 200;
+        AD.roundRect(ctx, icX, icY, icW, icH, 8, { fill: '#1a2332', stroke: TEK.ch4, lineWidth: 2 });
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('CHARGER + FUEL', icX + icW/2, icY + 22);
+        ctx.fillText('GAUGE COMBO IC', icX + icW/2, icY + 38);
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('(MAX77818)', icX + icW/2, icY + 52);
+
+        // Charger Block inside
+        const chgX = icX + 15, chgY = icY + 65;
+        AD.roundRect(ctx, chgX, chgY, 90, 65, 4, { fill: '#2a4a4a', stroke: TEK.ch4, lineWidth: 1 });
+        ctx.fillStyle = '#fff';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Charger Block', chgX + 45, chgY + 15);
+        ctx.fillStyle = '#888';
+        ctx.font = '8px monospace';
+        ctx.fillText('- Buck/Boost', chgX + 45, chgY + 30);
+        ctx.fillText('- CC/CV control', chgX + 45, chgY + 42);
+        ctx.fillText('- Thermal mgmt', chgX + 45, chgY + 54);
+
+        // Fuel Gauge inside
+        const fgX = icX + 115, fgY = icY + 65;
+        AD.roundRect(ctx, fgX, fgY, 90, 65, 4, { fill: '#4a4a2a', stroke: TEK.ch1, lineWidth: 1 });
+        ctx.fillStyle = '#fff';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Fuel Gauge', fgX + 45, fgY + 15);
+        ctx.fillStyle = '#888';
+        ctx.font = '8px monospace';
+        ctx.fillText('- ModelGauge', fgX + 45, fgY + 30);
+        ctx.fillText('- Coulomb count', fgX + 45, fgY + 42);
+        ctx.fillText('- Temp comp', fgX + 45, fgY + 54);
+
+        // SOC output arrow
+        AD.drawArrow(ctx, icX + icW, fgY + 30, icX + icW + 50, fgY + 30, { color: TEK.ch1, headSize: 8 });
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('SOC to AP', icX + icW + 55, fgY + 35);
+
+        // Arrows: PD to IC, OVP to IC
+        AD.drawArrow(ctx, pdX + 180, pdY + 20, icX, icY + 30, { color: '#888', headSize: 6 });
+        AD.drawArrow(ctx, ovpX + 100, ovpY + 25, icX, chgY + 30, { color: TEK.ch3, headSize: 6 });
+
+        // NTC Thermistor input
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('NTC Thermistor', ovpX + 95, ovpY + 85);
+        AD.drawArrow(ctx, ovpX + 100, ovpY + 82, icX, chgY + 55, { color: TEK.ch3, headSize: 5 });
+
+        // Battery Pack
+        const batX = 40, batY = 200, batW = 130, batH = 130;
+        AD.roundRect(ctx, batX, batY, batW, batH, 8, { fill: '#1a2332', stroke: TEK.ch3, lineWidth: 2 });
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('BATTERY', batX + batW/2, batY + 22);
+        ctx.fillText('PACK', batX + batW/2, batY + 38);
+
+        // Cell inside
+        AD.roundRect(ctx, batX + 15, batY + 50, batW - 30, 30, 4, { fill: '#2a4a2a', stroke: TEK.ch4, lineWidth: 1 });
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('1S Cell 4400mAh', batX + batW/2, batY + 70);
+
+        // Protection inside
+        AD.roundRect(ctx, batX + 15, batY + 88, batW - 30, 28, 4, { fill: '#4a2a2a', stroke: '#f87171', lineWidth: 1 });
+        ctx.fillStyle = '#888';
+        ctx.fillText('Protection FET+IC', batX + batW/2, batY + 106);
+
+        // Connection from IC to Battery
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(icX, icY + 180);
+        ctx.lineTo(icX - 30, icY + 180);
+        ctx.lineTo(icX - 30, batY + 65);
+        ctx.lineTo(batX + batW, batY + 65);
+        ctx.stroke();
+
+        // System Power Rail output
+        const railY = h - 80;
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(icX + icW/2, icY + icH);
+        ctx.lineTo(icX + icW/2, railY);
+        ctx.stroke();
+
+        AD.roundRect(ctx, icX + icW/2 - 70, railY, 140, 35, 5, { fill: '#2a3a4a', stroke: TEK.ch4, lineWidth: 1.5 });
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('System Power Rail', icX + icW/2, railY + 16);
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('(to LDOs, bucks)', icX + icW/2, railY + 30);
+
+        // Key Specs box at bottom right
+        AD.roundRect(ctx, w - 260, h - 95, 245, 85, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Key Specs (Typical Flagship):', w - 250, h - 78);
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '8px monospace';
+        ctx.fillText('• Battery: 1S 4400mAh, 3.85V nominal', w - 250, h - 62);
+        ctx.fillText('• Fast Charge: Up to 45W (9V/5A PD PPS)', w - 250, h - 48);
+        ctx.fillText('• Charge: 0-50% in 30 min, 0-100% in 90 min', w - 250, h - 34);
+        ctx.fillText('• Protection: 4.45V OVP, 2.8V UVP, 6A OCP', w - 250, h - 20);
+    })();
+
+    // Charging calculator
+    function updateCharging() {
+        const capacity = parseFloat(document.getElementById('chg-capacity').value);
+        const crate = parseFloat(document.getElementById('chg-crate').value);
+        const cells = parseInt(document.getElementById('chg-cells').value);
+        const vmax = parseFloat(document.getElementById('chg-vmax').value);
+
+        document.getElementById('chg-capacity-val').textContent = capacity + 'mAh';
+        document.getElementById('chg-crate-val').textContent = crate.toFixed(1) + 'C';
+        document.getElementById('chg-cells-val').textContent = cells + 'S';
+        document.getElementById('chg-vmax-val').textContent = vmax.toFixed(2) + 'V';
+
+        const icc = capacity * crate / 1000; // A
+        const vpack = vmax * cells;
+        const pmax = vpack * icc;
+        const time = 1 / crate + 0.5; // Approx: CC time + CV time
+
+        document.getElementById('chg-icc').textContent = icc.toFixed(2) + ' A';
+        document.getElementById('chg-vpack').textContent = vpack.toFixed(1) + ' V';
+        document.getElementById('chg-time').textContent = time.toFixed(1) + ' hours';
+        document.getElementById('chg-power').textContent = pmax.toFixed(1) + ' W';
+
+        drawChargingCurve(capacity, crate, cells, vmax);
+    }
+
+    function drawChargingCurve(capacity, crate, cells, vmax) {
+        const canvas = document.getElementById('chg-canvas');
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        const imax = capacity * crate / 1000;
+        const vmin = 3.0;
+        const ccTime = 0.6; // Fraction of total time in CC mode
+        const totalTime = 1 / crate + 0.5;
+
+        // Generate charging profile
+        const N = 200;
+        const current = [];
+        const voltage = [];
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * totalTime;
+            const tNorm = t / totalTime;
+
+            if (tNorm < ccTime) {
+                // CC mode
+                current.push(imax);
+                voltage.push(vmin + (vmax - vmin) * (tNorm / ccTime));
+            } else {
+                // CV mode - current tapers exponentially
+                const cvProgress = (tNorm - ccTime) / (1 - ccTime);
+                current.push(imax * Math.exp(-3 * cvProgress));
+                voltage.push(vmax);
+            }
+        }
+
+        // Scale and plot
+        const margin = 40;
+        const plotW = w - 2 * margin;
+        const plotH = h - 2 * margin;
+
+        // Draw axes labels
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('Time (hours)', w/2 - 30, h - 5);
+        ctx.fillText('I (A)', 5, margin + 10);
+        ctx.fillText('V (V)', w - 35, margin + 10);
+        ctx.restore();
+
+        // Plot current (cyan)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < N; i++) {
+            const x = margin + (i / N) * plotW;
+            const y = margin + plotH - (current[i] / (imax * 1.1)) * plotH;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // Plot voltage (green)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < N; i++) {
+            const x = margin + (i / N) * plotW;
+            const y = margin + plotH - ((voltage[i] - vmin) / (vmax - vmin + 0.2)) * plotH;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // Legend
+        ctx.save();
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.fillRect(w - 120, 15, 15, 3);
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('Current', w - 100, 20);
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.fillRect(w - 120, 30, 15, 3);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Voltage', w - 100, 35);
+        ctx.restore();
+
+        // CC/CV label
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = '10px ui-sans-serif';
+        const ccX = margin + ccTime * plotW;
+        ctx.fillText('CC', margin + ccTime * plotW / 2 - 10, h - 25);
+        ctx.fillText('CV', margin + (ccTime + (1 - ccTime) / 2) * plotW - 10, h - 25);
+        // Vertical line at transition
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(ccX, margin);
+        ctx.lineTo(ccX, h - margin);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    ['chg-capacity', 'chg-crate', 'chg-cells', 'chg-vmax'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateCharging);
+    });
+    updateCharging();
+
+    // Fuel gauge calculator
+    function updateFuelGauge() {
+        const capacity = parseFloat(document.getElementById('fg-capacity').value);
+        const load = parseFloat(document.getElementById('fg-load').value);
+        const soc = parseFloat(document.getElementById('fg-soc').value);
+        const temp = parseFloat(document.getElementById('fg-temp').value);
+
+        document.getElementById('fg-capacity-val').textContent = capacity + 'mAh';
+        document.getElementById('fg-load-val').textContent = load + 'mA';
+        document.getElementById('fg-soc-val').textContent = soc + '%';
+        document.getElementById('fg-temp-val').textContent = temp + '°C';
+
+        // Temperature derating (simplified model)
+        let tempFactor = 1.0;
+        if (temp < 0) tempFactor = 0.7;
+        else if (temp < 10) tempFactor = 0.85;
+        else if (temp < 20) tempFactor = 0.95;
+        else if (temp > 40) tempFactor = 0.95;
+
+        const effCapacity = capacity * tempFactor;
+        const remaining = effCapacity * soc / 100;
+        const runtime = remaining / load;
+
+        // OCV estimation (simplified Li-ion curve)
+        const voltage = 3.0 + (soc / 100) * 1.2 * (1 - 0.1 * Math.pow((soc - 50) / 50, 2));
+
+        document.getElementById('fg-remain').textContent = remaining.toFixed(0) + ' mAh';
+        document.getElementById('fg-runtime').textContent = runtime.toFixed(1) + ' hours';
+        document.getElementById('fg-effcap').textContent = effCapacity.toFixed(0) + ' mAh (' + (tempFactor * 100).toFixed(0) + '%)';
+        document.getElementById('fg-voltage').textContent = voltage.toFixed(2) + ' V';
+    }
+
+    ['fg-capacity', 'fg-load', 'fg-soc', 'fg-temp'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateFuelGauge);
+    });
+    updateFuelGauge();
+
+    // SPICE netlist
+    new SpiceNetlistWidget('spice-container', {
+        title: 'CC-CV Charger Simulation (Simplified)',
+        netlist: `* Li-Ion CC-CV Charger Model
+* Simplified behavioral model
+
+.PARAM Icc=1        ; 1A charge current
+.PARAM Vfloat=4.2   ; Float voltage
+.PARAM Cbat=1       ; 1F = 1000mAh @ 1A for 1 hour (scaled)
+
+* Charger source (CC-CV behavior)
+B_charger CHG 0 V=MIN(Vfloat, V(BAT)+0.5) ; CV limited to 4.2V
+R_cc CHG BAT {0.5/Icc}  ; Sets CC current
+
+* Battery model (capacitor + ESR)
+C_bat BAT 0 {Cbat} IC=3.0
+R_esr BAT 0 0.1
+
+* Simulation
+.TRAN 0.01 5
+
+.PROBE V(BAT) I(R_cc)
+.END
+
+* Note: This is a simplified model. Real chargers use
+* feedback loops with error amplifiers for precise CC/CV control.`
+    });
+
+    // Checklist
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm23l2',
+        items: [
+            'Understand CC-CV charging phases and transitions',
+            'Know protection thresholds: OVP (4.25-4.35V), UVP (2.5-3.0V)',
+            'Calculate charge time from C-rate',
+            'Understand coulomb counting and its drift issues',
+            'Know passive vs active cell balancing trade-offs',
+            'Understand temperature effects on capacity and charging'
+        ]
+    });
+
+    // Progressive Exercises
+    const container = document.getElementById('exercise-container');
+    container.innerHTML = `
+        <h4>Battery Management System Problems</h4>
+        <p style="color:var(--text);opacity:0.7;margin-bottom:15px;">
+            Progress from basic charging calculations to complete BMS design.
+        </p>
+    `;
+
+    const exercises = [
+        // Level 1: Basic calculations
+        {
+            id: 'M23-2-L1a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 1</span> A 3000mAh battery is charged at 1C. What is the charge current in mA?',
+            hint: '1C means the current that would discharge the battery in 1 hour.',
+            expected: 3000,
+            tolerance: 0,
+            unit: 'mA',
+            solution: 'I = C-rate × Capacity = 1 × 3000mAh = 3000mA = 3A',
+            explanation: 'C-rate is a normalized measure. 0.5C = 1500mA, 2C = 6000mA for this battery.'
+        },
+        {
+            id: 'M23-2-L1b',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 1</span> A 2S Li-ion pack has cells at 4.2V each. What is the pack voltage?',
+            hint: 'Series cells add voltages.',
+            expected: 8.4,
+            tolerance: 0.05,
+            unit: 'V',
+            solution: 'V_pack = 2 × 4.2V = 8.4V',
+            explanation: 'Common pack configurations: 1S (4.2V), 2S (8.4V), 3S (12.6V), 4S (16.8V).'
+        },
+        // Level 2: Protection and timing
+        {
+            id: 'M23-2-L2a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 2</span> The protection IC uses a 10mΩ sense resistor. At what current does the 150mV OCP threshold trigger?',
+            hint: 'I = V / R',
+            expected: 15,
+            tolerance: 0.5,
+            unit: 'A',
+            solution: 'I = 150mV / 10mΩ = 0.15V / 0.010Ω = 15A',
+            explanation: 'This is a short-circuit protection threshold. Normal OCP might be at 50mV (5A).'
+        },
+        {
+            id: 'M23-2-L2b',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 2</span> A 4400mAh phone battery is charged at 0.7C. How long does the CC phase last (approximately 80% of charge)?',
+            hint: 'Time = Capacity × 0.8 / Current',
+            expected: 1.14,
+            tolerance: 0.1,
+            unit: 'hours',
+            solution: 'I = 0.7 × 4400 = 3080mA. Time = (4400 × 0.8) / 3080 = 3520 / 3080 = 1.14 hours',
+            explanation: 'Add ~30-40 min for CV phase to reach 100% SOC.'
+        },
+        // Level 3: Fuel gauge and capacity
+        {
+            id: 'M23-2-L3a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 3</span> A coulomb counter measures 850mA average for 2.5 hours. How much charge was transferred?',
+            hint: 'Q = I × t (convert to mAh)',
+            expected: 2125,
+            tolerance: 25,
+            unit: 'mAh',
+            solution: 'Q = 850mA × 2.5h = 2125mAh',
+            explanation: 'This is the fundamental of coulomb counting - integrate current over time.'
+        },
+        {
+            id: 'M23-2-L3b',
+            type: 'choice',
+            question: '<span class="difficulty">Level 3</span> At 0°C, a Li-ion battery shows 70% of room temperature capacity. What causes this?',
+            choices: [
+                { text: 'Electrolyte viscosity increases, slowing ion transport', correct: true },
+                { text: 'Chemical reactions are faster at cold temperatures', correct: false },
+                { text: 'Internal resistance decreases', correct: false },
+                { text: 'Cell voltage increases', correct: false }
+            ],
+            solution: 'Cold temperatures increase electrolyte viscosity, reducing ionic conductivity and available capacity.',
+            explanation: 'The capacity recovers when warmed. Fuel gauges must compensate for temperature.'
+        },
+        // Level 3: Cell balancing
+        {
+            id: 'M23-2-L3c',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 3</span> A 3S pack has cells at 4.15V, 4.18V, and 4.20V. Balancing current is 100mA. How long to balance the lowest cell to match the highest?',
+            hint: 'ΔV = 50mV. For Li-ion, 1mV ≈ 0.1% SOC → ΔQ ≈ 0.5% of capacity.',
+            expected: 1.5,
+            tolerance: 0.2,
+            unit: 'hours',
+            solution: 'For a 3000mAh cell, 50mV ≈ 5% capacity mismatch ≈ 150mAh. Time = 150mAh / 100mA = 1.5 hours.',
+            explanation: 'This is why balancing is done during charging when time is available.'
+        },
+        // Level 4: Complete design
+        {
+            id: 'M23-2-L4a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 4</span> Design: A laptop needs 65Wh battery. Using 3S configuration with 3.7V nominal cells, what capacity per cell is needed?',
+            hint: 'Pack voltage = 3 × 3.7V. Capacity = Wh / V.',
+            expected: 5855,
+            tolerance: 50,
+            unit: 'mAh',
+            solution: 'V_pack = 3 × 3.7V = 11.1V. Capacity = 65Wh / 11.1V = 5.85Ah = 5855mAh',
+            explanation: 'Use 6000mAh cells (standard size) for margin and account for aging.'
+        },
+        {
+            id: 'M23-2-L4b',
+            type: 'choice',
+            question: '<span class="difficulty">Level 4</span> Your phone shows 20% SOC but shuts down immediately under load. Most likely cause?',
+            choices: [
+                { text: 'Fuel gauge not calibrated, actual SOC is lower', correct: false },
+                { text: 'Cell internal resistance increased due to aging, voltage sags under load', correct: true },
+                { text: 'Charger IC is faulty', correct: false },
+                { text: 'Temperature sensor error', correct: false }
+            ],
+            solution: 'Aged cells have higher internal resistance. Under load, V = V_oc - I×R_int drops below UVP threshold.',
+            explanation: 'This indicates degraded SOH (State of Health). Battery replacement needed.'
+        },
+        {
+            id: 'M23-2-L4c',
+            type: 'choice',
+            question: '<span class="difficulty">Level 4</span> A 45W USB-C charger is used with a 4400mAh/3.85V phone battery. Assuming 90% charger efficiency, what is the maximum C-rate achievable?',
+            choices: [
+                { text: '~1C (4.4A)', correct: false },
+                { text: '~2.4C (10.5A) - limited by USB-C', correct: false },
+                { text: '~2.7C (11.7A) - from power calculation', correct: true },
+                { text: '~0.5C - standard charging', correct: false }
+            ],
+            solution: 'P_battery = 45W × 0.9 = 40.5W. I_max = 40.5W / 3.85V = 10.5A. C-rate = 10500/4400 = 2.4C. Accounting for losses: ~2.7C theoretical max.',
+            explanation: 'Real phones limit to 1-1.5C for battery longevity. Fast charging trades cycle life for speed.'
+        }
+    ];
+
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-m23l2-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-m23l2-${i}`, ex);
+    });
+})();
+</script>

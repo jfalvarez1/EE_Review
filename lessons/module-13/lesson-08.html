@@ -1,0 +1,648 @@
+<!-- Module 13, Lesson 8: SPI Daisy Chaining -->
+<div class="lesson-content" data-module="13" data-lesson="8">
+
+    <div class="card">
+        <h2>SPI Daisy Chaining</h2>
+        <p>SPI daisy chaining reduces GPIO requirements by connecting multiple devices in series. Data shifts through each device sequentially, requiring careful timing and understanding of the shift register behavior.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Single CS</div>
+                <div class="v">One chip select for all devices</div>
+            </div>
+            <div class="box">
+                <div class="k">Data Flow</div>
+                <div class="v">MOSI → D1 → D2 → ... → MISO</div>
+            </div>
+            <div class="box">
+                <div class="k">Clock Cycles</div>
+                <div class="v">N devices × bits per device</div>
+            </div>
+            <div class="box">
+                <div class="k">Latency</div>
+                <div class="v">All data shifted before latch</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> In daisy chain mode, each device's DOUT connects to the next device's DIN. Data for the last device in the chain must be sent first, as it shifts through all preceding devices. The total transaction requires N × (bits per device) clock cycles.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Daisy Chain Timing</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="spi-devices">Number of Devices</label>
+                <input type="range" id="spi-devices" min="2" max="8" step="1" value="4">
+                <span id="spi-devices-val" class="mono">4</span>
+            </div>
+            <div class="c3">
+                <label for="spi-bits">Bits per Device</label>
+                <select id="spi-bits">
+                    <option value="8">8-bit</option>
+                    <option value="12">12-bit</option>
+                    <option value="16" selected>16-bit</option>
+                    <option value="24">24-bit</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="spi-clock">SPI Clock (Hz)</label>
+                <input type="text" id="spi-clock" value="10M">
+            </div>
+            <div class="c3">
+                <label for="spi-mode">SPI Mode</label>
+                <select id="spi-mode">
+                    <option value="0" selected>Mode 0 (CPOL=0, CPHA=0)</option>
+                    <option value="1">Mode 1 (CPOL=0, CPHA=1)</option>
+                    <option value="2">Mode 2 (CPOL=1, CPHA=0)</option>
+                    <option value="3">Mode 3 (CPOL=1, CPHA=1)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="spi-canvas" width="980" height="350"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Total Bits</div>
+                <div class="v mono" id="spi-totalbits">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Transaction Time</div>
+                <div class="v mono" id="spi-time">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Update Rate</div>
+                <div class="v mono" id="spi-rate">—</div>
+            </div>
+            <div class="box">
+                <div class="k">GPIO Saved</div>
+                <div class="v mono" id="spi-gpio">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Daisy Chain Topology</h3>
+        <div id="spi-daisy-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>Daisy Chain vs Individual CS</h3>
+
+        <table class="table">
+            <tr>
+                <th>Aspect</th>
+                <th>Daisy Chain</th>
+                <th>Individual CS</th>
+            </tr>
+            <tr>
+                <td>GPIO Pins</td>
+                <td>1 CS total</td>
+                <td>N CS pins needed</td>
+            </tr>
+            <tr>
+                <td>Update Speed</td>
+                <td>Slower (all data shifts)</td>
+                <td>Faster (selective update)</td>
+            </tr>
+            <tr>
+                <td>Flexibility</td>
+                <td>Must update all devices</td>
+                <td>Update any device individually</td>
+            </tr>
+            <tr>
+                <td>Wiring</td>
+                <td>Series connection, cleaner</td>
+                <td>Star topology, more traces</td>
+            </tr>
+            <tr>
+                <td>Fault Tolerance</td>
+                <td>One failure breaks chain</td>
+                <td>Independent operation</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Device Support:</strong> Not all SPI devices support daisy chaining. Check that the device has a DOUT or SDO pin that can be connected to the next device's DIN. Some devices only have SDO for read-back, not pass-through.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Data Ordering</h3>
+        <canvas id="spi-dataflow-canvas" width="900" height="320"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Common Applications</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">LED Drivers</div>
+                <div class="v">WS2811, TLC5940, MAX7219</div>
+            </div>
+            <div class="box">
+                <div class="k">DAC Arrays</div>
+                <div class="v">DAC8568, AD5668</div>
+            </div>
+            <div class="box">
+                <div class="k">Shift Registers</div>
+                <div class="v">74HC595, TPIC6B595</div>
+            </div>
+            <div class="box">
+                <div class="k">ADC Chains</div>
+                <div class="v">ADS8688, MAX1270</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('spi-canvas');
+    const ctx = canvas.getContext('2d');
+    const TEK = AD.TEK_COLORS;
+
+    function update() {
+        const devices = parseInt(document.getElementById('spi-devices').value);
+        const bits = parseInt(document.getElementById('spi-bits').value);
+        const clock = AD.parseValue(document.getElementById('spi-clock').value) || 10e6;
+        const mode = parseInt(document.getElementById('spi-mode').value);
+
+        document.getElementById('spi-devices-val').textContent = devices;
+
+        // Calculate totals
+        const totalBits = devices * bits;
+        const transactionTime = totalBits / clock;
+        const updateRate = clock / totalBits;
+        const gpioSaved = devices - 1; // vs individual CS
+
+        document.getElementById('spi-totalbits').textContent = totalBits;
+        document.getElementById('spi-time').textContent = AD.fmtUnit(transactionTime, 's');
+        document.getElementById('spi-rate').textContent = AD.fmtUnit(updateRate, 'Hz');
+        document.getElementById('spi-gpio').textContent = gpioSaved + ' pins';
+
+        plotSPITiming(devices, bits, clock, mode);
+    }
+
+    function plotSPITiming(devices, bits, clock, mode) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        const margin = { left: 60, right: 20, top: 30, bottom: 30 };
+        const plotW = w - margin.left - margin.right;
+        const plotH = h - margin.top - margin.bottom;
+
+        const totalBits = devices * bits;
+        const showBits = Math.min(totalBits, 24); // Show first 24 bits max
+        const tMax = showBits + 2;
+
+        // Draw 4 signals: CS, CLK, MOSI, MISO
+        const signals = ['CS', 'CLK', 'MOSI', 'MISO'];
+        const signalH = plotH / signals.length - 10;
+
+        const cpol = (mode >> 1) & 1;
+        const cpha = mode & 1;
+
+        signals.forEach((sig, idx) => {
+            const y0 = margin.top + idx * (signalH + 10);
+            const y1 = y0 + signalH;
+            const yMid = (y0 + y1) / 2;
+
+            // Signal label
+            ctx.fillStyle = '#9fb0c0';
+            ctx.font = '11px ui-sans-serif';
+            ctx.fillText(sig, 10, yMid + 4);
+
+            // Generate waveform
+            ctx.strokeStyle = TEK['ch' + (idx + 1)] || TEK.ch1;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            for (let t = 0; t <= tMax; t += 0.05) {
+                const x = margin.left + (t / tMax) * plotW;
+                let level = 0;
+
+                if (sig === 'CS') {
+                    // CS low during transaction
+                    level = (t > 0.5 && t < showBits + 0.5) ? 0 : 1;
+                } else if (sig === 'CLK') {
+                    // Clock with CPOL
+                    const inBit = Math.floor(t - 0.5);
+                    if (t > 0.5 && t < showBits + 0.5) {
+                        const phase = (t - 0.5) % 1;
+                        level = (phase < 0.5) ? (1 - cpol) : cpol;
+                    } else {
+                        level = cpol;
+                    }
+                } else if (sig === 'MOSI') {
+                    // Data pattern for daisy chain
+                    const bit = Math.floor(t - 0.5);
+                    if (t > 0.5 && bit < showBits) {
+                        // Alternate pattern per device
+                        const deviceIdx = Math.floor(bit / bits);
+                        const bitInDevice = bit % bits;
+                        // Simple pattern: high for MSB, alternating
+                        level = (bitInDevice % 2 === 0) ? 1 : 0;
+                    }
+                } else if (sig === 'MISO') {
+                    // Delayed by N devices
+                    const bit = Math.floor(t - 0.5 - devices);
+                    if (bit >= 0 && bit < showBits - devices) {
+                        const bitInDevice = bit % bits;
+                        level = (bitInDevice % 2 === 1) ? 1 : 0;
+                    }
+                }
+
+                const y = level ? y0 + 5 : y1 - 5;
+                if (t === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+        });
+
+        // Bit markers
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.font = '9px ui-sans-serif';
+        for (let b = 0; b < Math.min(showBits, 16); b++) {
+            const x = margin.left + ((b + 1) / tMax) * plotW;
+            ctx.fillText(b.toString(), x - 3, h - 10);
+        }
+        if (showBits > 16) {
+            ctx.fillText('...', margin.left + (17 / tMax) * plotW, h - 10);
+        }
+
+        // Device boundaries
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.setLineDash([3, 3]);
+        for (let d = 1; d < devices && d * bits < showBits; d++) {
+            const x = margin.left + ((d * bits + 0.5) / tMax) * plotW;
+            ctx.beginPath();
+            ctx.moveTo(x, margin.top);
+            ctx.lineTo(x, h - margin.bottom);
+            ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        // Title
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '12px ui-sans-serif';
+        ctx.fillText(`SPI Daisy Chain: ${devices} devices × ${bits} bits = ${devices * bits} total clocks`, margin.left, 20);
+    }
+
+    // Event listeners
+    ['spi-devices', 'spi-clock'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+    ['spi-bits', 'spi-mode'].forEach(id => {
+        document.getElementById(id).addEventListener('change', update);
+    });
+
+    update();
+
+    // ==================== SPI DATA FLOW CANVAS ====================
+    (function() {
+        const canvas = document.getElementById('spi-dataflow-canvas');
+        if (!canvas || typeof AD === 'undefined') return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const TEK = AD.TEK_COLORS;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Title
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 12px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Daisy Chain Data Flow (4 devices, 8-bit each)', 20, 20);
+
+        // Master sends label
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('Master sends:', 30, 50);
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.fillText('[D4_data][D3_data][D2_data][D1_data]', 130, 50);
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('← First in MOSI, last to reach D4', 400, 50);
+
+        // After 8 clocks section
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('After 8 clocks:', 30, 85);
+
+        const devices8 = [
+            { x: 150, name: 'Device1', data: '[D2_data]' },
+            { x: 300, name: 'Device2', data: '[D3_data]' },
+            { x: 450, name: 'Device3', data: '[D4_data]' },
+            { x: 600, name: 'Device4', data: '[D1_data*]' }
+        ];
+
+        devices8.forEach((dev, i) => {
+            ctx.fillStyle = 'rgba(30,41,59,0.9)';
+            ctx.strokeStyle = TEK.ch1;
+            ctx.lineWidth = 2;
+            AD.roundRect(ctx, dev.x, 95, 100, 45, 6);
+            ctx.fill(); ctx.stroke();
+
+            ctx.fillStyle = '#e6edf3';
+            ctx.font = 'bold 10px ui-sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(dev.name, dev.x + 50, 112);
+            ctx.fillStyle = TEK.ch1;
+            ctx.font = '9px ui-monospace, monospace';
+            ctx.fillText(dev.data, dev.x + 50, 130);
+
+            // Arrow to next device
+            if (i < devices8.length - 1) {
+                ctx.strokeStyle = TEK.ch4;
+                ctx.lineWidth = 2;
+                AD.drawArrow(ctx, dev.x + 100, 118, devices8[i+1].x, 118, { headSize: 6 });
+            }
+        });
+
+        // MISO arrow
+        ctx.strokeStyle = TEK.ch4;
+        AD.drawArrow(ctx, 700, 118, 750, 118, { headSize: 6 });
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '9px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('MISO', 755, 122);
+        ctx.fillText('(shifted out)', 755, 135);
+
+        // After 32 clocks section
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = '11px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('After 32 clocks (complete):', 30, 170);
+
+        const devices32 = [
+            { x: 150, name: 'Device1', data: '[D1_data]' },
+            { x: 300, name: 'Device2', data: '[D2_data]' },
+            { x: 450, name: 'Device3', data: '[D3_data]' },
+            { x: 600, name: 'Device4', data: '[D4_data]' }
+        ];
+
+        devices32.forEach(dev => {
+            ctx.fillStyle = 'rgba(30,41,59,0.9)';
+            ctx.strokeStyle = TEK.ch4;
+            ctx.lineWidth = 2;
+            AD.roundRect(ctx, dev.x, 180, 100, 45, 6);
+            ctx.fill(); ctx.stroke();
+
+            ctx.fillStyle = '#e6edf3';
+            ctx.font = 'bold 10px ui-sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(dev.name, dev.x + 50, 197);
+            ctx.fillStyle = TEK.ch4;
+            ctx.font = '9px ui-monospace, monospace';
+            ctx.fillText(dev.data, dev.x + 50, 215);
+        });
+
+        // CS rises label
+        ctx.fillStyle = TEK.ch3;
+        ctx.font = '11px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('CS rises → All devices latch simultaneously', 750, 205);
+
+        // Data Order Rule box
+        ctx.fillStyle = 'rgba(30,41,59,0.8)';
+        ctx.strokeStyle = TEK.ch5;
+        ctx.lineWidth = 2;
+        AD.roundRect(ctx, 150, 250, 450, 55, 6);
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = TEK.ch5;
+        ctx.font = 'bold 11px ui-sans-serif';
+        ctx.fillText('Data Order Rule:', 170, 275);
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('Send data for LAST device FIRST!', 300, 275);
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('Device N data → Device N-1 data → ... → D1', 170, 295);
+    })();
+
+    // Daisy chain schematic
+    (function() {
+        const container = document.getElementById('spi-daisy-schematic');
+        if (!container) return;
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '750');
+        svg.setAttribute('height', '180');
+        svg.setAttribute('viewBox', '0 0 750 180');
+        svg.innerHTML = `
+            <style>
+                .wire { stroke: #e6edf3; stroke-width: 1.5; fill: none; }
+                .mosi { stroke: #34d399; stroke-width: 2; fill: none; }
+                .miso { stroke: #fbbf24; stroke-width: 2; fill: none; }
+                .clk { stroke: #6ee7ff; stroke-width: 1.5; fill: none; }
+                .cs { stroke: #f472b6; stroke-width: 1.5; fill: none; }
+                .box { stroke: #6ee7ff; stroke-width: 1.5; fill: rgba(30,41,59,0.8); }
+                .lbl { fill: #e6edf3; font: 11px ui-sans-serif; }
+                .lblsm { fill: #9fb0c0; font: 9px ui-sans-serif; }
+            </style>
+
+            <!-- MCU -->
+            <rect x="20" y="50" width="70" height="80" class="box"/>
+            <text x="35" y="95" class="lbl">MCU</text>
+            <text x="92" y="70" class="lblsm">MOSI</text>
+            <text x="92" y="90" class="lblsm">CLK</text>
+            <text x="92" y="110" class="lblsm">CS</text>
+            <text x="92" y="130" class="lblsm">MISO</text>
+
+            <!-- MOSI line (green) -->
+            <line x1="90" y1="65" x2="160" y2="65" class="mosi"/>
+            <line x1="160" y1="65" x2="160" y2="80" class="mosi"/>
+
+            <!-- Device 1 -->
+            <rect x="140" y="80" width="80" height="70" class="box"/>
+            <text x="157" y="120" class="lbl">Device 1</text>
+            <text x="145" y="95" class="lblsm">DIN</text>
+            <text x="195" y="95" class="lblsm">DOUT</text>
+
+            <!-- Chain to Device 2 -->
+            <line x1="220" y1="90" x2="280" y2="90" class="mosi"/>
+
+            <!-- Device 2 -->
+            <rect x="280" y="80" width="80" height="70" class="box"/>
+            <text x="297" y="120" class="lbl">Device 2</text>
+
+            <!-- Chain to Device 3 -->
+            <line x1="360" y1="90" x2="420" y2="90" class="mosi"/>
+
+            <!-- Device 3 -->
+            <rect x="420" y="80" width="80" height="70" class="box"/>
+            <text x="437" y="120" class="lbl">Device 3</text>
+
+            <!-- Chain to Device N -->
+            <text x="515" y="95" class="lbl">...</text>
+
+            <!-- Device N -->
+            <rect x="550" y="80" width="80" height="70" class="box"/>
+            <text x="567" y="120" class="lbl">Device N</text>
+
+            <!-- MISO return (yellow) -->
+            <line x1="630" y1="90" x2="680" y2="90" class="miso"/>
+            <line x1="680" y1="90" x2="680" y2="125" class="miso"/>
+            <line x1="680" y1="125" x2="90" y2="125" class="miso"/>
+
+            <!-- CLK bus (cyan) -->
+            <line x1="90" y1="85" x2="130" y2="85" class="clk"/>
+            <line x1="130" y1="85" x2="130" y2="160" class="clk"/>
+            <line x1="130" y1="160" x2="640" y2="160" class="clk"/>
+            <line x1="180" y1="150" x2="180" y2="160" class="clk"/>
+            <line x1="320" y1="150" x2="320" y2="160" class="clk"/>
+            <line x1="460" y1="150" x2="460" y2="160" class="clk"/>
+            <line x1="590" y1="150" x2="590" y2="160" class="clk"/>
+
+            <!-- CS bus (pink) -->
+            <line x1="90" y1="105" x2="120" y2="105" class="cs"/>
+            <line x1="120" y1="105" x2="120" y2="170" class="cs"/>
+            <line x1="120" y1="170" x2="650" y2="170" class="cs"/>
+            <line x1="180" y1="150" x2="180" y2="170" class="cs" stroke-dasharray="3,2"/>
+            <line x1="320" y1="150" x2="320" y2="170" class="cs" stroke-dasharray="3,2"/>
+            <line x1="460" y1="150" x2="460" y2="170" class="cs" stroke-dasharray="3,2"/>
+            <line x1="590" y1="150" x2="590" y2="170" class="cs" stroke-dasharray="3,2"/>
+
+            <!-- Legend -->
+            <text x="20" y="25" class="lblsm" fill="#34d399">● MOSI/DIN chain</text>
+            <text x="150" y="25" class="lblsm" fill="#fbbf24">● MISO return</text>
+            <text x="260" y="25" class="lblsm" fill="#6ee7ff">● CLK (shared)</text>
+            <text x="370" y="25" class="lblsm" fill="#f472b6">● CS (shared)</text>
+        `;
+        container.appendChild(svg);
+    })();
+
+    // SPICE Netlist
+    new SpiceNetlistWidget('spice-container', {
+        title: 'SPI Daisy Chain Shift Register Model',
+        netlist: `* SPI Daisy Chain - 4 x 8-bit Shift Registers
+* Models data propagation through chain
+
+* Clock generator (10 MHz)
+VCLK clk 0 PULSE(0 3.3 50n 5n 5n 45n 100n)
+
+* Chip select (active low during transaction)
+VCS cs 0 PULSE(3.3 0 0 5n 5n 3.2u 10u)
+
+* MOSI data (example: 0xA5)
+VMOSI mosi 0 PULSE(0 3.3 100n 5n 5n 95n 200n)
+
+* Simplified shift register model
+* Each device delays data by 8 clock cycles
+
+.SUBCKT SHIFTREG DIN DOUT CLK CS VCC GND
+* 8-stage shift register delay
+* In reality, this would be 8 D flip-flops
+BDELAY DOUT 0 V=DELAY(V(DIN), 800n)
+.ENDS
+
+* Daisy chain of 4 devices
+X1 mosi d1out clk cs vcc 0 SHIFTREG
+X2 d1out d2out clk cs vcc 0 SHIFTREG
+X3 d2out d3out clk cs vcc 0 SHIFTREG
+X4 d3out miso clk cs vcc 0 SHIFTREG
+
+VCC vcc 0 DC 3.3
+
+.TRAN 10n 5u
+
+.PROBE V(clk) V(cs) V(mosi) V(d1out) V(d2out) V(d3out) V(miso)
+.END
+
+* Observe data shifting through the chain with 8-bit delay per device`
+    });
+
+    // Checklist
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm13l8',
+        items: [
+            'Verify device supports daisy chain (has DOUT)',
+            'Calculate total bits: N devices × bits per device',
+            'Send data for LAST device FIRST',
+            'All devices share same CS and CLK',
+            'Account for propagation delay through chain',
+            'Consider individual CS if selective update needed',
+            'Check max clock frequency for all devices',
+            'Handle MISO readback with correct offset'
+        ]
+    });
+
+    // Exercises
+    const exercises = [
+        {
+            id: 'M13L8-1',
+            type: 'numeric',
+            question: 'A daisy chain has 8 devices, each with 16-bit registers. How many clock cycles are needed for a complete update?',
+            hint: 'Total = N devices × bits per device',
+            expected: 128,
+            tolerance: 0.01,
+            unit: 'clocks',
+            solution: '8 devices × 16 bits = 128 clock cycles',
+            explanation: 'All data must shift through the entire chain before CS rises to latch.'
+        },
+        {
+            id: 'M13L8-2',
+            type: 'choice',
+            question: 'In which order should data be sent for a 4-device daisy chain?',
+            choices: [
+                { text: 'Device 1 first, Device 4 last', correct: false, explanation: 'This order would put Device 1 data in Device 4 position.' },
+                { text: 'Device 4 first, Device 1 last', correct: true, explanation: 'Correct! Data shifts through the chain, so the first data sent ends up in the last device.' },
+                { text: 'Any order, devices are addressed', correct: false, explanation: 'Daisy chains don\'t use addressing; position depends on transmission order.' },
+                { text: 'Parallel transmission, order doesn\'t matter', correct: false, explanation: 'Daisy chain is serial; data shifts sequentially through all devices.' }
+            ]
+        },
+        {
+            id: 'M13L8-3',
+            type: 'numeric',
+            question: 'At 20 MHz SPI clock, how long (in microseconds) does it take to update a chain of 6 devices with 24-bit registers?',
+            hint: 'Time = total bits / clock frequency',
+            expected: 7.2,
+            tolerance: 0.05,
+            unit: 'µs',
+            solution: 'Total bits = 6 × 24 = 144. Time = 144 / 20MHz = 7.2µs',
+            explanation: 'This limits the maximum update rate to about 139 kHz.'
+        }
+    ];
+
+    const container = document.getElementById('exercise-container');
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-${i}`, ex);
+    });
+})();
+</script>

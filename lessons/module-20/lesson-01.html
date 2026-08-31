@@ -1,0 +1,539 @@
+<!-- Module 20, Lesson 1: IoT Sensor Node Design -->
+<div class="lesson-content" data-module="20" data-lesson="1">
+
+    <div class="card">
+        <h2>Scenario: IoT Sensor Node Design</h2>
+        <p>Design a battery-powered temperature/humidity sensor that runs for 2+ years on a coin cell, with wireless transmission every 10 minutes.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Battery</div>
+                <div class="v">CR2032 (220mAh)</div>
+            </div>
+            <div class="box">
+                <div class="k">Target Life</div>
+                <div class="v">2 years minimum</div>
+            </div>
+            <div class="box">
+                <div class="k">Wireless</div>
+                <div class="v">BLE / LoRa / Zigbee</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Challenge:</strong> At 220mAh capacity and 2-year target, average current must be below 12.5µA. The MCU and radio consume milliamps when active, so aggressive duty cycling is essential.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Power Budget Calculator</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="iot-sleep">Sleep Current (µA)</label>
+                <input type="range" id="iot-sleep" min="0.1" max="10" step="0.1" value="1">
+                <span id="iot-sleep-val" class="mono">1µA</span>
+            </div>
+            <div class="c3">
+                <label for="iot-active">Active Current (mA)</label>
+                <input type="range" id="iot-active" min="1" max="50" step="1" value="15">
+                <span id="iot-active-val" class="mono">15mA</span>
+            </div>
+            <div class="c3">
+                <label for="iot-txtime">TX Time (ms)</label>
+                <input type="range" id="iot-txtime" min="5" max="200" step="5" value="50">
+                <span id="iot-txtime-val" class="mono">50ms</span>
+            </div>
+            <div class="c3">
+                <label for="iot-interval">TX Interval (min)</label>
+                <input type="range" id="iot-interval" min="1" max="60" step="1" value="10">
+                <span id="iot-interval-val" class="mono">10min</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="iot-canvas" width="980" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Average Current</div>
+                <div class="v mono" id="iot-avg">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Battery Life</div>
+                <div class="v mono" id="iot-life">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Duty Cycle</div>
+                <div class="v mono" id="iot-duty">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Status</div>
+                <div class="v mono" id="iot-status">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>System Block Diagram</h3>
+        <canvas id="iot-block-canvas" width="900" height="280"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Design Decisions</h3>
+
+        <table class="table">
+            <tr>
+                <th>Decision</th>
+                <th>Option A</th>
+                <th>Option B</th>
+                <th>Recommendation</th>
+            </tr>
+            <tr>
+                <td>Power regulation</td>
+                <td>LDO (stable VCC)</td>
+                <td>Direct battery</td>
+                <td>Direct if MCU handles 2-3V range</td>
+            </tr>
+            <tr>
+                <td>Sensor power</td>
+                <td>Always on</td>
+                <td>Load switch</td>
+                <td>Load switch if sensor Iq > 1µA</td>
+            </tr>
+            <tr>
+                <td>Wireless</td>
+                <td>BLE (short range)</td>
+                <td>LoRa (long range)</td>
+                <td>BLE for home, LoRa for outdoor</td>
+            </tr>
+            <tr>
+                <td>Crystal</td>
+                <td>32kHz XTAL</td>
+                <td>Internal RC</td>
+                <td>RC saves power, XTAL for timing</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Hidden Current Drains:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>Pull-up resistors on unused I2C bus: 3.3V/10kΩ = 330µA (!)</li>
+                <li>Status LEDs: 1-10mA if left on</li>
+                <li>Voltage dividers for battery monitoring</li>
+                <li>MCU pins not configured (floating inputs)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('iot-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const sleepI = parseFloat(document.getElementById('iot-sleep').value); // µA
+        const activeI = parseFloat(document.getElementById('iot-active').value); // mA
+        const txTime = parseFloat(document.getElementById('iot-txtime').value); // ms
+        const interval = parseFloat(document.getElementById('iot-interval').value); // min
+
+        document.getElementById('iot-sleep-val').textContent = sleepI.toFixed(1) + 'µA';
+        document.getElementById('iot-active-val').textContent = activeI + 'mA';
+        document.getElementById('iot-txtime-val').textContent = txTime + 'ms';
+        document.getElementById('iot-interval-val').textContent = interval + 'min';
+
+        // Calculate duty cycle
+        const intervalMs = interval * 60 * 1000;
+        const dutyCycle = txTime / intervalMs;
+
+        // Average current
+        const avgI = sleepI + (activeI * 1000 - sleepI) * dutyCycle; // µA
+
+        // Battery life (CR2032 = 220mAh = 220000µAh)
+        const batteryCapacity = 220000; // µAh
+        const lifeHours = batteryCapacity / avgI;
+        const lifeYears = lifeHours / (24 * 365);
+
+        document.getElementById('iot-avg').textContent = avgI.toFixed(1) + 'µA';
+        document.getElementById('iot-duty').textContent = (dutyCycle * 100).toFixed(4) + '%';
+
+        const lifeEl = document.getElementById('iot-life');
+        if (lifeYears >= 1) {
+            lifeEl.textContent = lifeYears.toFixed(1) + ' years';
+        } else {
+            lifeEl.textContent = (lifeYears * 12).toFixed(1) + ' months';
+        }
+
+        const statusEl = document.getElementById('iot-status');
+        if (lifeYears >= 2) {
+            statusEl.textContent = 'Meets 2-year goal';
+            statusEl.style.color = 'var(--ok)';
+        } else if (lifeYears >= 1) {
+            statusEl.textContent = 'Needs optimization';
+            statusEl.style.color = 'var(--warn)';
+        } else {
+            statusEl.textContent = 'Insufficient battery';
+            statusEl.style.color = 'var(--bad)';
+        }
+
+        plotPowerProfile(sleepI, activeI * 1000, txTime, interval);
+    }
+
+    function plotPowerProfile(sleepI, activeI, txTime, interval) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Show two wake cycles
+        const totalTimeMs = interval * 60 * 1000 * 2;
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: totalTimeMs / 1000, // seconds
+            yMin: 0,
+            yMax: activeI * 1.2,
+            xLabel: 'Time',
+            yLabel: 'Current',
+            xUnit: 's',
+            yUnit: 'µA',
+            xDivs: 10,
+            yDivs: 6
+        });
+
+        const N = 1000;
+        const tData = [];
+        const iData = [];
+
+        const intervalMs = interval * 60 * 1000;
+
+        for (let j = 0; j < N; j++) {
+            const t = (j / N) * totalTimeMs;
+            tData.push(t / 1000); // Convert to seconds
+
+            const timeInCycle = t % intervalMs;
+            const current = timeInCycle < txTime ? activeI : sleepI;
+            iData.push(current);
+        }
+
+        AD.plotData(ctx, axes, tData, iData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2
+        });
+
+        // Draw average current line
+        const avgI = sleepI + (activeI - sleepI) * (txTime / intervalMs);
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.7)';
+        ctx.lineWidth = 1;
+
+        const avgPt = axes.toCanvas(0, avgI);
+        ctx.beginPath();
+        ctx.moveTo(axes.left, avgPt.y);
+        ctx.lineTo(axes.left + axes.width, avgPt.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('Avg: ' + avgI.toFixed(1) + 'µA', axes.left + axes.width - 80, avgPt.y - 5);
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'Instantaneous current' },
+            { color: 'rgba(52, 211, 153, 0.7)', label: 'Average current' }
+        ]);
+    }
+
+    ['iot-sleep', 'iot-active', 'iot-txtime', 'iot-interval'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    // ==================== IOT BLOCK DIAGRAM CANVAS ====================
+    function drawIoTBlockDiagram() {
+        const canvas = document.getElementById('iot-block-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00'};
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Helper for rounded rect
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        // Main border
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(10, 10, W - 20, H - 20);
+
+        // Title
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('IoT Sensor Node', W/2, 35);
+
+        // Battery
+        ctx.fillStyle = '#2a3a2a';
+        roundRect(30, 60, 100, 60, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        roundRect(30, 60, 100, 60, 8);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('CR2032', 80, 85);
+        ctx.font = '10px monospace';
+        ctx.fillText('3V', 80, 105);
+
+        // Arrow to LDO
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(130, 90);
+        ctx.lineTo(170, 90);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(165, 85);
+        ctx.lineTo(175, 90);
+        ctx.lineTo(165, 95);
+        ctx.fill();
+
+        // LDO block
+        ctx.fillStyle = '#2a2a4a';
+        roundRect(180, 50, 200, 80, 8);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch2;
+        roundRect(180, 50, 200, 80, 8);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('LDO (or direct)', 280, 75);
+        ctx.font = '9px monospace';
+        ctx.fillStyle = '#888';
+        ctx.fillText('• Ultra-low Iq (<1µA)', 280, 95);
+        ctx.fillText('• Load switch option', 280, 110);
+
+        // VCC line down
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(280, 130);
+        ctx.lineTo(280, 155);
+        ctx.stroke();
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '10px monospace';
+        ctx.fillText('VCC (1.8-3.3V)', 350, 148);
+
+        // Horizontal distribution line
+        ctx.beginPath();
+        ctx.moveTo(180, 155);
+        ctx.lineTo(380, 155);
+        ctx.stroke();
+
+        // Three vertical drops
+        [220, 280, 340].forEach(x => {
+            ctx.beginPath();
+            ctx.moveTo(x, 155);
+            ctx.lineTo(x, 175);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x - 5, 170);
+            ctx.lineTo(x, 180);
+            ctx.lineTo(x + 5, 170);
+            ctx.fill();
+        });
+
+        // MCU block
+        ctx.fillStyle = '#2a3a2a';
+        roundRect(170, 185, 100, 70, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch4;
+        roundRect(170, 185, 100, 70, 6);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText('MCU', 220, 205);
+        ctx.font = '9px monospace';
+        ctx.fillStyle = '#888';
+        ctx.fillText('sleep:', 220, 222);
+        ctx.fillText('500nA', 220, 237);
+
+        // Sensor block
+        ctx.fillStyle = '#3a2a3a';
+        roundRect(290, 185, 100, 70, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch3;
+        roundRect(290, 185, 100, 70, 6);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText('Sensor', 340, 205);
+        ctx.font = '9px monospace';
+        ctx.fillStyle = '#888';
+        ctx.fillText('(I2C)', 340, 222);
+        ctx.fillText('Powered when', 340, 237);
+        ctx.fillText('reading', 340, 250);
+
+        // Radio block
+        ctx.fillStyle = '#2a2a4a';
+        roundRect(410, 185, 120, 70, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch2;
+        roundRect(410, 185, 120, 70, 6);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText('Radio', 470, 205);
+        ctx.font = '9px monospace';
+        ctx.fillStyle = '#888';
+        ctx.fillText('BLE/LoRa', 470, 222);
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('TX: 15mA', 470, 237);
+        ctx.fillStyle = '#888';
+        ctx.fillText('Sleep: 1µA', 470, 250);
+
+        // VCC line to Radio
+        ctx.strokeStyle = TEK.ch1;
+        ctx.beginPath();
+        ctx.moveTo(380, 155);
+        ctx.lineTo(470, 155);
+        ctx.lineTo(470, 185);
+        ctx.stroke();
+
+        // Duty cycle flow at bottom
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Duty cycle:', 560, 100);
+
+        const states = ['Wake', 'Read', 'TX', 'Sleep'];
+        const stateColors = [TEK.ch4, TEK.ch3, TEK.ch2, '#888'];
+        states.forEach((s, i) => {
+            const x = 560 + i * 80;
+            ctx.fillStyle = stateColors[i];
+            ctx.fillRect(x, 115, 60, 25);
+            ctx.fillStyle = '#000';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(s, x + 30, 132);
+
+            if (i < states.length - 1) {
+                ctx.fillStyle = '#666';
+                ctx.font = '14px monospace';
+                ctx.fillText('→', x + 68, 130);
+            }
+        });
+
+        // Loop arrow back
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(850, 128);
+        ctx.lineTo(870, 128);
+        ctx.lineTo(870, 95);
+        ctx.lineTo(560, 95);
+        ctx.lineTo(560, 110);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Power indication
+        ctx.fillStyle = '#fa4';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Target: Avg < 12.5µA for 2yr life', 560, 180);
+    }
+
+    update();
+    drawIoTBlockDiagram();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Battery Life Simulation',
+        netlist: `* IoT Node Battery Discharge Model
+
+* Battery (CR2032, 220mAh, 3V nominal)
+* Simple model with internal resistance
+VBATT batt_int 0 DC 3
+RBATT batt_int vbatt 5  ; ~5Ω internal resistance
+
+* LDO (optional, for stable VCC)
+* Using behavioral model
+ELDO vcc 0 VALUE={MIN(V(vbatt), 3.0)}
+RLDO vcc 0 100MEG  ; Very high-Z when unloaded
+
+* Sleep current (always present)
+ISLEEP vcc 0 DC 1u
+
+* Active current (pulsed)
+* 15mA for 50ms every 10 minutes
+IACTIVE vcc 0 PULSE(0 15m 0 1u 1u 50m 600)
+
+* Current sense for monitoring
+VSENSE vcc vcc_sense DC 0
+
+.TRAN 1s 3600  ; Simulate 1 hour
+
+.PROBE V(vbatt) I(VSENSE)
+.END
+
+* Watch battery voltage droop during TX
+* Monitor average current over time`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm20l1',
+        items: [
+            'Calculate power budget for target life',
+            'Select MCU with sub-µA sleep mode',
+            'Use load switch for hungry peripherals',
+            'Eliminate phantom current drains',
+            'Consider battery voltage drop over life'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'SC1-1',
+        type: 'numeric',
+        question: 'An IoT node draws 0.8µA in sleep and 12mA for 30ms during TX. If TX occurs every 5 minutes, what is the average current?',
+        hint: 'Iavg = Isleep + (Iactive - Isleep) × duty_cycle',
+        expected: 2,
+        tolerance: 0.15,
+        unit: 'µA',
+        solution: 'Duty = 30ms / (5×60×1000ms) = 0.0001. Iavg = 0.8µA + 12000µA × 0.0001 = 0.8 + 1.2 = 2.0µA',
+        explanation: 'At 2µA average, a 220mAh CR2032 would last 220000/2 = 110000 hours = 12.5 years. Real life is shorter due to self-discharge.'
+    });
+})();
+</script>

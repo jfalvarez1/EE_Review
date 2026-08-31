@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 18: Hot-Swap & Inrush Current Control - EE Learning</title>
+    <link rel="stylesheet" href="../../assets/main.css">
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <a href="../../index.html" class="home-link">EE Learning</a>
+        </div>
+        <nav class="lesson-nav">
+            <a href="lesson-17.html" class="prev-link">Previous</a>
+            <a href="../index.html" class="module-link">Module 23</a>
+            <a href="lesson-19.html" class="next-link">Next</a>
+        </nav>
+    </header>
+
+    <main>
+        <article class="lesson">
+            <h1>Hot-Swap & Inrush Current Control</h1>
+
+            <section class="intro">
+                <p>Hot-swap circuits enable safe insertion and removal of circuit boards in live systems without causing voltage transients, connector damage, or system disruption. This capability is essential in servers, telecom equipment, and mission-critical systems requiring high availability.</p>
+
+                <div class="key-concepts">
+                    <h3>Industry Applications</h3>
+                    <ul>
+                        <li><strong>Server Blades</strong> - Compute modules inserted into live backplanes</li>
+                        <li><strong>Storage Arrays</strong> - Hot-swappable disk drives and controllers</li>
+                        <li><strong>Telecom Carriers</strong> - -48V line cards in central offices</li>
+                        <li><strong>Industrial PLCs</strong> - I/O modules replaced during operation</li>
+                        <li><strong>USB/PCIe</strong> - Consumer hot-plug interfaces</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>1. The Inrush Current Problem</h2>
+
+                <p>When a board with bulk capacitors is connected to a power bus, the discharged capacitors appear as a short circuit, causing massive inrush current:</p>
+
+                <div class="svg-container" style="max-width: 650px; margin: 20px auto;">
+                    <svg viewBox="0 0 650 300" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;">
+                        <defs>
+                            <marker id="arrow-curr" viewBox="0 0 5 4" refX="5" refY="2" markerWidth="5" markerHeight="4" orient="auto">
+                                <path d="M 0 0 L 5 2 L 0 4 z" fill="#ff6b6b"/>
+                            </marker>
+                        </defs>
+
+                        <text x="325" y="25" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">Uncontrolled Hot Insertion - Inrush Problem</text>
+
+                        <!-- Backplane bus -->
+                        <rect x="40" y="60" width="60" height="180" fill="#1a3a1a" stroke="#4ade80" stroke-width="2"/>
+                        <text x="70" y="150" fill="#4ade80" font-size="12" text-anchor="middle" transform="rotate(-90, 70, 150)">BACKPLANE</text>
+
+                        <!-- Connector pins -->
+                        <line x1="100" y1="90" x2="150" y2="90" stroke="#fbbf24" stroke-width="4"/>
+                        <line x1="100" y1="210" x2="150" y2="210" stroke="#fbbf24" stroke-width="4"/>
+                        <text x="125" y="80" fill="#888" font-size="10" text-anchor="middle">+12V</text>
+                        <text x="125" y="230" fill="#888" font-size="10" text-anchor="middle">GND</text>
+
+                        <!-- PCB being inserted -->
+                        <rect x="150" y="50" width="200" height="200" fill="#1a1a3a" stroke="#00d4ff" stroke-width="2"/>
+                        <text x="250" y="75" fill="#00d4ff" font-size="11" text-anchor="middle">INSERTED CARD</text>
+
+                        <!-- Input bulk capacitors -->
+                        <line x1="180" y1="90" x2="180" y2="130" stroke="#666" stroke-width="2"/>
+                        <line x1="170" y1="130" x2="190" y2="130" stroke="#00d4ff" stroke-width="3"/>
+                        <line x1="170" y1="140" x2="190" y2="140" stroke="#00d4ff" stroke-width="3"/>
+                        <line x1="180" y1="140" x2="180" y2="210" stroke="#666" stroke-width="2"/>
+                        <text x="200" y="138" fill="#888" font-size="9">1000µF</text>
+
+                        <line x1="230" y1="90" x2="230" y2="130" stroke="#666" stroke-width="2"/>
+                        <line x1="220" y1="130" x2="240" y2="130" stroke="#00d4ff" stroke-width="3"/>
+                        <line x1="220" y1="140" x2="240" y2="140" stroke="#00d4ff" stroke-width="3"/>
+                        <line x1="230" y1="140" x2="230" y2="210" stroke="#666" stroke-width="2"/>
+                        <text x="250" y="138" fill="#888" font-size="9">1000µF</text>
+
+                        <!-- Connect to POL regulator symbol -->
+                        <rect x="290" y="120" width="40" height="60" fill="none" stroke="#4ade80" stroke-width="2"/>
+                        <text x="310" y="155" fill="#4ade80" font-size="9" text-anchor="middle">POL</text>
+                        <line x1="150" y1="90" x2="290" y2="90" stroke="#666" stroke-width="2"/>
+                        <line x1="290" y1="90" x2="290" y2="120" stroke="#666" stroke-width="2"/>
+                        <line x1="290" y1="180" x2="290" y2="210" stroke="#666" stroke-width="2"/>
+                        <line x1="150" y1="210" x2="290" y2="210" stroke="#666" stroke-width="2"/>
+
+                        <!-- Inrush current arrow -->
+                        <path d="M 125 100 L 165 100" stroke="#ff6b6b" stroke-width="3" marker-end="url(#arrow-curr)"/>
+                        <text x="145" y="118" fill="#ff6b6b" font-size="10" font-weight="bold" text-anchor="middle">100A+</text>
+                        <text x="145" y="132" fill="#ff6b6b" font-size="9" text-anchor="middle">INRUSH!</text>
+
+                        <!-- Problem indicators -->
+                        <text x="380" y="70" fill="#ff6b6b" font-size="11" font-weight="bold">Problems:</text>
+                        <text x="380" y="90" fill="#888" font-size="10">• Connector arcing/pitting</text>
+                        <text x="380" y="108" fill="#888" font-size="10">• Bus voltage droop</text>
+                        <text x="380" y="126" fill="#888" font-size="10">• Upstream fuse/breaker trip</text>
+                        <text x="380" y="144" fill="#888" font-size="10">• Adjacent card brownout</text>
+                        <text x="380" y="162" fill="#888" font-size="10">• EMI burst</text>
+
+                        <!-- Waveform box -->
+                        <rect x="380" y="180" width="250" height="100" fill="#0d0d1a" stroke="#444" stroke-width="1"/>
+                        <text x="505" y="200" fill="#888" font-size="10" text-anchor="middle">Current vs Time</text>
+
+                        <!-- Inrush waveform (uncontrolled) -->
+                        <polyline points="400,265 405,265 406,200 420,230 440,250 480,260 540,265 600,265"
+                                  stroke="#ff6b6b" stroke-width="2" fill="none"/>
+                        <text x="415" y="195" fill="#ff6b6b" font-size="9">Peak: 100A+</text>
+                        <text x="550" y="258" fill="#888" font-size="8">time</text>
+
+                        <!-- Controlled waveform (dashed) -->
+                        <polyline points="400,265 420,265 430,250 480,250 530,260 600,265"
+                                  stroke="#4ade80" stroke-width="2" fill="none" stroke-dasharray="5,3"/>
+                        <text x="460" y="243" fill="#4ade80" font-size="9">Controlled: 5A</text>
+                    </svg>
+                </div>
+
+                <div class="formula-box">
+                    <h4>Inrush Current Magnitude</h4>
+                    <p>For an ideal capacitor connected through trace/connector resistance:</p>
+                    <p>\[ I_{peak} = \frac{V_{bus}}{R_{trace} + R_{conn}} \]</p>
+                    <p>With typical Rtrace ≈ 10mΩ and Rconn ≈ 50mΩ at 12V: <strong>Ipeak ≈ 200A!</strong></p>
+
+                    <h4>Energy Dissipated in Resistance</h4>
+                    <p>\[ E = \frac{1}{2} C V^2 \]</p>
+                    <p>For 2000µF at 12V: E = 0.144J per insertion (causes connector wear)</p>
+                </div>
+
+                <div class="warning-box">
+                    <h4>Why Thermistors Are Not Enough</h4>
+                    <ul>
+                        <li>NTC thermistors limit cold inrush but have low resistance when warm</li>
+                        <li>Repeated insertions while thermistor is warm = no protection</li>
+                        <li>Thermistors waste power continuously after startup</li>
+                        <li>Not suitable for true hot-swap (live systems)</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>2. Hot-Swap Controller Architecture</h2>
+
+                <p>Dedicated hot-swap controllers use a series MOSFET to implement controlled turn-on, current limiting, and fault protection.</p>
+
+                <div class="svg-container" style="max-width: 700px; margin: 20px auto;">
+                    <svg viewBox="0 0 700 340" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;">
+                        <defs>
+                            <marker id="arrow-sig2" viewBox="0 0 5 4" refX="5" refY="2" markerWidth="5" markerHeight="4" orient="auto">
+                                <path d="M 0 0 L 5 2 L 0 4 z" fill="#00d4ff"/>
+                            </marker>
+                        </defs>
+
+                        <text x="350" y="25" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">Hot-Swap Controller Block Diagram</text>
+
+                        <!-- Input -->
+                        <text x="50" y="100" fill="#4ade80" font-size="12">Vbus</text>
+                        <line x1="70" y1="95" x2="120" y2="95" stroke="#4ade80" stroke-width="2"/>
+
+                        <!-- Sense resistor -->
+                        <rect x="120" y="85" width="50" height="20" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                        <text x="145" y="80" fill="#888" font-size="9" text-anchor="middle">Rsense</text>
+                        <text x="145" y="120" fill="#888" font-size="9" text-anchor="middle">10mΩ</text>
+                        <line x1="170" y1="95" x2="220" y2="95" stroke="#4ade80" stroke-width="2"/>
+
+                        <!-- MOSFET (N-channel, high-side needs charge pump) -->
+                        <rect x="220" y="75" width="40" height="40" fill="none" stroke="#00d4ff" stroke-width="2"/>
+                        <text x="240" y="100" fill="#00d4ff" font-size="10" text-anchor="middle">Q1</text>
+                        <line x1="200" y1="95" x2="220" y2="95" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="260" y1="95" x2="320" y2="95" stroke="#4ade80" stroke-width="2"/>
+
+                        <!-- Gate connection -->
+                        <line x1="240" y1="115" x2="240" y2="160" stroke="#00d4ff" stroke-width="2"/>
+
+                        <!-- Output to load -->
+                        <text x="330" y="100" fill="#4ade80" font-size="12">Vout</text>
+                        <line x1="320" y1="95" x2="380" y2="95" stroke="#4ade80" stroke-width="2"/>
+
+                        <!-- Bulk capacitor -->
+                        <line x1="380" y1="95" x2="380" y2="130" stroke="#666" stroke-width="2"/>
+                        <line x1="370" y1="130" x2="390" y2="130" stroke="#00d4ff" stroke-width="3"/>
+                        <line x1="370" y1="140" x2="390" y2="140" stroke="#00d4ff" stroke-width="3"/>
+                        <line x1="380" y1="140" x2="380" y2="200" stroke="#666" stroke-width="2"/>
+                        <text x="400" y="138" fill="#888" font-size="9">Cbulk</text>
+
+                        <!-- Load -->
+                        <line x1="380" y1="95" x2="440" y2="95" stroke="#4ade80" stroke-width="2"/>
+                        <rect x="430" y="120" width="20" height="50" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                        <line x1="440" y1="95" x2="440" y2="120" stroke="#4ade80" stroke-width="2"/>
+                        <line x1="440" y1="170" x2="440" y2="200" stroke="#666" stroke-width="2"/>
+                        <text x="460" y="148" fill="#888" font-size="9">Load</text>
+
+                        <!-- Ground return -->
+                        <line x1="70" y1="200" x2="440" y2="200" stroke="#666" stroke-width="2"/>
+                        <text x="50" y="205" fill="#888" font-size="10">GND</text>
+
+                        <!-- Hot-swap controller IC -->
+                        <rect x="140" y="160" width="200" height="120" fill="#1a2a3a" stroke="#a855f7" stroke-width="2"/>
+                        <text x="240" y="180" fill="#a855f7" font-size="11" text-anchor="middle" font-weight="bold">Hot-Swap Controller</text>
+                        <text x="240" y="195" fill="#888" font-size="9" text-anchor="middle">(LTC4215, TPS2480, etc.)</text>
+
+                        <!-- Internal blocks -->
+                        <rect x="150" y="205" width="60" height="25" fill="#0d0d1a" stroke="#00d4ff" stroke-width="1"/>
+                        <text x="180" y="222" fill="#00d4ff" font-size="8" text-anchor="middle">Soft-Start</text>
+
+                        <rect x="220" y="205" width="50" height="25" fill="#0d0d1a" stroke="#ff6b6b" stroke-width="1"/>
+                        <text x="245" y="222" fill="#ff6b6b" font-size="8" text-anchor="middle">OC Limit</text>
+
+                        <rect x="280" y="205" width="50" height="25" fill="#0d0d1a" stroke="#4ade80" stroke-width="1"/>
+                        <text x="305" y="222" fill="#4ade80" font-size="8" text-anchor="middle">PG Out</text>
+
+                        <rect x="150" y="240" width="60" height="25" fill="#0d0d1a" stroke="#fbbf24" stroke-width="1"/>
+                        <text x="180" y="257" fill="#fbbf24" font-size="8" text-anchor="middle">UV/OV</text>
+
+                        <rect x="220" y="240" width="50" height="25" fill="#0d0d1a" stroke="#888" stroke-width="1"/>
+                        <text x="245" y="257" fill="#888" font-size="8" text-anchor="middle">Timer</text>
+
+                        <rect x="280" y="240" width="50" height="25" fill="#0d0d1a" stroke="#a855f7" stroke-width="1"/>
+                        <text x="305" y="257" fill="#a855f7" font-size="8" text-anchor="middle">Fault</text>
+
+                        <!-- Connections -->
+                        <!-- Sense+ -->
+                        <line x1="145" y1="85" x2="145" y2="140" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,2"/>
+                        <line x1="145" y1="140" x2="160" y2="160" stroke="#fbbf24" stroke-width="1"/>
+                        <text x="155" y="155" fill="#fbbf24" font-size="8">SNS+</text>
+
+                        <!-- Sense- -->
+                        <line x1="195" y1="95" x2="195" y2="160" stroke="#fbbf24" stroke-width="1"/>
+                        <text x="205" y="155" fill="#fbbf24" font-size="8">SNS-</text>
+
+                        <!-- Gate drive -->
+                        <line x1="240" y1="160" x2="240" y2="145" stroke="#00d4ff" stroke-width="2"/>
+                        <text x="250" y="150" fill="#00d4ff" font-size="8">GATE</text>
+
+                        <!-- Power Good output -->
+                        <line x1="340" y1="210" x2="380" y2="210" stroke="#4ade80" stroke-width="1"/>
+                        <text x="400" y="215" fill="#4ade80" font-size="9">PWRGD</text>
+
+                        <!-- Fault output -->
+                        <line x1="340" y1="250" x2="380" y2="250" stroke="#ff6b6b" stroke-width="1"/>
+                        <text x="400" y="255" fill="#ff6b6b" font-size="9">FAULT</text>
+
+                        <!-- Timing capacitor -->
+                        <line x1="240" y1="280" x2="240" y2="310" stroke="#888" stroke-width="1"/>
+                        <line x1="230" y1="310" x2="250" y2="310" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="230" y1="318" x2="250" y2="318" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="240" y1="318" x2="240" y2="330" stroke="#888" stroke-width="1"/>
+                        <text x="260" y="318" fill="#888" font-size="8">Ctimer</text>
+
+                        <!-- Legend -->
+                        <rect x="480" y="50" width="200" height="120" fill="#0d0d1a" stroke="#444" stroke-width="1"/>
+                        <text x="580" y="70" fill="#888" font-size="10" text-anchor="middle">Key Functions</text>
+
+                        <line x1="495" y1="85" x2="515" y2="85" stroke="#00d4ff" stroke-width="2"/>
+                        <text x="525" y="89" fill="#888" font-size="9">Soft-start: dV/dt control</text>
+
+                        <line x1="495" y1="105" x2="515" y2="105" stroke="#ff6b6b" stroke-width="2"/>
+                        <text x="525" y="109" fill="#888" font-size="9">Current limit: 50mV typ</text>
+
+                        <line x1="495" y1="125" x2="515" y2="125" stroke="#4ade80" stroke-width="2"/>
+                        <text x="525" y="129" fill="#888" font-size="9">Power Good: Vout OK</text>
+
+                        <line x1="495" y1="145" x2="515" y2="145" stroke="#fbbf24" stroke-width="2"/>
+                        <text x="525" y="149" fill="#888" font-size="9">UV/OV: Input monitor</text>
+                    </svg>
+                </div>
+
+                <h3>Key Controller Functions</h3>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Purpose</th>
+                            <th>Typical Implementation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Soft-Start</td>
+                            <td>Ramp gate voltage slowly to limit dV/dt</td>
+                            <td>Internal current source (10-50µA) charges gate</td>
+                        </tr>
+                        <tr>
+                            <td>Current Limit</td>
+                            <td>Prevent overcurrent during startup and faults</td>
+                            <td>50mV sense threshold → Ilim = 50mV/Rsense</td>
+                        </tr>
+                        <tr>
+                            <td>Circuit Breaker</td>
+                            <td>Latch off after prolonged overcurrent</td>
+                            <td>Timer expires → MOSFET off, requires reset</td>
+                        </tr>
+                        <tr>
+                            <td>Power Good</td>
+                            <td>Signal downstream that power is stable</td>
+                            <td>Open-drain output, active after Vout > threshold</td>
+                        </tr>
+                        <tr>
+                            <td>UV/OV Protection</td>
+                            <td>Protect against out-of-range input voltage</td>
+                            <td>Comparators with hysteresis</td>
+                        </tr>
+                        <tr>
+                            <td>Reverse Polarity</td>
+                            <td>Protect against wrong insertion</td>
+                            <td>Body diode blocks, MOSFET stays off</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
+                <h2>3. MOSFET Safe Operating Area (SOA)</h2>
+
+                <p>The most critical aspect of hot-swap design is ensuring the series MOSFET survives the turn-on transient. During soft-start, the MOSFET operates in its linear region with both high VDS and high ID, causing significant power dissipation.</p>
+
+                <div class="svg-container" style="max-width: 550px; margin: 20px auto;">
+                    <svg viewBox="0 0 550 350" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;">
+                        <text x="275" y="25" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">MOSFET Safe Operating Area (SOA)</text>
+
+                        <!-- Axes -->
+                        <line x1="80" y1="300" x2="500" y2="300" stroke="#666" stroke-width="2"/>
+                        <line x1="80" y1="300" x2="80" y2="50" stroke="#666" stroke-width="2"/>
+
+                        <!-- Axis labels -->
+                        <text x="290" y="330" fill="#888" font-size="11" text-anchor="middle">V_DS (V)</text>
+                        <text x="40" y="175" fill="#888" font-size="11" text-anchor="middle" transform="rotate(-90, 40, 175)">I_D (A)</text>
+
+                        <!-- Log scale markings - VDS -->
+                        <text x="80" y="315" fill="#888" font-size="9" text-anchor="middle">0.1</text>
+                        <text x="150" y="315" fill="#888" font-size="9" text-anchor="middle">1</text>
+                        <text x="250" y="315" fill="#888" font-size="9" text-anchor="middle">10</text>
+                        <text x="370" y="315" fill="#888" font-size="9" text-anchor="middle">100</text>
+                        <text x="480" y="315" fill="#888" font-size="9" text-anchor="middle">Vmax</text>
+
+                        <!-- Log scale markings - ID -->
+                        <text x="70" y="280" fill="#888" font-size="9" text-anchor="end">0.1</text>
+                        <text x="70" y="220" fill="#888" font-size="9" text-anchor="end">1</text>
+                        <text x="70" y="150" fill="#888" font-size="9" text-anchor="end">10</text>
+                        <text x="70" y="80" fill="#888" font-size="9" text-anchor="end">100</text>
+
+                        <!-- SOA boundaries - DC (most restrictive) -->
+                        <path d="M 80 80 L 150 80 L 200 100 L 280 150 L 350 220 L 420 280 L 480 300"
+                              stroke="#ff6b6b" stroke-width="2" fill="rgba(255,107,107,0.1)"/>
+                        <text x="200" y="70" fill="#ff6b6b" font-size="10">DC</text>
+
+                        <!-- SOA boundaries - 10ms -->
+                        <path d="M 80 60 L 180 60 L 250 80 L 330 130 L 400 200 L 480 280"
+                              stroke="#fbbf24" stroke-width="2" fill="none"/>
+                        <text x="250" y="55" fill="#fbbf24" font-size="10">10ms</text>
+
+                        <!-- SOA boundaries - 1ms -->
+                        <path d="M 80 50 L 220 50 L 300 65 L 380 110 L 450 180 L 480 220"
+                              stroke="#4ade80" stroke-width="2" fill="none"/>
+                        <text x="320" y="45" fill="#4ade80" font-size="10">1ms</text>
+
+                        <!-- SOA boundaries - 100µs -->
+                        <path d="M 80 50 L 300 50 L 380 60 L 450 100 L 480 150"
+                              stroke="#00d4ff" stroke-width="2" fill="none"/>
+                        <text x="400" y="40" fill="#00d4ff" font-size="10">100µs</text>
+
+                        <!-- Hot-swap operating trajectory -->
+                        <path d="M 430 280 C 400 230, 350 180, 250 150 C 180 130, 120 110, 90 100"
+                              stroke="#a855f7" stroke-width="3" fill="none" stroke-dasharray="8,4"/>
+
+                        <!-- Trajectory points -->
+                        <circle cx="430" cy="280" r="5" fill="#a855f7"/>
+                        <text x="445" y="275" fill="#a855f7" font-size="9">Start</text>
+
+                        <circle cx="90" cy="100" r="5" fill="#a855f7"/>
+                        <text x="100" y="95" fill="#a855f7" font-size="9">End</text>
+
+                        <!-- Legend -->
+                        <rect x="100" y="190" width="130" height="90" fill="#0d0d1a" stroke="#444" stroke-width="1"/>
+                        <text x="165" y="208" fill="#888" font-size="10" text-anchor="middle">Pulse Duration</text>
+                        <line x1="110" y1="225" x2="130" y2="225" stroke="#ff6b6b" stroke-width="2"/>
+                        <text x="140" y="229" fill="#888" font-size="9">DC (continuous)</text>
+                        <line x1="110" y1="245" x2="130" y2="245" stroke="#fbbf24" stroke-width="2"/>
+                        <text x="140" y="249" fill="#888" font-size="9">10ms</text>
+                        <line x1="110" y1="265" x2="130" y2="265" stroke="#4ade80" stroke-width="2"/>
+                        <text x="140" y="269" fill="#888" font-size="9">1ms</text>
+
+                        <!-- Danger zone annotation -->
+                        <text x="340" y="250" fill="#ff6b6b" font-size="10" font-weight="bold">DANGER</text>
+                        <text x="340" y="265" fill="#ff6b6b" font-size="9">Stay inside SOA!</text>
+                    </svg>
+                </div>
+
+                <div class="formula-box">
+                    <h4>SOA Energy Calculation</h4>
+                    <p>During soft-start, the MOSFET dissipates energy charging the output capacitor:</p>
+                    <p>\[ E_{MOSFET} = \frac{1}{2} C_{load} \cdot V_{bus}^2 \]</p>
+                    <p>This is independent of soft-start time! Longer soft-start spreads power over time, reducing peak dissipation.</p>
+
+                    <h4>Required Soft-Start Time</h4>
+                    <p>For a given current limit and load capacitance:</p>
+                    <p>\[ t_{ss} = \frac{C_{load} \cdot V_{bus}}{I_{limit}} \]</p>
+                    <p>The MOSFET must handle the SOA for this duration.</p>
+
+                    <h4>Peak Power Dissipation</h4>
+                    <p>At the midpoint of soft-start (VDS ≈ Vbus/2, ID = Ilimit):</p>
+                    <p>\[ P_{peak} = \frac{V_{bus}}{2} \cdot I_{limit} \]</p>
+                </div>
+
+                <div class="calculator-section">
+                    <h4>Hot-Swap SOA Calculator</h4>
+                    <div class="input-grid">
+                        <div class="input-group">
+                            <label>Bus Voltage (V):</label>
+                            <input type="number" id="vbus" value="12" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label>Load Capacitance (µF):</label>
+                            <input type="number" id="cload" value="2000" step="100">
+                        </div>
+                        <div class="input-group">
+                            <label>Current Limit (A):</label>
+                            <input type="number" id="ilimit" value="5" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label>Sense Resistor (mΩ):</label>
+                            <input type="number" id="rsense" value="10" step="1">
+                        </div>
+                    </div>
+                    <button onclick="calculateSOA()" class="calc-button">Calculate SOA Requirements</button>
+
+                    <div id="soa-results" class="results-section" style="display: none;">
+                        <h4>Results</h4>
+                        <div class="results-grid" id="soa-results-grid"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2>4. Practical Design Example: 12V/10A Hot-Swap</h2>
+
+                <h3>Specifications</h3>
+                <ul>
+                    <li>Input: 12V ± 10% (10.8V to 13.2V)</li>
+                    <li>Load: 10A continuous, 2000µF bulk capacitance</li>
+                    <li>Current limit: 15A (50% headroom)</li>
+                    <li>Soft-start: < 10ms for SOA compliance</li>
+                </ul>
+
+                <h3>Component Selection</h3>
+
+                <h4>Sense Resistor</h4>
+                <p>For 15A limit with 50mV sense threshold:</p>
+                <div class="formula-box">
+                    <p>\[ R_{sense} = \frac{50mV}{15A} = 3.3m\Omega \]</p>
+                    <p>Power dissipation: \( P = I^2 R = 10^2 \times 0.0033 = 0.33W \)</p>
+                    <p>Select: 3mΩ, 1W, 1% sense resistor (e.g., Vishay WSL2512)</p>
+                </div>
+
+                <h4>MOSFET Selection</h4>
+                <p>Calculate soft-start time and peak dissipation:</p>
+                <div class="formula-box">
+                    <p>\[ t_{ss} = \frac{2000\mu F \times 13.2V}{15A} = 1.76ms \]</p>
+                    <p>\[ P_{peak} = \frac{13.2V}{2} \times 15A = 99W \]</p>
+                    <p>\[ E_{total} = \frac{1}{2} \times 2000\mu F \times 13.2^2 = 0.174J \]</p>
+                </div>
+
+                <p>MOSFET requirements:</p>
+                <ul>
+                    <li>VDS ≥ 20V (use 30V for margin)</li>
+                    <li>ID ≥ 15A at Tj = 125°C</li>
+                    <li>RDS(on) < 10mΩ for low conduction loss</li>
+                    <li>SOA: Must handle 99W for 1.76ms (check 1ms/10ms curves)</li>
+                </ul>
+
+                <p><strong>Suggested MOSFET:</strong> Si7157DP (30V, 60A, RDS = 3.1mΩ, robust SOA)</p>
+
+                <h4>Controller Selection</h4>
+                <p>For 12V applications, use a controller with integrated charge pump for N-channel high-side drive:</p>
+                <ul>
+                    <li><strong>LTC4215</strong> - Feature-rich, I2C monitoring, ±15% OV/UV</li>
+                    <li><strong>TPS2480</strong> - Low cost, simple, -48V version available</li>
+                    <li><strong>MAX5976B</strong> - Fast response, adjustable dV/dt</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>5. Circuit Breaker and Retry Logic</h2>
+
+                <p>Hot-swap controllers implement fault handling to protect against sustained overcurrent:</p>
+
+                <h3>Circuit Breaker Modes</h3>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Mode</th>
+                            <th>Behavior</th>
+                            <th>Application</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Latch-Off</td>
+                            <td>Fault triggers shutdown, requires external reset (power cycle or pin)</td>
+                            <td>High-reliability systems needing operator intervention</td>
+                        </tr>
+                        <tr>
+                            <td>Auto-Retry</td>
+                            <td>After fault timeout, attempts restart (with cool-down delay)</td>
+                            <td>Unattended systems, transient fault recovery</td>
+                        </tr>
+                        <tr>
+                            <td>Foldback</td>
+                            <td>Reduces current limit progressively during prolonged overload</td>
+                            <td>Systems with high inrush but moderate steady-state</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Timer Capacitor Calculation</h3>
+                <div class="formula-box">
+                    <p>Circuit breaker timeout is set by an external capacitor:</p>
+                    <p>\[ t_{CB} = k \times C_{timer} \]</p>
+                    <p>Where k is controller-specific (check datasheet). For LTC4215, k ≈ 250ms/nF.</p>
+                    <p>For 5ms circuit breaker time: \( C_{timer} = \frac{5ms}{250ms/nF} = 20pF \)</p>
+                </div>
+
+                <div class="tip-box">
+                    <h4>Fault Handling Best Practices</h4>
+                    <ul>
+                        <li>Set circuit breaker timeout slightly longer than soft-start time</li>
+                        <li>Use latch-off mode for safety-critical applications</li>
+                        <li>Add retry delay (cool-down) to prevent thermal runaway</li>
+                        <li>Monitor FAULT output for system-level diagnostics</li>
+                        <li>Consider I2C/PMBus controllers for telemetry (voltage, current, temperature)</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>6. High-Side vs Low-Side Configurations</h2>
+
+                <div class="concept-row">
+                    <div class="concept-box">
+                        <h4>High-Side Switch (N-Channel)</h4>
+                        <ul>
+                            <li>MOSFET between Vin and load</li>
+                            <li>Requires charge pump to drive gate above Vin</li>
+                            <li>Ground plane remains uninterrupted</li>
+                            <li>Preferred for most applications</li>
+                        </ul>
+                    </div>
+                    <div class="concept-box">
+                        <h4>Low-Side Switch (N-Channel)</h4>
+                        <ul>
+                            <li>MOSFET between load and GND</li>
+                            <li>Simple gate drive (VGS referenced to GND)</li>
+                            <li>Load floats during off-state</li>
+                            <li>Can cause ground bounce during switching</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>Negative Voltage Rails (-48V Telecom)</h3>
+                <p>For negative voltages, the polarity is reversed. Use controllers designed for negative rails (e.g., LTC4213 for -48V):</p>
+                <ul>
+                    <li>MOSFET placed in return path (low-side relative to negative rail)</li>
+                    <li>Controller referenced to negative rail</li>
+                    <li>Sense resistor in series with MOSFET source</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>7. Layout Considerations</h2>
+
+                <div class="warning-box">
+                    <h4>Critical Layout Rules</h4>
+                    <ul>
+                        <li><strong>Kelvin sensing:</strong> Route sense resistor connections directly to resistor pads, not through power path</li>
+                        <li><strong>MOSFET placement:</strong> Close to connector to minimize inductance in hot path</li>
+                        <li><strong>Thermal relief:</strong> Large copper area under MOSFET for heat spreading</li>
+                        <li><strong>Gate drive:</strong> Short, direct traces from controller GATE pin to MOSFET gate</li>
+                        <li><strong>Bypass caps:</strong> Close to controller VCC and GND pins</li>
+                    </ul>
+                </div>
+
+<div class="canvas-container" style="margin: 20px auto; max-width: 700px;">
+    <canvas id="kelvin-sense-canvas" width="700" height="400" style="width: 100%; background: #1a1a2e; border-radius: 8px;"></canvas>
+</div>
+<script>
+(function() {
+    const canvas = document.getElementById('kelvin-sense-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Colors
+    const TEK = { power: '#FF6600', sense: '#00FFFF', good: '#00FF00', bad: '#FF0000' };
+
+    // Title
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Kelvin Sense Connection (Correct vs Wrong)', W/2, 25);
+
+    // --- CORRECT SECTION ---
+    ctx.fillStyle = '#4ade80';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('CORRECT: Kelvin Sense', 175, 55);
+
+    // Power path (thick)
+    ctx.strokeStyle = TEK.power;
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(30, 100);
+    ctx.lineTo(320, 100);
+    ctx.stroke();
+
+    // Sense resistor symbol
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(130, 85, 60, 30);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(130, 85, 60, 30);
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Rsense', 160, 105);
+
+    // Sense traces (thin, separate path)
+    ctx.strokeStyle = TEK.sense;
+    ctx.lineWidth = 2;
+    // SNS+ from left pad
+    ctx.beginPath();
+    ctx.moveTo(130, 100);
+    ctx.lineTo(130, 150);
+    ctx.lineTo(110, 150);
+    ctx.lineTo(110, 200);
+    ctx.stroke();
+    // SNS- from right pad
+    ctx.beginPath();
+    ctx.moveTo(190, 100);
+    ctx.lineTo(190, 150);
+    ctx.lineTo(210, 150);
+    ctx.lineTo(210, 200);
+    ctx.stroke();
+
+    // Controller box
+    ctx.fillStyle = '#1a2a3a';
+    ctx.fillRect(80, 200, 160, 60);
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(80, 200, 160, 60);
+    ctx.fillStyle = '#a855f7';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Hot-Swap Controller', 160, 225);
+    ctx.fillStyle = TEK.sense;
+    ctx.fillText('SNS+    SNS-', 160, 245);
+
+    // Labels
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Power Path', 30, 85);
+    ctx.fillStyle = TEK.sense;
+    ctx.fillText('Sense traces', 220, 175);
+    ctx.fillText('(separate from', 220, 188);
+    ctx.fillText('power path)', 220, 201);
+
+    // Checkmark
+    ctx.fillStyle = TEK.good;
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText('✓', 260, 240);
+
+    // --- WRONG SECTION ---
+    ctx.fillStyle = '#ff6b6b';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('WRONG: Sense in Power Path', 525, 55);
+
+    // Power path
+    ctx.strokeStyle = TEK.power;
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(380, 100);
+    ctx.lineTo(670, 100);
+    ctx.stroke();
+
+    // Sense resistor
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(480, 85, 60, 30);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(480, 85, 60, 30);
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = '11px monospace';
+    ctx.fillText('Rsense', 510, 105);
+
+    // Wrong sense connections (directly from power path)
+    ctx.strokeStyle = TEK.bad;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(455, 100);
+    ctx.lineTo(455, 200);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(565, 100);
+    ctx.lineTo(565, 200);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Labels for wrong connections
+    ctx.fillStyle = TEK.bad;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SNS+', 455, 215);
+    ctx.fillText('SNS-', 565, 215);
+
+    // Error annotation
+    ctx.fillStyle = '#ff6b6b';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Power path IR drop', 510, 250);
+    ctx.fillText('included in sense voltage!', 510, 265);
+
+    // X mark
+    ctx.fillStyle = TEK.bad;
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText('✗', 630, 240);
+
+    // Dividing line
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(350, 45);
+    ctx.lineTo(350, 280);
+    ctx.stroke();
+
+    // Bottom explanation
+    ctx.fillStyle = '#888';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Kelvin sensing: Route sense resistor connections directly to resistor pads, not through power path', W/2, H - 80);
+    ctx.fillText('This eliminates the voltage drop error caused by PCB trace resistance in the high-current path', W/2, H - 60);
+})();
+</script>
+            </section>
+
+            <section>
+                <h2>8. SPICE Model for Hot-Swap</h2>
+
+<pre class="code-block">
+* Hot-Swap Simulation - LTspice
+* 12V/10A with soft-start
+
+.param Vbus=12
+.param Cload=2000u
+.param Rsense=3m
+.param Ilimit=15
+.param Igate=20u  ; Controller gate current
+
+* Input bus
+Vbus bus 0 {Vbus}
+
+* Sense resistor (Kelvin model)
+Rsense bus sns {Rsense}
+
+* N-channel MOSFET (high-side, simplified)
+M1 sns out gate 0 NMOS W=10m L=1u
+.model NMOS NMOS (Vto=2 Kp=100 Lambda=0.01)
+
+* Gate drive (current source model of controller)
+Igate 0 gate {Igate}
+
+* Gate clamp (represents controller gate drive limit)
+D_gate gate gate_max D_ideal
+V_gate_max gate_max 0 10
+
+* Current limit feedback (simplified)
+* Real controller modulates gate based on sense voltage
+E_sense sense_v 0 bus sns 1000  ; Amplified sense voltage
+B_limit gate 0 V=if(V(sense_v)>50m*1000, 0, 10)*time/10m  ; Soft-start with limit
+
+* Output capacitor
+Cload out 0 {Cload} IC=0
+
+* Load resistor (stepped at 5ms to simulate load application)
+Rload out 0 R=if(time<5m, 1000, 1.2)  ; 10A at 12V = 1.2 ohm
+
+* Simulation
+.tran 0 20m 0 1u
+.probe
+
+.end
+</pre>
+            </section>
+
+            <section>
+                <h2>9. Design Checklist</h2>
+
+                <div class="checklist">
+                    <h4>Component Sizing</h4>
+                    <ul>
+                        <li>☐ Calculate sense resistor for desired current limit</li>
+                        <li>☐ Verify sense resistor power rating (I²R × 2)</li>
+                        <li>☐ Calculate soft-start time from Cload and Ilimit</li>
+                        <li>☐ Verify MOSFET SOA covers soft-start duration and power</li>
+                        <li>☐ Select MOSFET with appropriate VDS, ID, RDS(on)</li>
+                        <li>☐ Size timer capacitor for circuit breaker timeout</li>
+                    </ul>
+
+                    <h4>Protection Features</h4>
+                    <ul>
+                        <li>☐ UV/OV thresholds set appropriately for bus tolerance</li>
+                        <li>☐ Reverse polarity protection (MOSFET body diode orientation)</li>
+                        <li>☐ Power Good delay allows output to stabilize</li>
+                        <li>☐ Fault reporting connected to system monitor</li>
+                    </ul>
+
+                    <h4>Thermal Design</h4>
+                    <ul>
+                        <li>☐ MOSFET thermal resistance (RθJA) allows safe Tj during soft-start</li>
+                        <li>☐ Adequate copper area for heat spreading</li>
+                        <li>☐ Consider thermal pad or heatsink for high-power designs</li>
+                    </ul>
+
+                    <h4>Layout</h4>
+                    <ul>
+                        <li>☐ Kelvin sense connections to Rsense</li>
+                        <li>☐ Short gate drive trace</li>
+                        <li>☐ Bypass capacitors at controller power pins</li>
+                        <li>☐ Wide power traces for rated current</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>10. Exercises</h2>
+
+                <div class="exercise-box">
+                    <h4>Exercise 1: SOA Verification</h4>
+                    <p>A hot-swap circuit has 48V bus, 1000µF load capacitance, and 2A current limit. The MOSFET datasheet shows 10ms SOA of 10A at 20V and 2A at 48V.</p>
+                    <ol>
+                        <li>Calculate the soft-start time</li>
+                        <li>Calculate peak power dissipation</li>
+                        <li>Is this MOSFET adequate? Why or why not?</li>
+                        <li>What changes would make it work?</li>
+                    </ol>
+                </div>
+
+                <div class="exercise-box">
+                    <h4>Exercise 2: Sense Resistor Selection</h4>
+                    <p>Design a 5V/20A hot-swap with 10A current limit and 25mV sense threshold controller.</p>
+                    <ol>
+                        <li>Calculate sense resistor value</li>
+                        <li>Calculate power dissipation at full load</li>
+                        <li>Select a standard value and package</li>
+                        <li>What is the actual current limit with your chosen resistor?</li>
+                    </ol>
+                </div>
+
+                <div class="exercise-box">
+                    <h4>Exercise 3: Complete Design</h4>
+                    <p>Design a hot-swap circuit for a server blade with:</p>
+                    <ul>
+                        <li>12V ± 5% input</li>
+                        <li>15A steady-state load</li>
+                        <li>4000µF bulk capacitance</li>
+                        <li>I2C telemetry required</li>
+                    </ul>
+                    <ol>
+                        <li>Select a hot-swap controller</li>
+                        <li>Calculate all component values</li>
+                        <li>Specify the MOSFET (part number)</li>
+                        <li>Determine if parallel MOSFETs are needed for SOA</li>
+                    </ol>
+                </div>
+            </section>
+
+        </article>
+    </main>
+
+    <script src="../../assets/common.js"></script>
+    <script>
+        function calculateSOA() {
+            const vbus = parseFloat(document.getElementById('vbus').value);
+            const cload = parseFloat(document.getElementById('cload').value) * 1e-6;
+            const ilimit = parseFloat(document.getElementById('ilimit').value);
+            const rsense = parseFloat(document.getElementById('rsense').value) * 1e-3;
+
+            // Soft-start time
+            const tss = (cload * vbus) / ilimit;
+
+            // Peak power dissipation (at midpoint)
+            const ppeak = (vbus / 2) * ilimit;
+
+            // Total energy dissipated in MOSFET
+            const etotal = 0.5 * cload * vbus * vbus;
+
+            // Sense voltage at limit
+            const vsense = ilimit * rsense;
+
+            // Sense resistor power
+            const psense = ilimit * ilimit * rsense;
+
+            // Average power during soft-start
+            const pavg = etotal / tss;
+
+            const resultsGrid = document.getElementById('soa-results-grid');
+            resultsGrid.innerHTML = `
+                <div class="result-item">
+                    <span class="result-label">Soft-Start Time:</span>
+                    <span class="result-value">${(tss * 1000).toFixed(2)} ms</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Peak MOSFET Power:</span>
+                    <span class="result-value">${ppeak.toFixed(1)} W</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Total Energy in MOSFET:</span>
+                    <span class="result-value">${(etotal * 1000).toFixed(2)} mJ</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Average Power (during SS):</span>
+                    <span class="result-value">${pavg.toFixed(1)} W</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Sense Voltage at Limit:</span>
+                    <span class="result-value">${(vsense * 1000).toFixed(1)} mV</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Sense Resistor Power:</span>
+                    <span class="result-value">${(psense * 1000).toFixed(0)} mW</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">SOA Check:</span>
+                    <span class="result-value" style="color: ${tss < 0.001 ? '#ff6b6b' : tss < 0.01 ? '#fbbf24' : '#4ade80'}">
+                        ${tss < 0.001 ? 'Check 100µs SOA curve' : tss < 0.01 ? 'Check 1-10ms SOA curves' : 'Check DC/10ms SOA curve'}
+                    </span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">MOSFET Requirement:</span>
+                    <span class="result-value">ID ≥ ${ilimit}A at VDS = ${vbus}V for ${(tss * 1000).toFixed(1)}ms</span>
+                </div>
+            `;
+
+            document.getElementById('soa-results').style.display = 'block';
+        }
+    </script>
+
+    <footer>
+        <p>&copy; 2025 EE Learning Platform. Designed for BSEE graduates entering the hardware industry.</p>
+    </footer>
+</body>
+</html>

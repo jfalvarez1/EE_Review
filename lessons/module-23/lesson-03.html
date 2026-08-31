@@ -1,0 +1,1221 @@
+<!-- Module 23, Lesson 3: USB-C Power Delivery System Design -->
+<div class="lesson-content" data-module="23" data-lesson="3">
+
+    <div class="card">
+        <h2>USB-C Power Delivery System Design</h2>
+        <p>USB Type-C with Power Delivery (USB PD) has become the universal standard for device charging, supporting up to 240W (USB PD 3.1 EPR). This lesson covers the complete analog design from connector to power conversion.</p>
+
+        <div class="notice">
+            <strong>Industry Reference:</strong> Based on <a href="https://www.analog.com/en/resources/analog-dialogue/articles/simplify-your-usb-c-pd-design-using-a-standalone-pd-controller.html" target="_blank">Analog Devices USB-C PD Guide</a>, <a href="https://www.analog.com/en/products/max77958.html" target="_blank">MAX77958 Datasheet</a>, and <a href="https://www.analog.com/en/products/lt8253.html" target="_blank">LT8253 Buck-Boost Controller</a>.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>USB PD Power Levels</h3>
+
+        <table class="table">
+            <tr>
+                <th>Standard</th>
+                <th>Max Power</th>
+                <th>Voltages</th>
+                <th>Applications</th>
+            </tr>
+            <tr>
+                <td>USB BC 1.2</td>
+                <td>7.5W</td>
+                <td>5V @ 1.5A</td>
+                <td>Legacy charging</td>
+            </tr>
+            <tr>
+                <td>USB Type-C 1.2</td>
+                <td>15W</td>
+                <td>5V @ 3A</td>
+                <td>Phones, accessories</td>
+            </tr>
+            <tr>
+                <td>USB PD 3.0 (SPR)</td>
+                <td>100W</td>
+                <td>5/9/15/20V @ 5A</td>
+                <td>Laptops, monitors</td>
+            </tr>
+            <tr>
+                <td>USB PD 3.1 (EPR)</td>
+                <td>240W</td>
+                <td>28/36/48V @ 5A</td>
+                <td>Gaming laptops, workstations</td>
+            </tr>
+            <tr>
+                <td>PPS (Programmable)</td>
+                <td>100W</td>
+                <td>3.3-21V in 20mV steps</td>
+                <td>Fast charging (Samsung, etc.)</td>
+            </tr>
+        </table>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">CC Line Function</div>
+                <div class="v">Configuration Channel - orientation, PD negotiation</div>
+            </div>
+            <div class="box">
+                <div class="k">VBUS Range</div>
+                <div class="v">5-48V (EPR), 5-20V (SPR)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>System Architecture: USB-C PD Sink (Device Side)</h3>
+
+        <canvas id="usbc-sink-canvas" width="980" height="450" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Section 1: CC Pin Detection and Cable Orientation</h3>
+
+        <p>The Configuration Channel (CC) pins serve multiple functions: cable orientation detection, current capability advertisement, and USB PD communication.</p>
+
+        <div class="subsection">
+            <h4>CC Pull-Down Resistors (Sink Device)</h4>
+
+            <table class="table">
+                <tr>
+                    <th>Resistor Value (Rd)</th>
+                    <th>Meaning</th>
+                    <th>Max Current Allowed</th>
+                </tr>
+                <tr>
+                    <td>5.1kΩ to GND</td>
+                    <td>Standard USB sink</td>
+                    <td>Up to 3A (after negotiation)</td>
+                </tr>
+                <tr>
+                    <td>1kΩ to GND</td>
+                    <td>Audio adapter accessory</td>
+                    <td>500mA</td>
+                </tr>
+            </table>
+
+            <div class="notice">
+                <strong>Critical:</strong> Both CC1 and CC2 pins must have 5.1kΩ ±10% pull-down resistors for proper sink detection. The source detects which CC line is connected to determine cable orientation.
+            </div>
+        </div>
+
+        <div class="subsection">
+            <h4>Source Current Advertisement (Rp)</h4>
+
+            <table class="table">
+                <tr>
+                    <th>Source Pull-up (Rp)</th>
+                    <th>Voltage on CC</th>
+                    <th>Current Capability</th>
+                </tr>
+                <tr>
+                    <td>56kΩ to 5V</td>
+                    <td>~0.4V</td>
+                    <td>500mA (USB 2.0 default)</td>
+                </tr>
+                <tr>
+                    <td>22kΩ to 5V</td>
+                    <td>~0.9V</td>
+                    <td>1.5A</td>
+                </tr>
+                <tr>
+                    <td>10kΩ to 5V</td>
+                    <td>~1.6V</td>
+                    <td>3.0A</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="subsection">
+            <h4>Interactive: CC Voltage Calculator</h4>
+
+            <div class="controls">
+                <div class="c4">
+                    <label for="cc-rp">Source Rp (kΩ)</label>
+                    <input type="range" id="cc-rp" min="10" max="56" step="1" value="22">
+                    <span id="cc-rp-val" class="mono">22kΩ</span>
+                </div>
+                <div class="c4">
+                    <label for="cc-rd">Sink Rd (kΩ)</label>
+                    <input type="range" id="cc-rd" min="1" max="10" step="0.1" value="5.1">
+                    <span id="cc-rd-val" class="mono">5.1kΩ</span>
+                </div>
+                <div class="c4">
+                    <label for="cc-vcc">Pull-up Voltage (V)</label>
+                    <input type="range" id="cc-vcc" min="3.3" max="5" step="0.1" value="5">
+                    <span id="cc-vcc-val" class="mono">5.0V</span>
+                </div>
+            </div>
+
+            <div class="kv">
+                <div class="box">
+                    <div class="k">CC Voltage</div>
+                    <div class="v mono" id="cc-voltage">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Current Capability</div>
+                    <div class="v mono" id="cc-current">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Detection</div>
+                    <div class="v mono" id="cc-detect">—</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 2: PD Negotiation and VBUS Control</h3>
+
+        <p>USB PD uses BMC (Biphase Mark Coding) on the CC line to negotiate power contracts. The source advertises capabilities, and the sink requests a specific voltage/current.</p>
+
+        <div class="subsection">
+            <h4>PD Message Flow</h4>
+
+            <canvas id="pd-negotiation-canvas" width="700" height="420" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+        </div>
+
+        <div class="subsection">
+            <h4>Power Data Objects (PDOs)</h4>
+
+            <table class="table">
+                <tr>
+                    <th>PDO Type</th>
+                    <th>Voltage</th>
+                    <th>Current</th>
+                    <th>Use Case</th>
+                </tr>
+                <tr>
+                    <td>Fixed</td>
+                    <td>5/9/15/20V</td>
+                    <td>Up to 5A</td>
+                    <td>Standard charging</td>
+                </tr>
+                <tr>
+                    <td>PPS (APDO)</td>
+                    <td>3.3-21V variable</td>
+                    <td>Up to 5A</td>
+                    <td>Fast charging protocols</td>
+                </tr>
+                <tr>
+                    <td>AVS (EPR)</td>
+                    <td>15-48V adjustable</td>
+                    <td>Up to 5A</td>
+                    <td>High-power devices</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 3: Buck-Boost Charger Design</h3>
+
+        <p>Since USB PD can provide 5-20V (or higher with EPR) while batteries are typically 3-4.4V (1S) or 7-17V (2S-4S), a buck-boost converter is often needed.</p>
+
+        <div class="subsection">
+            <h4>Topology Selection</h4>
+
+            <table class="table">
+                <tr>
+                    <th>Input Range</th>
+                    <th>Battery</th>
+                    <th>Topology</th>
+                    <th>Example IC</th>
+                </tr>
+                <tr>
+                    <td>5-20V</td>
+                    <td>1S (4.2V)</td>
+                    <td>Buck only</td>
+                    <td>BQ25890, MP2696</td>
+                </tr>
+                <tr>
+                    <td>5-20V</td>
+                    <td>2S (8.4V)</td>
+                    <td>Buck-Boost</td>
+                    <td>BQ25703, LT8253</td>
+                </tr>
+                <tr>
+                    <td>5-20V</td>
+                    <td>3S (12.6V)</td>
+                    <td>Buck-Boost</td>
+                    <td>BQ25700, MAX77818</td>
+                </tr>
+                <tr>
+                    <td>5-20V</td>
+                    <td>4S (16.8V)</td>
+                    <td>Buck (usually)</td>
+                    <td>BQ25713, LTC4162</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="subsection">
+            <h4>Interactive: PD Charger Power Flow</h4>
+
+            <div class="controls">
+                <div class="c3">
+                    <label for="pd-vin">VBUS Voltage (V)</label>
+                    <select id="pd-vin" style="width:100%;padding:8px;">
+                        <option value="5">5V (USB default)</option>
+                        <option value="9">9V (PD)</option>
+                        <option value="15" selected>15V (PD)</option>
+                        <option value="20">20V (PD)</option>
+                    </select>
+                </div>
+                <div class="c3">
+                    <label for="pd-imax">Max Current (A)</label>
+                    <input type="range" id="pd-imax" min="1" max="5" step="0.25" value="3">
+                    <span id="pd-imax-val" class="mono">3.0A</span>
+                </div>
+                <div class="c3">
+                    <label for="pd-vbat">Battery Voltage (V)</label>
+                    <input type="range" id="pd-vbat" min="6" max="17" step="0.1" value="11.1">
+                    <span id="pd-vbat-val" class="mono">11.1V</span>
+                </div>
+                <div class="c3">
+                    <label for="pd-eff">Converter Efficiency (%)</label>
+                    <input type="range" id="pd-eff" min="85" max="98" step="1" value="93">
+                    <span id="pd-eff-val" class="mono">93%</span>
+                </div>
+            </div>
+
+            <div class="kv">
+                <div class="box">
+                    <div class="k">Input Power</div>
+                    <div class="v mono" id="pd-pin">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Output Power</div>
+                    <div class="v mono" id="pd-pout">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Charge Current</div>
+                    <div class="v mono" id="pd-ichg">—</div>
+                </div>
+                <div class="box">
+                    <div class="k">Topology Needed</div>
+                    <div class="v mono" id="pd-topology">—</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 4: Protection and Safety</h3>
+
+        <div class="subsection">
+            <h4>Required Protection Elements</h4>
+
+            <table class="table">
+                <tr>
+                    <th>Protection</th>
+                    <th>Implementation</th>
+                    <th>Typical Threshold</th>
+                </tr>
+                <tr>
+                    <td>Overvoltage (OVP)</td>
+                    <td>TVS + OVP IC (BQ24314)</td>
+                    <td>22-25V for SPR, 55V for EPR</td>
+                </tr>
+                <tr>
+                    <td>Overcurrent (OCP)</td>
+                    <td>In charger IC</td>
+                    <td>125% of max negotiated</td>
+                </tr>
+                <tr>
+                    <td>Reverse Voltage</td>
+                    <td>Ideal diode controller</td>
+                    <td>Block if VBUS < VBAT</td>
+                </tr>
+                <tr>
+                    <td>Short Circuit</td>
+                    <td>Fast fuse + FET</td>
+                    <td>Response < 1µs</td>
+                </tr>
+                <tr>
+                    <td>ESD</td>
+                    <td>TVS on CC, D+/D-</td>
+                    <td>IEC 61000-4-2 Level 4</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="subsection">
+            <h4>VBUS Discharge Requirement</h4>
+
+            <div class="warn">
+                <strong>USB PD Requirement:</strong> When the sink disconnects or negotiates a lower voltage, VBUS must discharge to safe levels within specified time (typically 650ms from 20V to 5V). This requires active discharge circuits.
+            </div>
+
+            <p>Discharge resistor sizing: For 20V → 5V in 500ms with C = 100µF:</p>
+            <p class="mono" style="margin-left:20px;">R = t / (C × ln(V_start/V_end)) = 0.5 / (100µ × ln(4)) ≈ 3.6kΩ → ~100mW peak dissipation</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 5: Complete Design Example</h3>
+
+        <div class="subsection">
+            <h4>45W USB-C PD Laptop Charger Input Stage</h4>
+
+            <canvas id="pd-design-canvas" width="980" height="480" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+// ==================== USB-C SINK ARCHITECTURE CANVAS ====================
+(function() {
+    const canvas = document.getElementById('usbc-sink-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('USB-C PD SINK (Laptop/Phone Charging)', W/2, 28);
+
+    // USB-C Connector box (left side)
+    const connX = 30, connY = 60, connW = 110, connH = 280;
+    AD.roundRect(ctx, connX, connY, connW, connH, 8, { fill: '#1a2332', stroke: TEK.ch2, lineWidth: 2 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('USB-C', connX + connW/2, connY + 20);
+    ctx.fillText('Connector', connX + connW/2, connY + 34);
+
+    // Connector pins
+    const pins = [
+        { name: 'VBUS', y: 70, color: TEK.ch1 },
+        { name: 'CC1', y: 110, color: TEK.ch3 },
+        { name: 'CC2', y: 145, color: TEK.ch3 },
+        { name: 'D+', y: 180, color: TEK.ch5 },
+        { name: 'D-', y: 210, color: TEK.ch5 },
+        { name: 'SBU1', y: 240, color: '#8b8b8b' },
+        { name: 'SBU2', y: 265, color: '#8b8b8b' },
+        { name: 'GND', y: 300, color: '#6b7280' }
+    ];
+
+    pins.forEach(pin => {
+        ctx.fillStyle = pin.color;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(pin.name, connX + 10, connY + pin.y);
+
+        // Pin line out
+        ctx.strokeStyle = pin.color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(connX + connW - 10, connY + pin.y - 3);
+        ctx.lineTo(connX + connW + 20, connY + pin.y - 3);
+        ctx.stroke();
+    });
+
+    // TVS Diode after VBUS
+    const tvsX = connX + connW + 40, tvsY = connY + 65;
+    AD.roundRect(ctx, tvsX, tvsY, 50, 25, 3, { fill: '#2a2a4a', stroke: '#8b5cf6', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('TVS', tvsX + 25, tvsY + 16);
+
+    // Connect VBUS to TVS
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(connX + connW + 20, connY + 67);
+    ctx.lineTo(tvsX, connY + 67);
+    ctx.stroke();
+
+    // OVP Block
+    const ovpX = tvsX + 80, ovpY = connY + 50;
+    AD.roundRect(ctx, ovpX, ovpY, 130, 55, 6, { fill: '#1f2937', stroke: TEK.ch5, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('OVP + Current Limit', ovpX + 65, ovpY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('(BQ24314)', ovpX + 65, ovpY + 38);
+
+    // Connect TVS to OVP
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(tvsX + 50, tvsY + 12);
+    ctx.lineTo(ovpX, tvsY + 12);
+    ctx.stroke();
+
+    // PD Controller Block
+    const pdX = 340, pdY = 160;
+    AD.roundRect(ctx, pdX, pdY, 160, 120, 6, { fill: '#1a2332', stroke: TEK.ch3, lineWidth: 2 });
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('USB PD Controller', pdX + 80, pdY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('(MAX77958/FUSB302)', pdX + 80, pdY + 38);
+
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('• CC detection', pdX + 15, pdY + 62);
+    ctx.fillText('• PD negotiation', pdX + 15, pdY + 78);
+    ctx.fillText('• VBUS control', pdX + 15, pdY + 94);
+
+    // Connect CC pins to PD Controller
+    ctx.strokeStyle = TEK.ch3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(connX + connW + 20, connY + 107);
+    ctx.lineTo(connX + connW + 60, connY + 107);
+    ctx.lineTo(connX + connW + 60, pdY + 60);
+    ctx.lineTo(pdX, pdY + 60);
+    ctx.stroke();
+
+    // Buck-Boost Charger Block
+    const chgX = 580, chgY = 120;
+    AD.roundRect(ctx, chgX, chgY, 150, 130, 6, { fill: '#1a2a32', stroke: TEK.ch4, lineWidth: 2 });
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Buck-Boost', chgX + 75, chgY + 22);
+    ctx.fillText('Charger', chgX + 75, chgY + 38);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('(BQ25703)', chgX + 75, chgY + 56);
+
+    ctx.font = '9px monospace';
+    ctx.fillText('5-20V → Battery', chgX + 30, chgY + 85);
+
+    // Connect OVP to Charger
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ovpX + 130, ovpY + 27);
+    ctx.lineTo(ovpX + 180, ovpY + 27);
+    ctx.lineTo(ovpX + 180, chgY + 40);
+    ctx.lineTo(chgX, chgY + 40);
+    ctx.stroke();
+
+    // Connect PD to Charger (control)
+    ctx.strokeStyle = TEK.ch3;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(pdX + 160, pdY + 80);
+    ctx.lineTo(chgX, pdY + 80);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Battery Pack
+    const batX = 800, batY = 145;
+    AD.roundRect(ctx, batX, batY, 120, 80, 6, { fill: '#2a3a2a', stroke: TEK.ch4, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Battery Pack', batX + 60, batY + 30);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('1S-4S', batX + 60, batY + 50);
+
+    // Connect Charger to Battery
+    AD.drawArrow(ctx, chgX + 150, chgY + 65, batX, batY + 40, { color: TEK.ch4, headSize: 8 });
+
+    // Application Processor
+    const mcuX = 380, mcuY = 320;
+    AD.roundRect(ctx, mcuX, mcuY, 120, 55, 6, { fill: '#1f2937', stroke: '#6b7280', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Application', mcuX + 60, mcuY + 22);
+    ctx.fillText('Processor', mcuX + 60, mcuY + 38);
+
+    // I2C connection from PD to MCU
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pdX + 80, pdY + 120);
+    ctx.lineTo(pdX + 80, mcuY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('I2C', pdX + 85, pdY + 135);
+
+    // USB Data Path (D+/D-)
+    const dataY = 365;
+    ctx.strokeStyle = TEK.ch5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(connX + connW + 20, connY + 177);
+    ctx.lineTo(200, connY + 177);
+    ctx.lineTo(200, dataY);
+    ctx.lineTo(540, dataY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('USB Data Path (D+/D-)', 370, dataY + 20);
+
+    // Legend box
+    AD.roundRect(ctx, W - 200, H - 90, 180, 75, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    const legend = [
+        { color: TEK.ch1, text: 'Power (VBUS)' },
+        { color: TEK.ch3, text: 'CC/PD Control' },
+        { color: TEK.ch5, text: 'USB Data' }
+    ];
+    legend.forEach((item, i) => {
+        ctx.fillStyle = item.color;
+        ctx.fillRect(W - 190, H - 78 + i * 22, 12, 12);
+        ctx.fillStyle = '#9ca3af';
+        ctx.fillText(item.text, W - 170, H - 68 + i * 22);
+    });
+
+})();
+
+// ==================== PD NEGOTIATION SEQUENCE CANVAS ====================
+(function() {
+    const canvas = document.getElementById('pd-negotiation-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('USB PD NEGOTIATION SEQUENCE (Simplified)', W/2, 25);
+
+    // Column headers
+    const srcX = 150, sinkX = 550;
+    const headerY = 55;
+
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('SOURCE (Charger)', srcX, headerY);
+
+    ctx.fillStyle = TEK.ch2;
+    ctx.fillText('SINK (Device)', sinkX, headerY);
+
+    // Vertical timelines
+    ctx.strokeStyle = '#4b5563';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(srcX, headerY + 15);
+    ctx.lineTo(srcX, H - 80);
+    ctx.moveTo(sinkX, headerY + 15);
+    ctx.lineTo(sinkX, H - 80);
+    ctx.stroke();
+
+    // Message arrows
+    const messages = [
+        { y: 95, dir: 'left', text: 'Rd detected on CC', color: TEK.ch3 },
+        { y: 140, dir: 'right', text: 'Source_Capabilities', subtext: '[5V/3A, 9V/3A, 15V/3A, 20V/2.25A = 45W max]', color: TEK.ch1 },
+        { y: 200, dir: 'left', text: 'Request (15V/3A)', color: TEK.ch2 },
+        { y: 245, dir: 'right', text: 'Accept', color: TEK.ch4 },
+        { y: 290, dir: 'right', text: '(Source ramps VBUS to 15V)', color: '#888', note: true },
+        { y: 330, dir: 'right', text: 'PS_RDY', color: TEK.ch4 },
+        { y: 365, dir: 'right', text: '(Sink can now draw up to 3A)', color: '#888', note: true }
+    ];
+
+    messages.forEach(msg => {
+        if (msg.note) {
+            // Note text (no arrow)
+            ctx.fillStyle = msg.color;
+            ctx.font = 'italic 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(msg.text, (srcX + sinkX) / 2, msg.y);
+        } else {
+            // Arrow
+            const fromX = msg.dir === 'right' ? srcX + 10 : sinkX - 10;
+            const toX = msg.dir === 'right' ? sinkX - 10 : srcX + 10;
+
+            AD.drawArrow(ctx, fromX, msg.y, toX, msg.y, { color: msg.color, headSize: 8, lineWidth: 2 });
+
+            // Label
+            ctx.fillStyle = msg.color;
+            ctx.font = '11px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(msg.text, (srcX + sinkX) / 2, msg.y - 8);
+
+            // Subtext if any
+            if (msg.subtext) {
+                ctx.fillStyle = '#888';
+                ctx.font = '9px monospace';
+                ctx.fillText(msg.subtext, (srcX + sinkX) / 2, msg.y + 18);
+            }
+        }
+    });
+
+    // Communication details box
+    AD.roundRect(ctx, 100, H - 65, 500, 55, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Communication:', 115, H - 45);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('300 kbaud BMC on CC line', 220, H - 45);
+    ctx.fillStyle = TEK.ch3;
+    ctx.fillText('Message format:', 115, H - 25);
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText('SOP + Header + Data Objects + CRC + EOP', 230, H - 25);
+
+})();
+
+// ==================== 45W PD SINK DESIGN CANVAS ====================
+(function() {
+    const canvas = document.getElementById('pd-design-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 15px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('45W USB-C PD SINK DESIGN', W/2, 25);
+
+    // Section headers
+    const sections = [
+        { x: 70, text: 'USB-C Connector' },
+        { x: 250, text: 'Protection' },
+        { x: 430, text: 'PD Controller' },
+        { x: 640, text: 'Charger' },
+        { x: 830, text: 'Output' }
+    ];
+
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    sections.forEach(s => {
+        ctx.textAlign = 'center';
+        ctx.fillText(s.text, s.x, 50);
+    });
+
+    // USB-C Connector
+    const connX = 30, connY = 70, connW = 80, connH = 200;
+    AD.roundRect(ctx, connX, connY, connW, connH, 6, { fill: '#1a2332', stroke: TEK.ch2, lineWidth: 2 });
+
+    const connPins = [
+        { name: 'VBUS', y: 25, color: TEK.ch1 },
+        { name: 'CC1', y: 60, color: TEK.ch3 },
+        { name: 'CC2', y: 90, color: TEK.ch3 },
+        { name: 'D+', y: 125, color: TEK.ch5 },
+        { name: 'D-', y: 150, color: TEK.ch5 },
+        { name: 'GND', y: 180, color: '#6b7280' }
+    ];
+
+    connPins.forEach(pin => {
+        ctx.fillStyle = pin.color;
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(pin.name, connX + 8, connY + pin.y);
+    });
+
+    // TVS after VBUS
+    const tvsX = connX + connW + 25;
+    AD.roundRect(ctx, tvsX, connY + 15, 40, 22, 3, { fill: '#2a2a4a', stroke: '#8b5cf6', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('TVS', tvsX + 20, connY + 30);
+    ctx.fillStyle = '#888';
+    ctx.font = '8px monospace';
+    ctx.fillText('24V', tvsX + 20, connY + 50);
+
+    // Connect VBUS to TVS
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(connX + connW, connY + 25);
+    ctx.lineTo(tvsX, connY + 25);
+    ctx.stroke();
+
+    // 5.1k resistors for CC
+    [60, 90].forEach(yOff => {
+        const resX = tvsX, resY = connY + yOff - 8;
+        AD.roundRect(ctx, resX, resY, 40, 16, 2, { fill: '#2a3a3a', stroke: TEK.ch3, lineWidth: 1 });
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '7px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('5.1k', resX + 20, resY + 11);
+
+        ctx.strokeStyle = TEK.ch3;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(connX + connW, connY + yOff);
+        ctx.lineTo(resX, connY + yOff);
+        ctx.stroke();
+    });
+
+    // OVP IC (BQ24314)
+    const ovpX = 200, ovpY = connY + 5;
+    AD.roundRect(ctx, ovpX, ovpY, 100, 50, 4, { fill: '#1f2937', stroke: TEK.ch5, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BQ24314', ovpX + 50, ovpY + 20);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '8px monospace';
+    ctx.fillText('OVP IC', ovpX + 50, ovpY + 35);
+
+    // Connect TVS to OVP
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(tvsX + 40, connY + 25);
+    ctx.lineTo(ovpX, connY + 25);
+    ctx.stroke();
+
+    // ESD TVS for D+/D-
+    const esdX = 200, esdY = connY + 115;
+    AD.roundRect(ctx, esdX, esdY, 100, 45, 4, { fill: '#2a2a4a', stroke: '#8b5cf6', lineWidth: 1 });
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('ESD TVS', esdX + 50, esdY + 28);
+
+    // Connect D+/D- to ESD
+    ctx.strokeStyle = TEK.ch5;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(connX + connW, connY + 125);
+    ctx.lineTo(esdX, connY + 125);
+    ctx.moveTo(connX + connW, connY + 150);
+    ctx.lineTo(esdX, connY + 150);
+    ctx.stroke();
+
+    // PD Controller (FUSB302)
+    const pdX = 370, pdY = connY + 30;
+    AD.roundRect(ctx, pdX, pdY, 120, 75, 5, { fill: '#1a2332', stroke: TEK.ch3, lineWidth: 2 });
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('FUSB302', pdX + 60, pdY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('USB PD PHY', pdX + 60, pdY + 40);
+
+    // Connect OVP to PD
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ovpX + 100, ovpY + 25);
+    ctx.lineTo(pdX, pdY + 25);
+    ctx.stroke();
+
+    // Connect CC to PD
+    ctx.strokeStyle = TEK.ch3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(tvsX + 40, connY + 75);
+    ctx.lineTo(tvsX + 60, connY + 75);
+    ctx.lineTo(tvsX + 60, pdY + 50);
+    ctx.lineTo(pdX, pdY + 50);
+    ctx.stroke();
+
+    // MCU/EC
+    const mcuX = 400, mcuY = connY + 150;
+    AD.roundRect(ctx, mcuX, mcuY, 80, 50, 4, { fill: '#1f2937', stroke: '#6b7280', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('MCU/EC', mcuX + 40, mcuY + 30);
+
+    // I2C from PD to MCU
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    ctx.moveTo(pdX + 60, pdY + 75);
+    ctx.lineTo(pdX + 60, mcuY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#888';
+    ctx.font = '8px monospace';
+    ctx.fillText('I2C', pdX + 75, pdY + 95);
+
+    // Connect MCU to PD Controller (control line)
+    ctx.strokeStyle = '#888';
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    ctx.moveTo(mcuX + 80, mcuY + 25);
+    ctx.lineTo(mcuX + 110, mcuY + 25);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Buck-Boost Charger (BQ25703)
+    const chgX = 560, chgY = connY + 20;
+    AD.roundRect(ctx, chgX, chgY, 130, 100, 5, { fill: '#1a2a32', stroke: TEK.ch4, lineWidth: 2 });
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BQ25703', chgX + 65, chgY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('Buck-Boost', chgX + 65, chgY + 40);
+
+    ctx.font = '8px monospace';
+    ctx.fillText('5-20V in', chgX + 65, chgY + 60);
+    ctx.fillText('8.4V out', chgX + 65, chgY + 75);
+    ctx.fillText('(2S pack)', chgX + 65, chgY + 88);
+
+    // Connect PD to Charger
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(pdX + 120, pdY + 25);
+    ctx.lineTo(chgX, chgY + 30);
+    ctx.stroke();
+
+    // Battery output
+    const batX = 750, batY = connY + 40;
+    AD.roundRect(ctx, batX, batY, 100, 60, 4, { fill: '#2a3a2a', stroke: TEK.ch4, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BAT', batX + 50, batY + 28);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('3A max', batX + 50, batY + 45);
+
+    // Arrow from Charger to Battery
+    AD.drawArrow(ctx, chgX + 130, chgY + 50, batX, batY + 30, { color: TEK.ch4, headSize: 8 });
+
+    // Key Components box
+    const keyX = 30, keyY = 300;
+    AD.roundRect(ctx, keyX, keyY, W - 60, 160, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Key Components:', keyX + 15, keyY + 22);
+
+    const components = [
+        { label: 'TVS:', value: 'SMBJ24CA (24V standoff, bidirectional)' },
+        { label: 'OVP:', value: 'BQ24314 (4.5-28V, 3A, programmable threshold)' },
+        { label: 'PD Controller:', value: 'FUSB302 (USB PD PHY) or MAX77958 (standalone)' },
+        { label: 'Charger:', value: 'BQ25703 (1-4 cell, buck-boost, 5-24V input)' },
+        { label: 'CC Pull-downs:', value: '5.1kΩ ±5%, 0402 size' },
+        { label: 'Decoupling:', value: '10µF + 100nF on each power pin' }
+    ];
+
+    components.forEach((comp, i) => {
+        const row = Math.floor(i / 2);
+        const col = i % 2;
+        const cx = keyX + 15 + col * 450;
+        const cy = keyY + 45 + row * 22;
+
+        ctx.fillStyle = TEK.ch3;
+        ctx.font = '10px monospace';
+        ctx.fillText('• ' + comp.label, cx, cy);
+
+        ctx.fillStyle = '#9ca3af';
+        ctx.fillText(comp.value, cx + 95, cy);
+    });
+
+})();
+
+(function() {
+    // CC voltage calculator
+    function updateCC() {
+        const rp = parseFloat(document.getElementById('cc-rp').value) * 1000;
+        const rd = parseFloat(document.getElementById('cc-rd').value) * 1000;
+        const vcc = parseFloat(document.getElementById('cc-vcc').value);
+
+        document.getElementById('cc-rp-val').textContent = (rp/1000) + 'kΩ';
+        document.getElementById('cc-rd-val').textContent = (rd/1000).toFixed(1) + 'kΩ';
+        document.getElementById('cc-vcc-val').textContent = vcc.toFixed(1) + 'V';
+
+        const vcc_pin = vcc * rd / (rp + rd);
+
+        // Determine current capability based on Rp
+        let current = '500mA';
+        let detect = 'USB 2.0 Default';
+        if (rp <= 12000) {
+            current = '3.0A';
+            detect = 'USB Type-C 3A';
+        } else if (rp <= 25000) {
+            current = '1.5A';
+            detect = 'USB Type-C 1.5A';
+        } else {
+            current = '500mA';
+            detect = 'USB Default';
+        }
+
+        document.getElementById('cc-voltage').textContent = vcc_pin.toFixed(2) + ' V';
+        document.getElementById('cc-current').textContent = current;
+        document.getElementById('cc-detect').textContent = detect;
+    }
+
+    ['cc-rp', 'cc-rd', 'cc-vcc'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateCC);
+    });
+    updateCC();
+
+    // PD charger calculator
+    function updatePD() {
+        const vin = parseFloat(document.getElementById('pd-vin').value);
+        const imax = parseFloat(document.getElementById('pd-imax').value);
+        const vbat = parseFloat(document.getElementById('pd-vbat').value);
+        const eff = parseFloat(document.getElementById('pd-eff').value) / 100;
+
+        document.getElementById('pd-imax-val').textContent = imax.toFixed(2) + 'A';
+        document.getElementById('pd-vbat-val').textContent = vbat.toFixed(1) + 'V';
+        document.getElementById('pd-eff-val').textContent = (eff * 100).toFixed(0) + '%';
+
+        const pin = vin * imax;
+        const pout = pin * eff;
+        const ichg = pout / vbat;
+
+        let topology = 'Buck';
+        if (vin < vbat * 1.1) {
+            topology = 'Boost (or Buck-Boost)';
+        } else if (vin < vbat * 1.3) {
+            topology = 'Buck-Boost';
+        }
+
+        document.getElementById('pd-pin').textContent = pin.toFixed(1) + ' W';
+        document.getElementById('pd-pout').textContent = pout.toFixed(1) + ' W';
+        document.getElementById('pd-ichg').textContent = ichg.toFixed(2) + ' A';
+        document.getElementById('pd-topology').textContent = topology;
+    }
+
+    ['pd-vin', 'pd-imax', 'pd-vbat', 'pd-eff'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updatePD);
+        document.getElementById(id).addEventListener('change', updatePD);
+    });
+    updatePD();
+
+    // SPICE netlist
+    new SpiceNetlistWidget('spice-container', {
+        title: 'CC Detection Circuit',
+        netlist: `* USB-C CC Pin Detection
+* Shows voltage divider for source/sink detection
+
+* Source pull-up (charger side)
+Vcc vcc 0 DC 5
+
+* Pull-up resistor (source)
+* 10k = 3A, 22k = 1.5A, 56k = 500mA
+Rp vcc cc 22k
+
+* Pull-down resistor (sink side)
+Rd cc 0 5.1k
+
+* Measure CC voltage
+.OP
+
+* Sweep Rp to see different current levels
+.STEP PARAM Rp_val 10k 56k 10k
+Rp2 vcc cc2 {Rp_val}
+Rd2 cc2 0 5.1k
+
+.DC Rp_val 10k 56k 2k
+
+.PROBE V(cc) V(cc2)
+.END
+
+* Expected results:
+* Rp = 10k: Vcc = ~1.6V (3A capability)
+* Rp = 22k: Vcc = ~0.9V (1.5A capability)
+* Rp = 56k: Vcc = ~0.4V (500mA default)`
+    });
+
+    // Checklist
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm23l3',
+        items: [
+            'Understand CC pull-down resistor function (5.1kΩ for sink)',
+            'Know PD voltage levels: 5V, 9V, 15V, 20V (SPR)',
+            'Calculate CC voltage from Rp/Rd divider',
+            'Understand PD negotiation sequence',
+            'Know when buck vs buck-boost topology is needed',
+            'Understand VBUS discharge requirements'
+        ]
+    });
+
+    // Progressive Exercises
+    const container = document.getElementById('exercise-container');
+    container.innerHTML = `
+        <h4>USB-C Power Delivery Problems</h4>
+        <p style="color:var(--text);opacity:0.7;margin-bottom:15px;">
+            Progress from CC detection to complete PD system design.
+        </p>
+    `;
+
+    const exercises = [
+        // Level 1: Basic CC detection
+        {
+            id: 'M23-3-L1a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 1</span> A source has 22kΩ pull-up to 5V. The sink has 5.1kΩ pull-down. What is the CC pin voltage?',
+            hint: 'Voltage divider: Vcc = 5V × Rd/(Rp + Rd)',
+            expected: 0.94,
+            tolerance: 0.02,
+            unit: 'V',
+            solution: 'Vcc = 5V × 5.1k/(22k + 5.1k) = 5V × 5.1/27.1 = 0.94V',
+            explanation: 'This voltage indicates 1.5A current capability.'
+        },
+        {
+            id: 'M23-3-L1b',
+            type: 'choice',
+            question: '<span class="difficulty">Level 1</span> What does a CC voltage of ~1.6V indicate?',
+            choices: [
+                { text: '500mA USB 2.0 default', correct: false },
+                { text: '1.5A Type-C current', correct: false },
+                { text: '3.0A Type-C current', correct: true },
+                { text: 'USB PD negotiated voltage', correct: false }
+            ],
+            solution: '~1.6V corresponds to 10kΩ pull-up, indicating 3A current advertisement.',
+            explanation: 'The source uses different Rp values to advertise current capability before PD negotiation.'
+        },
+        // Level 2: Power calculations
+        {
+            id: 'M23-3-L2a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 2</span> A 45W charger negotiates 15V/3A. At 92% converter efficiency, how much power reaches the battery?',
+            hint: 'Pout = Pin × efficiency',
+            expected: 41.4,
+            tolerance: 0.5,
+            unit: 'W',
+            solution: 'Pout = 45W × 0.92 = 41.4W',
+            explanation: 'The remaining 3.6W is dissipated as heat in the charger IC.'
+        },
+        {
+            id: 'M23-3-L2b',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 2</span> With 41.4W delivered to an 11.1V (3S) battery, what is the charge current?',
+            hint: 'I = P / V',
+            expected: 3.73,
+            tolerance: 0.1,
+            unit: 'A',
+            solution: 'I = 41.4W / 11.1V = 3.73A',
+            explanation: 'For a 5000mAh pack, this is 0.75C charging rate.'
+        },
+        // Level 3: Topology and protection
+        {
+            id: 'M23-3-L3a',
+            type: 'choice',
+            question: '<span class="difficulty">Level 3</span> A 2S battery (8.4V max) is charged from USB-C at 9V. What converter topology is needed?',
+            choices: [
+                { text: 'Buck only - 9V > 8.4V', correct: false },
+                { text: 'Boost only - 9V < 8.4V', correct: false },
+                { text: 'Buck-boost - 9V ≈ 8.4V (too close for buck)', correct: true },
+                { text: 'No converter needed - direct connection', correct: false }
+            ],
+            solution: 'Buck requires Vin > Vout + dropout (typically 0.5-1V). 9V - 8.4V = 0.6V is marginal.',
+            explanation: 'Buck-boost handles the case when Vin ≈ Vout. Also needed if Vin can be 5V (PD renegotiation).'
+        },
+        {
+            id: 'M23-3-L3b',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 3</span> VBUS must discharge from 20V to 5V in 500ms. With C = 100µF, what discharge resistor is needed?',
+            hint: 'V(t) = V0 × e^(-t/RC). Rearrange for R.',
+            expected: 3.6,
+            tolerance: 0.2,
+            unit: 'kΩ',
+            solution: 't = RC × ln(V0/V). R = t / (C × ln(20/5)) = 0.5 / (100µ × 1.39) = 3.6kΩ',
+            explanation: 'Peak power dissipation: 20²/3600 = 111mW. Use 1/4W resistor.'
+        },
+        // Level 3: PD negotiation
+        {
+            id: 'M23-3-L3c',
+            type: 'choice',
+            question: '<span class="difficulty">Level 3</span> A charger advertises [5V/3A, 9V/3A, 15V/2A, 20V/1.5A]. Which PDO provides maximum power?',
+            choices: [
+                { text: '5V/3A = 15W', correct: false },
+                { text: '9V/3A = 27W', correct: false },
+                { text: '15V/2A = 30W', correct: true },
+                { text: '20V/1.5A = 30W', correct: false }
+            ],
+            solution: '5V/3A=15W, 9V/3A=27W, 15V/2A=30W, 20V/1.5A=30W. 15V and 20V tie at 30W.',
+            explanation: 'Device should request 15V/2A (or 20V/1.5A) for fastest charging. Higher voltage = lower cable losses.'
+        },
+        // Level 4: Complete design
+        {
+            id: 'M23-3-L4a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 4</span> Design: A laptop needs 65W charging. If efficiency is 95% and PD max is 20V, what minimum current capability is required?',
+            hint: 'Pin = Pout/η. I = Pin/V',
+            expected: 3.42,
+            tolerance: 0.1,
+            unit: 'A',
+            solution: 'Pin = 65W / 0.95 = 68.4W. I = 68.4W / 20V = 3.42A',
+            explanation: 'Need 20V/3.5A PDO minimum. Round up to 20V/5A (100W) charger for headroom.'
+        },
+        {
+            id: 'M23-3-L4b',
+            type: 'choice',
+            question: '<span class="difficulty">Level 4</span> Your USB-C device works with some chargers but not others. CC voltage reads 0V with failing chargers. Most likely cause?',
+            choices: [
+                { text: 'PD controller firmware bug', correct: false },
+                { text: 'Missing or wrong value CC pull-down resistor', correct: true },
+                { text: 'VBUS overvoltage protection triggered', correct: false },
+                { text: 'Charger not USB-C compliant', correct: false }
+            ],
+            solution: 'If Rd is missing or wrong value, the source cannot detect the sink and won\'t enable VBUS.',
+            explanation: 'Always verify 5.1kΩ ±10% on both CC1 and CC2 to GND.'
+        },
+        {
+            id: 'M23-3-L4c',
+            type: 'choice',
+            question: '<span class="difficulty">Level 4</span> When would you use PPS (Programmable Power Supply) instead of fixed PDOs?',
+            choices: [
+                { text: 'When the device only needs 5V', correct: false },
+                { text: 'For battery charging with direct voltage control', correct: true },
+                { text: 'When cable is longer than 2m', correct: false },
+                { text: 'PPS is always better than fixed PDOs', correct: false }
+            ],
+            solution: 'PPS allows fine voltage control (20mV steps) so the charger IC can directly control CC/CV without internal conversion.',
+            explanation: 'Samsung and other fast-charging use PPS. The charger negotiates voltage to match battery + IR drop.'
+        }
+    ];
+
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-m23l3-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-m23l3-${i}`, ex);
+    });
+})();
+</script>

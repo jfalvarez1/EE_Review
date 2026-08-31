@@ -1,0 +1,332 @@
+<!-- Module 11, Lesson 2: RC Oscillators (Wien Bridge) -->
+<div class="lesson-content" data-module="11" data-lesson="2">
+
+    <div class="card">
+        <h2>RC Oscillators (Wien Bridge)</h2>
+        <p>RC oscillators use resistors and capacitors for timing. The Wien bridge oscillator is popular for audio frequencies, providing good sine wave purity with simple component requirements.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Wien Bridge Frequency</div>
+                <div class="v mono">f = 1 / (2πRC)</div>
+            </div>
+            <div class="box">
+                <div class="k">Required Gain</div>
+                <div class="v mono">G = 3 (exactly)</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> The Wien bridge network provides 0° phase shift at f₀ with attenuation of 1/3. The amplifier must provide gain of exactly 3 for unity loop gain. Too little: no oscillation. Too much: clipping.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Schematic</h3>
+        <div class="schematic-container centered" id="sch-m11l2-wien"></div>
+        <div class="schematic-caption">Wien bridge oscillator (non-inverting op-amp + lead/lag network)</div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Wien Bridge Design</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="wien-r">Resistance (R)</label>
+                <input type="text" id="wien-r" value="10k">
+            </div>
+            <div class="c3">
+                <label for="wien-c">Capacitance (C)</label>
+                <input type="text" id="wien-c" value="10n">
+            </div>
+            <div class="c3">
+                <label for="wien-gain">Amplifier Gain</label>
+                <input type="range" id="wien-gain" min="2" max="4" step="0.1" value="3">
+                <span id="wien-gain-val" class="mono">3.0</span>
+            </div>
+            <div class="c3">
+                <label for="wien-agc">AGC Enabled</label>
+                <select id="wien-agc">
+                    <option value="off">Off (fixed gain)</option>
+                    <option value="on" selected>On (lamp/FET)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="wien-canvas" width="980" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Frequency</div>
+                <div class="v mono" id="wien-freq">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Loop Gain</div>
+                <div class="v mono" id="wien-loop">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Oscillation Status</div>
+                <div class="v mono" id="wien-status">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Distortion</div>
+                <div class="v mono" id="wien-thd">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Amplitude Stabilization Methods</h3>
+
+        <table class="table">
+            <tr>
+                <th>Method</th>
+                <th>Mechanism</th>
+                <th>THD</th>
+            </tr>
+            <tr>
+                <td>Lamp AGC (Classic)</td>
+                <td>Incandescent lamp resistance increases with current</td>
+                <td>0.003%</td>
+            </tr>
+            <tr>
+                <td>FET as Variable R</td>
+                <td>JFET in triode acts as voltage-controlled resistor</td>
+                <td>0.01%</td>
+            </tr>
+            <tr>
+                <td>Diode Limiting</td>
+                <td>Soft clipping at diode knee</td>
+                <td>0.5%</td>
+            </tr>
+            <tr>
+                <td>Zener Clipping</td>
+                <td>Hard limiting at Zener voltage</td>
+                <td>2-5%</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Wien Bridge Network Analysis</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">At f = f₀</div>
+                <div class="v">Phase = 0°, Gain = 1/3</div>
+            </div>
+            <div class="box">
+                <div class="k">At f < f₀</div>
+                <div class="v">Phase leads, gain < 1/3</div>
+            </div>
+            <div class="box">
+                <div class="k">At f > f₀</div>
+                <div class="v">Phase lags, gain < 1/3</div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>Practical Note:</strong> HP used a small incandescent lamp for AGC in their famous 200A audio oscillator. The lamp's thermal time constant (~100ms) provides smooth amplitude control without modulating the signal.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('wien-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const R = AD.parseValue(document.getElementById('wien-r').value);
+        const C = AD.parseValue(document.getElementById('wien-c').value);
+        const gain = parseFloat(document.getElementById('wien-gain').value);
+        const agc = document.getElementById('wien-agc').value;
+
+        document.getElementById('wien-gain-val').textContent = gain.toFixed(1);
+
+        if (R <= 0 || C <= 0) return;
+
+        const freq = 1 / (2 * Math.PI * R * C);
+        const loopGain = gain / 3; // Network has 1/3 gain at resonance
+
+        let status, thd;
+        const effectiveGain = agc === 'on' ? 3.0 : gain;
+        const effectiveLoop = effectiveGain / 3;
+
+        if (effectiveLoop < 1) {
+            status = 'Decaying';
+            thd = 'N/A';
+        } else if (effectiveLoop === 1 || agc === 'on') {
+            status = 'Stable oscillation';
+            thd = agc === 'on' ? '< 0.01%' : '< 0.1%';
+        } else {
+            status = 'Clipping (saturated)';
+            thd = '> 1%';
+        }
+
+        document.getElementById('wien-freq').textContent = AD.fmtUnit(freq, 'Hz');
+        document.getElementById('wien-loop').textContent = loopGain.toFixed(2);
+        document.getElementById('wien-status').textContent = status;
+        document.getElementById('wien-status').style.color =
+            status === 'Stable oscillation' ? 'var(--ok)' :
+            status === 'Decaying' ? 'var(--bad)' : 'var(--warn)';
+        document.getElementById('wien-thd').textContent = thd;
+
+        plotWien(freq, gain, agc);
+    }
+
+    function plotWien(freq, gain, agc) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        const N = 400;
+        const cycles = 5;
+        const loopGain = (agc === 'on' ? 3.0 : gain) / 3;
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * cycles;
+            let amplitude;
+
+            if (loopGain < 1) {
+                // Decaying
+                amplitude = Math.exp(-t * (1 - loopGain) * 2) * 0.8;
+            } else if (loopGain === 1 || agc === 'on') {
+                // Stable
+                amplitude = 0.7;
+            } else {
+                // Clipping - simulate soft clipping
+                amplitude = 0.9;
+            }
+
+            let signal = amplitude * Math.sin(2 * Math.PI * t);
+
+            // Apply soft clipping if gain > 3
+            if (loopGain > 1 && agc === 'off') {
+                const clipLevel = 0.7;
+                if (signal > clipLevel) signal = clipLevel + (signal - clipLevel) * 0.3;
+                if (signal < -clipLevel) signal = -clipLevel + (signal + clipLevel) * 0.3;
+            }
+
+            const x = (i / N) * (w - 60) + 50;
+            const y = h / 2 - signal * (h / 2 - 30);
+
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // Labels
+        ctx.fillStyle = 'white';
+        ctx.font = '12px ui-sans-serif';
+        ctx.fillText('Time →', w - 60, h - 10);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText(agc === 'on' ? 'AGC stabilized output' :
+                    loopGain < 1 ? 'Decaying - gain too low' :
+                    loopGain === 1 ? 'Perfect oscillation' :
+                    'Clipping - gain too high', w - 200, 25);
+    }
+
+    ['wien-r', 'wien-c'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+    document.getElementById('wien-gain').addEventListener('input', update);
+    document.getElementById('wien-agc').addEventListener('change', update);
+
+    update();
+
+    // Schematic
+    (function renderSchematic() {
+        const el = document.getElementById('sch-m11l2-wien');
+        if (!el) return;
+        const f = (window.AD && AD.Schematic && AD.Schematic.wienBridgeOscillator) || (typeof SchematicSVG !== 'undefined' && SchematicSVG.wienBridgeOscillator);
+        if (typeof f === 'function') f(el, { width: 420, height: 260, r: '10k', c: '10n' });
+    })();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Wien Bridge Oscillator',
+        netlist: `* Wien Bridge Oscillator
+* Classic design with AGC
+
+.include opamp.sub
+
+* Op-amp non-inverting configuration
+X1 inp inn out 0 vcc vee OPAMP
+
+* Wien bridge feedback network
+R1 out node1 10k
+C1 node1 inp 10n
+R2 inp 0 10k
+C2 inp 0 10n
+
+* Gain setting network (negative feedback)
+* G = 1 + Rf/Rg = 3
+RF out inn 20k
+RG inn 0 10k
+
+* For AGC: Replace RG with JFET or lamp
+
+* Supply
+VCC vcc 0 DC 15
+VEE vee 0 DC -15
+
+* Initial kick to start oscillation
+VIC inp 0 IC=0.1
+
+.TRAN 0.1u 10m UIC
+
+.PROBE V(out) V(inp)
+.END
+
+* f = 1/(2π × 10k × 10n) = 1.59 kHz`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm11l2',
+        items: [
+            'Know Wien bridge frequency formula',
+            'Understand gain = 3 requirement',
+            'Know lamp AGC provides lowest distortion',
+            'Recognize phase/amplitude conditions at f0',
+            'Understand AGC time constant importance'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'K1-2',
+        type: 'numeric',
+        question: 'Design a 1 kHz Wien bridge oscillator. If C = 16 nF, what R value is needed?',
+        hint: 'R = 1/(2πfC)',
+        expected: 10,
+        tolerance: 0.05,
+        unit: 'kΩ',
+        solution: 'R = 1/(2π × 1000 × 16×10⁻⁹) = 9.95 kΩ ≈ 10 kΩ',
+        explanation: 'Use standard 10 kΩ resistors and 16 nF (or 15 nF) capacitors for easy availability.'
+    });
+})();
+</script>

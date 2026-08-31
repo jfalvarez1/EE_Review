@@ -1,0 +1,485 @@
+<!-- Module 16, Lesson 5: Automotive Power System -->
+<div class="lesson-content" data-module="16" data-lesson="5">
+
+    <div class="card">
+        <h2>Case Study: Automotive ECU Power System</h2>
+        <p>Design a robust power supply for an automotive ECU that must survive load dumps, cold cranking, and reverse polarity. This scenario covers the harsh automotive electrical environment and protection strategies.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Nominal</div>
+                <div class="v">12-14.4V battery</div>
+            </div>
+            <div class="box">
+                <div class="k">Load Dump</div>
+                <div class="v">Up to 40V transient</div>
+            </div>
+            <div class="box">
+                <div class="k">Cold Crank</div>
+                <div class="v">Down to 6V</div>
+            </div>
+            <div class="box">
+                <div class="k">Reverse</div>
+                <div class="v">-14V protection</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Challenge:</strong> Automotive systems must operate from 6V (cold crank) to survive 40V (load dump). This 6:1 range requires careful regulator selection—many linear regulators can't handle it.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>The Scenario</h3>
+        <div style="background:#111; padding:15px; border-radius:4px;">
+            <p><strong>Requirement:</strong> Design power system for body control module.</p>
+            <ul style="margin-top:10px; color:#aaa;">
+                <li>Input: 12V nominal, ISO 7637-2 transient protection</li>
+                <li>Outputs: 5V @ 500mA (MCU), 3.3V @ 200mA (CAN/LIN), 8V @ 50mA (sensors)</li>
+                <li>Operating temp: -40°C to +85°C</li>
+                <li>Must survive cranking down to 6V</li>
+                <li>Load dump to 40V for 400ms</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Automotive Voltage Conditions</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="auto-vin">Battery Voltage (V)</label>
+                <input type="range" id="auto-vin" min="4" max="42" step="0.5" value="13.8">
+                <span id="auto-vin-val" class="mono">13.8V</span>
+            </div>
+            <div class="c3">
+                <label for="auto-mode">Condition</label>
+                <select id="auto-mode">
+                    <option value="normal">Normal Operation</option>
+                    <option value="crank">Cold Cranking</option>
+                    <option value="dump">Load Dump</option>
+                    <option value="reverse">Reverse Polarity</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="auto-load">Total Load (mA)</label>
+                <input type="text" id="auto-load" value="750">
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="auto-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Input Status</div>
+                <div class="v mono" id="auto-status">—</div>
+            </div>
+            <div class="box">
+                <div class="k">5V Rail</div>
+                <div class="v mono" id="auto-5v">—</div>
+            </div>
+            <div class="box">
+                <div class="k">3.3V Rail</div>
+                <div class="v mono" id="auto-3v3">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Power Dissipation</div>
+                <div class="v mono" id="auto-pdiss">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>ISO 7637-2 Transient Protection</h3>
+
+        <table class="table">
+            <tr>
+                <th>Pulse</th>
+                <th>Description</th>
+                <th>Level</th>
+                <th>Protection</th>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td>Disconnection of inductive load</td>
+                <td>-100V, 2ms</td>
+                <td>TVS diode</td>
+            </tr>
+            <tr>
+                <td>2a</td>
+                <td>Ignition off (inductive coupling)</td>
+                <td>+37V, 50µs</td>
+                <td>TVS diode</td>
+            </tr>
+            <tr>
+                <td>2b</td>
+                <td>Ignition off (DC coupling)</td>
+                <td>+10V, 200ms</td>
+                <td>Wide-input regulator</td>
+            </tr>
+            <tr>
+                <td>3a/3b</td>
+                <td>Switching transients</td>
+                <td>±150V, ns</td>
+                <td>Series R + TVS</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>Starter motor engagement</td>
+                <td>-6V/+5V, ms</td>
+                <td>Reverse diode</td>
+            </tr>
+            <tr>
+                <td>5a/5b</td>
+                <td>Load dump</td>
+                <td>+65V/+87V</td>
+                <td>TVS + regulator clamp</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Power Architecture</h3>
+        <div id="auto-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="auto-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="auto-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="auto-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('auto-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    function update() {
+        let Vin = parseFloat(document.getElementById('auto-vin').value) || 13.8;
+        const mode = document.getElementById('auto-mode').value;
+        const Iload = parseFloat(document.getElementById('auto-load').value) || 750;
+
+        // Set voltage based on mode
+        switch(mode) {
+            case 'crank': Vin = 6.5; break;
+            case 'dump': Vin = 35; break;
+            case 'reverse': Vin = -12; break;
+        }
+
+        document.getElementById('auto-vin').value = Vin;
+        document.getElementById('auto-vin-val').textContent = Vin.toFixed(1) + 'V';
+
+        // Calculate rail status
+        let status, statusColor;
+        let v5 = 5, v3v3 = 3.3;
+        let pdiss = 0;
+
+        if (Vin < 0) {
+            status = 'REVERSE - Protected';
+            statusColor = '#f44';
+            v5 = 0; v3v3 = 0;
+        } else if (Vin < 6) {
+            status = 'UNDERVOLTAGE';
+            statusColor = '#fa4';
+            v5 = Vin * 0.8; v3v3 = Math.min(v5 - 0.3, 3.3);
+        } else if (Vin < 8) {
+            status = 'LOW - Buck mode';
+            statusColor = '#fa4';
+            v5 = 5; v3v3 = 3.3;
+            pdiss = (Vin - 5) * 0.5 + 0.5;
+        } else if (Vin <= 18) {
+            status = 'NORMAL';
+            statusColor = '#4f4';
+            v5 = 5; v3v3 = 3.3;
+            pdiss = (Vin - 5) * 0.5 * 0.15;
+        } else if (Vin <= 36) {
+            status = 'HIGH - TVS clamping';
+            statusColor = '#fa4';
+            const Vclamp = Math.min(Vin, 33);
+            pdiss = (Vclamp - 5) * 0.5 * 0.2;
+        } else {
+            status = 'LOAD DUMP - Full clamp';
+            statusColor = '#f44';
+            pdiss = 5;
+        }
+
+        document.getElementById('auto-status').innerHTML = '<span style="color:' + statusColor + '">' + status + '</span>';
+        document.getElementById('auto-5v').textContent = v5.toFixed(2) + 'V';
+        document.getElementById('auto-3v3').textContent = v3v3.toFixed(2) + 'V';
+        document.getElementById('auto-pdiss').textContent = pdiss.toFixed(2) + 'W';
+
+        // Draw
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        const plotW = W - mL - mR;
+        const plotH = H - mT - mB;
+
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
+
+        // Voltage zones
+        const zones = [
+            {min: -15, max: 0, color: 'rgba(255,68,68,0.3)', label: 'Reverse'},
+            {min: 0, max: 6, color: 'rgba(255,170,68,0.3)', label: 'UV'},
+            {min: 6, max: 9, color: 'rgba(255,255,68,0.3)', label: 'Crank'},
+            {min: 9, max: 16, color: 'rgba(68,255,68,0.3)', label: 'Normal'},
+            {min: 16, max: 36, color: 'rgba(255,255,68,0.3)', label: 'High'},
+            {min: 36, max: 45, color: 'rgba(255,68,68,0.3)', label: 'Load Dump'}
+        ];
+
+        const vMin = -15, vMax = 45;
+        zones.forEach(z => {
+            const x1 = mL + plotW * (z.min - vMin) / (vMax - vMin);
+            const x2 = mL + plotW * (z.max - vMin) / (vMax - vMin);
+            ctx.fillStyle = z.color;
+            ctx.fillRect(x1, mT, x2 - x1, plotH);
+        });
+
+        // Current operating point
+        const xOp = mL + plotW * (Vin - vMin) / (vMax - vMin);
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(xOp, mT);
+        ctx.lineTo(xOp, mT + plotH);
+        ctx.stroke();
+
+        // Draw 5V rail response
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i <= plotW; i++) {
+            const v = vMin + (vMax - vMin) * i / plotW;
+            let v5out;
+            if (v < 0) v5out = 0;
+            else if (v < 6) v5out = v * 0.8;
+            else if (v <= 40) v5out = 5;
+            else v5out = 5;
+            const x = mL + i;
+            const y = mT + plotH * (1 - v5out / 6);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Labels
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Input Voltage (V)', mL + plotW/2, H - 10);
+        ctx.fillText('Automotive Power System Response', mL + plotW/2, 20);
+
+        // Zone labels
+        ctx.font = '10px monospace';
+        ctx.fillStyle = '#aaa';
+        zones.forEach(z => {
+            const x = mL + plotW * ((z.min + z.max)/2 - vMin) / (vMax - vMin);
+            ctx.fillText(z.label, x, mT + 15);
+        });
+
+        // Legend
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillRect(mL + 10, mT + 30, 15, 3);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('5V Rail', mL + 30, mT + 35);
+    }
+
+    ['auto-vin', 'auto-mode', 'auto-load'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+        document.getElementById(id).addEventListener('change', update);
+    });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('auto-schematic');
+        const svg = new SchematicSVG(620, 280);
+
+        // Battery input
+        svg.text(20, 80, 'VBAT', {fontSize: 10});
+        svg.text(20, 95, '12V', {fontSize: 9, fill: '#888'});
+        svg.wire([[50, 85], [80, 85]]);
+
+        // Reverse polarity protection (P-FET)
+        svg.rect(80, 70, 40, 30, {fill: 'none', stroke: '#4af'});
+        svg.text(100, 90, 'P-FET', {fontSize: 8});
+        svg.wire([[120, 85], [150, 85]]);
+
+        // TVS protection
+        svg.wire([[150, 85], [150, 110]]);
+        svg.text(160, 115, 'TVS', {fontSize: 9});
+        svg.text(160, 130, '33V', {fontSize: 8, fill: '#888'});
+        svg.wire([[150, 140], [150, 160]]);
+        svg.ground(150, 160);
+
+        // Series resistor for pulse 3
+        svg.wire([[150, 85], [180, 85]]);
+        svg.resistor(200, 85, {horizontal: true});
+        svg.text(200, 70, '10Ω', {fontSize: 9});
+        svg.wire([[220, 85], [260, 85]]);
+
+        // Input cap
+        svg.wire([[260, 85], [260, 110]]);
+        svg.capacitor(260, 130, {horizontal: false});
+        svg.text(275, 130, '100µF', {fontSize: 9});
+        svg.wire([[260, 150], [260, 160]]);
+        svg.ground(260, 160);
+
+        // Buck converter block
+        svg.rect(300, 60, 80, 50, {fill: 'none', stroke: '#4af'});
+        svg.text(340, 80, 'Buck', {fontSize: 10, fill: '#4af'});
+        svg.text(340, 95, '5V/1A', {fontSize: 9});
+        svg.wire([[260, 85], [300, 85]]);
+        svg.wire([[380, 85], [420, 85]]);
+        svg.text(410, 75, '5V', {fontSize: 10});
+
+        // 3.3V LDO
+        svg.wire([[420, 85], [420, 150]]);
+        svg.rect(400, 150, 60, 35, {fill: 'none', stroke: '#4af'});
+        svg.text(430, 172, 'LDO', {fontSize: 10, fill: '#4af'});
+        svg.wire([[460, 167], [500, 167]]);
+        svg.text(510, 172, '3.3V', {fontSize: 10});
+
+        // Output caps
+        svg.wire([[500, 85], [500, 110]]);
+        svg.capacitor(500, 130, {horizontal: false});
+        svg.wire([[500, 150], [500, 160]]);
+        svg.ground(500, 160);
+
+        // MCU load
+        svg.wire([[420, 85], [570, 85]]);
+        svg.text(580, 80, 'MCU', {fontSize: 10});
+        svg.text(580, 95, '500mA', {fontSize: 9, fill: '#888'});
+
+        // CAN/LIN load
+        svg.wire([[500, 167], [570, 167]]);
+        svg.text(580, 162, 'CAN', {fontSize: 10});
+        svg.text(580, 177, '200mA', {fontSize: 9, fill: '#888'});
+
+        // Annotations
+        svg.text(100, 50, 'Reverse', {fontSize: 9, fill: '#888'});
+        svg.text(100, 60, 'Protection', {fontSize: 9, fill: '#888'});
+
+        svg.text(200, 50, 'Transient', {fontSize: 9, fill: '#888'});
+        svg.text(200, 60, 'Filtering', {fontSize: 9, fill: '#888'});
+
+        // Operating range note
+        svg.text(310, 230, 'Wide input range: 6V - 40V', {fontSize: 10, fill: '#4af'});
+        svg.text(310, 245, 'Load dump survival to 65V', {fontSize: 10, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('auto-spice', {
+            title: 'Automotive Power System',
+            netlist: `* Automotive ECU Power System
+* ISO 7637-2 compliant design
+
+* Battery with load dump transient
+Vbat bat 0 PWL(0 13.8 1m 13.8 1.001m 40 1.4m 40 1.401m 13.8)
+
+* Reverse protection P-FET
+M1 bat gate prot PFET
+Rgate gate prot 10k
+.model PFET PMOS(VTO=-2 KP=50m)
+
+* Series resistor and TVS
+Rseries prot filtered 10
+D1 filtered 0 TVS
+D2 0 filtered TVS
+.model TVS D(BV=33 IBV=1 RS=0.1)
+
+* Input filter
+Cin filtered 0 100u IC=13.8
+
+* Buck regulator (simplified)
+* Wide-input synchronous buck
+Xbuck filtered rail5v buck_simple
+.subckt buck_simple in out
+Rin in mid 1
+Ebuck out 0 TABLE {V(mid)} = (0,0) (6,4.8) (9,5) (40,5)
+Rout out 0 10
+.ends
+
+* LDO for 3.3V
+Xldo rail5v rail3v3 ldo_model
+.subckt ldo_model in out
+Eldo out 0 TABLE {V(in)} = (0,0) (3.5,3.3) (5,3.3)
+Rout out 0 16.5
+.ends
+
+.tran 10u 5m
+.probe V(bat) V(filtered) V(rail5v) V(rail3v3)
+.end`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('auto-checklist', {
+            title: 'Automotive Power Design Checklist',
+            items: [
+                'Reverse polarity protection (P-FET or Schottky)',
+                'Load dump protection per ISO 7637-2',
+                'Cold crank operation down to 6V',
+                'Wide-temperature components (-40°C to +125°C)',
+                'EMC filtering for conducted emissions',
+                'Proper TVS selection for transient energy',
+                'Thermal design for worst-case power',
+                'Sleep current meets quiescent requirements'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('auto-exercises', {
+            exercises: [
+                {
+                    question: 'A P-FET body diode conducts during reverse polarity. If 5A flows through 0.5V diode, what power is dissipated?',
+                    answer: '2.5W',
+                    solution: 'P = V × I = 0.5V × 5A = 2.5W. This is why smart reverse protection uses the FET channel instead.'
+                },
+                {
+                    question: 'Load dump is 40V for 400ms. If TVS clamps at 33V and current is 2A, what energy must TVS absorb?',
+                    answer: '5.6J',
+                    solution: 'Power during clamp = (40V - 33V) × 2A = 14W. Energy = P × t = 14W × 0.4s = 5.6J. Select TVS with adequate energy rating.'
+                },
+                {
+                    question: 'A buck converter is 90% efficient. To supply 5V/500mA from 13.8V, what input current?',
+                    answer: '201mA',
+                    solution: 'Pout = 5V × 0.5A = 2.5W. Pin = Pout/η = 2.5/0.9 = 2.78W. Iin = 2.78W/13.8V = 201mA'
+                }
+            ]
+        });
+    }
+
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

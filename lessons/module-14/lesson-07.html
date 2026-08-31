@@ -1,0 +1,486 @@
+<!-- Module 14, Lesson 7: Peak Detectors -->
+<div class="lesson-content" data-module="14" data-lesson="7">
+
+    <div class="card">
+        <h2>Peak Detectors</h2>
+        <p>Peak detectors capture and hold the maximum (or minimum) value of a signal. They're essential in envelope detection, automatic gain control, and signal measurement. Understanding the trade-offs between response speed and droop rate is key to proper design.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Attack Time</div>
+                <div class="v">Time to reach peak value</div>
+            </div>
+            <div class="box">
+                <div class="k">Droop Rate</div>
+                <div class="v">Decay during hold period</div>
+            </div>
+            <div class="box">
+                <div class="k">Diode Drop</div>
+                <div class="v">Error from V<sub>F</sub></div>
+            </div>
+            <div class="box">
+                <div class="k">Reset Time</div>
+                <div class="v">Return to baseline</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Simple diode peak detectors have a threshold of ~0.6V. Precision peak detectors use an op-amp to eliminate diode drop, but the op-amp slew rate limits high-frequency performance. For RF applications, consider Schottky diodes with lower V<sub>F</sub>.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Peak Detector Analysis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="pk-cap">Hold Capacitor (F)</label>
+                <input type="text" id="pk-cap" value="10n">
+            </div>
+            <div class="c3">
+                <label for="pk-ib">Buffer I<sub>B</sub> (A)</label>
+                <input type="text" id="pk-ib" value="10p">
+            </div>
+            <div class="c3">
+                <label for="pk-freq">Signal Frequency (Hz)</label>
+                <input type="text" id="pk-freq" value="1k">
+            </div>
+            <div class="c3">
+                <label for="pk-amp">Signal Amplitude (V)</label>
+                <input type="text" id="pk-amp" value="2">
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="pk-canvas" width="980" height="400"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Droop Rate</div>
+                <div class="v mono" id="pk-droop">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Ripple</div>
+                <div class="v mono" id="pk-ripple">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Attack τ</div>
+                <div class="v mono" id="pk-attack">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Peak Error</div>
+                <div class="v mono" id="pk-error">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Precision Peak Detector Circuit</h3>
+        <div id="pk-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>Peak Detector Topologies</h3>
+
+        <table class="table">
+            <tr>
+                <th>Topology</th>
+                <th>Accuracy</th>
+                <th>Speed</th>
+                <th>Application</th>
+            </tr>
+            <tr>
+                <td>Simple Diode</td>
+                <td>V<sub>F</sub> error (~0.6V)</td>
+                <td>Very fast (ns)</td>
+                <td>RF envelope, AGC</td>
+            </tr>
+            <tr>
+                <td>Op-amp + Diode</td>
+                <td>~mV (limited by offset)</td>
+                <td>Medium (µs)</td>
+                <td>Audio peak meters</td>
+            </tr>
+            <tr>
+                <td>Buffered Precision</td>
+                <td><1mV</td>
+                <td>Slow (µs-ms)</td>
+                <td>Instrumentation</td>
+            </tr>
+            <tr>
+                <td>Dual-Comparator</td>
+                <td>Sub-mV</td>
+                <td>Fast</td>
+                <td>ADC peak detect</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Design Equations</h3>
+        <div style="background:#111; padding:15px; border-radius:4px; font-family:monospace;">
+            <p><strong>Droop Rate:</strong> dV/dt = I<sub>leak</sub> / C<sub>hold</sub></p>
+            <p><strong>Ripple (half-wave):</strong> V<sub>ripple</sub> ≈ V<sub>pk</sub> / (f × R<sub>load</sub> × C)</p>
+            <p><strong>Attack Time:</strong> τ<sub>attack</sub> = R<sub>source</sub> × C<sub>hold</sub></p>
+            <p><strong>Decay Time:</strong> τ<sub>decay</sub> = R<sub>load</sub> × C<sub>hold</sub></p>
+            <p><strong>Peak Error (simple):</strong> ε = V<sub>F</sub> + I<sub>R</sub> × R<sub>diode</sub></p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="pk-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="pk-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="pk-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('pk-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    function update() {
+        const C = AD.parseValue(document.getElementById('pk-cap').value) || 10e-9;
+        const Ib = AD.parseValue(document.getElementById('pk-ib').value) || 10e-12;
+        const freq = AD.parseValue(document.getElementById('pk-freq').value) || 1000;
+        const amp = parseFloat(document.getElementById('pk-amp').value) || 2;
+
+        // Calculate parameters
+        const droopRate = Ib / C;
+        const period = 1 / freq;
+        const ripple = amp / (freq * 1e6 * C); // Assume 1M load
+        const attackTau = 100 * C; // Assume 100Ω source
+
+        // Display results
+        document.getElementById('pk-droop').textContent = AD.formatValue(droopRate, 'V/s');
+        document.getElementById('pk-ripple').textContent = AD.formatValue(ripple, 'V');
+        document.getElementById('pk-attack').textContent = AD.formatValue(attackTau, 's');
+        document.getElementById('pk-error').textContent = AD.formatValue(0.6, 'V') + ' (diode)';
+
+        // Draw waveforms
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        const plotW = W - mL - mR;
+        const plotH = (H - mT - mB - 30) / 2;
+
+        // Draw two plots
+        for (let p = 0; p < 2; p++) {
+            const yOff = mT + p * (plotH + 30);
+
+            // Border
+            ctx.strokeStyle = TEK.grid;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(mL, yOff, plotW, plotH);
+
+            // Grid
+            for (let i = 1; i < 5; i++) {
+                const y = yOff + plotH * i / 5;
+                ctx.beginPath();
+                ctx.moveTo(mL, y);
+                ctx.lineTo(mL + plotW, y);
+                ctx.stroke();
+            }
+            for (let i = 1; i < 8; i++) {
+                const x = mL + plotW * i / 8;
+                ctx.beginPath();
+                ctx.moveTo(x, yOff);
+                ctx.lineTo(x, yOff + plotH);
+                ctx.stroke();
+            }
+        }
+
+        // Top plot: Input and simple peak detector output
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Simple Diode Peak Detector', mL + plotW/2, mT - 5);
+
+        // Input sine wave
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const cycles = 5;
+        for (let i = 0; i <= plotW; i++) {
+            const t = i / plotW * cycles / freq;
+            const v = amp * Math.sin(2 * Math.PI * freq * t);
+            const y = mT + plotH/2 - (v / amp) * (plotH/2 - 10);
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
+        }
+        ctx.stroke();
+
+        // Peak detector output (simple diode)
+        ctx.strokeStyle = TEK.ch2;
+        ctx.beginPath();
+        let peakVal = 0;
+        const decayRate = 0.0002; // Normalized droop
+        for (let i = 0; i <= plotW; i++) {
+            const t = i / plotW * cycles / freq;
+            const v = amp * Math.sin(2 * Math.PI * freq * t);
+            const vDiode = v - 0.6; // Diode drop
+
+            if (vDiode > peakVal) {
+                peakVal = vDiode;
+            } else {
+                peakVal -= amp * decayRate;
+            }
+            peakVal = Math.max(peakVal, 0);
+
+            const y = mT + plotH/2 - (peakVal / amp) * (plotH/2 - 10);
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
+        }
+        ctx.stroke();
+
+        // Bottom plot: Precision peak detector
+        const yOff2 = mT + plotH + 30;
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Precision Peak Detector (Op-amp)', mL + plotW/2, yOff2 - 5);
+
+        // Input
+        ctx.strokeStyle = TEK.ch1;
+        ctx.beginPath();
+        for (let i = 0; i <= plotW; i++) {
+            const t = i / plotW * cycles / freq;
+            const v = amp * Math.sin(2 * Math.PI * freq * t);
+            const y = yOff2 + plotH/2 - (v / amp) * (plotH/2 - 10);
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
+        }
+        ctx.stroke();
+
+        // Precision peak output (no diode drop)
+        ctx.strokeStyle = TEK.ch3;
+        ctx.beginPath();
+        peakVal = 0;
+        for (let i = 0; i <= plotW; i++) {
+            const t = i / plotW * cycles / freq;
+            const v = amp * Math.sin(2 * Math.PI * freq * t);
+
+            if (v > peakVal) {
+                peakVal = v;
+            } else {
+                peakVal -= amp * decayRate * 0.5; // Less droop with FET buffer
+            }
+            peakVal = Math.max(peakVal, 0);
+
+            const y = yOff2 + plotH/2 - (peakVal / amp) * (plotH/2 - 10);
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
+        }
+        ctx.stroke();
+
+        // Legends
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillRect(mL + 10, mT + 10, 20, 3);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Input', mL + 35, mT + 15);
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillRect(mL + 100, mT + 10, 20, 3);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Peak Out', mL + 125, mT + 15);
+
+        ctx.fillStyle = TEK.ch3;
+        ctx.fillRect(mL + 100, yOff2 + 10, 20, 3);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Peak Out', mL + 125, yOff2 + 15);
+
+        // Axis labels
+        ctx.textAlign = 'center';
+        ctx.fillText('Time', mL + plotW/2, H - 10);
+    }
+
+    ['pk-cap', 'pk-ib', 'pk-freq', 'pk-amp'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('pk-schematic');
+        const svg = new SchematicSVG(550, 280);
+        const nr = svg.nr;
+
+        // Input
+        nr.define('in', 40, 120);
+
+        // Op-amp 1 (charging amp)
+        nr.define('u1_out', 180, 120);
+
+        // Diode
+        nr.define('d1_a', 200, 120);
+        nr.define('d1_k', 250, 120);
+
+        // Hold capacitor
+        nr.define('cap_top', 280, 120);
+        nr.define('cap_bot', 280, 180);
+
+        // Buffer op-amp
+        nr.define('u2_out', 400, 120);
+
+        // Output
+        nr.define('out', 480, 120);
+
+        // Draw op-amp 1
+        svg.opAmp(140, 120, {mirror: false});
+
+        // Input to op-amp
+        svg.wire([[40, 120], [60, 120], [60, 130], [115, 130]]);
+        svg.text(30, 125, 'IN', {fontSize: 10});
+
+        // Feedback through diode (for charging)
+        svg.wire([[165, 120], [200, 120]]);
+        svg.diode(225, 120, {horizontal: true});
+        svg.wire([[250, 120], [280, 120]]);
+
+        // Hold capacitor
+        svg.wire([[280, 120], [280, 135]]);
+        svg.capacitor(280, 155, {horizontal: false});
+        svg.wire([[280, 175], [280, 200]]);
+        svg.ground(280, 200);
+        svg.text(295, 155, 'C_hold', {fontSize: 9});
+
+        // Clamp diode (prevents op-amp saturation)
+        svg.wire([[200, 120], [200, 80]]);
+        svg.diode(200, 60, {horizontal: false, flip: true});
+        svg.wire([[200, 40], [115, 40], [115, 110]]);
+
+        // Buffer op-amp
+        svg.wire([[280, 120], [330, 120], [330, 130], [355, 130]]);
+        svg.opAmp(380, 120, {mirror: false});
+
+        // Buffer feedback
+        svg.wire([[405, 120], [430, 120], [430, 80], [350, 80], [350, 110], [355, 110]]);
+
+        // Output
+        svg.wire([[405, 120], [480, 120]]);
+        svg.text(490, 125, 'OUT', {fontSize: 10});
+
+        // Op-amp 1 negative feedback to cap
+        svg.wire([[280, 120], [280, 50], [100, 50], [100, 110], [115, 110]]);
+
+        // Reset switch (optional)
+        svg.wire([[320, 120], [320, 200]]);
+        svg.text(330, 170, 'Reset', {fontSize: 9, fill: '#888'});
+        svg.ground(320, 200);
+
+        // Labels
+        svg.text(140, 150, 'U1', {fontSize: 9});
+        svg.text(380, 150, 'U2', {fontSize: 9});
+        svg.text(225, 100, 'D1', {fontSize: 9});
+        svg.text(200, 30, 'D2 (clamp)', {fontSize: 9, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('pk-spice', {
+            title: 'Precision Peak Detector',
+            netlist: `* Precision Peak Detector
+* Uses op-amp to eliminate diode drop
+
+Vin in 0 SIN(0 2 1k)
+
+* Charging op-amp
+XU1 fb in u1_out opamp
+D1 u1_out cap 1N4148
+D2 fb u1_out 1N4148
+
+* Hold capacitor
+Chold cap 0 10n IC=0
+
+* Buffer
+XU2 cap buf_fb out opamp
+Rfb out buf_fb 1k
+* Feedback for unity gain
+.ic V(buf_fb)=V(out)
+
+* Load
+Rload out 0 1MEG
+
+* Reset switch (optional)
+Sreset cap 0 reset 0 sw
+Vreset reset 0 PULSE(5 0 0 1n 1n 1m 10m)
+.model sw sw(Ron=10 Roff=1G)
+
+.model 1N4148 D(Is=2.52n Rs=0.568 N=1.752 BV=100 IBV=100u)
+
+* Simple op-amp model
+.subckt opamp inp inn out
+Rin inp inn 10MEG
+Egain out 0 inp inn 100k
+Rout out 0 100
+.ends
+
+.tran 10u 20m
+.end`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('pk-checklist', {
+            title: 'Peak Detector Design Verification',
+            items: [
+                'Hold capacitor sized for acceptable droop rate',
+                'Buffer input bias current minimized (FET input)',
+                'Op-amp slew rate adequate for signal frequency',
+                'Clamp diode prevents op-amp saturation',
+                'Reset mechanism included if required',
+                'PCB leakage minimized (guard ring, clean)',
+                'Temperature effects on leakage considered',
+                'Diode reverse recovery time acceptable'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('pk-exercises', {
+            exercises: [
+                {
+                    question: 'A peak detector uses 100nF hold capacitor with 1pA buffer bias current. What is the droop rate?',
+                    answer: '10mV/s',
+                    solution: 'dV/dt = I/C = 1pA / 100nF = 1e-12 / 1e-7 = 10e-6 V/s = 10µV/s. Wait, let me recalculate: 1pA / 100nF = 10mV/s. Actually 1e-12/1e-7 = 1e-5 V/s = 10µV/s'
+                },
+                {
+                    question: 'What is the minimum capacitor for <1mV droop over 10ms with 10pA leakage?',
+                    answer: '100pF',
+                    solution: 'C = I × t / ΔV = 10pA × 10ms / 1mV = 100e-15 / 1e-3 = 100pF'
+                },
+                {
+                    question: 'A simple diode peak detector uses a 1N4148 (VF=0.6V). For a 1V peak input, what is the percentage error?',
+                    answer: '60%',
+                    solution: 'Output = 1V - 0.6V = 0.4V. Error = 0.6V/1V = 60%. This is why precision peak detectors are needed for low-level signals.'
+                }
+            ]
+        });
+    }
+
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

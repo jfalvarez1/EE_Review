@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 23.12: Industrial 4-20mA Current Loop Design | Analog Discovery</title>
+    <link rel="stylesheet" href="../../assets/main.css">
+    <link rel="stylesheet" href="../../assets/lesson-layout.css">
+    <script src="../../assets/main.js" defer></script>
+    <script src="../../assets/widgets.js" defer></script>
+    <style>
+        .loop-diagram { font-family: monospace; font-size: 12px; line-height: 1.3; background: #1a1a2e; padding: 15px; border-radius: 8px; overflow-x: auto; }
+        .loop-diagram .power { color: #ff6b6b; }
+        .loop-diagram .signal { color: #4ecdc4; }
+        .loop-diagram .ground { color: #45b7d1; }
+        .loop-diagram .component { color: #f9ca24; }
+        .loop-diagram .label { color: #a0a0a0; }
+        .spec-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .spec-table th, .spec-table td { border: 1px solid #444; padding: 10px; text-align: left; }
+        .spec-table th { background: #2a2a4a; }
+        .calc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
+        .calc-box { background: #1e1e3f; padding: 15px; border-radius: 8px; }
+        .calc-box label { display: block; margin-bottom: 5px; font-size: 14px; }
+        .calc-box input[type="range"] { width: 100%; }
+        .result-box { background: #2a2a5a; padding: 10px; border-radius: 4px; margin-top: 10px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-nav-container">
+            <nav class="lesson-nav" aria-label="Lesson navigation">
+                <div class="hamburger-menu" onclick="toggleNav()">
+                    <span></span><span></span><span></span>
+                </div>
+                <a href="../../index.html" class="nav-home">↩</a>
+                <a href="lesson-11.html" class="nav-prev" title="Previous: Solar MPPT">←</a>
+                <a href="lesson-13.html" class="nav-next" title="Next: Automotive 48V Systems">→</a>
+            </nav>
+        </div>
+
+        <header class="lesson-header">
+            <div class="module-tag">Module 23: Industry Design Examples</div>
+            <h1>Industrial 4-20mA Current Loop Design</h1>
+            <p class="lesson-subtitle">Robust process control signaling for industrial environments</p>
+        </header>
+
+        <article class="lesson-content">
+            <!-- Section 1: Why Current Loops? -->
+            <section class="content-section">
+                <h2>Why 4-20mA Current Loops?</h2>
+                <div class="card">
+                    <p>In industrial environments, voltage signaling fails due to:</p>
+                    <ul>
+                        <li><strong>Long cable runs</strong> (100-1000m) with significant IR drop</li>
+                        <li><strong>Electrical noise</strong> from motors, VFDs, welders</li>
+                        <li><strong>Ground loops</strong> between equipment at different potentials</li>
+                        <li><strong>Cable resistance variations</strong> with temperature</li>
+                    </ul>
+
+                    <p>Current signaling solves these problems:</p>
+                    <table class="spec-table">
+                        <tr><th>Property</th><th>Voltage Signal</th><th>Current Loop</th></tr>
+                        <tr><td>Cable resistance effect</td><td>Large error (100Ω = 2% at 5V/50mA)</td><td>None (same current everywhere)</td></tr>
+                        <tr><td>Noise immunity</td><td>Poor (noise adds to signal)</td><td>Excellent (noise is common-mode)</td></tr>
+                        <tr><td>Wire break detection</td><td>Not possible</td><td>0mA = fault detected</td></tr>
+                        <tr><td>Ground loop immunity</td><td>Poor</td><td>Excellent with isolated receiver</td></tr>
+                    </table>
+
+                    <h4>Why 4mA Offset?</h4>
+                    <p>The 4mA zero offset provides:</p>
+                    <ul>
+                        <li><strong>Wire break detection:</strong> 0mA = fault, 4mA = valid zero</li>
+                        <li><strong>Self-powered transmitters:</strong> 4mA can power the sensor (≈ 96mW at 24V)</li>
+                        <li><strong>Diagnostic headroom:</strong> Below 4mA signals underrange/fault</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Section 2: System Architecture -->
+            <section class="content-section">
+                <h2>Current Loop System Architecture</h2>
+                <div class="card">
+                    <canvas id="current-loop-canvas" width="850" height="450" style="width:100%;max-width:850px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <h4>Key Specifications (NAMUR NE43)</h4>
+                    <table class="spec-table">
+                        <tr><th>Current Range</th><th>Meaning</th><th>PLC Action</th></tr>
+                        <tr><td>0 mA</td><td>Wire break</td><td>Alarm, failsafe</td></tr>
+                        <tr><td>3.6 - 3.8 mA</td><td>Transmitter fault</td><td>Alarm</td></tr>
+                        <tr><td>3.8 - 4.0 mA</td><td>Underrange (valid)</td><td>Warning</td></tr>
+                        <tr><td>4.0 - 20.0 mA</td><td>Normal measurement</td><td>Process value</td></tr>
+                        <tr><td>20.0 - 20.5 mA</td><td>Overrange (valid)</td><td>Warning</td></tr>
+                        <tr><td>21.0 - 24.0 mA</td><td>Transmitter fault</td><td>Alarm</td></tr>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Section 3: Loop Power Budget Calculator -->
+            <section class="content-section">
+                <h2>Loop Power Budget Calculator</h2>
+                <div class="card">
+                    <p>The loop supply voltage must overcome all voltage drops while maintaining sufficient headroom for the transmitter:</p>
+
+                    <canvas id="loop-budget-canvas" width="700" height="280" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <div class="calc-grid">
+                        <div class="calc-box">
+                            <label>Loop Supply Voltage: <span id="v-supply-val">24</span>V</label>
+                            <input type="range" id="v-supply" min="12" max="36" value="24" step="1">
+                        </div>
+                        <div class="calc-box">
+                            <label>Min Transmitter Voltage: <span id="v-tx-min-val">12</span>V</label>
+                            <input type="range" id="v-tx-min" min="7" max="15" value="12" step="0.5">
+                        </div>
+                        <div class="calc-box">
+                            <label>Sense Resistor: <span id="r-sense-val">250</span>Ω</label>
+                            <input type="range" id="r-sense" min="100" max="500" value="250" step="10">
+                        </div>
+                        <div class="calc-box">
+                            <label>Cable Length (one-way): <span id="cable-len-val">500</span>m</label>
+                            <input type="range" id="cable-len" min="10" max="1500" value="500" step="10">
+                        </div>
+                        <div class="calc-box">
+                            <label>Wire Gauge: <span id="wire-gauge-val">18 AWG</span></label>
+                            <select id="wire-gauge">
+                                <option value="0.0213">24 AWG (84.2 Ω/km)</option>
+                                <option value="0.0134">22 AWG (53.0 Ω/km)</option>
+                                <option value="0.00842">20 AWG (33.3 Ω/km)</option>
+                                <option value="0.00530" selected>18 AWG (21.0 Ω/km)</option>
+                                <option value="0.00334">16 AWG (13.2 Ω/km)</option>
+                            </select>
+                        </div>
+                        <div class="calc-box">
+                            <label>IS Barrier Voltage Drop: <span id="v-barrier-val">0</span>V</label>
+                            <input type="range" id="v-barrier" min="0" max="6" value="0" step="0.5">
+                        </div>
+                    </div>
+
+                    <div class="result-box" id="loop-budget-result">
+                        Calculating...
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: 2-Wire Transmitter Design -->
+            <section class="content-section">
+                <h2>2-Wire Transmitter Design</h2>
+                <div class="card">
+                    <p>A 2-wire (loop-powered) transmitter must operate on only 4mA at minimum while sensing and processing:</p>
+
+                    <canvas id="transmitter-arch-canvas" width="700" height="420" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <h4>Transmitter ICs</h4>
+                    <table class="spec-table">
+                        <tr><th>IC</th><th>Features</th><th>Quiescent Current</th><th>Accuracy</th></tr>
+                        <tr><td>XTR117</td><td>4-20mA transmitter, PWM/DAC input</td><td>200 µA</td><td>0.05%</td></tr>
+                        <tr><td>XTR111</td><td>0-20mA / 4-20mA, precision</td><td>1 mA</td><td>0.01%</td></tr>
+                        <tr><td>AD5421</td><td>16-bit DAC + loop driver</td><td>500 µA</td><td>0.01%</td></tr>
+                        <tr><td>MAX12900</td><td>Complete AFE + transmitter</td><td>350 µA</td><td>0.1%</td></tr>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Section 5: Receiver Design -->
+            <section class="content-section">
+                <h2>Receiver Design</h2>
+                <div class="card">
+                    <canvas id="receiver-canvas" width="700" height="380" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <h4>Sense Resistor Selection</h4>
+                    <div class="calc-grid">
+                        <div class="calc-box">
+                            <label>ADC Reference Voltage: <span id="v-ref-val">5</span>V</label>
+                            <input type="range" id="v-ref" min="2.5" max="5" value="5" step="0.1">
+                        </div>
+                        <div class="calc-box">
+                            <label>Desired Resolution: <span id="resolution-val">12</span> bits</label>
+                            <input type="range" id="resolution" min="10" max="24" value="12" step="1">
+                        </div>
+                        <div class="calc-box">
+                            <label>Temperature Range: <span id="temp-range-val">±50</span>°C</label>
+                            <input type="range" id="temp-range" min="10" max="100" value="50" step="5">
+                        </div>
+                    </div>
+
+                    <div class="result-box" id="sense-resistor-result">
+                        Calculating...
+                    </div>
+
+                    <h4>Recommended Sense Resistors</h4>
+                    <table class="spec-table">
+                        <tr><th>ADC Range</th><th>R_SENSE</th><th>Voltage @ 4mA</th><th>Voltage @ 20mA</th></tr>
+                        <tr><td>0-10V (PLC standard)</td><td>500Ω</td><td>2.000V</td><td>10.000V</td></tr>
+                        <tr><td>0-5V (common ADC)</td><td>250Ω</td><td>1.000V</td><td>5.000V</td></tr>
+                        <tr><td>0-2.5V (precision)</td><td>125Ω</td><td>0.500V</td><td>2.500V</td></tr>
+                        <tr><td>0-1.25V (low power)</td><td>62.5Ω</td><td>0.250V</td><td>1.250V</td></tr>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Section 6: HART Protocol -->
+            <section class="content-section">
+                <h2>HART Protocol Overlay</h2>
+                <div class="card">
+                    <p><strong>HART (Highway Addressable Remote Transducer)</strong> adds digital communication on top of the 4-20mA signal:</p>
+
+                    <canvas id="hart-signal-canvas" width="700" height="340" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <h4>HART Implementation</h4>
+                    <table class="spec-table">
+                        <tr><th>Parameter</th><th>Specification</th></tr>
+                        <tr><td>Carrier Frequencies</td><td>1200 Hz (mark/1), 2200 Hz (space/0)</td></tr>
+                        <tr><td>Modulation</td><td>Continuous-phase FSK</td></tr>
+                        <tr><td>Amplitude</td><td>±0.5mA (0.4mA min, 1.2mA max)</td></tr>
+                        <tr><td>Data Rate</td><td>1200 bps</td></tr>
+                        <tr><td>Load Resistor</td><td>230-600Ω (HART modem sees voltage)</td></tr>
+                        <tr><td>Protocol</td><td>Master-slave, token passing</td></tr>
+                    </table>
+
+                    <h4>HART Modem ICs</h4>
+                    <ul>
+                        <li><strong>AD5700:</strong> Low-power HART modem (3.3V, 1mA)</li>
+                        <li><strong>DS8500:</strong> Complete HART modem with DAC</li>
+                        <li><strong>HT2015:</strong> HART transceiver for transmitters</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Section 7: Intrinsic Safety -->
+            <section class="content-section">
+                <h2>Intrinsic Safety Considerations</h2>
+                <div class="card">
+                    <p>In hazardous areas (Zone 0, 1, 2), current loops must be intrinsically safe:</p>
+
+                    <canvas id="is-barrier-canvas" width="650" height="350" style="width:100%;max-width:650px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <h4>IS Barrier Types</h4>
+                    <table class="spec-table">
+                        <tr><th>Barrier Type</th><th>Voltage Drop</th><th>Isolation</th><th>Use Case</th></tr>
+                        <tr><td>Zener Barrier</td><td>Low (0.5-2V)</td><td>None (galvanic)</td><td>Simple, low cost</td></tr>
+                        <tr><td>Galvanic Isolator</td><td>2-5V</td><td>Full isolation</td><td>Ground loops, noise</td></tr>
+                        <tr><td>Active Isolator</td><td>0-3V</td><td>Full + power</td><td>Long loops, signal conditioning</td></tr>
+                    </table>
+
+                    <h4>Entity Parameters</h4>
+                    <ul>
+                        <li><strong>V<sub>oc</sub>:</strong> Open circuit voltage (max at barrier output)</li>
+                        <li><strong>I<sub>sc</sub>:</strong> Short circuit current (max at barrier output)</li>
+                        <li><strong>C<sub>a</sub>, L<sub>a</sub>:</strong> Allowed cable capacitance/inductance</li>
+                        <li><strong>V<sub>max</sub>, I<sub>max</sub>:</strong> Max device can receive safely</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Section 8: Complete Reference Design -->
+            <section class="content-section">
+                <h2>Complete Reference Design</h2>
+                <div class="card">
+                    <h4>Pressure Transmitter (4-20mA Output)</h4>
+                    <canvas id="pressure-tx-canvas" width="700" height="480" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <div id="spice-netlist-container"></div>
+                </div>
+            </section>
+
+            <!-- Section 9: Design Checklist -->
+            <section class="content-section">
+                <h2>Design Verification Checklist</h2>
+                <div class="card" id="checklist-container"></div>
+            </section>
+
+            <!-- Section 10: Practice Exercises -->
+            <section class="content-section">
+                <h2>Practice Exercises</h2>
+                <div class="card" id="exercise-container"></div>
+            </section>
+        </article>
+    </div>
+
+    <script>
+        // Canvas Drawing Functions
+        (function() {
+            const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00'};
+
+            function roundRect(c, x, y, w, h, r) {
+                c.beginPath();
+                c.moveTo(x+r, y);
+                c.lineTo(x+w-r, y);
+                c.quadraticCurveTo(x+w, y, x+w, y+r);
+                c.lineTo(x+w, y+h-r);
+                c.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+                c.lineTo(x+r, y+h);
+                c.quadraticCurveTo(x, y+h, x, y+h-r);
+                c.lineTo(x, y+r);
+                c.quadraticCurveTo(x, y, x+r, y);
+                c.closePath();
+            }
+
+            function drawArrow(c, x1, y1, x2, y2, color) {
+                const angle = Math.atan2(y2-y1, x2-x1);
+                c.strokeStyle = color;
+                c.lineWidth = 2;
+                c.beginPath();
+                c.moveTo(x1, y1);
+                c.lineTo(x2, y2);
+                c.stroke();
+                c.fillStyle = color;
+                c.beginPath();
+                c.moveTo(x2, y2);
+                c.lineTo(x2-8*Math.cos(angle-Math.PI/6), y2-8*Math.sin(angle-Math.PI/6));
+                c.lineTo(x2-8*Math.cos(angle+Math.PI/6), y2-8*Math.sin(angle+Math.PI/6));
+                c.closePath();
+                c.fill();
+            }
+
+            // Canvas 1: Current Loop System Architecture
+            const loopCanvas = document.getElementById('current-loop-canvas');
+            if (loopCanvas) {
+                const ctx = loopCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 850, 450);
+
+                // Title
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('INDUSTRIAL 4-20mA CURRENT LOOP', 425, 20);
+
+                // Control Room box
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 2;
+                roundRect(ctx, 30, 45, 280, 360, 8);
+                ctx.stroke();
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('CONTROL ROOM', 170, 65);
+
+                // Power Supply
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 60, 85, 120, 60, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#ff6b6b';
+                roundRect(ctx, 60, 85, 120, 60, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '11px monospace';
+                ctx.fillText('LOOP POWER', 120, 108);
+                ctx.fillText('SUPPLY 24V DC', 120, 125);
+
+                // Sense Resistor
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 60, 165, 120, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                roundRect(ctx, 60, 165, 120, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.fillText('SENSE RESISTOR', 120, 185);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('250\u03A9 \u00b10.1%', 120, 205);
+
+                // ADC
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 60, 240, 120, 50, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                roundRect(ctx, 60, 240, 120, 50, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '11px monospace';
+                ctx.fillText('ADC', 120, 260);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('12-24 bit', 120, 278);
+
+                // PLC/DCS
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 60, 310, 120, 50, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                roundRect(ctx, 60, 310, 120, 50, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.font = '11px monospace';
+                ctx.fillText('PLC / DCS', 120, 340);
+
+                // Connections in control room
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(120, 145);
+                ctx.lineTo(120, 165);
+                ctx.moveTo(120, 220);
+                ctx.lineTo(120, 240);
+                ctx.moveTo(120, 290);
+                ctx.lineTo(120, 310);
+                ctx.moveTo(120, 360);
+                ctx.lineTo(120, 390);
+                ctx.stroke();
+
+                // Ground symbol
+                ctx.fillStyle = '#45b7d1';
+                ctx.font = '14px monospace';
+                ctx.fillText('\u23DA GND', 120, 410);
+
+                // Twisted pair cable
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([8, 4]);
+                ctx.beginPath();
+                ctx.moveTo(180, 115);
+                ctx.lineTo(500, 115);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(180, 192);
+                ctx.lineTo(500, 192);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Cable label
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('TWISTED PAIR', 340, 100);
+                ctx.fillStyle = TEK.ch2;
+                ctx.fillText('4-20mA LOOP', 340, 155);
+                ctx.fillText('\u2193', 340, 170);
+
+                // Field transmitter box
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 2;
+                roundRect(ctx, 500, 45, 320, 180, 8);
+                ctx.stroke();
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('FIELD (up to 1000m away)', 660, 65);
+
+                // Transmitter
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 530, 90, 260, 110, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                roundRect(ctx, 530, 90, 260, 110, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '12px monospace';
+                ctx.fillText('2-WIRE TRANSMITTER', 660, 115);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('(Self-Powered)', 660, 135);
+
+                // Sensor inside transmitter
+                ctx.fillStyle = '#2a2a4a';
+                roundRect(ctx, 600, 150, 80, 35, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                roundRect(ctx, 600, 150, 80, 35, 4);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch3;
+                ctx.fillText('SENSOR', 640, 172);
+
+                // Voltage readings box
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 500, 250, 320, 90, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#9fb0c0';
+                roundRect(ctx, 500, 250, 320, 90, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('VOLTAGE AT R_SENSE:', 515, 275);
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '10px monospace';
+                ctx.fillText('4mA  \u00d7 250\u03A9 = 1.000V (0%)', 520, 295);
+                ctx.fillText('12mA \u00d7 250\u03A9 = 3.000V (50%)', 520, 312);
+                ctx.fillText('20mA \u00d7 250\u03A9 = 5.000V (100%)', 520, 329);
+
+                // Diagnostic ranges box
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 500, 355, 320, 90, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#9fb0c0';
+                roundRect(ctx, 500, 355, 320, 90, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('DIAGNOSTIC RANGES:', 515, 375);
+                ctx.font = '10px monospace';
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fillText('0-3.8mA   = WIRE BREAK/FAULT', 520, 395);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.fillText('3.8-4.0mA = UNDERRANGE', 520, 410);
+                ctx.fillStyle = TEK.ch2;
+                ctx.fillText('4.0-20.0mA = NORMAL RANGE', 520, 425);
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fillText('21.0-25mA = SENSOR FAULT', 520, 440);
+            }
+
+            // Canvas 2: Loop Budget
+            const budgetCanvas = document.getElementById('loop-budget-canvas');
+            if (budgetCanvas) {
+                const ctx = budgetCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 700, 280);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 13px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('LOOP VOLTAGE BUDGET', 350, 20);
+
+                // Equation
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '12px monospace';
+                ctx.fillText('V_LOOP = V_TRANSMITTER + V_CABLE + V_RECEIVER + V_BARRIER', 350, 50);
+
+                // Voltage bar visualization
+                const barY = 80;
+                const barH = 40;
+                let x = 50;
+
+                // 24V supply
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fillRect(x, barY, 80, barH);
+                ctx.fillStyle = '#fff';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('24V', x+40, barY+25);
+                x += 100;
+
+                // Arrow
+                ctx.fillStyle = '#9fb0c0';
+                ctx.beginPath();
+                ctx.moveTo(x, barY+20);
+                ctx.lineTo(x+20, barY+20);
+                ctx.lineTo(x+15, barY+15);
+                ctx.moveTo(x+20, barY+20);
+                ctx.lineTo(x+15, barY+25);
+                ctx.stroke();
+                x += 40;
+
+                // V_cable
+                ctx.fillStyle = TEK.ch2;
+                ctx.fillRect(x, barY, 100, barH);
+                ctx.fillStyle = '#000';
+                ctx.fillText('V_CABLE', x+50, barY+18);
+                ctx.fillText('2\u00d7R\u00d7I', x+50, barY+33);
+                x += 110;
+
+                // V_sense
+                ctx.fillStyle = TEK.ch4;
+                ctx.fillRect(x, barY, 100, barH);
+                ctx.fillStyle = '#000';
+                ctx.fillText('V_SENSE', x+50, barY+18);
+                ctx.fillText('R\u00d7I', x+50, barY+33);
+                x += 110;
+
+                // V_barrier
+                ctx.fillStyle = TEK.ch3;
+                ctx.fillRect(x, barY, 80, barH);
+                ctx.fillStyle = '#000';
+                ctx.fillText('V_BARRIER', x+40, barY+25);
+                x += 90;
+
+                // V_tx (remaining)
+                ctx.fillStyle = TEK.ch1;
+                ctx.fillRect(x, barY, 100, barH);
+                ctx.fillStyle = '#000';
+                ctx.fillText('V_TX', x+50, barY+18);
+                ctx.fillText('(9-12V min)', x+50, barY+33);
+
+                // Max loop resistance formula
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('MAXIMUM LOOP RESISTANCE:', 50, 160);
+                ctx.fillStyle = TEK.ch2;
+                ctx.fillText('R_LOOP_MAX = (V_SUPPLY - V_TX_MIN) / I_MAX', 50, 185);
+                ctx.fillText('           = (24V - 12V) / 20mA = 600\u03A9', 50, 210);
+
+                // Example values
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '11px monospace';
+                ctx.fillText('Example: 500m of 18AWG wire (21\u03A9/km) + 250\u03A9 sense = 271\u03A9 < 600\u03A9 \u2713', 50, 250);
+            }
+
+            // Canvas 3: 2-Wire Transmitter Architecture
+            const txCanvas = document.getElementById('transmitter-arch-canvas');
+            if (txCanvas) {
+                const ctx = txCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 700, 420);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('2-WIRE TRANSMITTER ARCHITECTURE', 350, 20);
+
+                // Loop+ line
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(50, 50);
+                ctx.lineTo(650, 50);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('LOOP+', 50, 45);
+
+                // LDO
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 250, 70, 200, 60, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                roundRect(ctx, 250, 70, 200, 60, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('VOLTAGE REGULATOR (LDO)', 350, 92);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('V_IN = V_LOOP - 0.2V  \u2192  V_OUT = 3.3V', 350, 115);
+
+                // Connection from Loop+ to LDO
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(350, 50);
+                ctx.lineTo(350, 70);
+                ctx.stroke();
+
+                // 3.3V rail
+                ctx.strokeStyle = TEK.ch2;
+                ctx.beginPath();
+                ctx.moveTo(350, 130);
+                ctx.lineTo(350, 160);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '10px monospace';
+                ctx.fillText('3.3V RAIL (\u22483mA budget)', 350, 155);
+
+                // Branch to three components
+                ctx.beginPath();
+                ctx.moveTo(200, 160);
+                ctx.lineTo(500, 160);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(200, 160);
+                ctx.lineTo(200, 175);
+                ctx.moveTo(350, 160);
+                ctx.lineTo(350, 175);
+                ctx.moveTo(500, 160);
+                ctx.lineTo(500, 175);
+                ctx.stroke();
+
+                // Sensor
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 150, 180, 100, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                roundRect(ctx, 150, 180, 100, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '11px monospace';
+                ctx.fillText('SENSOR', 200, 200);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('100\u00b5A', 200, 220);
+
+                // ADC
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 300, 180, 100, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                roundRect(ctx, 300, 180, 100, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.fillText('ADC', 350, 200);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.fillText('50\u00b5A', 350, 220);
+
+                // MCU
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 450, 180, 100, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                roundRect(ctx, 450, 180, 100, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.fillText('MCU', 500, 200);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.fillText('500\u00b5A', 500, 220);
+
+                // Signal flow down
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.beginPath();
+                ctx.moveTo(200, 235);
+                ctx.lineTo(200, 260);
+                ctx.lineTo(350, 260);
+                ctx.lineTo(350, 270);
+                ctx.moveTo(500, 235);
+                ctx.lineTo(500, 260);
+                ctx.lineTo(350, 260);
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '10px monospace';
+                ctx.fillText('SENSOR READING', 350, 285);
+
+                // DAC/PWM
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 275, 295, 150, 45, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                roundRect(ctx, 275, 295, 150, 45, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch3;
+                ctx.font = '11px monospace';
+                ctx.fillText('DAC / PWM', 350, 315);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('SET POINT', 350, 332);
+
+                // Current sink (XTR117)
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 250, 360, 200, 50, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#ff6b6b';
+                roundRect(ctx, 250, 360, 200, 50, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '11px monospace';
+                ctx.fillText('CURRENT SINK (XTR117)', 350, 382);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('4-20mA output', 350, 400);
+
+                // Connection from DAC to current sink
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.beginPath();
+                ctx.moveTo(350, 340);
+                ctx.lineTo(350, 360);
+                ctx.stroke();
+
+                // Reference from loop to XTR
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.setLineDash([4, 3]);
+                ctx.beginPath();
+                ctx.moveTo(550, 50);
+                ctx.lineTo(550, 385);
+                ctx.lineTo(450, 385);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText('V_REF from loop', 545, 300);
+
+                // Loop- line
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(50, 410);
+                ctx.lineTo(650, 410);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('LOOP-', 50, 425);
+
+                // Connection from XTR to Loop-
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(350, 410);
+                ctx.lineTo(350, 415);
+                ctx.stroke();
+
+                // Formula
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('I_LOOP = 4mA + 16mA \u00d7 (SENSOR / FULL_SCALE)', 180, 390);
+            }
+
+            // Canvas 4: Isolated Receiver
+            const rxCanvas = document.getElementById('receiver-canvas');
+            if (rxCanvas) {
+                const ctx = rxCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 700, 380);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('ISOLATED 4-20mA RECEIVER', 350, 20);
+
+                // Isolation barrier line
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([10, 5]);
+                ctx.beginPath();
+                ctx.moveTo(350, 50);
+                ctx.lineTo(350, 350);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Labels
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('FIELD SIDE', 175, 55);
+                ctx.fillText('SYSTEM SIDE', 525, 55);
+
+                // From loop
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('FROM LOOP', 30, 90);
+                drawArrow(ctx, 30, 100, 30, 140, '#ff6b6b');
+
+                // Sense Resistor
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 50, 150, 100, 70, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                roundRect(ctx, 50, 150, 100, 70, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('R_SENSE', 100, 175);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('250\u03A9', 100, 195);
+                ctx.fillText('\u00b10.1%', 100, 210);
+
+                // Isolated DC-DC
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 180, 80, 140, 70, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                roundRect(ctx, 180, 80, 140, 70, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch3;
+                ctx.fillText('ISOLATED', 250, 100);
+                ctx.fillText('DC-DC', 250, 118);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('XFMR \u25CB\u25CB\u25CB\u25CB', 250, 138);
+
+                // Diff Amp
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 180, 170, 140, 60, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                roundRect(ctx, 180, 170, 140, 60, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '11px monospace';
+                ctx.fillText('DIFF AMP', 250, 200);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('INA826', 250, 218);
+
+                // Connection from sense to diff amp
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(150, 185);
+                ctx.lineTo(180, 185);
+                ctx.moveTo(150, 200);
+                ctx.lineTo(180, 200);
+                ctx.stroke();
+
+                // System side power
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 380, 80, 120, 50, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                roundRect(ctx, 380, 80, 120, 50, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.font = '11px monospace';
+                ctx.fillText('3.3V', 440, 110);
+
+                // Isolated ADC
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 380, 150, 120, 80, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                roundRect(ctx, 380, 150, 120, 80, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.fillText('ISOLATED', 440, 175);
+                ctx.fillText('ADC', 440, 195);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('ADS1220', 440, 218);
+
+                // Digital Isolator
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 380, 250, 120, 60, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                roundRect(ctx, 380, 250, 120, 60, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch3;
+                ctx.font = '11px monospace';
+                ctx.fillText('ISOLATOR', 440, 275);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('ISO7741', 440, 295);
+
+                // To MCU
+                ctx.strokeStyle = TEK.ch2;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(500, 280);
+                ctx.lineTo(550, 280);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('TO MCU', 555, 285);
+                ctx.font = '9px monospace';
+                ctx.fillText('(SPI)', 555, 300);
+
+                // Connections
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.beginPath();
+                ctx.moveTo(440, 130);
+                ctx.lineTo(440, 150);
+                ctx.moveTo(440, 230);
+                ctx.lineTo(440, 250);
+                ctx.stroke();
+
+                // Ground symbols
+                ctx.fillStyle = '#45b7d1';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('\u23DA FIELD GND', 100, 260);
+
+                // Voltage readings
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('V_SENSE = I \u00d7 250\u03A9', 50, 300);
+                ctx.fillStyle = TEK.ch2;
+                ctx.fillText('1.000V to 5.000V', 50, 320);
+            }
+
+            // Canvas 5: HART Signal
+            const hartCanvas = document.getElementById('hart-signal-canvas');
+            if (hartCanvas) {
+                const ctx = hartCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 700, 340);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('HART SIGNAL SUPERPOSITION', 350, 20);
+
+                // Y-axis
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(60, 50);
+                ctx.lineTo(60, 200);
+                ctx.stroke();
+
+                // Y-axis label
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '11px monospace';
+                ctx.save();
+                ctx.translate(25, 125);
+                ctx.rotate(-Math.PI/2);
+                ctx.textAlign = 'center';
+                ctx.fillText('CURRENT (mA)', 0, 0);
+                ctx.restore();
+
+                // Y-axis ticks
+                ctx.textAlign = 'right';
+                ctx.font = '10px monospace';
+                ctx.fillStyle = '#9fb0c0';
+                const yTicks = [{v: 20, y: 60}, {v: 16, y: 90}, {v: 12, y: 120}, {v: 8, y: 150}, {v: 4, y: 180}];
+                yTicks.forEach(t => {
+                    ctx.fillText(t.v.toString(), 55, t.y+4);
+                    ctx.beginPath();
+                    ctx.moveTo(57, t.y);
+                    ctx.lineTo(63, t.y);
+                    ctx.stroke();
+                });
+
+                // X-axis
+                ctx.beginPath();
+                ctx.moveTo(60, 200);
+                ctx.lineTo(500, 200);
+                ctx.stroke();
+                ctx.fillStyle = '#9fb0c0';
+                ctx.textAlign = 'center';
+                ctx.fillText('TIME', 280, 220);
+
+                // DC baseline (12mA)
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([8, 4]);
+                ctx.beginPath();
+                ctx.moveTo(60, 120);
+                ctx.lineTo(500, 120);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // HART FSK signal on top
+                ctx.strokeStyle = TEK.ch2;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(80, 120);
+                let x = 80;
+                for (let i = 0; i < 8; i++) {
+                    // High frequency (2200Hz) - logic 0
+                    for (let j = 0; j < 3; j++) {
+                        ctx.lineTo(x, 105);
+                        x += 8;
+                        ctx.lineTo(x, 135);
+                        x += 8;
+                    }
+                    // Low frequency (1200Hz) - logic 1
+                    for (let j = 0; j < 2; j++) {
+                        ctx.lineTo(x, 105);
+                        x += 15;
+                        ctx.lineTo(x, 135);
+                        x += 15;
+                    }
+                }
+                ctx.stroke();
+
+                // Labels
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('\u2190 HART FSK', 510, 95);
+                ctx.fillText('\u00b10.5mA peak', 520, 115);
+                ctx.fillText('1200/2200 Hz', 520, 135);
+
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fillText('\u2190 4-20mA ANALOG', 510, 125);
+                ctx.fillText('(DC average)', 520, 145);
+
+                // HART Modulation info box
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 60, 235, 580, 95, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#9fb0c0';
+                roundRect(ctx, 60, 235, 580, 95, 6);
+                ctx.stroke();
+
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('HART MODULATION:', 80, 258);
+                ctx.font = '10px monospace';
+                ctx.fillText('\u2022 FSK: 1200 Hz = logic 1, 2200 Hz = logic 0', 80, 278);
+                ctx.fillText('\u2022 \u00b10.5mA peak superimposed on DC current', 80, 295);
+                ctx.fillText('\u2022 1200 bps data rate, Bell 202 compatible modem', 80, 312);
+            }
+
+            // Canvas 6: IS Barrier
+            const isCanvas = document.getElementById('is-barrier-canvas');
+            if (isCanvas) {
+                const ctx = isCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 650, 350);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('INTRINSICALLY SAFE 4-20mA LOOP', 325, 20);
+
+                // Barrier line
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(325, 50);
+                ctx.lineTo(325, 320);
+                ctx.stroke();
+
+                // Zone labels
+                ctx.fillStyle = TEK.ch4;
+                ctx.font = '12px monospace';
+                ctx.fillText('SAFE AREA', 160, 55);
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fillText('HAZARDOUS AREA', 485, 55);
+
+                // Power Supply
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 50, 75, 130, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                roundRect(ctx, 50, 75, 130, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '11px monospace';
+                ctx.fillText('24V POWER', 115, 100);
+                ctx.fillText('SUPPLY', 115, 118);
+
+                // IS Barrier
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 50, 155, 130, 70, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 2;
+                roundRect(ctx, 50, 155, 130, 70, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fillText('IS BARRIER', 115, 180);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('Zener + Resistor', 115, 200);
+                ctx.fillText('+ Fuse', 115, 215);
+
+                // Receiver
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 50, 250, 130, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                roundRect(ctx, 50, 250, 130, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.font = '11px monospace';
+                ctx.fillText('RECEIVER', 115, 275);
+                ctx.fillText('(PLC)', 115, 293);
+
+                // Connections safe side
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(115, 130);
+                ctx.lineTo(115, 155);
+                ctx.moveTo(115, 225);
+                ctx.lineTo(115, 250);
+                ctx.stroke();
+
+                // Connection through barrier
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(180, 190);
+                ctx.lineTo(350, 190);
+                ctx.stroke();
+
+                // Transmitter
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 370, 100, 230, 180, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                roundRect(ctx, 370, 100, 230, 180, 8);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '12px monospace';
+                ctx.fillText('TRANSMITTER', 485, 130);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('(Simple device)', 485, 150);
+
+                ctx.textAlign = 'left';
+                ctx.font = '10px monospace';
+                ctx.fillText('Max voltage: V_oc < 28V', 390, 180);
+                ctx.fillText('Max current: I_sc < 93mA', 390, 200);
+                ctx.fillText('Max power: P < 1.3W (ia)', 390, 220);
+
+                // Barrier info
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 340, 290, 280, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#9fb0c0';
+                roundRect(ctx, 340, 290, 280, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('BARRIER LIMITS ENERGY TO', 355, 310);
+                ctx.fillText('PREVENT IGNITION:', 355, 325);
+                ctx.fillStyle = TEK.ch2;
+                ctx.textAlign = 'right';
+                ctx.fillText('Zeners clamp V, R limits I', 605, 335);
+            }
+
+            // Canvas 7: Pressure Transmitter Reference Design
+            const ptxCanvas = document.getElementById('pressure-tx-canvas');
+            if (ptxCanvas) {
+                const ctx = ptxCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 700, 480);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('PRESSURE TRANSMITTER REFERENCE DESIGN', 350, 20);
+
+                // Loop+ line
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(350, 40);
+                ctx.lineTo(350, 60);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '11px monospace';
+                ctx.fillText('LOOP+ (10-30V)', 350, 55);
+
+                // Transmitter outline
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 2;
+                roundRect(ctx, 200, 70, 300, 350, 8);
+                ctx.stroke();
+
+                // Reverse polarity protection
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 280, 85, 140, 45, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                roundRect(ctx, 280, 85, 140, 45, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch3;
+                ctx.font = '10px monospace';
+                ctx.fillText('REVERSE POLARITY', 350, 105);
+                ctx.fillText('PROTECTION (D1)', 350, 120);
+
+                // LDO
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 280, 145, 140, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                roundRect(ctx, 280, 145, 140, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '11px monospace';
+                ctx.fillText('LDO 3.3V', 350, 168);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('TPS7A16 (1\u00b5A Iq)', 350, 188);
+
+                // 3.3V rail
+                ctx.strokeStyle = TEK.ch2;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(350, 200);
+                ctx.lineTo(350, 215);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '9px monospace';
+                ctx.fillText('3.3V', 365, 212);
+
+                // Branch to components
+                ctx.beginPath();
+                ctx.moveTo(260, 215);
+                ctx.lineTo(440, 215);
+                ctx.moveTo(260, 215);
+                ctx.lineTo(260, 230);
+                ctx.moveTo(350, 215);
+                ctx.lineTo(350, 230);
+                ctx.moveTo(440, 215);
+                ctx.lineTo(440, 230);
+                ctx.stroke();
+
+                // Sensor
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 220, 235, 80, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                roundRect(ctx, 220, 235, 80, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch3;
+                ctx.font = '10px monospace';
+                ctx.fillText('PRESSURE', 260, 255);
+                ctx.fillText('SENSOR', 260, 270);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('50\u00b5A', 260, 285);
+
+                // ADC
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 310, 235, 80, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                roundRect(ctx, 310, 235, 80, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '10px monospace';
+                ctx.fillText('ADC', 350, 255);
+                ctx.fillText('ADS1220', 350, 270);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('150\u00b5A', 350, 285);
+
+                // MCU
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 400, 235, 80, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                roundRect(ctx, 400, 235, 80, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.font = '10px monospace';
+                ctx.fillText('MCU', 440, 255);
+                ctx.fillText('MSP430FR', 440, 270);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('500\u00b5A', 440, 285);
+
+                // Signal flow
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.beginPath();
+                ctx.moveTo(260, 290);
+                ctx.lineTo(260, 305);
+                ctx.lineTo(350, 305);
+                ctx.moveTo(350, 290);
+                ctx.lineTo(350, 305);
+                ctx.moveTo(440, 290);
+                ctx.lineTo(440, 305);
+                ctx.lineTo(350, 305);
+                ctx.lineTo(350, 320);
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '9px monospace';
+                ctx.fillText('I_SET (PWM/DAC)', 350, 335);
+
+                // XTR117
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 280, 345, 140, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#ff6b6b';
+                roundRect(ctx, 280, 345, 140, 55, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '11px monospace';
+                ctx.fillText('XTR117', 350, 368);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('4-20mA TRANSMITTER', 350, 388);
+
+                // Reference from loop
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 3]);
+                ctx.beginPath();
+                ctx.moveTo(480, 90);
+                ctx.lineTo(480, 370);
+                ctx.lineTo(420, 370);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText('V_REF from loop', 475, 250);
+
+                // Loop- connection
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(350, 400);
+                ctx.lineTo(350, 430);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('LOOP- (RETURN)', 350, 450);
+
+                // Power budget box
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 520, 120, 165, 150, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#9fb0c0';
+                roundRect(ctx, 520, 120, 165, 150, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('POWER BUDGET @ 4mA:', 530, 145);
+                ctx.font = '9px monospace';
+                ctx.fillText('\u2022 LDO quiescent:    1 \u00b5A', 530, 165);
+                ctx.fillText('\u2022 Pressure sensor: 50 \u00b5A', 530, 180);
+                ctx.fillText('\u2022 ADC:            150 \u00b5A', 530, 195);
+                ctx.fillText('\u2022 MCU (sleep):    500 \u00b5A', 530, 210);
+                ctx.fillText('\u2022 XTR117:         200 \u00b5A', 530, 225);
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.beginPath();
+                ctx.moveTo(530, 235);
+                ctx.lineTo(670, 235);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.fillText('Total: ~900 \u00b5A < 4mA \u2713', 530, 255);
+            }
+        })();
+
+        // Loop Power Budget Calculator
+        function updateLoopBudget() {
+            const vSupply = parseFloat(document.getElementById('v-supply').value);
+            const vTxMin = parseFloat(document.getElementById('v-tx-min').value);
+            const rSense = parseFloat(document.getElementById('r-sense').value);
+            const cableLen = parseFloat(document.getElementById('cable-len').value);
+            const wireResPerM = parseFloat(document.getElementById('wire-gauge').value);
+            const vBarrier = parseFloat(document.getElementById('v-barrier').value);
+
+            document.getElementById('v-supply-val').textContent = vSupply;
+            document.getElementById('v-tx-min-val').textContent = vTxMin;
+            document.getElementById('r-sense-val').textContent = rSense;
+            document.getElementById('cable-len-val').textContent = cableLen;
+            document.getElementById('v-barrier-val').textContent = vBarrier;
+
+            const rCable = 2 * cableLen * wireResPerM; // Round trip
+            const iMax = 0.020; // 20mA
+            const iMin = 0.004; // 4mA
+
+            const vCableMax = rCable * iMax;
+            const vSenseMax = rSense * iMax;
+            const vAvailable = vSupply - vBarrier - vCableMax - vSenseMax;
+            const headroom = vAvailable - vTxMin;
+
+            const maxLoopR = (vSupply - vBarrier - vTxMin) / iMax;
+            const actualLoopR = rCable + rSense;
+
+            const status = headroom >= 0 ? '✅ VALID' : '❌ INSUFFICIENT VOLTAGE';
+            const statusColor = headroom >= 0 ? '#4ade80' : '#f87171';
+
+            document.getElementById('loop-budget-result').innerHTML = `
+<strong>Cable Resistance:</strong> ${rCable.toFixed(1)}Ω (${(cableLen * 2 / 1000).toFixed(2)} km round-trip)
+<strong>Voltage Drops @ 20mA:</strong>
+  • Cable:      ${vCableMax.toFixed(2)}V
+  • Sense R:    ${vSenseMax.toFixed(2)}V
+  • Barrier:    ${vBarrier.toFixed(2)}V
+  • Available:  ${vAvailable.toFixed(2)}V
+
+<strong>Transmitter Headroom:</strong> ${headroom.toFixed(2)}V (need ${vTxMin}V min)
+<strong>Max Loop Resistance:</strong> ${maxLoopR.toFixed(0)}Ω
+<strong>Actual Loop Resistance:</strong> ${actualLoopR.toFixed(0)}Ω
+
+<span style="color: ${statusColor}; font-size: 16px; font-weight: bold;">${status}</span>
+${headroom < 0 ? '\n⚠️ Reduce cable length, use thicker wire, or increase supply voltage' : ''}
+            `;
+        }
+
+        // Sense Resistor Calculator
+        function updateSenseResistor() {
+            const vRef = parseFloat(document.getElementById('v-ref').value);
+            const resolution = parseInt(document.getElementById('resolution').value);
+            const tempRange = parseFloat(document.getElementById('temp-range').value);
+
+            document.getElementById('v-ref-val').textContent = vRef;
+            document.getElementById('resolution-val').textContent = resolution;
+            document.getElementById('temp-range-val').textContent = '±' + tempRange;
+
+            const rSenseIdeal = vRef / 0.020; // V_ref / 20mA
+            const rSenseStd = Math.round(rSenseIdeal / 10) * 10; // Round to nearest 10Ω
+
+            const v4mA = rSenseStd * 0.004;
+            const v20mA = rSenseStd * 0.020;
+            const span = v20mA - v4mA;
+
+            const lsbVoltage = vRef / Math.pow(2, resolution);
+            const currentResolution = lsbVoltage / rSenseStd * 1e6; // µA
+            const percentResolution = (16 / Math.pow(2, resolution)) * 100; // % of 16mA span
+
+            // Temperature coefficient effect (assuming 25ppm/°C precision resistor)
+            const tcppm = 25;
+            const tempError = (tcppm * tempRange / 1e6) * 100; // %
+
+            document.getElementById('sense-resistor-result').innerHTML = `
+<strong>Optimal Sense Resistor:</strong> ${rSenseStd}Ω ±0.1%
+<strong>Voltage Range:</strong> ${v4mA.toFixed(3)}V (4mA) to ${v20mA.toFixed(3)}V (20mA)
+<strong>Signal Span:</strong> ${span.toFixed(3)}V
+
+<strong>Resolution Analysis:</strong>
+  • ADC LSB:           ${(lsbVoltage * 1000).toFixed(3)} mV
+  • Current Resolution: ${currentResolution.toFixed(2)} µA/bit
+  • Process Resolution: ${percentResolution.toFixed(4)}% of span
+
+<strong>Temperature Error:</strong>
+  • Resistor TC:       ${tcppm} ppm/°C
+  • Over ±${tempRange}°C:      ±${tempError.toFixed(3)}%
+
+<strong>Recommended Resistor:</strong>
+  ${rSenseStd}Ω, 0.1% tolerance, 25ppm/°C
+  ${resolution >= 16 ? '⚠️ Use 10ppm/°C or better for 16+ bit ADCs' : ''}
+            `;
+        }
+
+        // Initialize calculators
+        document.querySelectorAll('#v-supply, #v-tx-min, #r-sense, #cable-len, #wire-gauge, #v-barrier').forEach(el => {
+            el.addEventListener('input', updateLoopBudget);
+        });
+
+        document.querySelectorAll('#v-ref, #resolution, #temp-range').forEach(el => {
+            el.addEventListener('input', updateSenseResistor);
+        });
+
+        updateLoopBudget();
+        updateSenseResistor();
+
+        // Initialize widgets when DOM loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // SPICE Netlist
+            if (typeof SpiceNetlistWidget !== 'undefined') {
+                new SpiceNetlistWidget(document.getElementById('spice-netlist-container'), {
+                    title: 'XTR117 4-20mA Transmitter',
+                    netlist: `* XTR117 4-20mA Transmitter
+* Simplified model for simulation
+
+.subckt XTR117 IN OUT+ OUT-
+* IN: 0-1V input for 4-20mA output
+* OUT+: Loop positive
+* OUT-: Loop return
+
+Rin IN 1 10k
+Gloop 2 OUT- VALUE={4m + 16m*V(1)}
+Rreg OUT+ 2 1
+.ends
+
+* Test circuit
+Vloop LOOP+ 0 24
+Rsense LOOP+ RX 250
+Vin INPUT 0 DC 0.5
+Xtr INPUT RX 0 XTR117
+
+.dc Vin 0 1 0.01
+.print DC I(Rsense) V(RX)
+.end`
+                });
+            }
+
+            // Checklist
+            if (typeof ChecklistWidget !== 'undefined') {
+                new ChecklistWidget(document.getElementById('checklist-container'), {
+                    storageKey: 'lesson-23-12-checklist',
+                    items: [
+                        { id: 'budget', label: 'Verify loop voltage budget (V_supply > V_tx + V_cable + V_sense + V_barrier)', category: 'Power' },
+                        { id: 'cable', label: 'Calculate cable resistance for maximum run length', category: 'Power' },
+                        { id: 'sense', label: 'Select precision sense resistor (0.1%, 25ppm or better)', category: 'Receiver' },
+                        { id: 'isolation', label: 'Determine isolation requirements (galvanic, IS barrier)', category: 'Safety' },
+                        { id: 'namur', label: 'Implement NAMUR NE43 fault detection ranges', category: 'Diagnostics' },
+                        { id: 'hart', label: 'Verify HART compatibility if required (230-600Ω load)', category: 'Communication' },
+                        { id: 'is', label: 'Validate intrinsic safety entity parameters if applicable', category: 'Safety' },
+                        { id: 'power', label: 'Confirm transmitter power budget < 4mA', category: 'Transmitter' },
+                        { id: 'temp', label: 'Verify operation over temperature range (-40 to +85°C typical)', category: 'Environmental' },
+                        { id: 'cal', label: 'Plan for calibration (zero and span adjustment)', category: 'Commissioning' }
+                    ]
+                });
+            }
+
+            // Exercises
+            if (typeof ExerciseWidget !== 'undefined') {
+                new ExerciseWidget(document.getElementById('exercise-container'), {
+                    storageKey: 'lesson-23-12-exercises',
+                    exercises: [
+                        {
+                            id: 'ex1',
+                            question: 'A 4-20mA transmitter needs to run through 800m of 22 AWG cable (53Ω/km) with a 250Ω sense resistor. If the transmitter requires minimum 10V to operate, what is the minimum loop supply voltage?',
+                            type: 'numeric',
+                            correctAnswer: 20.5,
+                            tolerance: 0.5,
+                            unit: 'V',
+                            hint: 'Calculate: V = V_tx + (2 × cable_length × resistance/km × 20mA) + (R_sense × 20mA)',
+                            solution: 'Cable R = 2 × 0.8km × 53Ω/km = 84.8Ω. V_cable = 84.8Ω × 20mA = 1.70V. V_sense = 250Ω × 20mA = 5.0V. V_total = 10V + 1.70V + 5.0V = 16.7V. Add margin → 18V minimum, 20-24V recommended.'
+                        },
+                        {
+                            id: 'ex2',
+                            question: 'What current reading corresponds to 0mA in a 4-20mA loop connected to a 250Ω sense resistor read by a 12-bit ADC with 5V reference?',
+                            type: 'choice',
+                            options: ['Transmitter fault / wire break', 'Valid zero reading', 'ADC overflow', 'Not possible to distinguish'],
+                            correctAnswer: 0,
+                            hint: 'Consider why 4-20mA uses a 4mA offset instead of 0-16mA.',
+                            solution: '0mA indicates a wire break or transmitter fault. Valid measurements are always ≥4mA (1V at 250Ω). This is the key advantage of 4-20mA over 0-20mA signaling.'
+                        },
+                        {
+                            id: 'ex3',
+                            question: 'For HART communication, what is the load resistance range that the HART modem "sees"?',
+                            type: 'numeric',
+                            correctAnswer: 415,
+                            tolerance: 185,
+                            unit: 'Ω',
+                            hint: 'HART specification requires a specific load resistance range.',
+                            solution: 'HART requires 230-600Ω load resistance across which the FSK voltage is developed. Typically 250Ω sense resistor + cable resistance provides adequate impedance. If total is too low, add series resistance.'
+                        },
+                        {
+                            id: 'ex4',
+                            question: 'A 2-wire transmitter has components consuming: sensor 100µA, ADC 200µA, MCU 800µA, misc 150µA. Will it work as a loop-powered device?',
+                            type: 'choice',
+                            options: ['Yes, well within budget', 'Yes, but marginal', 'No, exceeds 4mA budget', 'Need more information'],
+                            correctAnswer: 2,
+                            hint: 'Remember the transmitter IC also needs current, and total must be < 4mA.',
+                            solution: 'Total: 100 + 200 + 800 + 150 = 1250µA. Add XTR current (~200-500µA) = 1450-1750µA. Still under 4mA but need to add LDO quiescent and margins. MCU at 800µA is too high - use low-power MCU (<100µA active, duty cycle to reduce average).'
+                        }
+                    ]
+                });
+            }
+        });
+    </script>
+</body>
+</html>

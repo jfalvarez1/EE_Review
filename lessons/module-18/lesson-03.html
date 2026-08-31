@@ -1,0 +1,570 @@
+<!-- Module 18, Lesson 3: Grounding Strategy for Mixed-Signal -->
+<div class="lesson-content" data-module="18" data-lesson="3">
+
+    <div class="card">
+        <h2>Grounding Strategy for Mixed-Signal</h2>
+        <p>Mixed-signal PCBs require careful grounding to prevent digital noise from corrupting analog signals. The key is managing return current paths.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Rule #1</div>
+                <div class="v">One solid ground plane</div>
+            </div>
+            <div class="box">
+                <div class="k">Rule #2</div>
+                <div class="v">Partition by function</div>
+            </div>
+            <div class="box">
+                <div class="k">Rule #3</div>
+                <div class="v">Never cross splits</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Return currents flow in the path of least impedance. At low frequency, this is the shortest path. At high frequency, current returns directly under the signal trace. Splits in the ground plane force return currents to detour, creating noise.
+        </strong></div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Return Current Visualization</h3>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="gnd-freq">Signal Frequency</label>
+                <select id="gnd-freq">
+                    <option value="1000">1 kHz (low freq)</option>
+                    <option value="1000000" selected>1 MHz</option>
+                    <option value="100000000">100 MHz (high freq)</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="gnd-split">Ground Plane</label>
+                <select id="gnd-split">
+                    <option value="solid" selected>Solid plane</option>
+                    <option value="split">Split (analog/digital)</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="gnd-trace">Trace Routing</label>
+                <select id="gnd-trace">
+                    <option value="good" selected>Correct (partitioned)</option>
+                    <option value="bad">Crossing split</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="gnd-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Return Path</div>
+                <div class="v mono" id="gnd-path">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Loop Area</div>
+                <div class="v mono" id="gnd-area">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Noise Risk</div>
+                <div class="v mono" id="gnd-risk">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Layout Guidelines</h3>
+
+        <table class="table">
+            <tr>
+                <th>Guideline</th>
+                <th>Reason</th>
+            </tr>
+            <tr>
+                <td>Use unbroken ground plane</td>
+                <td>Provides low-impedance return for all signals</td>
+            </tr>
+            <tr>
+                <td>Partition layout by function</td>
+                <td>Keep noisy digital away from sensitive analog</td>
+            </tr>
+            <tr>
+                <td>Place ADC at analog/digital boundary</td>
+                <td>Single transition point between domains</td>
+            </tr>
+            <tr>
+                <td>Avoid traces over plane gaps</td>
+                <td>Forces return current through long path</td>
+            </tr>
+            <tr>
+                <td>Connect analog and digital grounds</td>
+                <td>At one point, near ADC ground pin</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Split Ground Myth:</strong> "Split the ground between analog and digital" is outdated advice for modern designs. A solid ground plane with proper partitioning usually works better than splits that create return current problems.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>ADC Placement Strategy</h3>
+        <canvas id="adc-placement-canvas" width="900" height="320"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('gnd-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const freq = parseInt(document.getElementById('gnd-freq').value);
+        const split = document.getElementById('gnd-split').value;
+        const trace = document.getElementById('gnd-trace').value;
+
+        // Determine return path and loop area based on configuration
+        let pathDesc, areaDesc, riskLevel;
+
+        if (split === 'solid') {
+            pathDesc = 'Directly under trace';
+            areaDesc = 'Minimal';
+            riskLevel = 'Low';
+        } else {
+            if (trace === 'good') {
+                pathDesc = 'Within partition';
+                areaDesc = 'Small';
+                riskLevel = 'Low';
+            } else {
+                pathDesc = 'Forced around split';
+                areaDesc = 'Large (!)';
+                riskLevel = 'High';
+            }
+        }
+
+        document.getElementById('gnd-path').textContent = pathDesc;
+        document.getElementById('gnd-area').textContent = areaDesc;
+
+        const riskEl = document.getElementById('gnd-risk');
+        riskEl.textContent = riskLevel;
+        riskEl.style.color = riskLevel === 'Low' ? 'var(--ok)' :
+                             riskLevel === 'High' ? 'var(--bad)' : 'var(--warn)';
+
+        plotGrounding(freq, split, trace);
+    }
+
+    function plotGrounding(freq, split, trace) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Clear canvas
+        ctx.fillStyle = '#0b0f16';
+        ctx.fillRect(0, 0, w, h);
+
+        const margin = 40;
+        const boardW = w - 2 * margin;
+        const boardH = h - 2 * margin;
+
+        // Draw PCB board outline
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(margin, margin, boardW, boardH);
+
+        // Draw ground plane
+        const planeY = margin + boardH * 0.6;
+        const planeH = boardH * 0.3;
+
+        if (split === 'solid') {
+            // Solid ground plane
+            ctx.fillStyle = 'rgba(52, 211, 153, 0.3)';
+            ctx.fillRect(margin, planeY, boardW, planeH);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.font = '12px ui-sans-serif';
+            ctx.fillText('SOLID GROUND PLANE', margin + boardW/2 - 80, planeY + planeH/2 + 5);
+        } else {
+            // Split ground plane
+            ctx.fillStyle = 'rgba(52, 211, 153, 0.3)';
+            ctx.fillRect(margin, planeY, boardW * 0.45, planeH);
+
+            ctx.fillStyle = 'rgba(110, 231, 255, 0.3)';
+            ctx.fillRect(margin + boardW * 0.55, planeY, boardW * 0.45, planeH);
+
+            // Gap
+            ctx.fillStyle = '#0b0f16';
+            ctx.fillRect(margin + boardW * 0.45, planeY, boardW * 0.1, planeH);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.font = '11px ui-sans-serif';
+            ctx.fillText('ANALOG GND', margin + 20, planeY + planeH/2 + 5);
+            ctx.fillText('DIGITAL GND', margin + boardW * 0.65, planeY + planeH/2 + 5);
+            ctx.fillText('GAP', margin + boardW/2 - 12, planeY + planeH/2 + 5);
+        }
+
+        // Draw signal trace
+        const traceY = margin + boardH * 0.3;
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)';
+        ctx.lineWidth = 3;
+
+        if (trace === 'good' || split === 'solid') {
+            // Good routing - stays in one partition
+            ctx.beginPath();
+            ctx.moveTo(margin + 50, traceY);
+            ctx.lineTo(margin + boardW * 0.4, traceY);
+            ctx.stroke();
+
+            // Return current path (under trace)
+            ctx.strokeStyle = 'rgba(52, 211, 153, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(margin + boardW * 0.4, planeY);
+            ctx.lineTo(margin + 50, planeY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+            ctx.font = '10px ui-sans-serif';
+            ctx.fillText('Return current (under trace)', margin + 100, planeY - 8);
+        } else {
+            // Bad routing - crosses split
+            ctx.beginPath();
+            ctx.moveTo(margin + 50, traceY);
+            ctx.lineTo(margin + boardW * 0.8, traceY);
+            ctx.stroke();
+
+            // Return current forced around split
+            ctx.strokeStyle = 'rgba(251, 113, 133, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(margin + boardW * 0.8, planeY);
+            ctx.lineTo(margin + boardW * 0.55, planeY); // To edge of digital
+            ctx.lineTo(margin + boardW * 0.55, planeY + planeH + 15); // Down and around
+            ctx.lineTo(margin + boardW * 0.45, planeY + planeH + 15); // Across bottom
+            ctx.lineTo(margin + boardW * 0.45, planeY); // Up to analog
+            ctx.lineTo(margin + 50, planeY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = 'rgba(251, 113, 133, 0.9)';
+            ctx.font = '10px ui-sans-serif';
+            ctx.fillText('Return current forced around split!', margin + 100, planeY + planeH + 35);
+            ctx.fillText('Creates large loop area = antenna', margin + 100, planeY + planeH + 50);
+        }
+
+        // Labels
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('Signal trace', margin + 20, traceY - 10);
+
+        // Legend
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('Frequency: ' + AD.fmtUnit(freq, 'Hz'), w - 150, margin + 20);
+    }
+
+    ['gnd-freq', 'gnd-split', 'gnd-trace'].forEach(id => {
+        document.getElementById(id).addEventListener('change', update);
+    });
+
+    // ==================== ADC PLACEMENT STRATEGY CANVAS ====================
+    function drawADCPlacement() {
+        const canvas = document.getElementById('adc-placement-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00'};
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Helper for rounded rect
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        // Main board outline
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(20, 20, W - 40, H - 70);
+
+        // Partition line (dashed)
+        ctx.strokeStyle = '#4af';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 4]);
+        ctx.beginPath();
+        ctx.moveTo(450, 20);
+        ctx.lineTo(450, H - 70);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Section labels
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('ANALOG SECTION', 230, 50);
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('DIGITAL SECTION', 670, 50);
+
+        // Analog components
+        // Sensor
+        ctx.fillStyle = '#1a3322';
+        roundRect(50, 80, 80, 50, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        roundRect(50, 80, 80, 50, 6);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Sensor', 90, 110);
+
+        // Arrow
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(130, 105);
+        ctx.lineTo(160, 105);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(155, 100);
+        ctx.lineTo(165, 105);
+        ctx.lineTo(155, 110);
+        ctx.stroke();
+
+        // Amp
+        ctx.fillStyle = '#1a3322';
+        roundRect(170, 80, 80, 50, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch4;
+        roundRect(170, 80, 80, 50, 6);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Amp', 210, 110);
+
+        // Arrow to ADC
+        ctx.strokeStyle = TEK.ch1;
+        ctx.beginPath();
+        ctx.moveTo(250, 105);
+        ctx.lineTo(290, 105);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(285, 100);
+        ctx.lineTo(295, 105);
+        ctx.lineTo(285, 110);
+        ctx.stroke();
+
+        // ADC (at boundary)
+        ctx.fillStyle = '#2a2a4a';
+        roundRect(300, 70, 140, 80, 8);
+        ctx.fill();
+        ctx.strokeStyle = '#f0f';
+        ctx.lineWidth = 3;
+        roundRect(300, 70, 140, 80, 8);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText('ADC', 370, 100);
+        ctx.font = '9px monospace';
+        ctx.fillStyle = '#888';
+        ctx.fillText('AGND    DGND', 370, 120);
+
+        // Data bus from ADC
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(440, 105);
+        ctx.lineTo(490, 105);
+        ctx.stroke();
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = '9px monospace';
+        ctx.fillText('Digital Data Bus', 530, 100);
+
+        // Digital components
+        // MCU
+        ctx.fillStyle = '#22334a';
+        roundRect(490, 80, 80, 50, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        roundRect(490, 80, 80, 50, 6);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText('MCU', 530, 110);
+
+        // Arrow
+        ctx.strokeStyle = '#666';
+        ctx.beginPath();
+        ctx.moveTo(570, 105);
+        ctx.lineTo(610, 105);
+        ctx.stroke();
+
+        // Memory
+        ctx.fillStyle = '#22334a';
+        roundRect(620, 80, 80, 50, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch2;
+        roundRect(620, 80, 80, 50, 6);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Memory', 660, 110);
+
+        // Arrow
+        ctx.strokeStyle = '#666';
+        ctx.beginPath();
+        ctx.moveTo(700, 105);
+        ctx.lineTo(740, 105);
+        ctx.stroke();
+
+        // I/O
+        ctx.fillStyle = '#22334a';
+        roundRect(750, 80, 80, 50, 6);
+        ctx.fill();
+        ctx.strokeStyle = TEK.ch2;
+        roundRect(750, 80, 80, 50, 6);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.fillText('I/O', 790, 110);
+
+        // Ground plane representation
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.2)';
+        ctx.fillRect(30, 180, W - 60, 50);
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(30, 180, W - 60, 50);
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('SOLID GROUND PLANE (unbroken)', W/2, 210);
+
+        // Single point ground marker
+        ctx.fillStyle = '#f0f';
+        ctx.beginPath();
+        ctx.arc(370, 180, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 14px monospace';
+        ctx.fillText('★', 370, 185);
+
+        // Connection lines from ADC to star point
+        ctx.strokeStyle = '#f0f';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(350, 150);
+        ctx.lineTo(350, 175);
+        ctx.lineTo(370, 175);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(390, 150);
+        ctx.lineTo(390, 175);
+        ctx.lineTo(370, 175);
+        ctx.stroke();
+
+        // Labels
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('AGND', 340, 162);
+        ctx.fillText('DGND', 395, 162);
+
+        // Key insight box
+        ctx.strokeStyle = '#4af';
+        ctx.lineWidth = 1;
+        roundRect(30, 245, W - 60, 40, 4);
+        ctx.stroke();
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Key: ADC bridges analog/digital domains. Connect AGND and DGND at ADC ground pin only.', 50, 270);
+    }
+
+    update();
+    drawADCPlacement();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Ground Plane Impedance',
+        netlist: `* Ground Plane vs Split Ground Comparison
+* Shows impedance difference
+
+* Solid ground plane model (low inductance)
+L_SOLID gnd_a gnd_b 0.5n
+R_SOLID gnd_b gnd_ref 1m
+
+* Split ground model (high inductance path around split)
+L_SPLIT_A split_a split_mid 5n
+R_SPLIT split_mid split_b 10m
+L_SPLIT_B split_b gnd_ref 5n
+
+* Signal source with return current
+VSIG sig_out gnd_a AC 1
+ISIG sig_out gnd_ref DC 0
+
+* Reference ground
+VREF gnd_ref 0 DC 0
+
+.AC DEC 100 1k 1G
+
+.PROBE AC VDB(gnd_a) VDB(split_a)
+.END
+
+* Solid plane: milliohms of impedance
+* Split plane: much higher impedance at HF
+* This noise appears on analog circuits!`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm18l3',
+        items: [
+            'Use solid, unbroken ground plane',
+            'Partition layout by function (not ground)',
+            'Never route signals over ground splits',
+            'Place ADC at analog/digital boundary',
+            'Connect AGND/DGND at one point only'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'S3-3',
+        type: 'choice',
+        question: 'A signal trace crosses a gap in the ground plane. What happens to the return current?',
+        options: [
+            { id: 'a', text: 'Returns directly under the trace', correct: false },
+            { id: 'b', text: 'Forced to find alternate path around the gap', correct: true },
+            { id: 'c', text: 'Does not affect return current', correct: false },
+            { id: 'd', text: 'Returns through the air', correct: false }
+        ],
+        solution: 'The return current must detour around the gap, creating a large loop area.',
+        explanation: 'Large loop areas act as antennas, radiating and receiving EMI. This is why signals should never cross ground plane gaps.'
+    });
+})();
+</script>

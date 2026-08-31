@@ -1,0 +1,305 @@
+<!-- Module 10, Lesson 3: Rail-to-Rail Outputs -->
+<div class="lesson-content" data-module="10" data-lesson="3">
+
+    <div class="card">
+        <h2>Rail-to-Rail Output Stages</h2>
+        <p>Rail-to-rail output (RRO) stages can swing the output voltage to within millivolts of the supply rails. This maximizes usable signal range, especially important for low-voltage designs.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Saturation Voltage</div>
+                <div class="v mono">V<sub>sat</sub> = 20-100mV typical (RRO)</div>
+            </div>
+            <div class="box">
+                <div class="k">vs Standard</div>
+                <div class="v mono">V<sub>sat</sub> = 1-2V (emitter follower)</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Rail-to-rail outputs use common-emitter (or common-source) configurations that saturate transistors at the rails, rather than emitter followers that can't go closer than Vbe to the rail.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Output Swing Comparison</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="rro-vdd">V<sub>DD</sub> (V)</label>
+                <input type="range" id="rro-vdd" min="1.8" max="5" step="0.1" value="3.3">
+                <span id="rro-vdd-val" class="mono">3.3V</span>
+            </div>
+            <div class="c3">
+                <label for="rro-iload">I<sub>load</sub> (mA)</label>
+                <input type="range" id="rro-iload" min="1" max="50" step="1" value="10">
+                <span id="rro-iload-val" class="mono">10mA</span>
+            </div>
+            <div class="c3">
+                <label for="rro-type">Output Type</label>
+                <select id="rro-type">
+                    <option value="rro" selected>Rail-to-Rail</option>
+                    <option value="standard">Standard (EF)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="rro-canvas" width="980" height="200"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">V<sub>OH</sub></div>
+                <div class="v mono" id="rro-voh">—</div>
+            </div>
+            <div class="box">
+                <div class="k">V<sub>OL</sub></div>
+                <div class="v mono" id="rro-vol">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Usable Swing</div>
+                <div class="v mono" id="rro-swing">—</div>
+            </div>
+            <div class="box">
+                <div class="k">% of Supply</div>
+                <div class="v mono" id="rro-pct">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>RRO Implementation</h3>
+
+        <table class="table">
+            <tr>
+                <th>Approach</th>
+                <th>V<sub>sat</sub></th>
+                <th>Speed</th>
+                <th>Notes</th>
+            </tr>
+            <tr>
+                <td>CMOS common-source</td>
+                <td>50mV</td>
+                <td>Fast</td>
+                <td>Complementary PMOS/NMOS</td>
+            </tr>
+            <tr>
+                <td>BJT common-emitter</td>
+                <td>100-200mV</td>
+                <td>Medium</td>
+                <td>Vce(sat) limits low rail</td>
+            </tr>
+            <tr>
+                <td>Charge pump boost</td>
+                <td><10mV</td>
+                <td>Slow</td>
+                <td>Creates higher internal rail</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Trade-offs</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Output Impedance</div>
+                <div class="v">RRO has higher Zout near rails</div>
+            </div>
+            <div class="box">
+                <div class="k">Linearity</div>
+                <div class="v">Distortion increases at extremes</div>
+            </div>
+            <div class="box">
+                <div class="k">Load Sensitivity</div>
+                <div class="v">Vsat increases with load current</div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>Near-Rail Behavior:</strong> Op-amp specs often show Vsat at light load. Heavy loads push the output away from rails. Check datasheet graphs for your actual conditions.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('rro-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const vdd = parseFloat(document.getElementById('rro-vdd').value);
+        const iload = parseFloat(document.getElementById('rro-iload').value);
+        const type = document.getElementById('rro-type').value;
+
+        document.getElementById('rro-vdd-val').textContent = vdd + 'V';
+        document.getElementById('rro-iload-val').textContent = iload + 'mA';
+
+        let vol, voh;
+
+        if (type === 'rro') {
+            // RRO: small Vsat that increases with load
+            const vsat = 0.02 + 0.005 * iload; // ~20mV + 5mV/mA
+            vol = vsat;
+            voh = vdd - vsat;
+        } else {
+            // Standard emitter follower: limited by Vbe
+            vol = 0.7 + 0.001 * iload; // Vbe + small increase
+            voh = vdd - 0.7 - 0.001 * iload;
+        }
+
+        const swing = voh - vol;
+        const pct = (swing / vdd) * 100;
+
+        document.getElementById('rro-voh').textContent = voh.toFixed(2) + 'V';
+        document.getElementById('rro-vol').textContent = vol.toFixed(2) + 'V';
+        document.getElementById('rro-swing').textContent = swing.toFixed(2) + 'V';
+        document.getElementById('rro-pct').textContent = pct.toFixed(1) + '%';
+
+        drawSwingComparison(vdd, vol, voh, type);
+    }
+
+    function drawSwingComparison(vdd, vol, voh, type) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.fillStyle = 'var(--panel)';
+        ctx.fillRect(0, 0, w, h);
+
+        const barX = 100;
+        const barWidth = 80;
+        const scale = (h - 60) / vdd;
+
+        // Supply rail bar
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.fillRect(barX, 30, barWidth, h - 60);
+
+        // Usable range
+        const yTop = 30 + (vdd - voh) * scale;
+        const yBot = 30 + (vdd - vol) * scale;
+        ctx.fillStyle = type === 'rro' ? 'rgba(52, 211, 153, 0.8)' : 'rgba(110, 231, 255, 0.6)';
+        ctx.fillRect(barX, yTop, barWidth, yBot - yTop);
+
+        // Labels
+        ctx.fillStyle = 'white';
+        ctx.font = '12px ui-sans-serif';
+        ctx.fillText('VDD = ' + vdd + 'V', barX, 20);
+        ctx.fillText('GND', barX, h - 10);
+        ctx.fillText('VOH = ' + voh.toFixed(2) + 'V', barX + barWidth + 10, yTop + 5);
+        ctx.fillText('VOL = ' + vol.toFixed(2) + 'V', barX + barWidth + 10, yBot);
+
+        // Triangle wave showing swing
+        const triX = 300;
+        const triW = w - triX - 50;
+        const N = 200;
+
+        ctx.strokeStyle = type === 'rro' ? 'rgba(52, 211, 153, 0.9)' : 'rgba(110, 231, 255, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        for (let i = 0; i < N; i++) {
+            const x = triX + (i / N) * triW;
+            const phase = (i / N) * 4;
+            let v;
+            if (phase % 2 < 1) {
+                v = vol + (phase % 1) * (voh - vol);
+            } else {
+                v = voh - ((phase % 1)) * (voh - vol);
+            }
+            const y = 30 + (vdd - v) * scale;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Rail limit lines
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(triX, 30);
+        ctx.lineTo(triX + triW, 30);
+        ctx.moveTo(triX, h - 30);
+        ctx.lineTo(triX + triW, h - 30);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText(type === 'rro' ? 'Rail-to-Rail Output' : 'Standard (Emitter Follower)', triX + triW/2 - 80, 20);
+    }
+
+    ['rro-vdd', 'rro-iload'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+    document.getElementById('rro-type').addEventListener('change', update);
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Rail-to-Rail CMOS Output',
+        netlist: `* Rail-to-Rail CMOS Output Stage
+
+.MODEL NMOS1 NMOS (VTO=0.5 KP=100u)
+.MODEL PMOS1 PMOS (VTO=-0.5 KP=50u)
+
+* Complementary output stage
+M1 vdd gate out vdd PMOS1 W=100u L=1u
+M2 out gate 0 0 NMOS1 W=100u L=1u
+
+VDD vdd 0 DC 3.3
+
+* Sweep gate from 0 to VDD
+VGATE gate 0 DC 1.65 AC 1 SIN(1.65 1.5 1k)
+
+* Load
+RLOAD out 0 1k
+
+.TRAN 0.01m 5m
+.DC VGATE 0 3.3 0.01
+
+.PROBE V(out) I(RLOAD)
+.END
+
+* Output swings to within ~50mV of both rails`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm10l3',
+        items: [
+            'Know RRO uses common-source/emitter',
+            'Understand Vsat increases with load',
+            'Know standard outputs limited by Vbe',
+            'Calculate usable output swing',
+            'Check datasheet for actual conditions'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'I1-3',
+        type: 'numeric',
+        question: 'A RRO op-amp on 3.3V has Vsat = 50mV at 10mA. What is the maximum peak-to-peak output swing?',
+        hint: 'Swing = VDD - 2×Vsat',
+        expected: 3.2,
+        tolerance: 0.02,
+        unit: 'V',
+        solution: 'Swing = 3.3V - 2×50mV = 3.3 - 0.1 = 3.2V p-p',
+        explanation: 'The output can swing from 50mV to 3.25V, giving 3.2V total swing. This is 97% of the supply!'
+    });
+})();
+</script>

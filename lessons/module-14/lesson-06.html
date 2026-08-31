@@ -1,0 +1,495 @@
+<!-- Module 14, Lesson 6: Analog Multiplexers -->
+<div class="lesson-content" data-module="14" data-lesson="6">
+
+    <div class="card">
+        <h2>Analog Multiplexers</h2>
+        <p>Analog multiplexers (mux) route one of several analog signals to a single output, enabling multi-channel data acquisition with a single ADC. Understanding their limitations—on-resistance, charge injection, and bandwidth—is critical for precision applications.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">R<sub>ON</sub></div>
+                <div class="v">Switch on-resistance (10-500Ω)</div>
+            </div>
+            <div class="box">
+                <div class="k">Charge Injection</div>
+                <div class="v">Gate-to-source capacitance glitch</div>
+            </div>
+            <div class="box">
+                <div class="k">Crosstalk</div>
+                <div class="v">Off-channel coupling (-60 to -80dB)</div>
+            </div>
+            <div class="box">
+                <div class="k">t<sub>ON</sub>/t<sub>OFF</sub></div>
+                <div class="v">Switching times (10-100ns)</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> R<sub>ON</sub> variation with signal voltage (R<sub>ON</sub> flatness) causes distortion. Low-voltage CMOS muxes can have 2:1 R<sub>ON</sub> variation across the signal range. Use rail-to-rail or charge-pump enhanced muxes for precision.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Mux Performance Analysis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="mux-ron">R<sub>ON</sub> Nominal (Ω)</label>
+                <input type="text" id="mux-ron" value="100">
+            </div>
+            <div class="c3">
+                <label for="mux-ronvar">R<sub>ON</sub> Variation (%)</label>
+                <input type="text" id="mux-ronvar" value="50">
+            </div>
+            <div class="c3">
+                <label for="mux-qinj">Charge Injection (C)</label>
+                <input type="text" id="mux-qinj" value="5p">
+            </div>
+            <div class="c3">
+                <label for="mux-cload">Load Capacitance (F)</label>
+                <input type="text" id="mux-cload" value="100p">
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="mux-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Bandwidth (-3dB)</div>
+                <div class="v mono" id="mux-bw">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Settling Time</div>
+                <div class="v mono" id="mux-settle">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Charge Error</div>
+                <div class="v mono" id="mux-qerr">—</div>
+            </div>
+            <div class="box">
+                <div class="k">THD (from R<sub>ON</sub>)</div>
+                <div class="v mono" id="mux-thd">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Analog Mux with Buffer</h3>
+        <div id="mux-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>Mux Architecture Comparison</h3>
+
+        <table class="table">
+            <tr>
+                <th>Type</th>
+                <th>R<sub>ON</sub></th>
+                <th>Supply</th>
+                <th>Pros</th>
+                <th>Cons</th>
+            </tr>
+            <tr>
+                <td>CMOS</td>
+                <td>50-200Ω</td>
+                <td>5V/±5V</td>
+                <td>Low cost, low power</td>
+                <td>R<sub>ON</sub> varies with V<sub>sig</sub></td>
+            </tr>
+            <tr>
+                <td>Charge Pump</td>
+                <td>5-20Ω</td>
+                <td>3-5V</td>
+                <td>Flat R<sub>ON</sub>, low voltage</td>
+                <td>Noise from pump, higher cost</td>
+            </tr>
+            <tr>
+                <td>JFET</td>
+                <td>25-100Ω</td>
+                <td>±15V</td>
+                <td>Low leakage, wide range</td>
+                <td>Higher supply needed</td>
+            </tr>
+            <tr>
+                <td>GaAs</td>
+                <td>2-10Ω</td>
+                <td>±5V</td>
+                <td>Very fast, flat R<sub>ON</sub></td>
+                <td>Expensive, higher leakage</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="mux-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="mux-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="mux-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    // Interactive mux analysis
+    const canvas = document.getElementById('mux-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    function update() {
+        const Ron = AD.parseValue(document.getElementById('mux-ron').value) || 100;
+        const RonVar = parseFloat(document.getElementById('mux-ronvar').value) || 50;
+        const Qinj = AD.parseValue(document.getElementById('mux-qinj').value) || 5e-12;
+        const Cload = AD.parseValue(document.getElementById('mux-cload').value) || 100e-12;
+
+        // Calculate mux parameters
+        const bw = 1 / (2 * Math.PI * Ron * Cload);
+        const settleTime = 7 * Ron * Cload; // To 0.1%
+        const chargeError = Qinj / Cload; // Voltage error
+
+        // THD estimate from Ron variation (simplified)
+        // Ron variation causes gain variation = distortion
+        const thd = RonVar / 200; // Rough approximation
+
+        // Display results
+        document.getElementById('mux-bw').textContent = AD.formatValue(bw, 'Hz');
+        document.getElementById('mux-settle').textContent = AD.formatValue(settleTime, 's');
+        document.getElementById('mux-qerr').textContent = AD.formatValue(chargeError, 'V');
+        document.getElementById('mux-thd').textContent = (thd * 100).toFixed(2) + '%';
+
+        // Draw canvas - two plots
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        const plotW = (W - mL - mR - 40) / 2;
+        const plotH = H - mT - mB;
+
+        // Left plot: Ron vs signal voltage
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
+
+        // Grid
+        for (let i = 1; i < 5; i++) {
+            const y = mT + plotH * i / 5;
+            ctx.beginPath();
+            ctx.moveTo(mL, y);
+            ctx.lineTo(mL + plotW, y);
+            ctx.stroke();
+        }
+        for (let i = 1; i < 5; i++) {
+            const x = mL + plotW * i / 5;
+            ctx.beginPath();
+            ctx.moveTo(x, mT);
+            ctx.lineTo(x, mT + plotH);
+            ctx.stroke();
+        }
+
+        // Ron vs Vsig curve (typical CMOS behavior)
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const RonMax = Ron * (1 + RonVar/100);
+        const RonMin = Ron * (1 - RonVar/200);
+        for (let i = 0; i <= 100; i++) {
+            const vsig = i / 100; // 0 to 1 (normalized)
+            // CMOS Ron increases at mid-rail
+            const ronVal = Ron * (1 + (RonVar/100) * Math.sin(Math.PI * vsig));
+            const x = mL + plotW * vsig;
+            const y = mT + plotH * (1 - (ronVal - RonMin) / (RonMax - RonMin + 1));
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Ideal flat Ron
+        ctx.strokeStyle = TEK.ref;
+        ctx.setLineDash([5, 5]);
+        const yIdeal = mT + plotH * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(mL, yIdeal);
+        ctx.lineTo(mL + plotW, yIdeal);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Left plot labels
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Signal Voltage (normalized)', mL + plotW/2, H - 10);
+        ctx.save();
+        ctx.translate(15, mT + plotH/2);
+        ctx.rotate(-Math.PI/2);
+        ctx.fillText('Ron (Ω)', 0, 0);
+        ctx.restore();
+        ctx.fillText('Ron vs Signal Voltage', mL + plotW/2, 20);
+
+        // Right plot: Frequency response
+        const plotX2 = mL + plotW + 60;
+        ctx.strokeStyle = TEK.grid;
+        ctx.strokeRect(plotX2, mT, plotW, plotH);
+
+        // Grid
+        for (let i = 1; i < 5; i++) {
+            const y = mT + plotH * i / 5;
+            ctx.beginPath();
+            ctx.moveTo(plotX2, y);
+            ctx.lineTo(plotX2 + plotW, y);
+            ctx.stroke();
+        }
+        for (let i = 1; i < 5; i++) {
+            const x = plotX2 + plotW * i / 5;
+            ctx.beginPath();
+            ctx.moveTo(x, mT);
+            ctx.lineTo(x, mT + plotH);
+            ctx.stroke();
+        }
+
+        // Frequency response curve
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const fMin = bw / 100;
+        const fMax = bw * 100;
+        for (let i = 0; i <= 100; i++) {
+            const logF = Math.log10(fMin) + (Math.log10(fMax) - Math.log10(fMin)) * i / 100;
+            const f = Math.pow(10, logF);
+            const mag = 1 / Math.sqrt(1 + Math.pow(f/bw, 2));
+            const magDb = 20 * Math.log10(mag);
+            const x = plotX2 + plotW * i / 100;
+            const y = mT + plotH * (1 - (magDb + 40) / 40);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // -3dB line
+        ctx.strokeStyle = TEK.ch3;
+        ctx.setLineDash([5, 5]);
+        const y3dB = mT + plotH * (1 - (-3 + 40) / 40);
+        ctx.beginPath();
+        ctx.moveTo(plotX2, y3dB);
+        ctx.lineTo(plotX2 + plotW, y3dB);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Right plot labels
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Frequency (log)', plotX2 + plotW/2, H - 10);
+        ctx.save();
+        ctx.translate(plotX2 - 25, mT + plotH/2);
+        ctx.rotate(-Math.PI/2);
+        ctx.fillText('Gain (dB)', 0, 0);
+        ctx.restore();
+        ctx.fillText('Mux Bandwidth', plotX2 + plotW/2, 20);
+
+        // Legend
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillRect(mL + 10, mT + 10, 15, 3);
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left';
+        ctx.fillText('Ron(Vsig)', mL + 30, mT + 15);
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillRect(plotX2 + 10, mT + 10, 15, 3);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('|H(f)|', plotX2 + 30, mT + 15);
+    }
+
+    // Event listeners
+    ['mux-ron', 'mux-ronvar', 'mux-qinj', 'mux-cload'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    // Draw schematic
+    function drawSchematic() {
+        const container = document.getElementById('mux-schematic');
+        const svg = new SchematicSVG(500, 280);
+        const nr = svg.nr;
+
+        // Input channels
+        nr.define('in1', 40, 60);
+        nr.define('in2', 40, 110);
+        nr.define('in3', 40, 160);
+        nr.define('in4', 40, 210);
+
+        // Mux switches
+        nr.define('sw1a', 100, 60);
+        nr.define('sw1b', 160, 60);
+        nr.define('sw2a', 100, 110);
+        nr.define('sw2b', 160, 110);
+        nr.define('sw3a', 100, 160);
+        nr.define('sw3b', 160, 160);
+        nr.define('sw4a', 100, 210);
+        nr.define('sw4b', 160, 210);
+
+        // Common node
+        nr.define('common', 200, 135);
+
+        // Buffer
+        nr.define('buf_in', 240, 135);
+        nr.define('buf_out', 320, 135);
+
+        // Output
+        nr.define('out', 400, 135);
+
+        // Control logic
+        nr.define('ctrl', 130, 250);
+
+        // Draw input labels
+        svg.text(20, 65, 'CH0', {fontSize: 10});
+        svg.text(20, 115, 'CH1', {fontSize: 10});
+        svg.text(20, 165, 'CH2', {fontSize: 10});
+        svg.text(20, 215, 'CH3', {fontSize: 10});
+
+        // Draw input wires
+        svg.wire([[40, 60], [100, 60]]);
+        svg.wire([[40, 110], [100, 110]]);
+        svg.wire([[40, 160], [100, 160]]);
+        svg.wire([[40, 210], [100, 210]]);
+
+        // Draw switches (simplified as lines with break)
+        function drawSwitch(x1, y, closed) {
+            if (closed) {
+                svg.wire([[x1, y], [x1 + 60, y]]);
+            } else {
+                svg.wire([[x1, y], [x1 + 20, y]]);
+                svg.line(x1 + 20, y, x1 + 45, y - 15, {stroke: '#4af'});
+                svg.wire([[x1 + 45, y], [x1 + 60, y]]);
+            }
+        }
+
+        drawSwitch(100, 60, true);  // CH0 selected
+        drawSwitch(100, 110, false);
+        drawSwitch(100, 160, false);
+        drawSwitch(100, 210, false);
+
+        // Common rail
+        svg.wire([[160, 60], [200, 60], [200, 210]]);
+        svg.wire([[160, 110], [200, 110]]);
+        svg.wire([[160, 160], [200, 160]]);
+        svg.wire([[160, 210], [200, 210]]);
+
+        // Connect to buffer
+        svg.wire([[200, 135], [240, 135]]);
+
+        // Buffer (op-amp as follower)
+        svg.opAmp(280, 135, {mirror: false});
+        svg.wire([[240, 135], [255, 145]]); // To + input
+
+        // Feedback
+        svg.wire([[305, 135], [320, 135], [320, 100], [250, 100], [250, 125], [255, 125]]);
+
+        // Output
+        svg.wire([[305, 135], [400, 135]]);
+        svg.text(410, 140, 'OUT', {fontSize: 10});
+
+        // Control input
+        svg.text(100, 260, 'A1 A0', {fontSize: 10});
+        svg.wire([[130, 245], [130, 220]]);
+
+        // Ron annotation
+        svg.text(115, 50, 'Ron', {fontSize: 9, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE netlist
+    function initSpice() {
+        new SpiceNetlistWidget('mux-spice', {
+            title: 'Analog Mux Model',
+            netlist: `* 4:1 Analog Multiplexer with Buffer
+* Switch model for CD4051
+.subckt mux_4to1 out ch0 ch1 ch2 ch3 a0 a1 vdd vss
+* CMOS switches with Ron model
+S1 ch0 out a0_b a1_b sw1 ON
+S2 ch1 out a0 a1_b sw1 OFF
+S3 ch2 out a0_b a1 sw1 OFF
+S4 ch3 out a0 a1 sw1 OFF
+.model sw1 sw(Ron=100 Roff=1G Vt=0.5 Vh=0.1)
+* Inverters for address decode
+.ends
+
+* Test circuit
+Vin0 ch0 0 DC 1V
+Vin1 ch1 0 DC 2V
+Vin2 ch2 0 DC 3V
+Vin3 ch3 0 DC 4V
+Xmux out ch0 ch1 ch2 ch3 a0 a1 vdd vss mux_4to1
+Vdd vdd 0 5V
+Vss vss 0 -5V
+
+* Address lines
+Va0 a0 0 PULSE(0 5 0 1n 1n 10u 20u)
+Va1 a1 0 PULSE(0 5 0 1n 1n 20u 40u)
+
+* Buffer stage
+Xbuf out_buf out 0 vdd vss opamp_buf
+Cload out_buf 0 100p
+
+.tran 0.1u 80u
+.end`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('mux-checklist', {
+            title: 'Mux Design Verification',
+            items: [
+                'Ron flatness acceptable for required linearity',
+                'Settling time meets channel switching rate',
+                'Charge injection error within ADC LSB budget',
+                'Crosstalk meets isolation requirements',
+                'Break-before-make timing verified',
+                'Input protection for overvoltage conditions',
+                'Leakage current at temperature extremes',
+                'Supply bypassing for fast switching'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('mux-exercises', {
+            exercises: [
+                {
+                    question: 'A mux with Ron=50Ω drives a 200pF load. What is the -3dB bandwidth?',
+                    answer: '15.9MHz',
+                    solution: 'f_3dB = 1/(2π × 50 × 200p) = 1/(2π × 10n) = 15.9MHz'
+                },
+                {
+                    question: 'Charge injection is 10pC and load capacitance is 100pF. What is the voltage error?',
+                    answer: '100mV',
+                    solution: 'ΔV = Q/C = 10pC/100pF = 0.1V = 100mV. For 12-bit ADC with 5V range, this is 82 LSBs!'
+                },
+                {
+                    question: 'A mux must settle to 12-bit accuracy. If Ron=100Ω and C=50pF, what is the minimum settling time?',
+                    answer: '41.4ns',
+                    solution: 'For 12-bit (0.024%), need ~8.3τ. τ = RC = 100×50p = 5ns. Settle = 8.3×5ns = 41.5ns'
+                }
+            ]
+        });
+    }
+
+    // Initialize
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

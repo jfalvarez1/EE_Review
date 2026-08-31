@@ -1,0 +1,823 @@
+<article class="lesson-content">
+    <p class="author-credit">Based on power electronics control theory and Venable/Middlebrook analysis methods</p>
+
+    <h2>Introduction</h2>
+    <p>Switching power supplies (buck, boost, flyback, etc.) are feedback systems that must maintain stable output voltage despite load and line variations. However, the small-signal dynamics of switching converters are complex, with poles and zeros that depend on operating point, component values, and control mode. This lesson covers the essentials of power supply loop stability.</p>
+
+    <div class="concept-box">
+        <h3>Why Power Supplies Need Special Treatment</h3>
+        <p>Unlike linear amplifiers, switching converters have:</p>
+        <ul>
+            <li><strong>Right-half-plane zeros:</strong> Boost and flyback converters have RHP zeros that limit bandwidth</li>
+            <li><strong>LC resonance:</strong> The output filter creates a double pole with potential 180° phase shift</li>
+            <li><strong>ESR zeros:</strong> Output capacitor ESR creates zeros that can help or hurt stability</li>
+            <li><strong>Operating point dependence:</strong> Pole/zero locations vary with duty cycle and load</li>
+        </ul>
+    </div>
+
+    <h2>Voltage-Mode Control Loop</h2>
+    <p>In voltage-mode control, the error amplifier directly controls the duty cycle through a PWM comparator:</p>
+
+    <div id="sch-voltage-mode" class="schematic-placeholder" style="height: 150px;"></div>
+
+    <h3>Buck Converter Transfer Function (Voltage Mode)</h3>
+    <div class="formula-box">
+        <h4>Control-to-Output Transfer Function</h4>
+        <p>For a buck converter with LC output filter:</p>
+        <div class="formula">G<sub>vd</sub>(s) = V<sub>in</sub> × H<sub>LC</sub>(s)</div>
+        <p>Where the LC filter transfer function is:</p>
+        <div class="formula">H<sub>LC</sub>(s) = (1 + s/ω<sub>z,ESR</sub>) / [1 + s/(Q×ω<sub>0</sub>) + s²/ω<sub>0</sub>²]</div>
+
+        <h4>Key Frequencies</h4>
+        <ul>
+            <li><strong>LC resonance:</strong> f<sub>0</sub> = 1/(2π√(LC))</li>
+            <li><strong>ESR zero:</strong> f<sub>z,ESR</sub> = 1/(2πR<sub>ESR</sub>C)</li>
+            <li><strong>Q factor:</strong> Q = R<sub>load</sub>√(C/L) (can be very high!)</li>
+        </ul>
+    </div>
+
+    <div class="warning-box">
+        <h4>The LC Double-Pole Problem</h4>
+        <p>At the LC resonance frequency:</p>
+        <ul>
+            <li>The gain peaks by a factor of Q (Q can be 10-100!)</li>
+            <li>Phase drops by 180° very quickly</li>
+            <li>Without proper compensation, this creates severe instability</li>
+        </ul>
+    </div>
+
+    <h3>Interactive: Buck Converter Bode Plot</h3>
+    <div class="control-group">
+        <label>V<sub>in</sub> (V): <input type="number" id="vin-buck" value="12" min="5" max="48" step="1"></label>
+        <label>V<sub>out</sub> (V): <input type="number" id="vout-buck" value="3.3" min="1" max="12" step="0.1"></label>
+        <label>L (μH): <input type="number" id="l-buck" value="10" min="1" max="100" step="1"></label>
+        <label>C (μF): <input type="number" id="c-buck" value="100" min="10" max="1000" step="10"></label>
+        <label>R<sub>ESR</sub> (mΩ): <input type="number" id="esr-buck" value="20" min="1" max="200" step="5"></label>
+        <label>R<sub>load</sub> (Ω): <input type="number" id="rload-buck" value="1" min="0.1" max="10" step="0.1"></label>
+        <button onclick="updateBuckBode()">Update</button>
+    </div>
+    <canvas id="buck-bode-canvas" width="700" height="400"></canvas>
+    <div id="buck-result" class="result-box"></div>
+
+    <h2>Type II and Type III Compensators</h2>
+    <p>To stabilize voltage-mode converters, we use Type II or Type III compensators that add poles and zeros to shape the loop gain:</p>
+
+    <h3>Type II Compensator</h3>
+    <div id="sch-type2" class="schematic-placeholder" style="height: 180px;"></div>
+
+    <div class="formula-box">
+        <h4>Type II Transfer Function</h4>
+        <div class="formula">H(s) = (ω<sub>z</sub>/ω<sub>p</sub>) × (1 + s/ω<sub>z</sub>) / [(s/ω<sub>i</sub>)(1 + s/ω<sub>p</sub>)]</div>
+        <p>Features:</p>
+        <ul>
+            <li>One zero to boost phase</li>
+            <li>One high-frequency pole to filter switching noise</li>
+            <li>Origin pole (integrator) for zero DC error</li>
+            <li><strong>Maximum phase boost:</strong> 90° (not enough for LC double pole!)</li>
+        </ul>
+    </div>
+
+    <h3>Type III Compensator</h3>
+    <div id="sch-type3" class="schematic-placeholder" style="height: 180px;"></div>
+
+    <div class="formula-box">
+        <h4>Type III Transfer Function</h4>
+        <div class="formula">H(s) = K × (1 + s/ω<sub>z1</sub>)(1 + s/ω<sub>z2</sub>) / [(s/ω<sub>i</sub>)(1 + s/ω<sub>p1</sub>)(1 + s/ω<sub>p2</sub>)]</div>
+        <p>Features:</p>
+        <ul>
+            <li>Two zeros to provide up to 180° phase boost</li>
+            <li>Two high-frequency poles</li>
+            <li>Origin pole for zero DC error</li>
+            <li><strong>Can compensate the LC double pole!</strong></li>
+        </ul>
+    </div>
+
+    <h3>Design Procedure (Voltage Mode)</h3>
+    <div class="design-procedure">
+        <h4>Type III Compensator Design Steps</h4>
+
+        <p><strong>Step 1: Determine Crossover Frequency</strong></p>
+        <p>Rule of thumb: f<sub>c</sub> = f<sub>sw</sub>/10 to f<sub>sw</sub>/5</p>
+        <p>Also limited by RHP zero if present (boost/flyback)</p>
+
+        <p><strong>Step 2: Place Zeros at LC Resonance</strong></p>
+        <p>f<sub>z1</sub> = f<sub>z2</sub> = f<sub>0</sub> = 1/(2π√LC)</p>
+        <p>This cancels the -180° phase shift from the LC double pole</p>
+
+        <p><strong>Step 3: Place Poles at High Frequency</strong></p>
+        <p>f<sub>p1</sub> = f<sub>z,ESR</sub> (cancel ESR zero if it causes gain peaking)</p>
+        <p>f<sub>p2</sub> = f<sub>sw</sub>/2 (filter switching noise)</p>
+
+        <p><strong>Step 4: Set Gain for Desired Crossover</strong></p>
+        <p>Adjust K so loop gain equals 0 dB at f<sub>c</sub></p>
+    </div>
+
+    <h2>Current-Mode Control</h2>
+    <p>Current-mode control uses inner current loop feedback, which dramatically improves the power stage dynamics:</p>
+
+    <div class="concept-box">
+        <h3>Current Mode Advantages</h3>
+        <ul>
+            <li><strong>Eliminates LC double pole:</strong> The inductor becomes a controlled current source</li>
+            <li><strong>Simpler compensation:</strong> Type II compensator often sufficient</li>
+            <li><strong>Inherent current limiting:</strong> Current is directly controlled</li>
+            <li><strong>Better line rejection:</strong> Input voltage changes are rejected by inner loop</li>
+        </ul>
+    </div>
+
+    <div class="formula-box">
+        <h4>Current-Mode Control-to-Output</h4>
+        <p>With current-mode control, the power stage looks like:</p>
+        <div class="formula">G<sub>vc</sub>(s) ≈ R<sub>load</sub> × (1 + s/ω<sub>z,ESR</sub>) / (1 + sR<sub>load</sub>C)</div>
+        <p>This is a single-pole system! The inductor pole is removed by the current loop.</p>
+    </div>
+
+    <h3>Interactive: Compensation Calculator</h3>
+    <div class="control-group">
+        <label>Switching Frequency (kHz): <input type="number" id="fsw" value="500" min="50" max="2000" step="50"></label>
+        <label>LC Resonance f<sub>0</sub> (kHz): <input type="number" id="f0" value="5" min="0.5" max="50" step="0.5"></label>
+        <label>ESR Zero f<sub>ESR</sub> (kHz): <input type="number" id="fesr" value="80" min="10" max="500" step="10"></label>
+        <label>Control Mode:
+            <select id="control-mode">
+                <option value="voltage">Voltage Mode</option>
+                <option value="current">Current Mode</option>
+            </select>
+        </label>
+        <button onclick="calcCompensation()">Calculate Compensator</button>
+    </div>
+    <div id="comp-result" class="result-box"></div>
+    <canvas id="comp-bode-canvas" width="700" height="400"></canvas>
+
+    <h2>Right-Half-Plane Zero (Boost and Flyback)</h2>
+    <p>Boost, buck-boost, and flyback converters have a fundamental bandwidth limitation: the right-half-plane zero.</p>
+
+    <div class="formula-box">
+        <h4>RHP Zero Location</h4>
+        <p>For boost converter:</p>
+        <div class="formula">f<sub>RHP</sub> = R<sub>load</sub>(1-D)² / (2πL)</div>
+        <p>Where D = 1 - V<sub>in</sub>/V<sub>out</sub></p>
+
+        <p>The RHP zero:</p>
+        <ul>
+            <li>Adds phase lag like a pole</li>
+            <li>But increases gain like a zero</li>
+            <li><strong>Cannot be compensated!</strong> Crossover must be well below f<sub>RHP</sub></li>
+        </ul>
+    </div>
+
+    <div class="warning-box">
+        <h4>Design Rule for RHP Zero</h4>
+        <p>Loop crossover frequency must satisfy:</p>
+        <div class="formula">f<sub>c</sub> < f<sub>RHP</sub> / 5</div>
+        <p>This fundamentally limits boost converter bandwidth, especially at high duty cycle (high boost ratio).</p>
+    </div>
+
+    <h2>Measuring Loop Gain</h2>
+    <p>Loop gain can be measured using voltage injection:</p>
+
+    <div class="concept-box">
+        <h3>Bode Plot Measurement</h3>
+        <ol>
+            <li>Inject small AC signal into feedback loop</li>
+            <li>Measure voltage before and after injection point</li>
+            <li>Loop gain = V<sub>return</sub> / V<sub>inject</sub></li>
+            <li>Sweep frequency and plot magnitude/phase</li>
+        </ol>
+        <p>Use a network analyzer or frequency response analyzer for accurate measurements.</p>
+    </div>
+
+    <h2>Worked Example: Buck Converter Compensation</h2>
+    <div class="worked-example">
+        <h4>Specifications</h4>
+        <ul>
+            <li>V<sub>in</sub> = 12V, V<sub>out</sub> = 5V</li>
+            <li>f<sub>sw</sub> = 500 kHz</li>
+            <li>L = 4.7 μH, C = 100 μF (ceramic, ESR = 5 mΩ)</li>
+            <li>Target crossover: 50 kHz, Phase margin: 60°</li>
+        </ul>
+
+        <h4>Step 1: Calculate Power Stage Characteristics</h4>
+        <p>LC resonance: f<sub>0</sub> = 1/(2π√(4.7μ × 100μ)) = 7.3 kHz</p>
+        <p>ESR zero: f<sub>ESR</sub> = 1/(2π × 5mΩ × 100μF) = 318 kHz</p>
+        <p>Note: Ceramic capacitors have very low ESR, so ESR zero is very high</p>
+
+        <h4>Step 2: Choose Compensator Type</h4>
+        <p>Voltage mode control → Need Type III to handle LC double pole</p>
+        <p>Current mode → Type II would suffice (single output pole)</p>
+        <p>We'll design Type III for voltage mode:</p>
+
+        <h4>Step 3: Place Compensator Zeros</h4>
+        <p>Place both zeros at f<sub>0</sub> to cancel LC double pole:</p>
+        <p>f<sub>z1</sub> = f<sub>z2</sub> = 7.3 kHz</p>
+
+        <h4>Step 4: Place Compensator Poles</h4>
+        <p>First pole to cancel ESR zero (if needed) or at crossover: f<sub>p1</sub> = 50 kHz</p>
+        <p>Second pole at half switching frequency: f<sub>p2</sub> = 250 kHz</p>
+
+        <h4>Step 5: Calculate Component Values</h4>
+        <p>Using standard Type III compensator topology:</p>
+        <ul>
+            <li>Choose C1 = 1 nF (starting point)</li>
+            <li>R2 = 1/(2π × f<sub>z1</sub> × C1) = 1/(2π × 7.3k × 1n) = 21.8 kΩ → use 22 kΩ</li>
+            <li>C2 = 1/(2π × R2 × f<sub>p1</sub>) = 1/(2π × 22k × 50k) = 145 pF → use 150 pF</li>
+            <li>R3 calculated for desired gain at crossover</li>
+            <li>C3 = 1/(2π × R3 × f<sub>z2</sub>)</li>
+        </ul>
+
+        <div class="formula-box" style="background: #1a3a1a;">
+            <h4>Design Summary</h4>
+            <table>
+                <tr><td>f<sub>z1</sub>, f<sub>z2</sub></td><td>7.3 kHz (at LC resonance)</td></tr>
+                <tr><td>f<sub>p1</sub></td><td>50 kHz (at crossover)</td></tr>
+                <tr><td>f<sub>p2</sub></td><td>250 kHz (f<sub>sw</sub>/2)</td></tr>
+                <tr><td>Crossover</td><td>50 kHz (f<sub>sw</sub>/10)</td></tr>
+                <tr><td>Phase Margin</td><td>~60° (verify in simulation)</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <h2>Common Stability Issues</h2>
+    <table class="info-table">
+        <thead>
+            <tr>
+                <th>Symptom</th>
+                <th>Likely Cause</th>
+                <th>Solution</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Output oscillation at f<sub>0</sub></td>
+                <td>LC resonance not damped</td>
+                <td>Add zeros at f<sub>0</sub>, verify compensator</td>
+            </tr>
+            <tr>
+                <td>Oscillation at f<sub>sw</sub>/2</td>
+                <td>Subharmonic oscillation (current mode)</td>
+                <td>Add slope compensation</td>
+            </tr>
+            <tr>
+                <td>Slow transient response</td>
+                <td>Crossover too low</td>
+                <td>Increase bandwidth (check RHP zero limit)</td>
+            </tr>
+            <tr>
+                <td>Ringing on load step</td>
+                <td>Insufficient phase margin</td>
+                <td>Reduce crossover or improve compensation</td>
+            </tr>
+            <tr>
+                <td>Instability at light load</td>
+                <td>Output pole moves to higher frequency</td>
+                <td>Add minimum load or modify compensation</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>Exercises</h2>
+    <div id="exercises-container">
+        <div class="exercise-widget" data-exercise="1">
+            <p class="exercise-problem"><strong>Exercise 1:</strong> A buck converter has L = 22 μH and C = 220 μF. What is the LC resonance frequency?</p>
+            <input type="text" id="ex1-input" placeholder="Enter frequency in kHz">
+            <button onclick="checkEx1()">Check Answer</button>
+            <div id="ex1-result"></div>
+        </div>
+
+        <div class="exercise-widget" data-exercise="2">
+            <p class="exercise-problem"><strong>Exercise 2:</strong> A boost converter operates at V<sub>in</sub> = 5V, V<sub>out</sub> = 12V with L = 10 μH and R<sub>load</sub> = 10 Ω. What is the RHP zero frequency?</p>
+            <input type="text" id="ex2-input" placeholder="Enter frequency in kHz">
+            <button onclick="checkEx2()">Check Answer</button>
+            <div id="ex2-result"></div>
+        </div>
+
+        <div class="exercise-widget" data-exercise="3">
+            <p class="exercise-problem"><strong>Exercise 3:</strong> For the boost converter in Exercise 2, what is the maximum recommended crossover frequency?</p>
+            <input type="text" id="ex3-input" placeholder="Enter frequency in kHz">
+            <button onclick="checkEx3()">Check Answer</button>
+            <div id="ex3-result"></div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const buckCanvas = document.getElementById('buck-bode-canvas');
+        if (!buckCanvas || typeof AD === 'undefined') return;
+        const buckCtx = buckCanvas.getContext('2d');
+        const TEK = AD.TEK_COLORS;
+
+        window.updateBuckBode = function() {
+            const Vin = parseFloat(document.getElementById('vin-buck').value);
+            const Vout = parseFloat(document.getElementById('vout-buck').value);
+            const L = parseFloat(document.getElementById('l-buck').value) * 1e-6;
+            const C = parseFloat(document.getElementById('c-buck').value) * 1e-6;
+            const ESR = parseFloat(document.getElementById('esr-buck').value) * 1e-3;
+            const Rload = parseFloat(document.getElementById('rload-buck').value);
+
+            // Calculate key frequencies
+            const f0 = 1 / (2 * Math.PI * Math.sqrt(L * C));
+            const fESR = 1 / (2 * Math.PI * ESR * C);
+            const Q = Rload * Math.sqrt(C / L);
+
+            const w = buckCanvas.width, h = buckCanvas.height;
+            const margin = { left: 60, right: 30, top: 30, bottom: 50 };
+            const plotW = w - margin.left - margin.right;
+            const plotH = (h - margin.top - margin.bottom - 20) / 2;
+
+            buckCtx.fillStyle = '#0d1117';
+            buckCtx.fillRect(0, 0, w, h);
+
+            const fMin = 100, fMax = 1e6;
+            const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
+
+            function freqToX(f) {
+                return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
+            }
+
+            const magTop = margin.top;
+            const magBot = margin.top + plotH;
+            const dBMin = -60, dBMax = 40;
+
+            function dBToY(dB) {
+                return magBot - (dB - dBMin) / (dBMax - dBMin) * plotH;
+            }
+
+            // Grid
+            buckCtx.strokeStyle = '#333';
+            buckCtx.lineWidth = 1;
+            for (let dB = -60; dB <= 40; dB += 20) {
+                const y = dBToY(dB);
+                buckCtx.beginPath();
+                buckCtx.moveTo(margin.left, y);
+                buckCtx.lineTo(w - margin.right, y);
+                buckCtx.stroke();
+                buckCtx.fillStyle = '#888';
+                buckCtx.font = '10px monospace';
+                buckCtx.textAlign = 'right';
+                buckCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
+            }
+
+            // 0 dB line
+            buckCtx.strokeStyle = '#666';
+            buckCtx.lineWidth = 2;
+            buckCtx.beginPath();
+            buckCtx.moveTo(margin.left, dBToY(0));
+            buckCtx.lineTo(w - margin.right, dBToY(0));
+            buckCtx.stroke();
+
+            // Control-to-output transfer function magnitude
+            function gvdMag(f) {
+                const w0 = 2 * Math.PI * f0;
+                const wz = 2 * Math.PI * fESR;
+                const w = 2 * Math.PI * f;
+
+                // Numerator: (1 + s/wz)
+                const numMag = Math.sqrt(1 + (w/wz)**2);
+
+                // Denominator: 1 + s/(Q*w0) + s^2/w0^2
+                const den_real = 1 - (w/w0)**2;
+                const den_imag = w/(Q*w0);
+                const denMag = Math.sqrt(den_real**2 + den_imag**2);
+
+                const mag = Vin * numMag / denMag;
+                return 20 * Math.log10(mag);
+            }
+
+            function gvdPhase(f) {
+                const w0 = 2 * Math.PI * f0;
+                const wz = 2 * Math.PI * fESR;
+                const w = 2 * Math.PI * f;
+
+                // Numerator phase: arctan(w/wz)
+                const numPhase = Math.atan(w/wz) * 180/Math.PI;
+
+                // Denominator phase from second-order system
+                const den_real = 1 - (w/w0)**2;
+                const den_imag = w/(Q*w0);
+                let denPhase = Math.atan2(den_imag, den_real) * 180/Math.PI;
+
+                return numPhase - denPhase;
+            }
+
+            // Draw magnitude
+            buckCtx.strokeStyle = TEK.green;
+            buckCtx.lineWidth = 2;
+            buckCtx.beginPath();
+            let first = true;
+            for (let i = 0; i <= 400; i++) {
+                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
+                const dB = gvdMag(f);
+                const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
+                if (first) { buckCtx.moveTo(x, y); first = false; }
+                else buckCtx.lineTo(x, y);
+            }
+            buckCtx.stroke();
+
+            // Mark LC resonance
+            buckCtx.strokeStyle = TEK.red;
+            buckCtx.setLineDash([5, 5]);
+            buckCtx.beginPath();
+            buckCtx.moveTo(freqToX(f0), magTop);
+            buckCtx.lineTo(freqToX(f0), magBot);
+            buckCtx.stroke();
+            buckCtx.fillStyle = TEK.red;
+            buckCtx.textAlign = 'center';
+            buckCtx.fillText('f₀', freqToX(f0), magTop - 5);
+
+            // Mark ESR zero
+            if (fESR < fMax) {
+                buckCtx.strokeStyle = TEK.cyan;
+                buckCtx.beginPath();
+                buckCtx.moveTo(freqToX(fESR), magTop);
+                buckCtx.lineTo(freqToX(fESR), magBot);
+                buckCtx.stroke();
+                buckCtx.fillStyle = TEK.cyan;
+                buckCtx.fillText('fESR', freqToX(fESR), magTop - 5);
+            }
+            buckCtx.setLineDash([]);
+
+            // Phase plot
+            const phTop = magBot + 30;
+            const phBot = h - margin.bottom;
+            const phPlotH = phBot - phTop;
+            const phMin = -270, phMax = 90;
+
+            function phToY(ph) {
+                return phBot - (ph - phMin) / (phMax - phMin) * phPlotH;
+            }
+
+            // Phase grid
+            buckCtx.strokeStyle = '#333';
+            buckCtx.lineWidth = 1;
+            for (let ph = -270; ph <= 90; ph += 45) {
+                const y = phToY(ph);
+                buckCtx.beginPath();
+                buckCtx.moveTo(margin.left, y);
+                buckCtx.lineTo(w - margin.right, y);
+                buckCtx.stroke();
+                buckCtx.fillStyle = '#888';
+                buckCtx.textAlign = 'right';
+                buckCtx.fillText(ph + '°', margin.left - 5, y + 4);
+            }
+
+            // -180° line
+            buckCtx.strokeStyle = TEK.red;
+            buckCtx.lineWidth = 2;
+            buckCtx.setLineDash([5, 5]);
+            buckCtx.beginPath();
+            buckCtx.moveTo(margin.left, phToY(-180));
+            buckCtx.lineTo(w - margin.right, phToY(-180));
+            buckCtx.stroke();
+            buckCtx.setLineDash([]);
+
+            // Draw phase
+            buckCtx.strokeStyle = TEK.green;
+            buckCtx.lineWidth = 2;
+            buckCtx.beginPath();
+            first = true;
+            for (let i = 0; i <= 400; i++) {
+                const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
+                const ph = gvdPhase(f);
+                const x = freqToX(f), y = Math.max(phTop, Math.min(phBot, phToY(ph)));
+                if (first) { buckCtx.moveTo(x, y); first = false; }
+                else buckCtx.lineTo(x, y);
+            }
+            buckCtx.stroke();
+
+            // Frequency labels
+            for (let exp = 2; exp <= 6; exp++) {
+                const f = Math.pow(10, exp);
+                const x = freqToX(f);
+                buckCtx.fillStyle = '#888';
+                buckCtx.textAlign = 'center';
+                const label = exp === 2 ? '100' : exp === 3 ? '1k' : exp === 4 ? '10k' : exp === 5 ? '100k' : '1M';
+                buckCtx.fillText(label, x, phBot + 15);
+            }
+            buckCtx.fillText('Frequency (Hz)', margin.left + plotW/2, h - 5);
+
+            // Results
+            const result = document.getElementById('buck-result');
+            result.innerHTML = `
+                <strong>LC Resonance (f₀):</strong> ${AD.fmtUnit(f0, 'Hz')}<br>
+                <strong>Q Factor:</strong> ${Q.toFixed(1)} ${Q > 5 ? '<span style="color:' + TEK.yellow + '">(High Q - needs damping!)</span>' : ''}<br>
+                <strong>ESR Zero:</strong> ${AD.fmtUnit(fESR, 'Hz')}<br>
+                <strong>Duty Cycle:</strong> ${(Vout/Vin * 100).toFixed(1)}%<br>
+                <strong>DC Gain:</strong> ${(20 * Math.log10(Vin)).toFixed(1)} dB
+            `;
+        };
+
+        // Compensation calculator
+        const compCanvas = document.getElementById('comp-bode-canvas');
+        if (compCanvas) {
+            const compCtx = compCanvas.getContext('2d');
+
+            window.calcCompensation = function() {
+                const fsw = parseFloat(document.getElementById('fsw').value) * 1000;
+                const f0 = parseFloat(document.getElementById('f0').value) * 1000;
+                const fESR = parseFloat(document.getElementById('fesr').value) * 1000;
+                const mode = document.getElementById('control-mode').value;
+
+                let result = '<strong>Control Mode:</strong> ' + (mode === 'voltage' ? 'Voltage Mode' : 'Current Mode') + '<br>';
+
+                // Recommended crossover
+                const fc = fsw / 10;
+                result += '<strong>Recommended Crossover:</strong> ' + AD.fmtUnit(fc, 'Hz') + ' (f<sub>sw</sub>/10)<br>';
+
+                if (mode === 'voltage') {
+                    // Type III compensator
+                    result += '<br><strong>Type III Compensator Design:</strong><br>';
+                    result += '• Zero 1: ' + AD.fmtUnit(f0, 'Hz') + ' (at LC resonance)<br>';
+                    result += '• Zero 2: ' + AD.fmtUnit(f0, 'Hz') + ' (at LC resonance)<br>';
+                    result += '• Pole 1: ' + AD.fmtUnit(fc, 'Hz') + ' (at crossover)<br>';
+                    result += '• Pole 2: ' + AD.fmtUnit(fsw/2, 'Hz') + ' (at f<sub>sw</sub>/2)<br>';
+                } else {
+                    // Type II compensator
+                    result += '<br><strong>Type II Compensator Design:</strong><br>';
+                    // Output pole is at 1/(2πRloadC), approximate
+                    const fpout = f0 * 2; // Rough estimate
+                    result += '• Zero: ' + AD.fmtUnit(fpout, 'Hz') + ' (near output pole)<br>';
+                    result += '• Pole: ' + AD.fmtUnit(Math.min(fESR, fsw/2), 'Hz') + ' (at ESR zero or f<sub>sw</sub>/2)<br>';
+                }
+
+                document.getElementById('comp-result').innerHTML = result;
+
+                // Draw simplified Bode plot showing compensated loop gain
+                const w = compCanvas.width, h = compCanvas.height;
+                const margin = { left: 60, right: 30, top: 30, bottom: 50 };
+                const plotW = w - margin.left - margin.right;
+                const plotH = (h - margin.top - margin.bottom - 20) / 2;
+
+                compCtx.fillStyle = '#0d1117';
+                compCtx.fillRect(0, 0, w, h);
+
+                const fMin = 10, fMax = 10e6;
+                const logMin = Math.log10(fMin), logMax = Math.log10(fMax);
+
+                function freqToX(f) {
+                    return margin.left + (Math.log10(f) - logMin) / (logMax - logMin) * plotW;
+                }
+
+                const magTop = margin.top;
+                const magBot = margin.top + plotH;
+                const dBMin = -60, dBMax = 80;
+
+                function dBToY(dB) {
+                    return magBot - (dB - dBMin) / (dBMax - dBMin) * plotH;
+                }
+
+                // Grid
+                compCtx.strokeStyle = '#333';
+                compCtx.lineWidth = 1;
+                for (let dB = -40; dB <= 80; dB += 20) {
+                    const y = dBToY(dB);
+                    compCtx.beginPath();
+                    compCtx.moveTo(margin.left, y);
+                    compCtx.lineTo(w - margin.right, y);
+                    compCtx.stroke();
+                    compCtx.fillStyle = '#888';
+                    compCtx.font = '10px monospace';
+                    compCtx.textAlign = 'right';
+                    compCtx.fillText(dB + ' dB', margin.left - 5, y + 4);
+                }
+
+                // 0 dB line
+                compCtx.strokeStyle = '#666';
+                compCtx.lineWidth = 2;
+                compCtx.beginPath();
+                compCtx.moveTo(margin.left, dBToY(0));
+                compCtx.lineTo(w - margin.right, dBToY(0));
+                compCtx.stroke();
+
+                // Idealized loop gain (simplified)
+                function loopGainMag(f) {
+                    // Start with integrator, gain set to cross at fc
+                    let gain = fc / f * 10; // Integrator + DC gain
+
+                    if (mode === 'voltage') {
+                        // LC double pole effect
+                        if (f > f0 / 2) {
+                            gain *= (f0 / f) ** 2;
+                        }
+                        // Type III zeros compensate (simplified)
+                        if (f > f0 / 10) {
+                            gain *= (f / f0) ** 2; // Two zeros at f0
+                        }
+                    } else {
+                        // Current mode - single pole
+                        if (f > f0) {
+                            gain *= f0 / f;
+                        }
+                    }
+
+                    // High frequency rolloff
+                    if (f > fsw / 4) {
+                        gain *= (fsw / 4 / f);
+                    }
+
+                    return 20 * Math.log10(Math.max(gain, 0.001));
+                }
+
+                // Draw compensated loop gain
+                compCtx.strokeStyle = TEK.green;
+                compCtx.lineWidth = 2;
+                compCtx.beginPath();
+                let first = true;
+                for (let i = 0; i <= 400; i++) {
+                    const f = Math.pow(10, logMin + i/400 * (logMax - logMin));
+                    const dB = loopGainMag(f);
+                    const x = freqToX(f), y = Math.max(magTop, Math.min(magBot, dBToY(dB)));
+                    if (first) { compCtx.moveTo(x, y); first = false; }
+                    else compCtx.lineTo(x, y);
+                }
+                compCtx.stroke();
+
+                // Mark crossover
+                compCtx.strokeStyle = TEK.yellow;
+                compCtx.setLineDash([5, 5]);
+                compCtx.beginPath();
+                compCtx.moveTo(freqToX(fc), magTop);
+                compCtx.lineTo(freqToX(fc), magBot);
+                compCtx.stroke();
+                compCtx.fillStyle = TEK.yellow;
+                compCtx.textAlign = 'center';
+                compCtx.fillText('fc', freqToX(fc), magTop - 5);
+                compCtx.setLineDash([]);
+
+                // Frequency labels
+                for (let exp = 1; exp <= 7; exp++) {
+                    const f = Math.pow(10, exp);
+                    const x = freqToX(f);
+                    compCtx.fillStyle = '#888';
+                    compCtx.textAlign = 'center';
+                    const label = exp === 1 ? '10' : exp === 2 ? '100' : exp === 3 ? '1k' : exp === 4 ? '10k' : exp === 5 ? '100k' : exp === 6 ? '1M' : '10M';
+                    compCtx.fillText(label, x, h - margin.bottom + 15);
+                }
+
+                compCtx.fillStyle = '#fff';
+                compCtx.fillText('Compensated Loop Gain (Idealized)', margin.left + plotW/2, 15);
+            };
+        }
+
+        // Schematics
+        const vmSch = document.getElementById('sch-voltage-mode');
+        if (vmSch && typeof SchematicSVG !== 'undefined') {
+            const sch = new SchematicSVG(vmSch, 450, 140);
+
+            // Simplified block diagram
+            sch.rect(30, 40, 60, 50, { label: 'Error\nAmp', fill: '#1a1a2e' });
+            sch.wire([[90, 65], [130, 65]]);
+
+            sch.rect(130, 40, 60, 50, { label: 'PWM', fill: '#1a1a2e' });
+            sch.wire([[190, 65], [230, 65]]);
+
+            sch.rect(230, 40, 80, 50, { label: 'Power\nStage', fill: '#1a1a2e' });
+            sch.wire([[310, 65], [380, 65]]);
+            sch.nodeLabel(380, 65, 'Vout', { position: 'right' });
+
+            // Feedback path
+            sch.wire([[350, 65], [350, 110]]);
+            sch.dot(350, 65);
+            sch.wire([[350, 110], [50, 110]]);
+            sch.wire([[50, 110], [50, 90]]);
+
+            // Vref
+            sch.wire([[10, 50], [30, 50]]);
+            sch.nodeLabel(10, 50, 'Vref', { position: 'left' });
+
+            sch.render();
+        }
+
+        const type2Sch = document.getElementById('sch-type2');
+        if (type2Sch && typeof SchematicSVG !== 'undefined') {
+            const sch = new SchematicSVG(type2Sch, 400, 160);
+
+            // Op-amp
+            sch.opamp(150, 80, { label: '' });
+            const op = SchematicSVG.opampTerminals(150, 80);
+
+            // Vref to non-inv
+            sch.wire([[40, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
+            sch.nodeLabel(40, op.nonInvInput.y, 'Vref', { position: 'left' });
+
+            // R1 from FB to inv input
+            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 30, op.invInput.y]]);
+            sch.dot(op.invInput.x, op.invInput.y);
+            sch.resistor(op.invInput.x - 55, op.invInput.y, 'horizontal', { label: 'R1' });
+            sch.wire([[op.invInput.x - 80, op.invInput.y], [op.invInput.x - 100, op.invInput.y]]);
+            sch.nodeLabel(op.invInput.x - 100, op.invInput.y, 'VFB', { position: 'left' });
+
+            // Feedback: R2 || C1, then C2 to output
+            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 30]]);
+
+            // R2 and C1 in parallel
+            sch.wire([[op.invInput.x, 30], [op.invInput.x + 15, 30]]);
+            sch.resistor(op.invInput.x + 40, 30, 'horizontal', { label: 'R2' });
+            sch.wire([[op.invInput.x + 65, 30], [op.output.x, 30]]);
+
+            sch.wire([[op.invInput.x, 30], [op.invInput.x, 10]]);
+            sch.dot(op.invInput.x, 30);
+            sch.wire([[op.invInput.x, 10], [op.invInput.x + 15, 10]]);
+            sch.capacitor(op.invInput.x + 40, 10, 'horizontal', { label: 'C1' });
+            sch.wire([[op.invInput.x + 65, 10], [op.output.x, 10]]);
+            sch.wire([[op.output.x, 10], [op.output.x, 30]]);
+            sch.dot(op.output.x, 30);
+
+            // C2 in series
+            sch.wire([[op.output.x, 30], [op.output.x + 20, 30]]);
+            sch.capacitor(op.output.x + 45, 30, 'horizontal', { label: 'C2' });
+            sch.wire([[op.output.x + 70, 30], [op.output.x + 70, op.output.y]]);
+            sch.wire([[op.output.x, op.output.y], [op.output.x + 70, op.output.y]]);
+            sch.dot(op.output.x, op.output.y);
+            sch.wire([[op.output.x + 70, op.output.y], [op.output.x + 100, op.output.y]]);
+            sch.nodeLabel(op.output.x + 100, op.output.y, 'COMP', { position: 'right' });
+
+            sch.render();
+        }
+
+        const type3Sch = document.getElementById('sch-type3');
+        if (type3Sch && typeof SchematicSVG !== 'undefined') {
+            const sch = new SchematicSVG(type3Sch, 400, 160);
+
+            // Similar to type2 but with additional R3-C3 network
+            sch.opamp(150, 80, { label: '' });
+            const op = SchematicSVG.opampTerminals(150, 80);
+
+            // Simplified representation
+            sch.wire([[40, op.nonInvInput.y], [op.nonInvInput.x, op.nonInvInput.y]]);
+            sch.nodeLabel(40, op.nonInvInput.y, 'Vref', { position: 'left' });
+
+            // Input with R1 and C3||R3 divider
+            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 20, op.invInput.y]]);
+            sch.dot(op.invInput.x, op.invInput.y);
+            sch.resistor(op.invInput.x - 45, op.invInput.y, 'horizontal', { label: 'R1' });
+            sch.wire([[op.invInput.x - 70, op.invInput.y], [op.invInput.x - 90, op.invInput.y]]);
+            sch.nodeLabel(op.invInput.x - 90, op.invInput.y, 'VFB', { position: 'left' });
+
+            // R3||C3 to ground
+            sch.wire([[op.invInput.x - 70, op.invInput.y], [op.invInput.x - 70, op.invInput.y + 25]]);
+            sch.dot(op.invInput.x - 70, op.invInput.y);
+            sch.resistor(op.invInput.x - 70, op.invInput.y + 50, 'vertical', { label: 'R3' });
+            sch.ground(op.invInput.x - 70, op.invInput.y + 75);
+
+            // Feedback network (R2||C1 with C2)
+            sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x, 30]]);
+            sch.wire([[op.invInput.x, 30], [op.output.x, 30]]);
+            sch.resistor((op.invInput.x + op.output.x)/2, 30, 'horizontal', { label: 'R2||C1' });
+
+            sch.wire([[op.output.x, 30], [op.output.x, op.output.y]]);
+            sch.dot(op.output.x, 30);
+
+            sch.wire([[op.output.x, op.output.y], [op.output.x + 50, op.output.y]]);
+            sch.dot(op.output.x, op.output.y);
+            sch.capacitor(op.output.x + 25, op.output.y - 25, 'vertical', { label: 'C2' });
+            sch.wire([[op.output.x + 25, op.output.y - 25], [op.output.x + 25, 30]]);
+            sch.wire([[op.output.x + 25, 30], [op.output.x, 30]]);
+
+            sch.nodeLabel(op.output.x + 50, op.output.y, 'COMP', { position: 'right' });
+
+            sch.render();
+        }
+
+        // Exercise checking
+        window.checkEx1 = function() {
+            const input = parseFloat(document.getElementById('ex1-input').value);
+            const result = document.getElementById('ex1-result');
+            // f0 = 1/(2π√(22μ × 220μ)) = 2.28 kHz
+            if (Math.abs(input - 2.28) < 0.3 || Math.abs(input - 2.3) < 0.2) {
+                result.innerHTML = '<span style="color: #4ade80">Correct! f₀ = 1/(2π√(22μH × 220μF)) ≈ 2.3 kHz</span>';
+            } else {
+                result.innerHTML = '<span style="color: #f87171">Not quite. Use f₀ = 1/(2π√(LC)).</span>';
+            }
+        };
+
+        window.checkEx2 = function() {
+            const input = parseFloat(document.getElementById('ex2-input').value);
+            const result = document.getElementById('ex2-result');
+            // D = 1 - Vin/Vout = 1 - 5/12 = 0.583
+            // fRHP = Rload(1-D)² / (2πL) = 10 × (0.417)² / (2π × 10μ)
+            // = 10 × 0.174 / (62.8μ) = 27.7 kHz
+            if (Math.abs(input - 27.7) < 5 || Math.abs(input - 28) < 5) {
+                result.innerHTML = '<span style="color: #4ade80">Correct! D = 0.58, f<sub>RHP</sub> = 10×(0.42)²/(2π×10μ) ≈ 28 kHz</span>';
+            } else {
+                result.innerHTML = '<span style="color: #f87171">Not quite. Calculate D = 1 - V<sub>in</sub>/V<sub>out</sub>, then f<sub>RHP</sub> = R<sub>load</sub>(1-D)²/(2πL).</span>';
+            }
+        };
+
+        window.checkEx3 = function() {
+            const input = parseFloat(document.getElementById('ex3-input').value);
+            const result = document.getElementById('ex3-result');
+            // fc < fRHP/5 = 27.7/5 = 5.5 kHz
+            if (input >= 4.5 && input <= 6) {
+                result.innerHTML = '<span style="color: #4ade80">Correct! f<sub>c</sub> < f<sub>RHP</sub>/5 ≈ 5.5 kHz maximum</span>';
+            } else {
+                result.innerHTML = '<span style="color: #f87171">Not quite. Maximum crossover is f<sub>RHP</sub>/5.</span>';
+            }
+        };
+
+        // Initialize
+        updateBuckBode();
+        if (typeof calcCompensation === 'function') {
+            calcCompensation();
+        }
+    })();
+    </script>
+</article>

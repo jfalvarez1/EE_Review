@@ -1,0 +1,899 @@
+<!-- Module 13, Lesson 10: Protocol Debug Techniques -->
+<div class="lesson-content" data-module="13" data-lesson="10">
+
+    <div class="card">
+        <h2>Protocol Debug Techniques</h2>
+        <p>Effective debugging of communication protocols requires understanding both the physical layer signals and the protocol-level transactions. This lesson covers systematic approaches to diagnosing I2C, SPI, UART, and other serial interface problems.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Physical Layer</div>
+                <div class="v">Voltage levels, timing, integrity</div>
+            </div>
+            <div class="box">
+                <div class="k">Protocol Layer</div>
+                <div class="v">Framing, ACK/NAK, addressing</div>
+            </div>
+            <div class="box">
+                <div class="k">Logic Analyzer</div>
+                <div class="v">Decode protocol transactions</div>
+            </div>
+            <div class="box">
+                <div class="k">Oscilloscope</div>
+                <div class="v">Signal integrity, timing</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Most communication failures are physical layer issues masquerading as protocol errors. Always check signal integrity (levels, edges, noise) before diving into protocol-level debugging.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: I2C Waveform Analyzer</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="dbg-issue">Simulated Issue</label>
+                <select id="dbg-issue">
+                    <option value="normal">Normal Operation</option>
+                    <option value="slow-rise">Slow Rise Time</option>
+                    <option value="noise">Noise/Glitches</option>
+                    <option value="missing-ack">Missing ACK</option>
+                    <option value="clock-stretch">Clock Stretching</option>
+                    <option value="bus-stuck">Bus Stuck Low</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="dbg-vcc">V<sub>CC</sub> (V)</label>
+                <select id="dbg-vcc">
+                    <option value="3.3" selected>3.3V</option>
+                    <option value="5">5V</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="dbg-speed">I2C Speed</label>
+                <select id="dbg-speed">
+                    <option value="100000">100 kHz</option>
+                    <option value="400000" selected>400 kHz</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="dbg-canvas" width="980" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Issue Detected</div>
+                <div class="v mono" id="dbg-detected">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Root Cause</div>
+                <div class="v mono" id="dbg-cause">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Fix</div>
+                <div class="v mono" id="dbg-fix">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Debug Decision Tree</h3>
+
+        <canvas id="debug-flowchart-canvas" width="700" height="600" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Common Issues by Protocol</h3>
+
+        <table class="table">
+            <tr>
+                <th>Protocol</th>
+                <th>Symptom</th>
+                <th>Likely Cause</th>
+                <th>Solution</th>
+            </tr>
+            <tr>
+                <td rowspan="3">I2C</td>
+                <td>NAK on all addresses</td>
+                <td>Wrong voltage level or pull-ups</td>
+                <td>Check VCC, add/adjust pull-ups</td>
+            </tr>
+            <tr>
+                <td>Slow or rounded edges</td>
+                <td>Pull-up too weak or high C</td>
+                <td>Decrease R or add buffer</td>
+            </tr>
+            <tr>
+                <td>Bus stuck low</td>
+                <td>Slave holding SDA</td>
+                <td>Toggle SCL 9 times to reset</td>
+            </tr>
+            <tr>
+                <td rowspan="2">SPI</td>
+                <td>All zeros or all ones</td>
+                <td>CS not asserted or wrong polarity</td>
+                <td>Check CS timing and polarity</td>
+            </tr>
+            <tr>
+                <td>Shifted data</td>
+                <td>CPOL/CPHA mismatch</td>
+                <td>Match SPI mode to device spec</td>
+            </tr>
+            <tr>
+                <td rowspan="2">UART</td>
+                <td>Garbage characters</td>
+                <td>Baud rate mismatch</td>
+                <td>Verify exact baud rates match</td>
+            </tr>
+            <tr>
+                <td>Inverted data</td>
+                <td>RS-232 vs TTL mismatch</td>
+                <td>Add level converter (MAX232)</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>I2C Bus Recovery</h3>
+
+        <canvas id="i2c-recovery-canvas" width="780" height="420" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Oscilloscope Setup Tips</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Bandwidth</div>
+                <div class="v">≥5× bit rate (20MHz for 4MHz SPI)</div>
+            </div>
+            <div class="box">
+                <div class="k">Sample Rate</div>
+                <div class="v">≥10× bit rate for waveform</div>
+            </div>
+            <div class="box">
+                <div class="k">Trigger</div>
+                <div class="v">Edge on CS (SPI) or START (I2C)</div>
+            </div>
+            <div class="box">
+                <div class="k">Probe</div>
+                <div class="v">10× passive, short ground lead</div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>Ground Lead Length:</strong> Long ground leads add inductance that causes ringing and overshoot artifacts. For accurate high-speed measurements, use the shortest ground connection possible—ideally a ground spring or tip-and-barrel style.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Logic Analyzer Decode Setup</h3>
+
+        <canvas id="protocol-decoder-canvas" width="980" height="320" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+// ==================== DEBUG FLOWCHART CANVAS ====================
+(function() {
+    const canvas = document.getElementById('debug-flowchart-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Communication Failure Debug Flow', W/2, 25);
+
+    const centerX = W / 2;
+    const boxW = 450, boxH = 95;
+    let y = 50;
+
+    // Step 0: Communication Failure (top box)
+    AD.roundRect(ctx, centerX - boxW/2, y, boxW, 35, 6, { fill: '#4a1a1a', stroke: '#f87171', lineWidth: 2 });
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('Communication Failure', centerX, y + 22);
+
+    // Arrow down
+    y += 35;
+    AD.drawArrow(ctx, centerX, y, centerX, y + 25, { color: '#888', headSize: 8 });
+    y += 30;
+
+    // Debug steps
+    const steps = [
+        {
+            title: 'Step 1: Check Power',
+            color: TEK.ch1,
+            items: [
+                'Device powered?',
+                'Correct voltage level (3.3V vs 5V)?',
+                'Stable supply (no brownouts)?'
+            ]
+        },
+        {
+            title: 'Step 2: Check Physical Connection',
+            color: TEK.ch2,
+            items: [
+                'Probe DC levels with multimeter',
+                'I2C: SDA/SCL should be HIGH when idle',
+                'SPI: Check CS polarity',
+                'UART: TX should be HIGH when idle'
+            ]
+        },
+        {
+            title: 'Step 3: Check Signal Integrity (Oscilloscope)',
+            color: TEK.ch3,
+            items: [
+                'Rise/fall times within spec?',
+                'Clean edges (no ringing)?',
+                'Proper voltage levels (VIH/VIL margins)?',
+                'No excessive noise or crosstalk?'
+            ]
+        },
+        {
+            title: 'Step 4: Check Protocol Layer (Logic Analyzer)',
+            color: TEK.ch4,
+            items: [
+                'Correct address? (I2C)',
+                'Proper ACK/NAK responses?',
+                'Correct CPOL/CPHA mode? (SPI)',
+                'Baud rate match? (UART)',
+                'Valid framing (start/stop bits)?'
+            ]
+        }
+    ];
+
+    steps.forEach((step, i) => {
+        const stepBoxH = 30 + step.items.length * 16;
+
+        AD.roundRect(ctx, centerX - boxW/2, y, boxW, stepBoxH, 6, { fill: '#1a2332', stroke: step.color, lineWidth: 2 });
+
+        // Title
+        ctx.fillStyle = step.color;
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(step.title, centerX - boxW/2 + 15, y + 20);
+
+        // Items
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '10px monospace';
+        step.items.forEach((item, j) => {
+            ctx.fillText('• ' + item, centerX - boxW/2 + 25, y + 38 + j * 16);
+        });
+
+        y += stepBoxH;
+
+        // Arrow between steps
+        if (i < steps.length - 1) {
+            AD.drawArrow(ctx, centerX, y, centerX, y + 25, { color: '#888', headSize: 8 });
+            ctx.fillStyle = TEK.ch4;
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('OK', centerX + 20, y + 15);
+            y += 30;
+        }
+    });
+
+})();
+
+// ==================== I2C RECOVERY CANVAS ====================
+(function() {
+    const canvas = document.getElementById('i2c-recovery-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('I2C Bus Stuck Recovery Procedure', W/2, 25);
+
+    // Explanation box
+    AD.roundRect(ctx, 30, 45, 350, 70, 6, { fill: '#1a2332', stroke: '#4b5563', lineWidth: 1 });
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('When SDA is stuck LOW:', 45, 65);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('1. Slave may be holding SDA waiting for clock', 50, 82);
+    ctx.fillText('2. Master lost sync, slave is mid-byte', 50, 98);
+
+    // Waveform area
+    const waveY = 140;
+    AD.roundRect(ctx, 30, waveY, W - 60, 150, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Recovery Sequence:', 45, waveY + 20);
+
+    // SCL waveform
+    const sclY = waveY + 55;
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '11px monospace';
+    ctx.fillText('SCL:', 50, sclY);
+
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    const startX = 100;
+    const pulseW = 50;
+    const high = sclY - 20;
+    const low = sclY + 5;
+
+    ctx.moveTo(startX, high);
+
+    // Draw 9 clock pulses
+    for (let i = 0; i < 9; i++) {
+        const x = startX + i * pulseW;
+        ctx.lineTo(x + 5, high);
+        ctx.lineTo(x + 5, low);
+        ctx.lineTo(x + 25, low);
+        ctx.lineTo(x + 25, high);
+        ctx.lineTo(x + pulseW, high);
+    }
+
+    // Continue high after pulses
+    ctx.lineTo(startX + 9 * pulseW + 80, high);
+    ctx.stroke();
+
+    // Clock numbers
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    for (let i = 1; i <= 9; i++) {
+        ctx.fillText(i.toString(), startX + (i - 0.5) * pulseW, low + 18);
+    }
+
+    // SDA waveform
+    const sdaY = waveY + 115;
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('SDA:', 50, sdaY);
+
+    ctx.strokeStyle = TEK.ch2;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+
+    const sdaHigh = sdaY - 20;
+    const sdaLow = sdaY + 5;
+    const releaseX = startX + 8 * pulseW + 25;
+
+    // SDA stuck low, then releases after 9 clocks
+    ctx.moveTo(startX, sdaLow);
+    ctx.lineTo(releaseX, sdaLow);
+    ctx.lineTo(releaseX + 5, sdaHigh);
+    ctx.lineTo(startX + 9 * pulseW + 80, sdaHigh);
+    ctx.stroke();
+
+    // Annotation
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Slave releases after receiving 9 clocks', (startX + releaseX) / 2 + 50, sdaLow + 25);
+
+    // Implementation steps
+    const implY = waveY + 165;
+    AD.roundRect(ctx, 30, implY, 350, 110, 6, { fill: '#1a2332', stroke: TEK.ch3, lineWidth: 1 });
+
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Implementation:', 45, implY + 20);
+
+    const implSteps = [
+        '1. Set SDA as input (let pull-up drive high)',
+        '2. Toggle SCL 9 times manually',
+        '3. Generate STOP (SDA low→high while SCL high)',
+        '4. Retry normal communication'
+    ];
+
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    implSteps.forEach((step, i) => {
+        ctx.fillText(step, 50, implY + 40 + i * 17);
+    });
+
+    // Code pattern
+    AD.roundRect(ctx, 400, implY, 350, 110, 6, { fill: '#1a1a2e', stroke: '#4b5563', lineWidth: 1 });
+
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('Code Pattern (pseudo):', 415, implY + 20);
+
+    const codeLines = [
+        'for (i = 0; i < 9; i++) {',
+        '    SCL = LOW; delay_us(5);',
+        '    SCL = HIGH; delay_us(5);',
+        '    if (SDA == HIGH) break;',
+        '}',
+        'SDA = LOW; SCL = HIGH; delay_us(5);',
+        'SDA = HIGH; // STOP condition'
+    ];
+
+    ctx.fillStyle = '#a78bfa';
+    ctx.font = '9px monospace';
+    codeLines.forEach((line, i) => {
+        ctx.fillText(line, 420, implY + 38 + i * 12);
+    });
+
+})();
+
+// ==================== PROTOCOL DECODER CHECKLIST CANVAS ====================
+(function() {
+    const canvas = document.getElementById('protocol-decoder-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Protocol Decoder Checklist', W/2, 25);
+
+    const protocols = [
+        {
+            name: 'I2C',
+            color: TEK.ch1,
+            items: [
+                'Connect SDA and SCL channels',
+                'Set threshold to VCC/2',
+                'Enable address decode (7-bit/10)',
+                'Show R/W bit separately',
+                'Display ACK/NAK'
+            ]
+        },
+        {
+            name: 'SPI',
+            color: TEK.ch2,
+            items: [
+                'Connect CLK, MOSI, MISO, CS',
+                'Set CPOL (clock polarity)',
+                'Set CPHA (clock phase)',
+                'Set bit order (MSB/LSB first)',
+                'Set word size (8, 16, etc.)',
+                'Trigger on CS falling edge'
+            ]
+        },
+        {
+            name: 'UART',
+            color: TEK.ch3,
+            items: [
+                'Connect TX and/or RX',
+                'Set exact baud rate',
+                'Set data bits (7, 8, 9)',
+                'Set parity (none, even, odd)',
+                'Set stop bits (1, 1.5, 2)',
+                'Set idle polarity (normally high)'
+            ]
+        }
+    ];
+
+    const boxW = 300, boxH = 175;
+    const gap = 25;
+    const startX = (W - (3 * boxW + 2 * gap)) / 2;
+    const startY = 50;
+
+    protocols.forEach((proto, i) => {
+        const x = startX + i * (boxW + gap);
+        const y = startY;
+
+        AD.roundRect(ctx, x, y, boxW, boxH, 8, { fill: '#1a2332', stroke: proto.color, lineWidth: 2 });
+
+        // Protocol name header
+        ctx.fillStyle = proto.color;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(proto.name, x + boxW/2, y + 25);
+
+        // Checklist items
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        proto.items.forEach((item, j) => {
+            const itemY = y + 48 + j * 20;
+
+            // Checkbox
+            ctx.strokeStyle = '#4b5563';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 15, itemY - 10, 12, 12);
+
+            // Item text
+            ctx.fillStyle = '#9ca3af';
+            ctx.fillText(item, x + 35, itemY);
+        });
+    });
+
+    // Tips footer
+    AD.roundRect(ctx, 30, H - 70, W - 60, 55, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Pro Tip:', 50, H - 50);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('Start with oscilloscope to verify signal integrity before using protocol decoder.', 115, H - 50);
+    ctx.fillText('Most "protocol errors" are actually physical layer problems (noise, reflections, weak drivers).', 50, H - 32);
+
+})();
+
+(function() {
+    const canvas = document.getElementById('dbg-canvas');
+    const ctx = canvas.getContext('2d');
+    const TEK = AD.TEK_COLORS;
+
+    const issueInfo = {
+        'normal': {
+            detected: 'None',
+            cause: 'Normal operation',
+            fix: 'No action needed'
+        },
+        'slow-rise': {
+            detected: 'Slow rise time (>300ns)',
+            cause: 'High capacitance or weak pull-up',
+            fix: 'Decrease Rp or add I2C buffer'
+        },
+        'noise': {
+            detected: 'Glitches on SDA',
+            cause: 'EMI, crosstalk, or poor layout',
+            fix: 'Add filtering, improve routing'
+        },
+        'missing-ack': {
+            detected: 'NAK on address byte',
+            cause: 'Wrong address or device not responding',
+            fix: 'Check address, verify device powered'
+        },
+        'clock-stretch': {
+            detected: 'SCL held low by slave',
+            cause: 'Slave busy, processing data',
+            fix: 'Increase timeout, check slave timing'
+        },
+        'bus-stuck': {
+            detected: 'SDA stuck low',
+            cause: 'Slave holding bus, lost sync',
+            fix: 'Clock recovery (9 pulses + STOP)'
+        }
+    };
+
+    function update() {
+        const issueEl = document.getElementById('dbg-issue');
+        const vccEl = document.getElementById('dbg-vcc');
+        const speedEl = document.getElementById('dbg-speed');
+        if (!issueEl || !vccEl || !speedEl) return;
+        const issue = issueEl.value || 'normal';
+        const vcc = parseFloat(vccEl.value);
+        const speed = parseInt(speedEl.value);
+
+        const info = issueInfo[issue] || issueInfo.normal;
+        document.getElementById('dbg-detected').textContent = info.detected;
+        document.getElementById('dbg-cause').textContent = info.cause;
+        document.getElementById('dbg-fix').textContent = info.fix;
+
+        // Color code
+        const detectedEl = document.getElementById('dbg-detected');
+        if (issue === 'normal') {
+            detectedEl.style.color = 'var(--ok)';
+        } else {
+            detectedEl.style.color = 'var(--bad)';
+        }
+
+        plotDebugWaveform(issue, vcc, speed);
+    }
+
+    function plotDebugWaveform(issue, vcc, speed) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+
+        const margin = { left: 60, right: 20, top: 30, bottom: 30 };
+        const plotW = w - margin.left - margin.right;
+        const plotH = h - margin.top - margin.bottom;
+
+        const bitTime = 1 / speed;
+        const tMax = bitTime * 20; // 20 bit times
+
+        // Draw axes
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(margin.left, h - margin.bottom);
+        ctx.lineTo(w - margin.right, h - margin.bottom);
+        ctx.stroke();
+
+        // Generate waveforms based on issue
+        const sclData = generateSCL(issue, tMax, bitTime);
+        const sdaData = generateSDA(issue, tMax, bitTime, vcc);
+
+        // Plot SCL (cyan)
+        plotSignal(ctx, margin, plotW, plotH, sclData.t, sclData.v, vcc, TEK.ch1, 0);
+
+        // Plot SDA (yellow)
+        plotSignal(ctx, margin, plotW, plotH, sdaData.t, sdaData.v, vcc, TEK.ch2, 1);
+
+        // Labels
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('SCL', 15, margin.top + plotH * 0.2);
+        ctx.fillText('SDA', 15, margin.top + plotH * 0.7);
+
+        // Issue marker
+        if (issue !== 'normal') {
+            ctx.fillStyle = TEK.ch4;
+            ctx.font = '12px ui-sans-serif';
+            ctx.fillText('⚠ Issue detected - see diagnosis below', margin.left + 10, 20);
+        }
+    }
+
+    function generateSCL(issue, tMax, bitTime) {
+        const t = [], v = [];
+        const N = 400;
+
+        for (let i = 0; i < N; i++) {
+            const time = (i / N) * tMax;
+            const bitIdx = Math.floor(time / bitTime);
+            const phase = (time % bitTime) / bitTime;
+
+            let val = 1; // Default high
+
+            if (issue === 'clock-stretch' && bitIdx >= 8 && bitIdx < 12) {
+                // Clock held low by slave
+                val = 0;
+            } else if (issue === 'bus-stuck') {
+                // Normal clock trying to recover
+                val = phase < 0.5 ? 0 : 1;
+            } else {
+                // Normal clock
+                if (bitIdx >= 1 && bitIdx < 18) {
+                    val = phase < 0.5 ? 0 : 1;
+                }
+            }
+
+            t.push(time);
+            v.push(val);
+        }
+        return { t, v };
+    }
+
+    function generateSDA(issue, tMax, bitTime, vcc) {
+        const t = [], v = [];
+        const N = 400;
+
+        // I2C address byte: 0xA0 = 10100000 + R/W + ACK
+        const pattern = [1, 0, 1, 0, 0, 0, 0, 0, 0]; // 0xA0 write + ACK slot
+
+        for (let i = 0; i < N; i++) {
+            const time = (i / N) * tMax;
+            const bitIdx = Math.floor(time / bitTime);
+            const phase = (time % bitTime) / bitTime;
+
+            let val = 1; // Default high
+
+            if (issue === 'bus-stuck') {
+                // SDA stuck low
+                val = bitIdx < 15 ? 0 : (phase > 0.8 ? 1 : 0);
+            } else if (bitIdx === 0) {
+                // START condition
+                val = phase < 0.5 ? 1 : 0;
+            } else if (bitIdx >= 1 && bitIdx <= 9) {
+                // Data bits
+                const dataIdx = bitIdx - 1;
+                if (dataIdx < pattern.length) {
+                    val = pattern[dataIdx];
+
+                    // Missing ACK
+                    if (issue === 'missing-ack' && dataIdx === 8) {
+                        val = 1; // NAK
+                    }
+                }
+
+                // Slow rise time
+                if (issue === 'slow-rise' && val === 1 && phase < 0.4) {
+                    val = phase / 0.4;
+                }
+            } else if (bitIdx >= 18) {
+                // STOP condition
+                val = phase > 0.5 ? 1 : 0;
+            }
+
+            // Add noise
+            if (issue === 'noise') {
+                val += (Math.random() - 0.5) * 0.3;
+                // Add occasional glitches
+                if (Math.random() < 0.02) {
+                    val += (Math.random() > 0.5 ? 0.5 : -0.5);
+                }
+            }
+
+            val = Math.max(0, Math.min(1, val));
+            t.push(time);
+            v.push(val);
+        }
+        return { t, v };
+    }
+
+    function plotSignal(ctx, margin, plotW, plotH, tData, vData, vcc, color, row) {
+        const yOffset = margin.top + (row * plotH / 2) + plotH / 4;
+        const yScale = plotH / 4 - 10;
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        const tMax = tData[tData.length - 1];
+
+        for (let i = 0; i < tData.length; i++) {
+            const x = margin.left + (tData[i] / tMax) * plotW;
+            const y = yOffset - vData[i] * yScale;
+
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.stroke();
+    }
+
+    // Event listeners
+    ['dbg-issue', 'dbg-vcc', 'dbg-speed'].forEach(id => {
+        document.getElementById(id).addEventListener('change', update);
+    });
+
+    update();
+
+    // SPICE Netlist
+    new SpiceNetlistWidget('spice-container', {
+        title: 'I2C Bus Debug Model',
+        netlist: `* I2C Debug - Simulating common issues
+* Compare normal vs problematic waveforms
+
+* Power supply
+VCC vcc 0 DC 3.3
+
+* Pull-up resistors
+RP_SDA vcc sda 2.2k
+RP_SCL vcc scl 2.2k
+
+* Bus capacitance (normal)
+CBUS_SDA sda 0 100p
+CBUS_SCL scl 0 50p
+
+* For high-capacitance issue, change to:
+* CBUS_SDA sda 0 500p
+
+* Master driver (open-drain modeled as switch)
+.SUBCKT OD_DRIVER IN OUT GND
+S1 OUT GND IN GND SWOD
+.MODEL SWOD SW(RON=50 ROFF=1MEG VT=1.5)
+.ENDS
+
+* SCL driver
+VSCL_DRV scl_drv 0 PULSE(3.3 0 1u 10n 10n 1.25u 2.5u)
+X_SCL scl_drv scl 0 OD_DRIVER
+
+* SDA driver (address 0x50 = 01010000)
+VSDA_DRV sda_drv 0 PWL(
++ 0 3.3
++ 0.5u 3.3
++ 0.6u 0
++ 3.75u 0
++ 3.85u 3.3
++ 6.25u 3.3
++ 6.35u 0
++ 8.75u 0
++ 8.85u 3.3
++ )
+X_SDA sda_drv sda 0 OD_DRIVER
+
+.TRAN 10n 25u
+
+.PROBE V(scl) V(sda)
+.END
+
+* Observe SCL and SDA waveforms for timing analysis`
+    });
+
+    // Checklist
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm13l10',
+        items: [
+            'Always check power first',
+            'Verify idle line states (I2C: both HIGH)',
+            'Measure signal integrity with oscilloscope',
+            'Check rise/fall times against spec',
+            'Use logic analyzer for protocol decode',
+            'Verify clock speed/baud rate matches',
+            'Check address (I2C) or mode (SPI)',
+            'Know recovery procedures (I2C: 9 clocks)'
+        ]
+    });
+
+    // Exercises
+    const exercises = [
+        {
+            id: 'M13L10-1',
+            type: 'choice',
+            question: 'An I2C device responds with NAK to every address. What should you check first?',
+            choices: [
+                { text: 'The device firmware', correct: false, explanation: 'Hardware issues are more common and should be ruled out first.' },
+                { text: 'Power and pull-up resistors', correct: true, explanation: 'Correct! Without proper power or pull-ups, the device cannot communicate. Always check physical layer first.' },
+                { text: 'The I2C clock speed', correct: false, explanation: 'Clock speed issues would cause timing errors, not NAK on all addresses.' },
+                { text: 'The data being sent', correct: false, explanation: 'If all addresses NAK, the problem is connectivity, not data content.' }
+            ]
+        },
+        {
+            id: 'M13L10-2',
+            type: 'choice',
+            question: 'How do you recover an I2C bus where SDA is stuck low?',
+            choices: [
+                { text: 'Power cycle the system', correct: false, explanation: 'Power cycling works but is disruptive. There\'s a better software recovery.' },
+                { text: 'Pull SDA high manually', correct: false, explanation: 'This could cause contention if a slave is driving low.' },
+                { text: 'Toggle SCL 9 times then send STOP', correct: true, explanation: 'Correct! 9 clock pulses complete any pending byte, allowing the slave to release SDA.' },
+                { text: 'Lower the pull-up resistor value', correct: false, explanation: 'This doesn\'t address a slave holding the line low.' }
+            ]
+        },
+        {
+            id: 'M13L10-3',
+            type: 'choice',
+            question: 'SPI is returning all zeros. What is the most likely cause?',
+            choices: [
+                { text: 'Baud rate too high', correct: false, explanation: 'Speed issues would cause bit errors, not all zeros.' },
+                { text: 'CS not asserted correctly', correct: true, explanation: 'Correct! If CS is not active (wrong polarity or not connected), the device ignores everything and MISO stays tri-stated or pulled low.' },
+                { text: 'Wrong CPOL setting', correct: false, explanation: 'CPOL mismatch causes bit shifting, not all zeros.' },
+                { text: 'MOSI and MISO swapped', correct: false, explanation: 'Swapped lines would cause garbled data, not all zeros.' }
+            ]
+        }
+    ];
+
+    const container = document.getElementById('exercise-container');
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-${i}`, ex);
+    });
+})();
+</script>

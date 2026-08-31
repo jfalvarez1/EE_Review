@@ -1,0 +1,451 @@
+<!-- Module 16, Lesson 6: Medical Instrumentation -->
+<div class="lesson-content" data-module="16" data-lesson="6">
+
+    <div class="card">
+        <h2>Case Study: Medical ECG Amplifier</h2>
+        <p>Design a patient-safe ECG front-end amplifier with proper isolation, low noise, and high CMRR. This scenario covers the unique challenges of medical instrumentation including safety standards and biopotential measurement.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Signal</div>
+                <div class="v">0.5-5mV typical</div>
+            </div>
+            <div class="box">
+                <div class="k">Bandwidth</div>
+                <div class="v">0.05-150Hz</div>
+            </div>
+            <div class="box">
+                <div class="k">CMRR</div>
+                <div class="v">>80dB minimum</div>
+            </div>
+            <div class="box">
+                <div class="k">Isolation</div>
+                <div class="v">4kV per IEC 60601</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Safety First:</strong> Patient safety requires galvanic isolation between patient and earth ground. Leakage current must be <10µA under single fault condition. The right-leg drive actively cancels common-mode interference.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>The Scenario</h3>
+        <div style="background:#111; padding:15px; border-radius:4px;">
+            <p><strong>Requirement:</strong> Design 3-lead ECG front-end for portable monitor.</p>
+            <ul style="margin-top:10px; color:#aaa;">
+                <li>Input: Two differential electrodes + right-leg reference</li>
+                <li>Gain: 1000× total (instrumentation amp + programmable)</li>
+                <li>Noise: <2µVpp referred to input (0.05-150Hz)</li>
+                <li>CMRR: >100dB at 50/60Hz</li>
+                <li>Defibrillator protection required</li>
+                <li>Battery powered, isolated</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: ECG Signal Chain</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="ecg-vin">ECG Amplitude (mV)</label>
+                <input type="range" id="ecg-vin" min="0.1" max="5" step="0.1" value="1">
+                <span id="ecg-vin-val" class="mono">1.0mV</span>
+            </div>
+            <div class="c3">
+                <label for="ecg-gain">Total Gain</label>
+                <input type="range" id="ecg-gain" min="100" max="2000" step="100" value="1000">
+                <span id="ecg-gain-val" class="mono">1000</span>
+            </div>
+            <div class="c3">
+                <label for="ecg-cmrr">CMRR (dB)</label>
+                <input type="range" id="ecg-cmrr" min="60" max="120" step="5" value="100">
+                <span id="ecg-cmrr-val" class="mono">100dB</span>
+            </div>
+            <div class="c3">
+                <label for="ecg-cm">CM Interference (Vpp)</label>
+                <input type="range" id="ecg-cm" min="0" max="5" step="0.1" value="1">
+                <span id="ecg-cm-val" class="mono">1.0V</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="ecg-canvas" width="980" height="360"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Output Voltage</div>
+                <div class="v mono" id="ecg-vout">—</div>
+            </div>
+            <div class="box">
+                <div class="k">CM Rejection</div>
+                <div class="v mono" id="ecg-reject">—</div>
+            </div>
+            <div class="box">
+                <div class="k">CM at Output</div>
+                <div class="v mono" id="ecg-cmout">—</div>
+            </div>
+            <div class="box">
+                <div class="k">SNR</div>
+                <div class="v mono" id="ecg-snr">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>ECG Front-End Architecture</h3>
+        <div id="ecg-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>IEC 60601 Safety Requirements</h3>
+
+        <table class="table">
+            <tr>
+                <th>Requirement</th>
+                <th>Type CF</th>
+                <th>Implementation</th>
+            </tr>
+            <tr>
+                <td>Patient Leakage (Normal)</td>
+                <td><10µA</td>
+                <td>Isolated power, high-Z inputs</td>
+            </tr>
+            <tr>
+                <td>Patient Leakage (Single Fault)</td>
+                <td><50µA</td>
+                <td>Redundant isolation barriers</td>
+            </tr>
+            <tr>
+                <td>Isolation Voltage</td>
+                <td>4000Vrms</td>
+                <td>Reinforced isolation</td>
+            </tr>
+            <tr>
+                <td>Defibrillator Protection</td>
+                <td>360J survival</td>
+                <td>Spark gaps + current limiting</td>
+            </tr>
+            <tr>
+                <td>Input Protection</td>
+                <td>±5kV ESD</td>
+                <td>Gas discharge tubes</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="ecg-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="ecg-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="ecg-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('ecg-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    function update() {
+        const Vin = parseFloat(document.getElementById('ecg-vin').value) || 1;
+        const gain = parseFloat(document.getElementById('ecg-gain').value) || 1000;
+        const cmrr = parseFloat(document.getElementById('ecg-cmrr').value) || 100;
+        const cmIn = parseFloat(document.getElementById('ecg-cm').value) || 1;
+
+        document.getElementById('ecg-vin-val').textContent = Vin.toFixed(1) + 'mV';
+        document.getElementById('ecg-gain-val').textContent = gain;
+        document.getElementById('ecg-cmrr-val').textContent = cmrr + 'dB';
+        document.getElementById('ecg-cm-val').textContent = cmIn.toFixed(1) + 'V';
+
+        const Vout = Vin * gain / 1000; // Convert mV to V
+        const cmRejection = Math.pow(10, cmrr / 20);
+        const cmAtOutput = cmIn * gain / cmRejection;
+        const snr = 20 * Math.log10(Vout / (cmAtOutput + 0.002)); // +2mV noise floor
+
+        document.getElementById('ecg-vout').textContent = Vout.toFixed(2) + 'V';
+        document.getElementById('ecg-reject').textContent = (cmRejection / 1000).toFixed(0) + 'k:1';
+        document.getElementById('ecg-cmout').textContent = (cmAtOutput * 1000).toFixed(2) + 'mV';
+        document.getElementById('ecg-snr').textContent = snr.toFixed(1) + 'dB';
+
+        // Draw ECG waveform simulation
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        const plotW = W - mL - mR;
+        const plotH = H - mT - mB;
+
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
+
+        // ECG grid (standard 5mm boxes)
+        ctx.strokeStyle = 'rgba(255,100,100,0.3)';
+        for (let i = 1; i < 10; i++) {
+            const x = mL + plotW * i / 10;
+            ctx.beginPath();
+            ctx.moveTo(x, mT);
+            ctx.lineTo(x, mT + plotH);
+            ctx.stroke();
+        }
+        for (let i = 1; i < 5; i++) {
+            const y = mT + plotH * i / 5;
+            ctx.beginPath();
+            ctx.moveTo(mL, y);
+            ctx.lineTo(mL + plotW, y);
+            ctx.stroke();
+        }
+
+        // ECG waveform (simplified PQRST)
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        const samples = 400;
+        const beats = 2.5;
+        for (let i = 0; i <= samples; i++) {
+            const t = i / samples * beats;
+            const phase = t % 1;
+
+            let ecg = 0;
+            // P wave
+            if (phase > 0.1 && phase < 0.2) {
+                ecg = 0.15 * Math.sin((phase - 0.1) * Math.PI / 0.1);
+            }
+            // QRS complex
+            if (phase > 0.25 && phase < 0.35) {
+                const qrsPhase = (phase - 0.25) / 0.1;
+                if (qrsPhase < 0.2) ecg = -0.1 * qrsPhase / 0.2;
+                else if (qrsPhase < 0.5) ecg = -0.1 + 1.1 * (qrsPhase - 0.2) / 0.3;
+                else if (qrsPhase < 0.7) ecg = 1 - 1.2 * (qrsPhase - 0.5) / 0.2;
+                else ecg = -0.2 + 0.2 * (qrsPhase - 0.7) / 0.3;
+            }
+            // T wave
+            if (phase > 0.45 && phase < 0.65) {
+                ecg = 0.3 * Math.sin((phase - 0.45) * Math.PI / 0.2);
+            }
+
+            // Add interference (visible as ripple)
+            const interference = (cmIn / cmRejection) * Math.sin(2 * Math.PI * 60 * t * 0.5);
+
+            const amplitude = Vin / 2; // Normalize to mV
+            const value = (ecg * amplitude + interference) / 2.5 + 0.5;
+            const x = mL + plotW * i / samples;
+            const y = mT + plotH * (1 - value);
+
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Labels
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Time (s)', mL + plotW/2, H - 10);
+        ctx.fillText('ECG Waveform with CM Interference', mL + plotW/2, 20);
+
+        // Scale markers
+        ctx.font = '10px monospace';
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'left';
+        ctx.fillText('1mV', mL + 5, mT + plotH * 0.3);
+        ctx.fillText('0', mL + 5, mT + plotH * 0.5);
+    }
+
+    ['ecg-vin', 'ecg-gain', 'ecg-cmrr', 'ecg-cm'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('ecg-schematic');
+        const svg = new SchematicSVG(620, 300);
+
+        // Electrode inputs
+        svg.text(20, 80, 'LA', {fontSize: 10, fill: '#f44'});
+        svg.text(20, 120, 'RA', {fontSize: 10, fill: '#ff0'});
+        svg.text(20, 200, 'RL', {fontSize: 10, fill: '#4f4'});
+
+        svg.wire([[40, 80], [80, 80]]);
+        svg.wire([[40, 120], [80, 120]]);
+        svg.wire([[40, 200], [80, 200]]);
+
+        // Protection resistors
+        svg.resistor(100, 80, {horizontal: true});
+        svg.resistor(100, 120, {horizontal: true});
+        svg.text(100, 65, '10kΩ', {fontSize: 9});
+        svg.text(100, 135, '10kΩ', {fontSize: 9});
+
+        // ESD protection
+        svg.wire([[120, 80], [150, 80]]);
+        svg.wire([[120, 120], [150, 120]]);
+        svg.wire([[150, 80], [150, 95]]);
+        svg.wire([[150, 120], [150, 105]]);
+        svg.text(160, 100, 'ESD', {fontSize: 8, fill: '#888'});
+
+        // Instrumentation amplifier
+        svg.wire([[150, 80], [200, 80]]);
+        svg.wire([[150, 120], [200, 120]]);
+
+        svg.rect(200, 60, 80, 80, {fill: 'none', stroke: '#4af'});
+        svg.text(240, 95, 'INA', {fontSize: 12, fill: '#4af'});
+        svg.text(240, 110, 'G=10', {fontSize: 9});
+
+        svg.wire([[280, 100], [320, 100]]);
+
+        // High-pass filter (0.05Hz)
+        svg.capacitor(340, 100, {horizontal: true});
+        svg.text(340, 85, '0.05Hz', {fontSize: 9, fill: '#888'});
+        svg.wire([[360, 100], [400, 100]]);
+
+        // Second gain stage
+        svg.rect(400, 80, 60, 40, {fill: 'none', stroke: '#4af'});
+        svg.text(430, 105, 'G=100', {fontSize: 9});
+        svg.wire([[460, 100], [500, 100]]);
+
+        // Low-pass filter (150Hz)
+        svg.wire([[500, 100], [500, 130]]);
+        svg.capacitor(500, 150, {horizontal: false});
+        svg.wire([[500, 170], [500, 180]]);
+        svg.ground(500, 180);
+        svg.text(515, 150, '150Hz', {fontSize: 9, fill: '#888'});
+
+        // Output to ADC
+        svg.wire([[500, 100], [580, 100]]);
+        svg.text(590, 105, 'ADC', {fontSize: 10});
+
+        // Right-leg drive
+        svg.wire([[240, 140], [240, 180], [160, 180]]);
+        svg.opAmp(130, 190, {mirror: true});
+        svg.text(130, 220, 'RLD', {fontSize: 9});
+        svg.wire([[105, 190], [80, 190], [80, 200]]);
+
+        // Isolation barrier (dashed line)
+        svg.line(180, 40, 180, 260, {stroke: '#f44', strokeDasharray: '5,5', strokeWidth: 2});
+        svg.text(185, 250, 'ISOLATION', {fontSize: 10, fill: '#f44'});
+        svg.text(185, 265, '4kV', {fontSize: 9, fill: '#888'});
+
+        // Isolated power
+        svg.text(60, 250, 'Isolated', {fontSize: 9, fill: '#888'});
+        svg.text(60, 265, 'Power', {fontSize: 9, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('ecg-spice', {
+            title: 'ECG Instrumentation Amplifier',
+            netlist: `* ECG Front-End Amplifier
+* INA + Right-Leg Drive
+
+* ECG signal source (1mV differential + 1V common-mode 60Hz)
+Vecg+ inp 0 SIN(0 0.5m 1) AC 0.5m
+Vecg- inn 0 SIN(0 -0.5m 1) AC 0.5m
+Vcm cm 0 SIN(0 1 60)
+E_add_p inp_cm inp cm 1
+E_add_n inn_cm inn cm 1
+
+* Protection resistors
+Rp inp_cm inap 10k
+Rn inn_cm inan 10k
+
+* Instrumentation amplifier (simplified model)
+* INA129: CMRR > 100dB, noise < 10nV/rtHz
+.subckt INA in_p in_n ref out gain
+Rin_p in_p 0 1G
+Rin_n in_n 0 1G
+Ediff out ref POLY(2) in_p ref in_n ref 0 1 -1
+.ends
+
+X1 inap inan 0 out1 INA1
+
+* First stage gain = 10
+.subckt INA1 inp inn ref out
+Ediff out ref inp inn 10
+.ends
+
+* High-pass filter (0.05Hz)
+Chp out1 hp1 3.2u
+Rhp hp1 0 1MEG
+
+* Second stage gain = 100
+Egain out2 0 hp1 0 100
+
+* Low-pass filter (150Hz)
+Rlp out2 out 10k
+Clp out 0 106n
+
+* Right-leg drive (inverted common-mode)
+Erld rld 0 POLY(2) inap 0 inan 0 0 -0.5 -0.5
+Rrld_out rld rl_electrode 10k
+
+.tran 10u 100m
+.ac dec 100 0.01 1k
+.end`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('ecg-checklist', {
+            title: 'Medical ECG Design Checklist',
+            items: [
+                'IEC 60601-1 patient leakage requirements met',
+                'Defibrillator protection with fast recovery',
+                'ESD protection for electrode disconnect',
+                'CMRR >100dB at 50/60Hz mains frequency',
+                'Right-leg drive reduces CM interference',
+                'Input protection resistors limit fault current',
+                'Isolated power supply for patient circuit',
+                'Lead-off detection implemented'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('ecg-exercises', {
+            exercises: [
+                {
+                    question: 'An ECG amp has 100dB CMRR. If 2V common-mode is present, how much appears differentially?',
+                    answer: '20µV',
+                    solution: 'CMRR = 100dB = 100,000. Differential = CM/CMRR = 2V/100000 = 20µV'
+                },
+                {
+                    question: 'Input bias current is 1nA through 10kΩ protection resistor. What offset voltage results?',
+                    answer: '10µV',
+                    solution: 'V = I × R = 1nA × 10kΩ = 10µV. With mismatched currents, this causes differential offset.'
+                },
+                {
+                    question: 'Patient leakage limit is 10µA. What minimum isolation resistance is needed at 240Vrms mains?',
+                    answer: '24MΩ',
+                    solution: 'R = V/I = 240V/10µA = 24MΩ. Add safety margin—typically design for 100MΩ minimum.'
+                }
+            ]
+        });
+    }
+
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

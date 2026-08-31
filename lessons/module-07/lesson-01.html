@@ -1,0 +1,372 @@
+<!-- Module 7, Lesson 1: Audio Amplifier Fundamentals -->
+<div class="lesson-content" data-module="7" data-lesson="1">
+
+    <div class="card">
+        <h2>Audio Amplifier Fundamentals</h2>
+        <p>Audio amplifiers must faithfully reproduce signals from 20Hz to 20kHz with minimal distortion. Understanding frequency response, gain staging, and distortion mechanisms is essential.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Audio Bandwidth</div>
+                <div class="v mono">20Hz – 20kHz</div>
+            </div>
+            <div class="box">
+                <div class="k">THD Target</div>
+                <div class="v mono">< 0.1% for hi-fi</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Human hearing is logarithmic—we perceive equal ratios as equal intervals. That's why we use dB for gain and why octave-based frequency spans matter.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Audio Frequency Response</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="audio-fc-low">f<sub>c</sub> low (Hz)</label>
+                <input type="range" id="audio-fc-low" min="1" max="100" step="1" value="20">
+                <span id="audio-fc-low-val" class="mono">20Hz</span>
+            </div>
+            <div class="c3">
+                <label for="audio-fc-high">f<sub>c</sub> high (kHz)</label>
+                <input type="range" id="audio-fc-high" min="10" max="100" step="5" value="50">
+                <span id="audio-fc-high-val" class="mono">50kHz</span>
+            </div>
+            <div class="c3">
+                <label for="audio-gain">Gain (dB)</label>
+                <input type="range" id="audio-gain" min="0" max="60" step="3" value="20">
+                <span id="audio-gain-val" class="mono">20dB</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="audio-canvas" width="980" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Low -3dB</div>
+                <div class="v mono" id="audio-flow">—</div>
+            </div>
+            <div class="box">
+                <div class="k">High -3dB</div>
+                <div class="v mono" id="audio-fhigh">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Bandwidth</div>
+                <div class="v mono" id="audio-bw">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Decades</div>
+                <div class="v mono" id="audio-decades">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Gain Staging</h3>
+        <p>Audio systems typically have multiple gain stages:</p>
+
+        <table class="table">
+            <tr>
+                <th>Stage</th>
+                <th>Typical Gain</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td>Microphone Preamp</td>
+                <td>+20 to +60 dB</td>
+                <td>Boost mic-level to line-level</td>
+            </tr>
+            <tr>
+                <td>Line Stage</td>
+                <td>0 to +20 dB</td>
+                <td>Buffer, EQ, mixing</td>
+            </tr>
+            <tr>
+                <td>Volume Control</td>
+                <td>−∞ to 0 dB</td>
+                <td>User level adjustment</td>
+            </tr>
+            <tr>
+                <td>Power Amp</td>
+                <td>+20 to +30 dB</td>
+                <td>Drive speakers</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Headroom:</strong> Each stage needs headroom above nominal level for peaks. Aim for +10dB minimum. Clipping sounds terrible in audio!
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Distortion Types</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">THD (Total Harmonic)</div>
+                <div class="v">Harmonics of input frequency (2nd, 3rd, etc.)</div>
+            </div>
+            <div class="box">
+                <div class="k">IMD (Intermodulation)</div>
+                <div class="v">Sum/difference frequencies from multiple inputs</div>
+            </div>
+            <div class="box">
+                <div class="k">Crossover</div>
+                <div class="v">Distortion at zero-crossing in Class AB/B</div>
+            </div>
+            <div class="box">
+                <div class="k">Slew-Induced</div>
+                <div class="v">High frequency distortion from limited slew rate</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('audio-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const fcLow = parseFloat(document.getElementById('audio-fc-low').value);
+        const fcHigh = parseFloat(document.getElementById('audio-fc-high').value) * 1000;
+        const gainDb = parseFloat(document.getElementById('audio-gain').value);
+
+        document.getElementById('audio-fc-low-val').textContent = fcLow + 'Hz';
+        document.getElementById('audio-fc-high-val').textContent = (fcHigh/1000) + 'kHz';
+        document.getElementById('audio-gain-val').textContent = gainDb + 'dB';
+
+        document.getElementById('audio-flow').textContent = fcLow + ' Hz';
+        document.getElementById('audio-fhigh').textContent = (fcHigh/1000).toFixed(0) + ' kHz';
+        document.getElementById('audio-bw').textContent = AD.fmtUnit(fcHigh - fcLow, 'Hz');
+
+        const decades = Math.log10(fcHigh / fcLow);
+        document.getElementById('audio-decades').textContent = decades.toFixed(1);
+
+        plotBode(fcLow, fcHigh, gainDb);
+    }
+
+    function plotBode(fcLow, fcHigh, gainDb) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        const gain = Math.pow(10, gainDb / 20);
+
+        // Frequency range: 1Hz to 1MHz (log scale)
+        const fMin = 1;
+        const fMax = 1e6;
+        const N = 500;
+
+        const mag = [];
+        const freqs = [];
+
+        for (let i = 0; i < N; i++) {
+            const f = fMin * Math.pow(fMax/fMin, i/N);
+            freqs.push(f);
+
+            // High-pass then low-pass response
+            const hpMag = f / Math.sqrt(f*f + fcLow*fcLow);
+            const lpMag = fcHigh / Math.sqrt(f*f + fcHigh*fcHigh);
+            const totalMag = gain * hpMag * lpMag;
+            mag.push(20 * Math.log10(totalMag));
+        }
+
+        // Find passband center for reference
+        const maxMag = Math.max(...mag);
+        const yRange = 80; // 80dB range
+        const yOffset = maxMag + 10;
+
+        // Plot magnitude
+        ctx.save();
+        ctx.strokeStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        mag.forEach((m, i) => {
+            const x = (i / N) * w;
+            const y = h * 0.1 + ((yOffset - m) / yRange) * h * 0.8;
+            const yClamp = Math.max(h * 0.1, Math.min(h * 0.9, y));
+            if (i === 0) ctx.moveTo(x, yClamp);
+            else ctx.lineTo(x, yClamp);
+        });
+        ctx.stroke();
+
+        // Audio band shading
+        const x20 = Math.log10(20/fMin) / Math.log10(fMax/fMin) * w;
+        const x20k = Math.log10(20000/fMin) / Math.log10(fMax/fMin) * w;
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.1)';
+        ctx.fillRect(x20, 0, x20k - x20, h);
+
+        ctx.restore();
+
+        // Labels
+        ctx.save();
+        ctx.font = '12px ui-sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillText('Frequency Response (1Hz - 1MHz)', 10, 20);
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.7)';
+        ctx.fillText('Audio Band (20Hz - 20kHz)', x20 + 5, h - 10);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText(`Gain: ${gainDb}dB  |  BW: ${(fcHigh/1000).toFixed(0)}kHz`, w - 200, 20);
+        ctx.restore();
+    }
+
+    ['audio-fc-low', 'audio-fc-high', 'audio-gain'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Audio Preamp Stage',
+        netlist: `* Non-Inverting Audio Preamp
+* Gain = 21 (26dB), flat 20Hz-20kHz
+
+.include opamp.sub
+
+X1 in_ac fb out 0 vcc vee OPAMP
+
+VCC vcc 0 DC 15
+VEE vee 0 DC -15
+
+* Input coupling (high-pass at ~3Hz)
+CIN in in_ac 10u
+RIN in_ac 0 470k
+
+* Feedback network
+R1 out fb 20k
+R2 fb 0 1k
+
+* Input signal
+VIN in 0 AC 1 SIN(0 100m 1k)
+
+* Load
+RLOAD out 0 10k
+
+.AC DEC 50 1 1Meg
+.TRAN 0.01m 10m
+
+.PROBE V(out) V(in)
+.END
+
+* Expected: 26dB gain, flat in audio band`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm7l1',
+        items: [
+            'Know audio bandwidth: 20Hz - 20kHz',
+            'Understand gain in dB: 20×log10(V2/V1)',
+            'Calculate coupling capacitor for low f-3dB',
+            'Know typical THD targets (<0.1% hi-fi)',
+            'Understand gain staging and headroom'
+        ]
+    });
+
+    // Exercises - Multiple audio problems
+    const container = document.getElementById('exercise-container');
+    container.innerHTML = '<h4>Audio Amplifier Problems (6 exercises)</h4>';
+
+    const exercises = [
+        {
+            id: 'F1-1-1',
+            type: 'numeric',
+            question: 'What coupling capacitor value gives a -3dB point at 20Hz with a 10kΩ input impedance?',
+            hint: 'fc = 1/(2πRC), solve for C',
+            expected: 0.8,
+            tolerance: 0.1,
+            unit: 'µF',
+            solution: 'C = 1/(2π × 20Hz × 10kΩ) = 0.796µF ≈ 0.8µF (use 1µF standard)',
+            explanation: 'The high-pass filter formed by the coupling cap and input impedance sets the low frequency rolloff.'
+        },
+        {
+            id: 'F1-1-2',
+            type: 'numeric',
+            question: 'A microphone produces 2mVrms output. What voltage gain (in dB) is needed to reach line level (1Vrms)?',
+            hint: 'Gain (dB) = 20 × log10(Vout/Vin)',
+            expected: 54,
+            tolerance: 1,
+            unit: 'dB',
+            solution: 'Gain = 20 × log10(1V/2mV) = 20 × log10(500) = 20 × 2.7 = 54dB',
+            explanation: 'Microphone preamps typically need 40-60dB of gain.'
+        },
+        {
+            id: 'F1-1-3',
+            type: 'numeric',
+            question: 'An audio amp has 0.01% THD and 100dB SNR. What is the maximum distortion voltage at 1Vrms output?',
+            hint: 'THD = Vdistortion/Vsignal as percentage',
+            expected: 100,
+            tolerance: 5,
+            unit: 'µV',
+            solution: '0.01% = 0.0001. Vdist = 0.0001 × 1V = 100µV',
+            explanation: 'High-end audio gear often achieves <0.01% THD, corresponding to -80dB distortion.'
+        },
+        {
+            id: 'F1-1-4',
+            type: 'choice',
+            question: 'Which amplifier class provides highest efficiency but can have crossover distortion?',
+            choices: [
+                { text: 'Class A', correct: false },
+                { text: 'Class B', correct: true },
+                { text: 'Class AB', correct: false },
+                { text: 'Class D', correct: false }
+            ],
+            solution: 'Class B uses push-pull output with each device conducting half the cycle. Crossover occurs at zero-crossing.',
+            explanation: 'Class AB adds small bias current to reduce crossover distortion while maintaining good efficiency.'
+        },
+        {
+            id: 'F1-1-5',
+            type: 'numeric',
+            question: 'How many decades span the audio frequency range (20Hz to 20kHz)?',
+            hint: 'Decades = log10(f_high/f_low)',
+            expected: 3,
+            tolerance: 0.05,
+            unit: 'decades',
+            solution: 'Decades = log10(20000/20) = log10(1000) = 3',
+            explanation: 'Audio covers exactly 3 decades (20, 200, 2000, 20000 Hz), or about 10 octaves.'
+        },
+        {
+            id: 'F1-1-6',
+            type: 'numeric',
+            question: 'A 10W amplifier drives an 8Ω speaker. What is the peak output voltage?',
+            hint: 'P = Vrms²/R, and Vpk = Vrms × √2',
+            expected: 12.6,
+            tolerance: 0.5,
+            unit: 'V',
+            solution: 'Vrms = √(P×R) = √(10×8) = 8.94V. Vpk = 8.94 × 1.414 = 12.6V',
+            explanation: 'The amp needs at least ±13V supply rails to avoid clipping (plus headroom).'
+        }
+    ];
+
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-m7l1-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-m7l1-${i}`, ex);
+    });
+})();
+</script>

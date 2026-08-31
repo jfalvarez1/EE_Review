@@ -1,0 +1,589 @@
+<!-- Module 18, Lesson 8: Soft Start Circuits -->
+<div class="lesson-content" data-module="18" data-lesson="8">
+
+    <div class="card">
+        <h2>Soft Start Circuit Design</h2>
+        <p>Soft start prevents inrush current, reduces stress on components, and ensures controlled power-up. Learn timing design, implementation methods, and integration with power supplies.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Inrush Limit</div>
+                <div class="v">Protect input source</div>
+            </div>
+            <div class="box">
+                <div class="k">Output Ramp</div>
+                <div class="v">Gradual voltage rise</div>
+            </div>
+            <div class="box">
+                <div class="k">Sequencing</div>
+                <div class="v">Coordinate multiple rails</div>
+            </div>
+            <div class="box">
+                <div class="k">Typical Time</div>
+                <div class="v">1-20ms</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Without soft start, large output capacitors appear as short circuits at power-up, causing massive inrush current. The soft start ramp rate limits dV/dt and thus I = C × dV/dt.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Soft Start Timing</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="ss-cout">Output Capacitance (µF)</label>
+                <input type="range" id="ss-cout" min="10" max="10000" step="10" value="1000">
+                <span id="ss-cout-val" class="mono">1000µF</span>
+            </div>
+            <div class="c3">
+                <label for="ss-vout">Output Voltage (V)</label>
+                <input type="range" id="ss-vout" min="1" max="24" step="0.5" value="5">
+                <span id="ss-vout-val" class="mono">5V</span>
+            </div>
+            <div class="c3">
+                <label for="ss-tss">Soft Start Time (ms)</label>
+                <input type="range" id="ss-tss" min="0.5" max="50" step="0.5" value="10">
+                <span id="ss-tss-val" class="mono">10ms</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="ss-ilim">Current Limit (A)</label>
+                <input type="range" id="ss-ilim" min="0.5" max="10" step="0.5" value="2">
+                <span id="ss-ilim-val" class="mono">2A</span>
+            </div>
+            <div class="c3">
+                <label for="ss-method">Soft Start Method</label>
+                <select id="ss-method">
+                    <option value="voltage">Voltage ramp</option>
+                    <option value="current">Current limit</option>
+                    <option value="duty">Duty cycle limit</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="ss-canvas" width="980" height="340"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Peak Inrush (no SS)</div>
+                <div class="v mono" id="ss-inrush">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Charging Current</div>
+                <div class="v mono" id="ss-icharge">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Energy Delivered</div>
+                <div class="v mono" id="ss-energy">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Status</div>
+                <div class="v mono" id="ss-status">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Soft Start Methods</h3>
+
+        <table class="table">
+            <tr>
+                <th>Method</th>
+                <th>How It Works</th>
+                <th>Pros</th>
+                <th>Cons</th>
+            </tr>
+            <tr>
+                <td>Voltage Reference Ramp</td>
+                <td>Slowly increase internal Vref</td>
+                <td>Precise control, integrated</td>
+                <td>Requires controller support</td>
+            </tr>
+            <tr>
+                <td>Duty Cycle Limit</td>
+                <td>Start at low D, increase</td>
+                <td>Simple, effective</td>
+                <td>Output may overshoot</td>
+            </tr>
+            <tr>
+                <td>Current Limit</td>
+                <td>Limit charging current</td>
+                <td>Predictable inrush</td>
+                <td>Slower startup</td>
+            </tr>
+            <tr>
+                <td>Series Resistor</td>
+                <td>Resistor bypassed after delay</td>
+                <td>Very simple</td>
+                <td>Wastes power, timing varies</td>
+            </tr>
+            <tr>
+                <td>NTC Thermistor</td>
+                <td>High R cold, low R hot</td>
+                <td>Self-regulating</td>
+                <td>Slow cool-down, power loss</td>
+            </tr>
+            <tr>
+                <td>Active Inrush Limiter</td>
+                <td>MOSFET in linear region</td>
+                <td>Precise control, fast</td>
+                <td>Complex, MOSFET SOA</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Design Equations</h3>
+        <pre style="color:#4af; background:#111; padding:15px; border-radius:4px; font-size:11px;">
+Inrush Without Soft Start:
+    I_inrush = Vout / (ESR + Rsource)
+    Can be 10-100× normal operating current!
+
+Soft Start Capacitor Sizing:
+    Css = Iss × Tss / Vref
+    Where:
+        Iss = soft start current source
+        Tss = desired soft start time
+        Vref = reference voltage
+
+Charging Current (voltage ramp):
+    I_charge = Cout × dVout/dt = Cout × Vout / Tss
+
+Example: 1000µF, 5V, 10ms
+    I_charge = 1000µ × 5 / 10m = 0.5A
+
+Soft Start Resistor (RC timing):
+    Tss ≈ 3 × Rss × Css
+    (time to reach ~95% of final value)
+
+Power Dissipation (series R method):
+    P_dissipated = 0.5 × Cout × Vout²
+    All capacitor charging energy lost in R!
+
+Active Soft Start (current limit mode):
+    Tss = Cout × Vout / Ilimit
+        </pre>
+    </div>
+
+    <div class="card">
+        <h3>Soft Start Schematic</h3>
+        <div id="ss-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="ss-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="ss-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="ss-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('ss-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    function update() {
+        const Cout = parseFloat(document.getElementById('ss-cout').value) * 1e-6 || 1000e-6;
+        const Vout = parseFloat(document.getElementById('ss-vout').value) || 5;
+        const Tss = parseFloat(document.getElementById('ss-tss').value) / 1000 || 0.01;
+        const Ilim = parseFloat(document.getElementById('ss-ilim').value) || 2;
+        const method = document.getElementById('ss-method').value || 'voltage';
+
+        document.getElementById('ss-cout-val').textContent = (Cout * 1e6).toFixed(0) + 'µF';
+        document.getElementById('ss-vout-val').textContent = Vout + 'V';
+        document.getElementById('ss-tss-val').textContent = (Tss * 1000).toFixed(1) + 'ms';
+        document.getElementById('ss-ilim-val').textContent = Ilim + 'A';
+
+        // Calculations
+        const ESR = 0.02; // Assume 20mΩ ESR
+        const Rsource = 0.1; // 100mΩ source impedance
+
+        const I_inrush = Vout / (ESR + Rsource); // Without soft start
+        const I_charge = Cout * Vout / Tss; // With voltage ramp
+        const energy = 0.5 * Cout * Vout * Vout;
+
+        let status, statusColor;
+        if (I_charge < Ilim) {
+            status = 'OK - Within current limit';
+            statusColor = '#4f4';
+        } else {
+            status = 'Current limited - Slower startup';
+            statusColor = '#fa4';
+        }
+
+        document.getElementById('ss-inrush').textContent = I_inrush.toFixed(1) + 'A (no SS)';
+        document.getElementById('ss-icharge').textContent = Math.min(I_charge, Ilim).toFixed(2) + 'A';
+        document.getElementById('ss-energy').textContent = (energy * 1000).toFixed(2) + 'mJ';
+        document.getElementById('ss-status').innerHTML = '<span style="color:' + statusColor + '">' + status + '</span>';
+
+        // Draw waveforms
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        const plotW = (W - mL - mR - 40) / 2;
+        const plotH = 120;
+
+        // Voltage waveform (left)
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Output Voltage', mL + plotW/2, mT - 5);
+
+        // Draw voltage ramp
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        const totalTime = Tss * 2;
+        for (let i = 0; i <= plotW; i++) {
+            const t = i / plotW * totalTime;
+            let V;
+
+            if (method === 'voltage') {
+                V = t < Tss ? Vout * t / Tss : Vout;
+            } else if (method === 'current') {
+                // Current limited - exponential-ish approach
+                const tau = Cout * Vout / Ilim;
+                V = t < tau ? Ilim * t / Cout : Vout;
+            } else { // duty
+                // Duty cycle ramp - similar to voltage ramp
+                V = t < Tss ? Vout * (1 - Math.exp(-3 * t / Tss)) : Vout;
+            }
+
+            const y = mT + plotH - (V / (Vout * 1.2)) * plotH;
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
+        }
+        ctx.stroke();
+
+        // Without soft start (instant)
+        ctx.strokeStyle = TEK.ref;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(mL, mT + plotH);
+        ctx.lineTo(mL + 10, mT + plotH - plotH / 1.2);
+        ctx.lineTo(mL + plotW, mT + plotH - plotH / 1.2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Labels
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(Vout + 'V', mL - 5, mT + 10);
+        ctx.fillText('0V', mL - 5, mT + plotH);
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.textAlign = 'left';
+        ctx.fillText('With soft start', mL + 10, mT + 20);
+        ctx.fillStyle = TEK.ref;
+        ctx.fillText('Without soft start', mL + 10, mT + 35);
+
+        // Current waveform (right)
+        const plot2X = mL + plotW + 40;
+        ctx.strokeStyle = TEK.grid;
+        ctx.strokeRect(plot2X, mT, plotW, plotH);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Charging Current', plot2X + plotW/2, mT - 5);
+
+        // Draw current
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        const Imax = Math.max(I_charge, Ilim) * 1.2;
+
+        for (let i = 0; i <= plotW; i++) {
+            const t = i / plotW * totalTime;
+            let I;
+
+            if (method === 'voltage') {
+                I = t < Tss ? Math.min(I_charge, Ilim) : 0;
+            } else if (method === 'current') {
+                const tau = Cout * Vout / Ilim;
+                I = t < tau ? Ilim : 0;
+            } else {
+                I = t < Tss ? Math.min(I_charge * (1 - t / Tss), Ilim) : 0;
+            }
+
+            const y = mT + plotH - (I / Imax) * plotH;
+            if (i === 0) ctx.moveTo(plot2X + i, y);
+            else ctx.lineTo(plot2X + i, y);
+        }
+        ctx.stroke();
+
+        // Inrush current spike (no soft start)
+        ctx.strokeStyle = '#f44';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(plot2X, mT + plotH);
+        ctx.lineTo(plot2X + 5, mT);
+        ctx.lineTo(plot2X + 20, mT + plotH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#f44';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(I_inrush.toFixed(0) + 'A spike!', plot2X + 25, mT + 15);
+
+        // Labels
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'right';
+        ctx.fillText(Ilim.toFixed(1) + 'A', plot2X - 5, mT + 10);
+        ctx.fillText('0A', plot2X - 5, mT + plotH);
+
+        // Time labels
+        ctx.textAlign = 'center';
+        ctx.fillText('Tss=' + (Tss*1000).toFixed(1) + 'ms', mL + plotW/2, mT + plotH + 15);
+        ctx.fillText('Tss=' + (Tss*1000).toFixed(1) + 'ms', plot2X + plotW/2, mT + plotH + 15);
+
+        // Bottom: Method diagram
+        const botY = mT + plotH + 50;
+        ctx.fillStyle = '#222';
+        ctx.fillRect(mL, botY, W - mL - mR, 100);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(mL, botY, W - mL - mR, 100);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Soft Start Method: ' + method.toUpperCase(), mL + 10, botY + 20);
+
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+
+        const methodDesc = {
+            voltage: [
+                'Internal reference voltage ramps from 0 to Vref',
+                'Control loop follows reference, output ramps linearly',
+                'Charging current = Cout × Vout / Tss',
+                'Most common method in modern DC-DC controllers'
+            ],
+            current: [
+                'Output current is limited during startup',
+                'Capacitor charges at constant current until Vout reached',
+                'Tss = Cout × Vout / Ilimit',
+                'Good for large capacitive loads'
+            ],
+            duty: [
+                'Maximum duty cycle starts low and increases',
+                'Output voltage rises as duty cycle increases',
+                'May overshoot if ramp is too fast',
+                'Simple implementation, less precise'
+            ]
+        };
+
+        const descLines = methodDesc[method] || methodDesc.voltage;
+        descLines.forEach((line, i) => {
+            ctx.fillText('• ' + line, mL + 20, botY + 40 + i * 15);
+        });
+    }
+
+    ['ss-cout', 'ss-vout', 'ss-tss', 'ss-ilim', 'ss-method'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', update);
+        el.addEventListener('change', update);
+    });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('ss-schematic');
+        const svg = new SchematicSVG(700, 220);
+
+        // Voltage reference ramp method
+        svg.text(50, 25, 'Soft Start with Reference Ramp:', {fontSize: 12, fill: '#4af'});
+
+        // Soft start capacitor
+        svg.wire([[50, 60], [80, 60]]);
+        svg.text(40, 55, 'Iss', {fontSize: 9});
+
+        svg.wire([[80, 60], [80, 80]]);
+        svg.capacitor(80, 100, {horizontal: false});
+        svg.text(95, 100, 'Css', {fontSize: 9});
+        svg.wire([[80, 120], [80, 140]]);
+        svg.ground(80, 140);
+
+        // Soft start voltage goes to error amp
+        svg.wire([[80, 60], [150, 60]]);
+
+        // Error amplifier (simplified)
+        svg.rect(150, 40, 80, 60, {fill: 'none', stroke: '#888'});
+        svg.text(190, 75, 'Error', {fontSize: 9});
+        svg.text(190, 90, 'Amp', {fontSize: 9});
+
+        // Reference
+        svg.wire([[100, 90], [150, 90]]);
+        svg.text(110, 100, 'Vref', {fontSize: 9});
+
+        // Soft start clamp
+        svg.text(100, 55, 'min(Vss,Vref)', {fontSize: 8, fill: '#888'});
+
+        // To PWM
+        svg.wire([[230, 70], [280, 70]]);
+        svg.text(260, 60, 'To PWM', {fontSize: 9});
+
+        // NTC inrush limiter
+        svg.text(350, 25, 'NTC Inrush Limiter:', {fontSize: 12, fill: '#4af'});
+
+        svg.wire([[350, 60], [400, 60]]);
+        svg.text(340, 55, 'AC', {fontSize: 9});
+
+        // NTC (shown as variable resistor)
+        svg.resistor(420, 60, {horizontal: true});
+        svg.text(420, 50, 'NTC', {fontSize: 9, fill: '#fa4'});
+
+        // Bridge rectifier (simplified box)
+        svg.wire([[440, 60], [480, 60]]);
+        svg.rect(480, 40, 60, 50, {fill: 'none', stroke: '#888'});
+        svg.text(510, 70, 'Bridge', {fontSize: 9});
+
+        svg.wire([[540, 60], [600, 60]]);
+
+        // Filter cap
+        svg.wire([[600, 60], [600, 80]]);
+        svg.capacitor(600, 100, {horizontal: false});
+        svg.text(615, 100, 'Cbulk', {fontSize: 9});
+        svg.wire([[600, 120], [600, 140]]);
+        svg.ground(600, 140);
+
+        svg.wire([[600, 60], [650, 60]]);
+        svg.text(660, 55, 'DC', {fontSize: 9});
+
+        // Notes
+        svg.text(350, 170, 'Cold: High R → limits inrush', {fontSize: 10, fill: '#888'});
+        svg.text(350, 185, 'Hot: Low R → normal operation', {fontSize: 10, fill: '#888'});
+        svg.text(350, 200, 'Issue: Slow recovery if power cycles', {fontSize: 10, fill: '#f44'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('ss-spice', {
+            title: 'Soft Start Simulation',
+            netlist: `* Soft Start Circuit Simulation
+
+* Power supply model with soft start
+Vin in 0 DC 12
+
+* Soft start current source
+Iss 0 ss 10u  ; 10µA charging current
+
+* Soft start capacitor
+Css ss 0 100n  ; 100nF → Tss ≈ 10ms
+
+* Clamp to reference (simplified)
+Dclamp ss ref DCLAMP
+.model DCLAMP D(Is=1e-12)
+Vref ref 0 DC 1.25
+
+* Error amp (voltage follower for simplicity)
+Eamp ctrl 0 ss 0 1
+
+* Buck converter model (simplified)
+* Duty cycle proportional to control voltage
+Eduty duty 0 ctrl 0 0.4  ; D = 0.4 × Vctrl
+
+* PWM switch model
+S1 in sw duty 0 SMOD
+.model SMOD SW(Ron=0.01 Roff=1MEG Vt=0.5)
+
+* LC filter
+L1 sw out 10u
+D1 0 sw DSCHOTTKY
+.model DSCHOTTKY D(Is=1e-6)
+
+* Output cap and load
+Cout out 0 1000u IC=0
+Rload out 0 5
+
+.tran 10u 30m UIC
+
+.probe V(out) V(ss) I(L1)
+.end
+
+* Expected:
+* Vss ramps 0 to 1.25V over ~10ms
+* Vout follows Vss × (Vout_final/1.25)
+* No inrush spike on output`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('ss-checklist', {
+            title: 'Soft Start Design Checklist',
+            items: [
+                'Calculate required inrush current limit',
+                'Determine minimum soft start time',
+                'Select soft start method for application',
+                'Size soft start capacitor (if applicable)',
+                'Verify no output overshoot at end of ramp',
+                'Check pre-bias conditions (if output pre-charged)',
+                'Verify fault recovery behavior',
+                'Test startup into full load',
+                'Check startup into short circuit',
+                'Coordinate with power sequencing requirements'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('ss-exercises', {
+            exercises: [
+                {
+                    question: '1000µF capacitor, 5V output, 2A current limit. What is minimum soft start time?',
+                    answer: '2.5ms',
+                    solution: 'Tss = C × V / I = 1000µ × 5 / 2 = 2.5ms minimum to stay within current limit.'
+                },
+                {
+                    question: 'Soft start current is 10µA, Vref=1.25V, desired Tss=10ms. What Css value?',
+                    answer: '80nF',
+                    solution: 'Css = Iss × Tss / Vref = 10µ × 10m / 1.25 = 80nF'
+                },
+                {
+                    question: 'Why might you want a faster soft start than minimum required?',
+                    answer: 'System requirements',
+                    solution: 'Power sequencing may require rails to come up in specific order with timing requirements. Fast soft start reduces overall system power-up time. However, faster than needed increases inrush current and component stress.'
+                }
+            ]
+        });
+    }
+
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

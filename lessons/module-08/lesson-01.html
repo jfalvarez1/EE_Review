@@ -1,0 +1,370 @@
+<!-- Module 8, Lesson 1: DAC Fundamentals -->
+<div class="lesson-content" data-module="8" data-lesson="1">
+
+    <div class="card">
+        <h2>DAC Fundamentals</h2>
+        <p>Digital-to-Analog Converters translate binary codes into analog voltages or currents. Understanding resolution, linearity, and settling time is essential for analog interface design.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Resolution</div>
+                <div class="v mono">LSB = V<sub>ref</sub> / 2<sup>N</sup></div>
+            </div>
+            <div class="box">
+                <div class="k">Dynamic Range</div>
+                <div class="v mono">DR = 6.02×N + 1.76 dB</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> A 12-bit DAC has 4096 steps. With 2.5V reference, each LSB is 610µV. But DNL and INL errors often exceed 1 LSB, limiting actual accuracy to 10-11 bits.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: DAC Resolution Calculator</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="dac-bits">Resolution (bits)</label>
+                <input type="range" id="dac-bits" min="8" max="24" step="1" value="12">
+                <span id="dac-bits-val" class="mono">12</span>
+            </div>
+            <div class="c3">
+                <label for="dac-vref">V<sub>ref</sub> (V)</label>
+                <input type="range" id="dac-vref" min="1" max="5" step="0.1" value="2.5">
+                <span id="dac-vref-val" class="mono">2.5V</span>
+            </div>
+            <div class="c3">
+                <label for="dac-code">Code (decimal)</label>
+                <input type="range" id="dac-code" min="0" max="4095" step="1" value="2048">
+                <span id="dac-code-val" class="mono">2048</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="dac-canvas" width="980" height="200"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">LSB Size</div>
+                <div class="v mono" id="dac-lsb">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Output Voltage</div>
+                <div class="v mono" id="dac-vout">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Dynamic Range</div>
+                <div class="v mono" id="dac-dr">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Max Code</div>
+                <div class="v mono" id="dac-max">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>DAC Architectures</h3>
+
+        <table class="table">
+            <tr>
+                <th>Architecture</th>
+                <th>Speed</th>
+                <th>Resolution</th>
+                <th>Notes</th>
+            </tr>
+            <tr>
+                <td>R-2R Ladder</td>
+                <td>Medium</td>
+                <td>8-16 bit</td>
+                <td>Simple, needs matched resistors</td>
+            </tr>
+            <tr>
+                <td>Binary Weighted</td>
+                <td>Fast</td>
+                <td>8-12 bit</td>
+                <td>Glitches at major transitions</td>
+            </tr>
+            <tr>
+                <td>Sigma-Delta</td>
+                <td>Slow</td>
+                <td>16-24 bit</td>
+                <td>Oversampling, excellent linearity</td>
+            </tr>
+            <tr>
+                <td>Current Steering</td>
+                <td>Very Fast</td>
+                <td>10-16 bit</td>
+                <td>Video/RF, 100MHz+ update</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Key Specifications</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">DNL</div>
+                <div class="v">Differential Non-Linearity: step size error</div>
+            </div>
+            <div class="box">
+                <div class="k">INL</div>
+                <div class="v">Integral Non-Linearity: cumulative error</div>
+            </div>
+            <div class="box">
+                <div class="k">Settling Time</div>
+                <div class="v">Time to reach final value (±1 LSB)</div>
+            </div>
+            <div class="box">
+                <div class="k">Glitch Energy</div>
+                <div class="v">Spurious energy during transitions</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('dac-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const bits = parseInt(document.getElementById('dac-bits').value);
+        const vref = parseFloat(document.getElementById('dac-vref').value);
+        const maxCode = Math.pow(2, bits) - 1;
+
+        // Update code slider max
+        const codeSlider = document.getElementById('dac-code');
+        codeSlider.max = maxCode;
+        let code = parseInt(codeSlider.value);
+        if (code > maxCode) {
+            code = maxCode;
+            codeSlider.value = code;
+        }
+
+        document.getElementById('dac-bits-val').textContent = bits;
+        document.getElementById('dac-vref-val').textContent = vref + 'V';
+        document.getElementById('dac-code-val').textContent = code;
+
+        const lsb = vref / Math.pow(2, bits);
+        const vout = (code / maxCode) * vref;
+        const dr = 6.02 * bits + 1.76;
+
+        document.getElementById('dac-lsb').textContent = AD.fmtUnit(lsb, 'V');
+        document.getElementById('dac-vout').textContent = vout.toFixed(4) + 'V';
+        document.getElementById('dac-dr').textContent = dr.toFixed(1) + ' dB';
+        document.getElementById('dac-max').textContent = maxCode;
+
+        drawDACOutput(bits, vref, code, maxCode);
+    }
+
+    function drawDACOutput(bits, vref, code, maxCode) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.fillStyle = 'var(--panel)';
+        ctx.fillRect(0, 0, w, h);
+
+        // Draw voltage bar
+        const barWidth = w - 100;
+        const vout = (code / maxCode) * vref;
+        const fillWidth = (vout / vref) * barWidth;
+
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.3)';
+        ctx.fillRect(50, 50, barWidth, 40);
+
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.fillRect(50, 50, fillWidth, 40);
+
+        ctx.fillStyle = 'white';
+        ctx.font = '14px ui-sans-serif';
+        ctx.fillText('0V', 50, 110);
+        ctx.fillText(vref + 'V', 50 + barWidth - 30, 110);
+        ctx.fillText(vout.toFixed(4) + 'V', fillWidth + 60, 75);
+
+        // Show quantization steps (if visible)
+        if (bits <= 10) {
+            const steps = Math.pow(2, bits);
+            const stepWidth = barWidth / steps;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            for (let i = 0; i <= steps; i++) {
+                const x = 50 + i * stepWidth;
+                ctx.beginPath();
+                ctx.moveTo(x, 50);
+                ctx.lineTo(x, 90);
+                ctx.stroke();
+            }
+        }
+
+        // Binary representation
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '12px monospace';
+        const binary = code.toString(2).padStart(bits, '0');
+        ctx.fillText('Binary: ' + binary, 50, 150);
+        ctx.fillText('Hex: 0x' + code.toString(16).toUpperCase(), 50 + 200, 150);
+    }
+
+    ['dac-bits', 'dac-vref', 'dac-code'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'R-2R DAC (4-bit)',
+        netlist: `* 4-bit R-2R DAC
+* Demonstrates ladder architecture
+
+VREF vref 0 DC 5
+
+* R-2R Ladder
+R0 b0 n0 20k
+R0a n0 0 10k
+
+R1 b1 n1 20k
+R1a n1 n0 10k
+
+R2 b2 n2 20k
+R2a n2 n1 10k
+
+R3 b3 n3 20k
+R3a n3 n2 10k
+
+RTERM n3 out 10k
+
+* Bit inputs (digital)
+* Code = 1010 = 10 decimal
+VB3 b3 0 DC 5    ; MSB = 1
+VB2 b2 0 DC 0    ; 0
+VB1 b1 0 DC 5    ; 1
+VB0 b0 0 DC 0    ; LSB = 0
+
+* Output buffer
+.include opamp.sub
+X1 out 0 vout 0 vcc vee OPAMP
+VCC vcc 0 DC 10
+VEE vee 0 DC -10
+
+.OP
+
+.PROBE V(out) V(vout)
+.END
+
+* Expected: Vout = 5V × 10/15 = 3.33V`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm8l1',
+        items: [
+            'Calculate LSB = Vref / 2^N',
+            'Know dynamic range formula',
+            'Understand DNL and INL',
+            'Know major DAC architectures',
+            'Calculate output voltage from code'
+        ]
+    });
+
+    // Exercises - Multiple DAC problems
+    const container = document.getElementById('exercise-container');
+    container.innerHTML = '<h4>DAC Fundamentals Problems (6 exercises)</h4>';
+
+    const exercises = [
+        {
+            id: 'G1-1-1',
+            type: 'numeric',
+            question: 'A 16-bit DAC has Vref = 4.096V. What is the LSB size in microvolts?',
+            hint: 'LSB = Vref / 2^N',
+            expected: 62.5,
+            tolerance: 0.01,
+            unit: 'µV',
+            solution: 'LSB = 4.096V / 2^16 = 4.096V / 65536 = 62.5µV',
+            explanation: 'Higher resolution means smaller LSB. 16-bit gives ~1 ppm resolution.'
+        },
+        {
+            id: 'G1-1-2',
+            type: 'numeric',
+            question: 'What is the theoretical SNR (in dB) of an ideal 12-bit DAC?',
+            hint: 'SNR = 6.02×N + 1.76 dB',
+            expected: 74,
+            tolerance: 0.5,
+            unit: 'dB',
+            solution: 'SNR = 6.02×12 + 1.76 = 72.24 + 1.76 = 74dB',
+            explanation: 'Each bit adds ~6dB of dynamic range. Real DACs achieve slightly less due to noise.'
+        },
+        {
+            id: 'G1-1-3',
+            type: 'numeric',
+            question: 'A 10-bit DAC with 3.3V reference outputs code 512. What is Vout?',
+            hint: 'Vout = (Code / 2^N) × Vref',
+            expected: 1.65,
+            tolerance: 0.01,
+            unit: 'V',
+            solution: 'Vout = (512/1024) × 3.3V = 0.5 × 3.3V = 1.65V',
+            explanation: 'Code 512 is exactly mid-scale for a 10-bit DAC, giving half the reference voltage.'
+        },
+        {
+            id: 'G1-1-4',
+            type: 'choice',
+            question: 'Which DAC architecture is best for audio applications requiring very high resolution (>20 bits)?',
+            choices: [
+                { text: 'R-2R ladder', correct: false },
+                { text: 'Binary weighted', correct: false },
+                { text: 'Sigma-delta', correct: true },
+                { text: 'Current steering', correct: false }
+            ],
+            solution: 'Sigma-delta DACs use oversampling and noise shaping to achieve 24-bit resolution common in audio.',
+            explanation: 'The trade-off is lower bandwidth, but audio only needs 20kHz.'
+        },
+        {
+            id: 'G1-1-5',
+            type: 'numeric',
+            question: 'A DAC has ±0.5 LSB INL and ±0.25 LSB DNL. With Vref = 2.5V and 12 bits, what is the max INL error in mV?',
+            hint: 'INL error = INL × LSB, where LSB = Vref/2^N',
+            expected: 0.305,
+            tolerance: 0.02,
+            unit: 'mV',
+            solution: 'LSB = 2.5V/4096 = 0.61mV. INL error = 0.5 × 0.61mV = 0.305mV',
+            explanation: 'INL tells you the max deviation from the ideal transfer function.'
+        },
+        {
+            id: 'G1-1-6',
+            type: 'numeric',
+            question: 'How many distinct output levels does a 14-bit DAC have?',
+            hint: 'Levels = 2^N',
+            expected: 16384,
+            tolerance: 0,
+            unit: '',
+            solution: '2^14 = 16384 distinct output levels',
+            explanation: 'More bits = exponentially more levels. 14-bit is 4× more than 12-bit.'
+        }
+    ];
+
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-m8l1-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-m8l1-${i}`, ex);
+    });
+})();
+</script>

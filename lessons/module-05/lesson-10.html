@@ -1,0 +1,322 @@
+<!-- Module 5, Lesson 10: CMOS Logic Fundamentals -->
+<div class="lesson-content" data-module="5" data-lesson="10">
+
+    <div class="card">
+        <h2>CMOS Inverter Fundamentals</h2>
+        <p>The CMOS inverter is the core building block of digital logic. A PMOS pull-up and NMOS pull-down create a strong logic swing with (ideally) near-zero static current except during switching.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Static power (ideal)</div>
+                <div class="v mono">P<sub>static</sub> &asymp; 0</div>
+            </div>
+            <div class="box">
+                <div class="k">Dynamic energy</div>
+                <div class="v mono">E &asymp; C<sub>L</sub>V<sub>DD</sub><sup>2</sup> (per 0→1 transition)</div>
+            </div>
+            <div class="box">
+                <div class="k">Dynamic power</div>
+                <div class="v mono">P &asymp; &alpha; C<sub>L</sub>V<sub>DD</sub><sup>2</sup>f</div>
+            </div>
+            <div class="box">
+                <div class="k">Switching point</div>
+                <div class="v">Set by NMOS/PMOS strength ratio</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Analog view:</strong> Around the switching threshold, both devices conduct and the inverter behaves like a high-gain amplifier. This is why digital gates have “noise margins” and why short-circuit current exists during transitions.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>CMOS Inverter Schematic</h3>
+        <div class="schematic-container centered" id="sch-m5l10-inverter"></div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Voltage Transfer Characteristic (VTC)</h3>
+        <p>This uses a simplified conductance-divider model (good for intuition, not for sign-off).</p>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="m5l10-vdd">V<sub>DD</sub> (V)</label>
+                <input type="range" id="m5l10-vdd" min="1.0" max="5.0" step="0.1" value="3.3">
+                <span id="m5l10-vdd-val" class="mono">3.3 V</span>
+            </div>
+            <div class="c3">
+                <label for="m5l10-vthn">V<sub>th,n</sub> (V)</label>
+                <input type="range" id="m5l10-vthn" min="0.2" max="1.5" step="0.05" value="0.7">
+                <span id="m5l10-vthn-val" class="mono">0.70 V</span>
+            </div>
+            <div class="c3">
+                <label for="m5l10-vthp">|V<sub>th,p</sub>| (V)</label>
+                <input type="range" id="m5l10-vthp" min="0.2" max="1.5" step="0.05" value="0.7">
+                <span id="m5l10-vthp-val" class="mono">0.70 V</span>
+            </div>
+            <div class="c3">
+                <label for="m5l10-ratio">K<sub>n</sub>/K<sub>p</sub></label>
+                <input type="range" id="m5l10-ratio" min="0.5" max="4.0" step="0.1" value="1.0">
+                <span id="m5l10-ratio-val" class="mono">1.0</span>
+            </div>
+            <div class="c3">
+                <label for="m5l10-vin">V<sub>in</sub> (V)</label>
+                <input type="range" id="m5l10-vin" min="0" max="3.3" step="0.05" value="0.0">
+                <span id="m5l10-vin-val" class="mono">0.00 V</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="m5l10-vtc" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">V<sub>out</sub></div>
+                <div class="v mono" id="m5l10-vout">-</div>
+            </div>
+            <div class="box">
+                <div class="k">State</div>
+                <div class="v mono" id="m5l10-state">-</div>
+            </div>
+            <div class="box">
+                <div class="k">Vm (rough)</div>
+                <div class="v mono" id="m5l10-vm">-</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="m5l10-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="m5l10-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="m5l10-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    if (typeof AD === 'undefined' || !AD.Schematic) return;
+
+    const S = AD.Schematic;
+
+    // ===== SCHEMATIC =====
+    (function() {
+        const container = document.getElementById('sch-m5l10-inverter');
+        if (!container) return;
+
+        const sch = S.create(container, { width: 420, height: 260 });
+
+        const vddY = 30;
+        const gndY = 230;
+        const x = 210;
+        const pY = 80;
+        const nY = 180;
+
+        const p = S.pmosTerminals(x, pY, false);
+        const n = S.nmosTerminals(x, nY, false);
+
+        sch.pmos(x, pY, { label: 'MP', showType: true });
+        sch.nmos(x, nY, { label: 'MN', showType: true });
+
+        // VDD to PMOS source
+        sch.vcc(p.source.x, vddY, { label: 'VDD' });
+        sch.wire([[p.source.x, vddY], [p.source.x, p.source.y]]);
+
+        // NMOS source to ground
+        sch.wire([[n.source.x, n.source.y], [n.source.x, gndY]]);
+        sch.ground(n.source.x, gndY);
+
+        // Drain connection (explicit wire between device drains)
+        const voutNodeX = x + 70;
+        const voutNodeY = (p.drain.y + n.drain.y) / 2;
+        sch.wire([[p.drain.x, p.drain.y], [p.drain.x, voutNodeY]]);
+        sch.wire([[n.drain.x, n.drain.y], [n.drain.x, voutNodeY]]);
+        sch.wire([[p.drain.x, voutNodeY], [voutNodeX, voutNodeY]]);
+        sch.dot(p.drain.x, voutNodeY);
+        sch.dot(n.drain.x, voutNodeY);
+        sch.nodeLabel(voutNodeX, voutNodeY, 'Vout');
+
+        // Gate connection (Vin)
+        const vinX = 60;
+        const vinY = (p.gate.y + n.gate.y) / 2;
+        sch.wire([[p.gate.x, p.gate.y], [p.gate.x, vinY], [p.gate.x, n.gate.y]]);
+        sch.wire([[vinX, vinY], [p.gate.x, vinY]]);
+        sch.dot(p.gate.x, vinY);
+        sch.nodeLabel(vinX, vinY, 'Vin');
+
+        sch.finalize();
+    })();
+
+    // ===== VTC PLOT =====
+    const canvas = document.getElementById('m5l10-vtc');
+    const vddEl = document.getElementById('m5l10-vdd');
+    const vthnEl = document.getElementById('m5l10-vthn');
+    const vthpEl = document.getElementById('m5l10-vthp');
+    const ratioEl = document.getElementById('m5l10-ratio');
+    const vinEl = document.getElementById('m5l10-vin');
+    if (!canvas || !vddEl || !vthnEl || !vthpEl || !ratioEl || !vinEl) return;
+
+    const ctx = canvas.getContext('2d');
+    const TEK = AD.TEK_COLORS || { ch1: '#FFFF00', ch2: '#00FFFF' };
+
+    // Simple conductance model:
+    //  Gn ~ Kn*(Vin-Vthn) for Vin>Vthn
+    //  Gp ~ Kp*(VDD-Vin-|Vthp|) for Vin<VDD-|Vthp|
+    function voutForVin(vin, vdd, vthn, vthpAbs, knOverKp) {
+        const gn = Math.max(vin - vthn, 0) * knOverKp;
+        const gp = Math.max((vdd - vin) - vthpAbs, 0);
+        const denom = gn + gp;
+        if (denom <= 1e-12) return (vin < vdd / 2) ? vdd : 0;
+        return vdd * (gp / denom);
+    }
+
+    function estimateVm(vdd, vthn, vthpAbs, knOverKp) {
+        // Solve Kn(Vm-Vthn) = Kp(VDD-Vm-Vthp) in this simplified linear-overdrive model.
+        const num = knOverKp * vthn + (vdd - vthpAbs);
+        const den = knOverKp + 1;
+        return num / Math.max(den, 1e-9);
+    }
+
+    function draw() {
+        const vdd = parseFloat(vddEl.value);
+        const vthn = parseFloat(vthnEl.value);
+        const vthpAbs = parseFloat(vthpEl.value);
+        const knOverKp = parseFloat(ratioEl.value);
+
+        vinEl.max = String(vdd);
+        const vin = Math.min(parseFloat(vinEl.value), vdd);
+
+        document.getElementById('m5l10-vdd-val').textContent = vdd.toFixed(1) + ' V';
+        document.getElementById('m5l10-vthn-val').textContent = vthn.toFixed(2) + ' V';
+        document.getElementById('m5l10-vthp-val').textContent = vthpAbs.toFixed(2) + ' V';
+        document.getElementById('m5l10-ratio-val').textContent = knOverKp.toFixed(1);
+        document.getElementById('m5l10-vin-val').textContent = vin.toFixed(2) + ' V';
+
+        const vm = estimateVm(vdd, vthn, vthpAbs, knOverKp);
+
+        const n = 200;
+        const xData = [];
+        const yData = [];
+        for (let i = 0; i <= n; i++) {
+            const x = (i / n) * vdd;
+            xData.push(x);
+            yData.push(voutForVin(x, vdd, vthn, vthpAbs, knOverKp));
+        }
+
+        AD.drawGrid(ctx, canvas.width, canvas.height, 10, 8);
+        const axes = AD.drawAxes(ctx, canvas.width, canvas.height, {
+            xMin: 0, xMax: vdd,
+            yMin: 0, yMax: vdd,
+            xLabel: 'Vin', xUnit: 'V',
+            yLabel: 'Vout', yUnit: 'V'
+        });
+
+        AD.plotData(ctx, axes, xData, yData, { color: TEK.ch1, lineWidth: 2 });
+
+        const vout = voutForVin(vin, vdd, vthn, vthpAbs, knOverKp);
+
+        // Marker at selected Vin
+        const p = axes.toCanvas(vin, vout);
+        ctx.fillStyle = TEK.ch2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Vm vertical line (rough)
+        const pm = axes.toCanvas(vm, 0);
+        const pmTop = axes.toCanvas(vm, vdd);
+        ctx.strokeStyle = 'rgba(159,176,192,0.6)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(pm.x, pmTop.y);
+        ctx.lineTo(pm.x, pm.y);
+        ctx.stroke();
+
+        document.getElementById('m5l10-vout').textContent = vout.toFixed(3) + ' V';
+        document.getElementById('m5l10-vm').textContent = vm.toFixed(3) + ' V';
+
+        const state = (vout > 0.7 * vdd) ? 'HIGH' : (vout < 0.3 * vdd) ? 'LOW' : 'TRANSITION';
+        document.getElementById('m5l10-state').textContent = state;
+    }
+
+    [vddEl, vthnEl, vthpEl, ratioEl, vinEl].forEach(el => el.addEventListener('input', draw));
+    draw();
+
+    // ===== SPICE =====
+    new SpiceNetlistWidget('m5l10-spice', {
+        title: 'CMOS Inverter (DC sweep + transient)',
+        netlist: `* CMOS inverter demo (Level-1 models)
+VDD vdd 0 DC 3.3
+VIN in 0 DC 0
+
+MP out in vdd vdd PMOS W=10u L=1u
+MN out in 0 0 NMOS W=5u L=1u
+CL out 0 20f
+
+.model NMOS NMOS (LEVEL=1 VTO=0.7 KP=200u LAMBDA=0.02)
+.model PMOS PMOS (LEVEL=1 VTO=-0.7 KP=100u LAMBDA=0.02)
+
+.dc VIN 0 3.3 0.01
+* .tran 0 50n 0 0.1n
+.probe V(in) V(out)
+.end`
+    });
+
+    // ===== CHECKLIST =====
+    new ChecklistWidget('m5l10-checklist', {
+        lessonKey: 'm5l10',
+        items: [
+            'Draw the CMOS inverter and identify which device is on for Vin=0 and Vin=VDD',
+            'Explain why ideal CMOS has ~0 static power (except leakage)',
+            'Relate dynamic power to CL, VDD, and switching activity',
+            'Define the transfer curve and switching threshold',
+            'Explain why short-circuit current exists during transitions'
+        ]
+    });
+
+    // ===== EXERCISES =====
+    const exercises = [
+        {
+            id: 'M5L10-1',
+            type: 'numeric',
+            question: 'A node has CL=50pF and VDD=3.3V. Estimate energy per 0→1 transition.',
+            hint: 'E ≈ C·V^2',
+            expected: 5.4e-10,
+            tolerance: 1.5e-10,
+            unit: 'J',
+            solution: 'E ≈ 50e-12 * (3.3^2) ≈ 5.45e-10 J'
+        },
+        {
+            id: 'M5L10-2',
+            type: 'choice',
+            question: 'Why does a CMOS inverter draw current during switching?',
+            choices: [
+                { text: 'Because both devices can be on simultaneously for a short interval', correct: true },
+                { text: 'Because PMOS has permanent gate current', correct: false },
+                { text: 'Because NMOS has a body diode that is always forward biased', correct: false },
+                { text: 'Because CMOS requires a bias current source', correct: false }
+            ],
+            solution: 'Around the switching threshold both NMOS and PMOS conduct, creating a momentary path from VDD to ground.'
+        }
+    ];
+
+    const exContainer = document.getElementById('m5l10-exercises');
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-m5l10-${i}`;
+        div.style.marginBottom = '15px';
+        exContainer.appendChild(div);
+        new ExerciseWidget(`exercise-m5l10-${i}`, ex);
+    });
+})();
+</script>

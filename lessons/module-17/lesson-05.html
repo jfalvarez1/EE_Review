@@ -1,0 +1,394 @@
+<!-- Module 17, Lesson 5: Oscillation Problems -->
+<div class="lesson-content" data-module="17" data-lesson="5">
+
+    <div class="card">
+        <h2>Debugging Oscillation Problems</h2>
+        <p>Unwanted oscillations cause noise, instability, and failures. Learn to identify, characterize, and eliminate oscillations in amplifiers, power supplies, and feedback systems.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Motor-boating</div>
+                <div class="v">Low-frequency (Hz-kHz)</div>
+            </div>
+            <div class="box">
+                <div class="k">Ringing</div>
+                <div class="v">Damped oscillation on edges</div>
+            </div>
+            <div class="box">
+                <div class="k">Squegging</div>
+                <div class="v">Burst oscillation</div>
+            </div>
+            <div class="box">
+                <div class="k">Parasitic</div>
+                <div class="v">VHF/UHF unwanted</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Debug Insight:</strong> Oscillations satisfy Barkhausen criteria: loop gain ≥1 and phase shift = 0° (or 360°). Find where the phase margin disappeared—that's your fix location.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Oscillation Analyzer</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="osc-type">Oscillation Type</label>
+                <select id="osc-type">
+                    <option value="continuous">Continuous</option>
+                    <option value="ringing">Ringing/Damped</option>
+                    <option value="burst">Burst (Squegging)</option>
+                    <option value="motorboat">Motor-boating</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="osc-freq">Frequency (Hz)</label>
+                <input type="text" id="osc-freq" value="1M">
+            </div>
+            <div class="c3">
+                <label for="osc-damp">Damping Factor</label>
+                <input type="range" id="osc-damp" min="0" max="2" step="0.1" value="0.2">
+                <span id="osc-damp-val" class="mono">0.2</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="osc-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Likely Cause</div>
+                <div class="v mono" id="osc-cause">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Check Location</div>
+                <div class="v mono" id="osc-location">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Fix Strategy</div>
+                <div class="v mono" id="osc-fix">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Oscillation Causes and Fixes</h3>
+
+        <table class="table">
+            <tr>
+                <th>Symptom</th>
+                <th>Frequency</th>
+                <th>Cause</th>
+                <th>Fix</th>
+            </tr>
+            <tr>
+                <td>Continuous sine</td>
+                <td>Near bandwidth</td>
+                <td>Insufficient phase margin</td>
+                <td>Add compensation (Cc)</td>
+            </tr>
+            <tr>
+                <td>Ringing on edges</td>
+                <td>MHz range</td>
+                <td>Underdamped LC/RLC</td>
+                <td>Add series R, snubber</td>
+            </tr>
+            <tr>
+                <td>Motor-boating</td>
+                <td>Hz to kHz</td>
+                <td>Power supply coupling</td>
+                <td>Bypass caps, decoupling</td>
+            </tr>
+            <tr>
+                <td>VHF parasitic</td>
+                <td>>100MHz</td>
+                <td>Lead inductance</td>
+                <td>Ferrite beads, layout</td>
+            </tr>
+            <tr>
+                <td>Squegging</td>
+                <td>Irregular bursts</td>
+                <td>Gain margin cycling</td>
+                <td>Reduce gain, add damping</td>
+            </tr>
+            <tr>
+                <td>Output swinging rail-to-rail</td>
+                <td>Low frequency</td>
+                <td>Feedback polarity wrong</td>
+                <td>Swap FB connection</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Op-Amp Stability</h3>
+        <div id="osc-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="osc-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Debug Checklist</h3>
+        <div id="osc-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="osc-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('osc-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    const oscInfo = {
+        continuous: {cause: 'Insufficient phase margin (<45°)', location: 'Feedback network, compensation', fix: 'Add Cc, reduce bandwidth'},
+        ringing: {cause: 'Underdamped resonance', location: 'Output LC, cable inductance', fix: 'Add snubber RC, ferrite bead'},
+        burst: {cause: 'Nonlinear gain margin', location: 'Bias circuit, thermal effects', fix: 'Improve bias stability'},
+        motorboat: {cause: 'Power supply impedance', location: 'Decoupling, ground path', fix: 'Add bypass caps, star ground'}
+    };
+
+    function update() {
+        const type = document.getElementById('osc-type').value || 'continuous';
+        const freq = AD.parseValue(document.getElementById('osc-freq').value) || 1e6;
+        const damp = parseFloat(document.getElementById('osc-damp').value) || 0.2;
+
+        document.getElementById('osc-damp-val').textContent = damp.toFixed(1);
+
+        const info = oscInfo[type] || oscInfo.continuous;
+        document.getElementById('osc-cause').textContent = info.cause;
+        document.getElementById('osc-location').textContent = info.location;
+        document.getElementById('osc-fix').textContent = info.fix;
+
+        // Draw oscillation waveform
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        const plotW = W - mL - mR;
+        const plotH = H - mT - mB;
+
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
+
+        // Zero line
+        ctx.strokeStyle = TEK.ref;
+        const yCenter = mT + plotH / 2;
+        ctx.beginPath();
+        ctx.moveTo(mL, yCenter);
+        ctx.lineTo(mL + plotW, yCenter);
+        ctx.stroke();
+
+        // Draw waveform based on type
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        const period = 1 / freq;
+        const totalTime = period * 10; // Show 10 cycles
+
+        for (let i = 0; i <= plotW; i++) {
+            const t = i / plotW * totalTime;
+            let v = 0;
+
+            switch(type) {
+                case 'continuous':
+                    v = Math.sin(2 * Math.PI * freq * t);
+                    break;
+                case 'ringing':
+                    // Damped sinusoid
+                    v = Math.exp(-damp * 2 * Math.PI * freq * t) * Math.sin(2 * Math.PI * freq * t);
+                    break;
+                case 'burst':
+                    // Burst oscillation
+                    const burstPeriod = totalTime / 3;
+                    const burstPhase = t % burstPeriod;
+                    if (burstPhase < burstPeriod * 0.6) {
+                        const env = Math.sin(Math.PI * burstPhase / (burstPeriod * 0.6));
+                        v = env * Math.sin(2 * Math.PI * freq * t);
+                    }
+                    break;
+                case 'motorboat':
+                    // Low frequency modulated
+                    const modFreq = freq / 100;
+                    v = (1 + 0.8 * Math.sin(2 * Math.PI * modFreq * t)) *
+                        Math.sin(2 * Math.PI * freq * 0.1 * t);
+                    v = Math.sin(2 * Math.PI * modFreq * t);
+                    break;
+            }
+
+            const y = yCenter - v * plotH * 0.4;
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
+        }
+        ctx.stroke();
+
+        // Labels
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Time', mL + plotW/2, H - 10);
+        ctx.fillText('Oscillation Waveform: ' + type.replace('_', ' '), mL + plotW/2, 20);
+
+        // Frequency indicator
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('f = ' + AD.formatValue(freq, 'Hz'), mL + 10, mT + 20);
+        ctx.fillText('ζ = ' + damp.toFixed(2), mL + 10, mT + 35);
+    }
+
+    ['osc-type', 'osc-freq', 'osc-damp'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+        document.getElementById(id).addEventListener('change', update);
+    });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('osc-schematic');
+        const svg = new SchematicSVG(550, 220);
+
+        // Oscillating op-amp circuit
+        svg.text(30, 80, 'Vin', {fontSize: 10});
+        svg.wire([[50, 80], [100, 80]]);
+
+        // Input resistor
+        svg.resistor(120, 80, {horizontal: true});
+        svg.text(120, 65, 'Rin', {fontSize: 9});
+        svg.wire([[140, 80], [180, 80]]);
+
+        // Op-amp
+        svg.opAmp(220, 90, {mirror: false});
+        svg.wire([[180, 80], [195, 80]]);
+        svg.wire([[180, 80], [180, 100], [195, 100]]);
+
+        // Feedback resistor
+        svg.wire([[245, 90], [280, 90], [280, 40], [180, 40], [180, 80]]);
+        svg.resistor(230, 40, {horizontal: true});
+        svg.text(230, 28, 'Rf', {fontSize: 9});
+
+        // Compensation cap (the fix!)
+        svg.wire([[280, 90], [280, 60]]);
+        svg.capacitor(320, 40, {horizontal: true});
+        svg.text(320, 28, 'Cc', {fontSize: 9, fill: '#4af'});
+        svg.wire([[280, 40], [300, 40]]);
+        svg.wire([[340, 40], [360, 40], [360, 90], [280, 90]]);
+
+        // Output
+        svg.wire([[245, 90], [320, 90]]);
+
+        // Capacitive load (cause of instability)
+        svg.wire([[320, 90], [320, 110]]);
+        svg.capacitor(320, 130, {horizontal: false});
+        svg.text(335, 130, 'CL', {fontSize: 9, fill: '#f44'});
+        svg.wire([[320, 150], [320, 170]]);
+        svg.ground(320, 170);
+
+        svg.wire([[320, 90], [380, 90]]);
+        svg.text(390, 95, 'Vout', {fontSize: 10});
+
+        // Annotations
+        svg.text(100, 180, 'Capacitive load causes phase shift → oscillation', {fontSize: 10, fill: '#f44'});
+        svg.text(100, 195, 'Fix: Add Cc for pole-splitting compensation', {fontSize: 10, fill: '#4af'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('osc-spice', {
+            title: 'Op-Amp Stability Analysis',
+            netlist: `* Op-Amp with Capacitive Load
+* Demonstrates oscillation from capacitive loading
+
+* Input
+Vin in 0 AC 1 PULSE(0 0.1 1u 10n 10n 100u 200u)
+
+* Op-amp (with realistic bandwidth)
+.subckt opamp inp inn out
+Rin inp inn 1MEG
+Egain int 0 inp inn 100k
+* Single pole at 10Hz (GBW = 1MHz)
+Rpole int out 1
+Cpole out 0 15.9u
+.ends
+
+Xamp 0 fb out opamp
+
+* Feedback network
+Rin in fb 10k
+Rf fb out 10k
+
+* Capacitive load (problem!)
+Cload out 0 1n  ; Try 10n for more oscillation
+
+* Compensation cap (uncomment to fix)
+* Cc fb out 10p
+
+.tran 1n 50u
+.ac dec 100 1 10MEG
+.probe V(out) V(fb)
+.end`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('osc-checklist', {
+            title: 'Oscillation Debug Checklist',
+            items: [
+                'Measure oscillation frequency precisely',
+                'Check if oscillation is load-dependent',
+                'Verify power supply decoupling',
+                'Test with minimum load capacitance',
+                'Check feedback component values',
+                'Look for long PCB traces in feedback',
+                'Verify compensation network installed',
+                'Check for ground loops',
+                'Test at temperature extremes'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('osc-exercises', {
+            exercises: [
+                {
+                    question: 'An op-amp oscillates at 2MHz. Its GBW is 10MHz. What is the approximate closed-loop gain?',
+                    answer: '5',
+                    solution: 'At oscillation, loop gain = 1 near the unity-gain frequency. f_osc ≈ GBW/Acl. Acl = 10MHz/2MHz = 5'
+                },
+                {
+                    question: 'Adding 100pF compensation cap stops oscillation. If the oscillation was at 1MHz, what pole did you create?',
+                    answer: '~1.6MHz',
+                    solution: 'The comp cap creates a dominant pole. If Rf = 10k, f = 1/(2π × 10k × 100p) = 159kHz. But effectively shifts crossover to safe margin.'
+                },
+                {
+                    question: 'Motor-boating occurs at 5Hz. Power supply has 100µF cap with 0.5Ω ESR. Is this the cause?',
+                    answer: 'Likely yes',
+                    solution: 'At 5Hz: Zc = 1/(2π × 5 × 100µ) = 318Ω. ESR = 0.5Ω. The capacitor is effective. But if multiple stages share this supply, the ESR creates coupling. Check for proper star grounding.'
+                }
+            ]
+        });
+    }
+
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

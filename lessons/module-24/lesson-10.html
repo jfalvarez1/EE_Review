@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 10: Power Supply with PFC - Module 24</title>
+    <link rel="stylesheet" href="../../assets/main.css">
+    <link rel="stylesheet" href="../../assets/lesson.css">
+    <script src="../../assets/schematic-svg.js"></script>
+    <script src="../../assets/widgets.js"></script>
+    <script src="../../assets/ad-framework.js"></script>
+</head>
+<body>
+    <header>
+        <nav class="breadcrumb">
+            <a href="../../index.html">EE Learning</a> &rsaquo;
+            <a href="../index.html">Modules</a> &rsaquo;
+            <a href="./index.html">Module 24: Complex Real-World Projects</a> &rsaquo;
+            <span>Lesson 10</span>
+        </nav>
+    </header>
+
+    <main>
+        <div class="lesson-content" data-module="24" data-lesson="10">
+            <div class="card">
+                <h2>Power Supply with Power Factor Correction</h2>
+                <p>Power Factor Correction (PFC) is mandatory for power supplies above 75W to meet international regulations like IEC 61000-3-2. This lesson covers a complete PFC power supply design: boost PFC stage, LLC resonant converter, and control loops. Understanding the interaction between stages is critical for a robust, efficient design.</p>
+
+                <div class="kv">
+                    <div><span class="key">Output Power</span><span class="val">300W</span></div>
+                    <div><span class="key">Input Voltage</span><span class="val">85-265VAC</span></div>
+                    <div><span class="key">Output Voltage</span><span class="val">24V DC</span></div>
+                    <div><span class="key">Target Efficiency</span><span class="val">>92%</span></div>
+                </div>
+
+                <div class="notice">
+                    <strong>Key Insight:</strong> Modern PFC supplies use a two-stage approach: boost PFC creates a stable 380-400V DC bus with near-unity power factor, followed by an isolated DC-DC converter (LLC, flyback) for the final output voltage.
+                </div>
+            </div>
+
+            <!-- Interactive 1: Power Factor Analysis -->
+            <div class="card">
+                <h3>Interactive: Power Factor Analysis</h3>
+                <p>Compare current waveforms with and without PFC. Poor power factor causes harmonic distortion and reduces power delivery efficiency.</p>
+
+                <div class="controls">
+                    <label>Load Power: <input type="range" id="load-power" min="50" max="300" value="200" step="10"><span id="load-power-val">200W</span></label>
+                    <label>PFC Type:
+                        <select id="pfc-type">
+                            <option value="none">No PFC (Capacitor Input)</option>
+                            <option value="passive">Passive PFC (Inductor)</option>
+                            <option value="active" selected>Active PFC (Boost CCM)</option>
+                            <option value="crm">Active PFC (CrCM)</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="canvas-wrap">
+                    <canvas id="pfc-canvas" width="980" height="400"></canvas>
+                </div>
+
+                <div class="kv">
+                    <div><span class="key">Power Factor</span><span class="val" id="pf-val">0.99</span></div>
+                    <div><span class="key">THD</span><span class="val" id="thd-val">5%</span></div>
+                    <div><span class="key">I<sub>peak</sub></span><span class="val" id="ipeak-val">2.1A</span></div>
+                    <div><span class="key">I<sub>rms</sub></span><span class="val" id="irms-val">1.5A</span></div>
+                </div>
+            </div>
+
+            <!-- Interactive 2: Boost PFC Design -->
+            <div class="card">
+                <h3>Interactive: Boost PFC Inductor Design</h3>
+                <p>The boost inductor is critical for PFC performance. Smaller inductance means CrCM/DCM operation with higher current ripple; larger inductance means CCM with lower ripple but larger core size.</p>
+
+                <div class="controls">
+                    <label>Inductance: <input type="range" id="pfc-inductance" min="100" max="1000" value="400" step="50"><span id="pfc-inductance-val">400μH</span></label>
+                    <label>Switching Frequency: <input type="range" id="pfc-fsw" min="50" max="200" value="100" step="10"><span id="pfc-fsw-val">100kHz</span></label>
+                    <label>Input Voltage: <input type="range" id="pfc-vin" min="85" max="265" value="120" step="5"><span id="pfc-vin-val">120VAC</span></label>
+                </div>
+
+                <div class="canvas-wrap">
+                    <canvas id="inductor-canvas" width="980" height="350"></canvas>
+                </div>
+
+                <div class="kv">
+                    <div><span class="key">Mode</span><span class="val" id="mode-val">CCM</span></div>
+                    <div><span class="key">ΔI<sub>L</sub></span><span class="val" id="delta-il-val">1.2A</span></div>
+                    <div><span class="key">I<sub>L,peak</sub></span><span class="val" id="il-peak-val">3.5A</span></div>
+                    <div><span class="key">Core Loss</span><span class="val" id="core-loss-val">2.1W</span></div>
+                </div>
+            </div>
+
+            <!-- Interactive 3: LLC Resonant Converter -->
+            <div class="card">
+                <h3>Interactive: LLC Resonant Converter Design</h3>
+                <p>The LLC converter provides isolation and down-conversion from the 400V PFC bus. Its resonant operation enables soft switching (ZVS) for high efficiency. The gain curve shows operating regions across load and frequency.</p>
+
+                <div class="controls">
+                    <label>L<sub>r</sub>: <input type="range" id="llc-lr" min="20" max="100" value="50" step="5"><span id="llc-lr-val">50μH</span></label>
+                    <label>L<sub>m</sub>/L<sub>r</sub>: <input type="range" id="llc-ratio" min="3" max="10" value="6" step="0.5"><span id="llc-ratio-val">6</span></label>
+                    <label>C<sub>r</sub>: <input type="range" id="llc-cr" min="10" max="50" value="22" step="2"><span id="llc-cr-val">22nF</span></label>
+                    <label>Load %: <input type="range" id="llc-load" min="10" max="100" value="100" step="10"><span id="llc-load-val">100%</span></label>
+                </div>
+
+                <div class="canvas-wrap">
+                    <canvas id="llc-canvas" width="980" height="400"></canvas>
+                </div>
+
+                <div class="kv">
+                    <div><span class="key">f<sub>r1</sub></span><span class="val" id="fr1-val">135kHz</span></div>
+                    <div><span class="key">f<sub>r2</sub></span><span class="val" id="fr2-val">55kHz</span></div>
+                    <div><span class="key">Q</span><span class="val" id="llc-q-val">0.35</span></div>
+                    <div><span class="key">Gain @ f<sub>r1</sub></span><span class="val" id="gain-fr1-val">1.00</span></div>
+                </div>
+            </div>
+
+            <!-- Interactive 4: Control Loop Design -->
+            <div class="card">
+                <h3>Interactive: PFC Control Loop</h3>
+                <p>The PFC controller uses average current mode control with a voltage loop and current loop. The voltage loop must be slow (10-20Hz bandwidth) to avoid distorting the current, while the current loop tracks the sinusoidal reference.</p>
+
+                <div class="controls">
+                    <label>Voltage Loop BW: <input type="range" id="vloop-bw" min="5" max="40" value="15" step="1"><span id="vloop-bw-val">15Hz</span></label>
+                    <label>Current Loop BW: <input type="range" id="iloop-bw" min="1" max="20" value="8" step="0.5"><span id="iloop-bw-val">8kHz</span></label>
+                    <label>Load Step: <input type="range" id="load-step" min="10" max="80" value="50" step="10"><span id="load-step-val">50%</span></label>
+                </div>
+
+                <div class="canvas-wrap">
+                    <canvas id="control-canvas" width="980" height="400"></canvas>
+                </div>
+
+                <div class="kv">
+                    <div><span class="key">V<sub>bus</sub> Ripple</span><span class="val" id="vbus-ripple-val">±8V</span></div>
+                    <div><span class="key">Hold-up Time</span><span class="val" id="holdup-val">16ms</span></div>
+                    <div><span class="key">Phase Margin</span><span class="val" id="pm-val">55°</span></div>
+                    <div><span class="key">THD Impact</span><span class="val" id="thd-impact-val">2.1%</span></div>
+                </div>
+            </div>
+
+            <!-- Interactive 5: Efficiency Breakdown -->
+            <div class="card">
+                <h3>Interactive: System Efficiency Analysis</h3>
+                <p>Efficiency varies with load and input voltage. This analysis breaks down losses in the PFC stage, LLC stage, and auxiliary circuits.</p>
+
+                <div class="controls">
+                    <label>Load: <input type="range" id="eff-load" min="10" max="100" value="100" step="5"><span id="eff-load-val">100%</span></label>
+                    <label>Input Voltage:
+                        <select id="eff-vin">
+                            <option value="115">115VAC (US)</option>
+                            <option value="230" selected>230VAC (EU)</option>
+                            <option value="100">100VAC (JP)</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="canvas-wrap">
+                    <canvas id="eff-canvas" width="980" height="400"></canvas>
+                </div>
+
+                <div class="kv">
+                    <div><span class="key">PFC η</span><span class="val" id="pfc-eff-val">97.5%</span></div>
+                    <div><span class="key">LLC η</span><span class="val" id="llc-eff-val">96.0%</span></div>
+                    <div><span class="key">Overall η</span><span class="val" id="total-eff-val">93.6%</span></div>
+                    <div><span class="key">Total Loss</span><span class="val" id="total-loss-val">19.2W</span></div>
+                </div>
+            </div>
+
+            <!-- Schematic -->
+            <div class="card">
+                <h3>Complete PFC Power Supply Schematic</h3>
+                <div id="pfc-psu-schematic"></div>
+            </div>
+
+            <!-- SPICE Netlist -->
+            <div class="card">
+                <h3>SPICE Netlist: Boost PFC Stage</h3>
+                <div id="pfc-spice"></div>
+            </div>
+
+            <!-- Design Checklist -->
+            <div class="card">
+                <h3>Design Verification Checklist</h3>
+                <div id="pfc-checklist"></div>
+            </div>
+
+            <!-- Practice Exercises -->
+            <div class="card">
+                <h3>Practice Exercises</h3>
+                <div id="pfc-exercises"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // ========== Interactive 1: Power Factor Analysis ==========
+        const pfcCanvas = document.getElementById('pfc-canvas');
+        const pfcCtx = pfcCanvas.getContext('2d');
+
+        function drawPowerFactor() {
+            const loadPower = parseFloat(document.getElementById('load-power').value);
+            const pfcType = document.getElementById('pfc-type').value;
+
+            document.getElementById('load-power-val').textContent = loadPower + 'W';
+
+            pfcCtx.fillStyle = '#181818';
+            pfcCtx.fillRect(0, 0, pfcCanvas.width, pfcCanvas.height);
+
+            const w = pfcCanvas.width;
+            const h = pfcCanvas.height;
+            const margin = 60;
+            const plotH = (h - 3 * margin) / 2;
+
+            // Draw voltage and current waveforms
+            function drawWaveforms(yOffset, title) {
+                // Title
+                pfcCtx.fillStyle = '#FFFFFF';
+                pfcCtx.font = '14px monospace';
+                pfcCtx.fillText(title, margin, yOffset - 10);
+
+                // Axes
+                pfcCtx.strokeStyle = '#444';
+                pfcCtx.beginPath();
+                pfcCtx.moveTo(margin, yOffset + plotH/2);
+                pfcCtx.lineTo(w - margin, yOffset + plotH/2);
+                pfcCtx.stroke();
+
+                // Time scale
+                pfcCtx.fillStyle = '#888';
+                pfcCtx.font = '11px monospace';
+                for (let i = 0; i <= 4; i++) {
+                    const x = margin + i * (w - 2*margin) / 4;
+                    pfcCtx.fillText((i * 5) + 'ms', x - 10, yOffset + plotH + 15);
+                }
+            }
+
+            // Calculate power factor and THD based on type
+            let pf, thd, ipeak, irms;
+            const vrms = 120;
+            const vbus = 400;
+
+            drawWaveforms(margin, 'Input Voltage (Yellow) and Current (Cyan)');
+
+            // Draw voltage (always sinusoidal)
+            pfcCtx.strokeStyle = '#FFFF00';
+            pfcCtx.lineWidth = 2;
+            pfcCtx.beginPath();
+            for (let x = margin; x < w - margin; x++) {
+                const t = (x - margin) / (w - 2*margin) * 2 * Math.PI;
+                const v = Math.sin(t);
+                const y = margin + plotH/2 - v * plotH * 0.4;
+                if (x === margin) pfcCtx.moveTo(x, y);
+                else pfcCtx.lineTo(x, y);
+            }
+            pfcCtx.stroke();
+
+            // Draw current based on PFC type
+            pfcCtx.strokeStyle = '#00FFFF';
+            pfcCtx.lineWidth = 2;
+            pfcCtx.beginPath();
+
+            const iin_avg = loadPower / (vrms * (pfcType === 'none' ? 0.6 : pfcType === 'passive' ? 0.85 : 0.99));
+
+            if (pfcType === 'none') {
+                // Capacitor input filter - peaky current near voltage peaks
+                pf = 0.55 + Math.random() * 0.1;
+                thd = 130 + Math.random() * 20;
+                for (let x = margin; x < w - margin; x++) {
+                    const t = (x - margin) / (w - 2*margin) * 2 * Math.PI;
+                    const v = Math.abs(Math.sin(t));
+                    // Current only flows when voltage > Vbus * rectifier
+                    const vThreshold = 0.85;
+                    let current = 0;
+                    if (v > vThreshold) {
+                        current = Math.pow((v - vThreshold) / (1 - vThreshold), 0.5) * 3.5;
+                    }
+                    current *= Math.sign(Math.sin(t));
+                    const y = margin + plotH/2 - current * plotH * 0.12;
+                    if (x === margin) pfcCtx.moveTo(x, y);
+                    else pfcCtx.lineTo(x, y);
+                }
+                ipeak = iin_avg * 3.5;
+                irms = iin_avg * 1.8;
+            } else if (pfcType === 'passive') {
+                // Passive PFC - trapezoid-ish current
+                pf = 0.80 + Math.random() * 0.1;
+                thd = 40 + Math.random() * 10;
+                for (let x = margin; x < w - margin; x++) {
+                    const t = (x - margin) / (w - 2*margin) * 2 * Math.PI;
+                    let current = Math.sin(t);
+                    // Flatten peaks and add some deadtime
+                    if (Math.abs(current) > 0.7) current = Math.sign(current) * 0.7;
+                    if (Math.abs(Math.sin(t)) < 0.15) current = 0;
+                    current *= 1.8;
+                    const y = margin + plotH/2 - current * plotH * 0.22;
+                    if (x === margin) pfcCtx.moveTo(x, y);
+                    else pfcCtx.lineTo(x, y);
+                }
+                ipeak = iin_avg * 1.8;
+                irms = iin_avg * 1.2;
+            } else if (pfcType === 'active') {
+                // Active CCM PFC - clean sine with small ripple
+                pf = 0.99;
+                thd = 3 + Math.random() * 2;
+                for (let x = margin; x < w - margin; x++) {
+                    const t = (x - margin) / (w - 2*margin) * 2 * Math.PI;
+                    let current = Math.sin(t);
+                    // Add small HF ripple
+                    current += Math.sin(t * 100) * 0.03;
+                    current *= 1.2;
+                    const y = margin + plotH/2 - current * plotH * 0.3;
+                    if (x === margin) pfcCtx.moveTo(x, y);
+                    else pfcCtx.lineTo(x, y);
+                }
+                ipeak = iin_avg * 1.4;
+                irms = iin_avg * 1.01;
+            } else {
+                // CrCM - variable frequency triangular current
+                pf = 0.98;
+                thd = 8 + Math.random() * 3;
+                for (let x = margin; x < w - margin; x++) {
+                    const t = (x - margin) / (w - 2*margin) * 2 * Math.PI;
+                    const envelope = Math.sin(t);
+                    // Triangle wave with frequency varying with voltage
+                    const freq = 50 + Math.abs(Math.sin(t)) * 100;
+                    const triangle = (2 * Math.abs(2 * (t * freq / (2*Math.PI) - Math.floor(t * freq / (2*Math.PI) + 0.5))) - 1);
+                    let current = envelope * 0.5 + triangle * Math.abs(envelope) * 0.5;
+                    current *= 1.5;
+                    const y = margin + plotH/2 - current * plotH * 0.25;
+                    if (x === margin) pfcCtx.moveTo(x, y);
+                    else pfcCtx.lineTo(x, y);
+                }
+                ipeak = iin_avg * 2.0;
+                irms = iin_avg * 1.1;
+            }
+            pfcCtx.stroke();
+
+            // Draw harmonic spectrum
+            const specY = margin + plotH + margin;
+            pfcCtx.fillStyle = '#FFFFFF';
+            pfcCtx.font = '14px monospace';
+            pfcCtx.fillText('Harmonic Spectrum (dB relative to fundamental)', margin, specY - 10);
+
+            // Draw bars for harmonics 1-19
+            const barW = (w - 2*margin) / 20;
+            const harmonics = [];
+
+            if (pfcType === 'none') {
+                harmonics.push(0, -6, -10, -14, -18, -20, -24, -28, -32, -35);
+            } else if (pfcType === 'passive') {
+                harmonics.push(0, -14, -22, -28, -34, -40, -46, -50, -54, -58);
+            } else if (pfcType === 'active') {
+                harmonics.push(0, -40, -50, -55, -60, -65, -70, -72, -74, -76);
+            } else {
+                harmonics.push(0, -32, -42, -48, -54, -58, -62, -66, -70, -74);
+            }
+
+            // IEC limits
+            const iecLimits = [-100, -23, -100, -17, -100, -13, -100, -10, -100, -8];
+
+            for (let i = 0; i < 10; i++) {
+                const x = margin + (i * 2 + 1) * barW;
+                const harmLevel = harmonics[i] || -80;
+                const barH = Math.max(5, (-harmLevel + 10) * 2);
+
+                // Color based on limit
+                const limit = iecLimits[i];
+                if (harmLevel > limit && limit > -50) {
+                    pfcCtx.fillStyle = '#FF4444';
+                } else {
+                    pfcCtx.fillStyle = '#00FF00';
+                }
+
+                pfcCtx.fillRect(x, specY + plotH - barH, barW * 0.8, barH);
+
+                // Harmonic number
+                pfcCtx.fillStyle = '#888';
+                pfcCtx.font = '10px monospace';
+                pfcCtx.fillText('H' + (i * 2 + 1), x, specY + plotH + 12);
+
+                // Draw IEC limit line for odd harmonics
+                if (limit > -50) {
+                    const limitH = (-limit + 10) * 2;
+                    pfcCtx.strokeStyle = '#FF6600';
+                    pfcCtx.lineWidth = 2;
+                    pfcCtx.beginPath();
+                    pfcCtx.moveTo(x - 5, specY + plotH - limitH);
+                    pfcCtx.lineTo(x + barW * 0.8 + 5, specY + plotH - limitH);
+                    pfcCtx.stroke();
+                }
+            }
+
+            // Legend
+            pfcCtx.fillStyle = '#FF6600';
+            pfcCtx.fillRect(w - 180, specY + 10, 15, 3);
+            pfcCtx.fillStyle = '#FFF';
+            pfcCtx.font = '11px monospace';
+            pfcCtx.fillText('IEC 61000-3-2 Limit', w - 160, specY + 15);
+
+            // Update values
+            document.getElementById('pf-val').textContent = pf.toFixed(2);
+            document.getElementById('thd-val').textContent = thd.toFixed(0) + '%';
+            document.getElementById('ipeak-val').textContent = ipeak.toFixed(1) + 'A';
+            document.getElementById('irms-val').textContent = irms.toFixed(2) + 'A';
+        }
+
+        document.getElementById('load-power').addEventListener('input', drawPowerFactor);
+        document.getElementById('pfc-type').addEventListener('change', drawPowerFactor);
+        drawPowerFactor();
+
+        // ========== Interactive 2: Boost PFC Inductor Design ==========
+        const inductorCanvas = document.getElementById('inductor-canvas');
+        const inductorCtx = inductorCanvas.getContext('2d');
+
+        function drawInductorDesign() {
+            const L = parseFloat(document.getElementById('pfc-inductance').value);
+            const fsw = parseFloat(document.getElementById('pfc-fsw').value);
+            const vin = parseFloat(document.getElementById('pfc-vin').value);
+
+            document.getElementById('pfc-inductance-val').textContent = L + 'μH';
+            document.getElementById('pfc-fsw-val').textContent = fsw + 'kHz';
+            document.getElementById('pfc-vin-val').textContent = vin + 'VAC';
+
+            inductorCtx.fillStyle = '#181818';
+            inductorCtx.fillRect(0, 0, inductorCanvas.width, inductorCanvas.height);
+
+            const w = inductorCanvas.width;
+            const h = inductorCanvas.height;
+            const margin = 60;
+
+            const vbus = 400;
+            const pout = 300;
+            const vinPeak = vin * Math.sqrt(2);
+
+            // Calculate inductor current at different phase angles
+            const plotW = (w - 3*margin) / 2;
+            const plotH = h - 2*margin;
+
+            // Left plot: Inductor current envelope
+            inductorCtx.fillStyle = '#FFF';
+            inductorCtx.font = '14px monospace';
+            inductorCtx.fillText('Inductor Current Envelope (1 AC cycle)', margin, 25);
+
+            // Axes
+            inductorCtx.strokeStyle = '#444';
+            inductorCtx.lineWidth = 1;
+            inductorCtx.beginPath();
+            inductorCtx.moveTo(margin, margin);
+            inductorCtx.lineTo(margin, h - margin);
+            inductorCtx.lineTo(margin + plotW, h - margin);
+            inductorCtx.stroke();
+
+            // Calculate current envelope
+            const il_rms = pout / (vin * 0.99);
+            const il_peak_envelope = il_rms * Math.sqrt(2);
+
+            // Determine CCM/DCM/CrCM based on inductance
+            const Lh = L * 1e-6;
+            const Tsw = 1 / (fsw * 1000);
+
+            // Critical inductance for CCM at lowest line voltage point
+            const dMax = 1 - (vin * Math.sqrt(2) * 0.5) / vbus; // D at Vin_peak/2
+            const iLavg_crit = pout / (vin * 0.99) * Math.sqrt(2) * 0.5;
+            const deltaI = (vin * Math.sqrt(2) * 0.5 * dMax) / (Lh * fsw * 1000);
+            const Lcrit = (vin * Math.sqrt(2) * dMax * Tsw) / (2 * iLavg_crit);
+
+            let mode = 'CCM';
+            if (Lh < Lcrit * 0.7) mode = 'DCM';
+            else if (Lh < Lcrit * 1.2) mode = 'CrCM';
+
+            // Draw current envelope
+            inductorCtx.strokeStyle = '#00FFFF';
+            inductorCtx.lineWidth = 2;
+            inductorCtx.beginPath();
+
+            let maxDeltaI = 0;
+            let maxIpeak = 0;
+
+            for (let i = 0; i <= 100; i++) {
+                const theta = i / 100 * Math.PI;
+                const vinInst = vinPeak * Math.sin(theta);
+                if (vinInst < 10) continue;
+
+                const d = 1 - vinInst / vbus;
+                const iAvg = il_peak_envelope * Math.sin(theta);
+                const dI = (vinInst * d) / (Lh * fsw * 1000);
+
+                if (dI > maxDeltaI) maxDeltaI = dI;
+
+                const iPeak = iAvg + dI / 2;
+                const iValley = Math.max(0, iAvg - dI / 2);
+
+                if (iPeak > maxIpeak) maxIpeak = iPeak;
+
+                const x = margin + (i / 100) * plotW;
+                const yPeak = h - margin - (iPeak / 8) * plotH;
+                const yValley = h - margin - (iValley / 8) * plotH;
+
+                if (i === 0 || vinInst < 15) {
+                    inductorCtx.moveTo(x, yPeak);
+                } else {
+                    inductorCtx.lineTo(x, yPeak);
+                }
+            }
+            inductorCtx.stroke();
+
+            // Valley current
+            inductorCtx.strokeStyle = '#FF66FF';
+            inductorCtx.beginPath();
+            for (let i = 0; i <= 100; i++) {
+                const theta = i / 100 * Math.PI;
+                const vinInst = vinPeak * Math.sin(theta);
+                if (vinInst < 10) continue;
+
+                const d = 1 - vinInst / vbus;
+                const iAvg = il_peak_envelope * Math.sin(theta);
+                const dI = (vinInst * d) / (Lh * fsw * 1000);
+                const iValley = Math.max(0, iAvg - dI / 2);
+
+                const x = margin + (i / 100) * plotW;
+                const y = h - margin - (iValley / 8) * plotH;
+
+                if (i === 0 || vinInst < 15) {
+                    inductorCtx.moveTo(x, y);
+                } else {
+                    inductorCtx.lineTo(x, y);
+                }
+            }
+            inductorCtx.stroke();
+
+            // Average current
+            inductorCtx.strokeStyle = '#FFFF00';
+            inductorCtx.setLineDash([5, 5]);
+            inductorCtx.beginPath();
+            for (let i = 0; i <= 100; i++) {
+                const theta = i / 100 * Math.PI;
+                const iAvg = il_peak_envelope * Math.sin(theta);
+                const x = margin + (i / 100) * plotW;
+                const y = h - margin - (iAvg / 8) * plotH;
+                if (i === 0) inductorCtx.moveTo(x, y);
+                else inductorCtx.lineTo(x, y);
+            }
+            inductorCtx.stroke();
+            inductorCtx.setLineDash([]);
+
+            // Y axis labels
+            inductorCtx.fillStyle = '#888';
+            inductorCtx.font = '11px monospace';
+            for (let i = 0; i <= 8; i += 2) {
+                const y = h - margin - (i / 8) * plotH;
+                inductorCtx.fillText(i + 'A', margin - 25, y + 4);
+            }
+
+            // Legend
+            inductorCtx.fillStyle = '#00FFFF';
+            inductorCtx.fillRect(margin + 10, margin + 10, 20, 3);
+            inductorCtx.fillStyle = '#FFF';
+            inductorCtx.fillText('Peak', margin + 35, margin + 15);
+
+            inductorCtx.fillStyle = '#FF66FF';
+            inductorCtx.fillRect(margin + 10, margin + 30, 20, 3);
+            inductorCtx.fillStyle = '#FFF';
+            inductorCtx.fillText('Valley', margin + 35, margin + 35);
+
+            inductorCtx.fillStyle = '#FFFF00';
+            inductorCtx.fillRect(margin + 10, margin + 50, 20, 3);
+            inductorCtx.fillStyle = '#FFF';
+            inductorCtx.fillText('Average', margin + 35, margin + 55);
+
+            // Right plot: Switching waveform at peak of sine
+            const rightX = margin + plotW + margin;
+            inductorCtx.fillStyle = '#FFF';
+            inductorCtx.font = '14px monospace';
+            inductorCtx.fillText('Switching Detail (at sine peak)', rightX, 25);
+
+            // Axes
+            inductorCtx.strokeStyle = '#444';
+            inductorCtx.beginPath();
+            inductorCtx.moveTo(rightX, margin);
+            inductorCtx.lineTo(rightX, h - margin);
+            inductorCtx.lineTo(rightX + plotW, h - margin);
+            inductorCtx.stroke();
+
+            // Draw 3 switching cycles
+            const d_at_peak = 1 - vinPeak / vbus;
+            const iAvg_at_peak = il_peak_envelope;
+            const dI_at_peak = (vinPeak * d_at_peak) / (Lh * fsw * 1000);
+
+            inductorCtx.strokeStyle = '#00FFFF';
+            inductorCtx.lineWidth = 2;
+            inductorCtx.beginPath();
+
+            const cycles = 3;
+            const cycleW = plotW / cycles;
+
+            for (let c = 0; c < cycles; c++) {
+                const x0 = rightX + c * cycleW;
+                const x1 = x0 + d_at_peak * cycleW;
+                const x2 = x0 + cycleW;
+
+                let iValley = Math.max(0, iAvg_at_peak - dI_at_peak / 2);
+                let iPeak = iAvg_at_peak + dI_at_peak / 2;
+
+                // Handle DCM
+                if (mode === 'DCM' || mode === 'CrCM') {
+                    iValley = 0;
+                    iPeak = dI_at_peak;
+                }
+
+                const yValley = h - margin - (iValley / 8) * plotH;
+                const yPeak = h - margin - (iPeak / 8) * plotH;
+
+                if (c === 0) inductorCtx.moveTo(x0, yValley);
+                inductorCtx.lineTo(x0, yValley);
+                inductorCtx.lineTo(x1, yPeak);
+
+                if (mode === 'DCM') {
+                    const tDis = (iPeak * Lh * fsw * 1000) / (vbus - vinPeak);
+                    const x_zero = x1 + (tDis / Tsw) * cycleW;
+                    if (x_zero < x2) {
+                        inductorCtx.lineTo(x_zero, h - margin);
+                        inductorCtx.lineTo(x2, h - margin);
+                    } else {
+                        inductorCtx.lineTo(x2, yValley);
+                    }
+                } else {
+                    inductorCtx.lineTo(x2, yValley);
+                }
+            }
+            inductorCtx.stroke();
+
+            // Mode indicator
+            let modeColor = '#00FF00';
+            if (mode === 'DCM') modeColor = '#FF6600';
+            else if (mode === 'CrCM') modeColor = '#FFFF00';
+
+            inductorCtx.fillStyle = modeColor;
+            inductorCtx.font = 'bold 16px monospace';
+            inductorCtx.fillText('Mode: ' + mode, rightX + plotW - 120, margin + 20);
+
+            // Core loss estimate (simplified Steinmetz)
+            const B_peak = 0.15 * (200e-6 / Lh); // Approximate
+            const coreLoss = 2 * Math.pow(fsw / 100, 1.5) * Math.pow(B_peak / 0.1, 2.5);
+
+            // Update values
+            document.getElementById('mode-val').textContent = mode;
+            document.getElementById('delta-il-val').textContent = maxDeltaI.toFixed(1) + 'A';
+            document.getElementById('il-peak-val').textContent = maxIpeak.toFixed(1) + 'A';
+            document.getElementById('core-loss-val').textContent = coreLoss.toFixed(1) + 'W';
+        }
+
+        document.getElementById('pfc-inductance').addEventListener('input', drawInductorDesign);
+        document.getElementById('pfc-fsw').addEventListener('input', drawInductorDesign);
+        document.getElementById('pfc-vin').addEventListener('input', drawInductorDesign);
+        drawInductorDesign();
+
+        // ========== Interactive 3: LLC Resonant Converter ==========
+        const llcCanvas = document.getElementById('llc-canvas');
+        const llcCtx = llcCanvas.getContext('2d');
+
+        function drawLLC() {
+            const Lr = parseFloat(document.getElementById('llc-lr').value);
+            const ratio = parseFloat(document.getElementById('llc-ratio').value);
+            const Cr = parseFloat(document.getElementById('llc-cr').value);
+            const loadPct = parseFloat(document.getElementById('llc-load').value);
+
+            document.getElementById('llc-lr-val').textContent = Lr + 'μH';
+            document.getElementById('llc-ratio-val').textContent = ratio;
+            document.getElementById('llc-cr-val').textContent = Cr + 'nF';
+            document.getElementById('llc-load-val').textContent = loadPct + '%';
+
+            llcCtx.fillStyle = '#181818';
+            llcCtx.fillRect(0, 0, llcCanvas.width, llcCanvas.height);
+
+            const w = llcCanvas.width;
+            const h = llcCanvas.height;
+            const margin = 60;
+
+            // Calculate resonant frequencies
+            const Lm = Lr * ratio;
+            const Lr_H = Lr * 1e-6;
+            const Lm_H = Lm * 1e-6;
+            const Cr_F = Cr * 1e-9;
+
+            const fr1 = 1 / (2 * Math.PI * Math.sqrt(Lr_H * Cr_F));
+            const fr2 = 1 / (2 * Math.PI * Math.sqrt((Lr_H + Lm_H) * Cr_F));
+
+            // Q factor calculation
+            const Vout = 24;
+            const Pout = 300;
+            const Rac = 8 * Math.pow(16 / 3.14159, 2) * Math.pow(Vout, 2) / Pout; // Reflected load
+            const Rac_actual = Rac * (100 / loadPct);
+            const Q = Math.sqrt(Lr_H / Cr_F) / Rac_actual;
+
+            // Left plot: Gain curve
+            const plotW = (w - 3*margin) / 2;
+            const plotH = h - 2*margin;
+
+            llcCtx.fillStyle = '#FFF';
+            llcCtx.font = '14px monospace';
+            llcCtx.fillText('LLC Gain vs Normalized Frequency', margin, 25);
+
+            // Axes
+            llcCtx.strokeStyle = '#444';
+            llcCtx.lineWidth = 1;
+            llcCtx.beginPath();
+            llcCtx.moveTo(margin, margin);
+            llcCtx.lineTo(margin, h - margin);
+            llcCtx.lineTo(margin + plotW, h - margin);
+            llcCtx.stroke();
+
+            // Y axis (gain 0 to 2)
+            llcCtx.fillStyle = '#888';
+            llcCtx.font = '11px monospace';
+            for (let g = 0; g <= 2; g += 0.5) {
+                const y = h - margin - (g / 2) * plotH;
+                llcCtx.fillText(g.toFixed(1), margin - 30, y + 4);
+                llcCtx.strokeStyle = '#333';
+                llcCtx.beginPath();
+                llcCtx.moveTo(margin, y);
+                llcCtx.lineTo(margin + plotW, y);
+                llcCtx.stroke();
+            }
+
+            // X axis (fn 0.5 to 1.5)
+            for (let fn = 0.5; fn <= 1.5; fn += 0.25) {
+                const x = margin + ((fn - 0.5) / 1.0) * plotW;
+                llcCtx.fillText(fn.toFixed(2), x - 15, h - margin + 20);
+            }
+            llcCtx.fillText('fn (f/fr1)', margin + plotW/2 - 30, h - 15);
+
+            // LLC gain function
+            function llcGain(fn, Q, Ln) {
+                const k = Ln;
+                const num = k * fn * fn;
+                const den_real = k * fn * fn - k - 1;
+                const den_imag = fn * Q * (fn * fn - 1);
+                return num / Math.sqrt(den_real * den_real + den_imag * den_imag);
+            }
+
+            // Draw gain curves for different Q values
+            const Ln = ratio;
+            const Qs = [0.2, 0.4, 0.6, 0.8, 1.0];
+            const colors = ['#00FF00', '#00FFFF', '#FFFF00', '#FF66FF', '#FF6600'];
+
+            for (let qi = 0; qi < Qs.length; qi++) {
+                llcCtx.strokeStyle = colors[qi];
+                llcCtx.lineWidth = Qs[qi] === Q ? 3 : 1.5;
+                llcCtx.beginPath();
+
+                for (let i = 0; i <= 200; i++) {
+                    const fn = 0.5 + i / 200;
+                    const gain = llcGain(fn, Qs[qi], Ln);
+                    const x = margin + ((fn - 0.5) / 1.0) * plotW;
+                    const y = h - margin - (Math.min(gain, 2) / 2) * plotH;
+                    if (i === 0) llcCtx.moveTo(x, y);
+                    else llcCtx.lineTo(x, y);
+                }
+                llcCtx.stroke();
+            }
+
+            // Mark current operating Q
+            llcCtx.strokeStyle = '#00FFFF';
+            llcCtx.lineWidth = 3;
+            llcCtx.beginPath();
+            for (let i = 0; i <= 200; i++) {
+                const fn = 0.5 + i / 200;
+                const gain = llcGain(fn, Q, Ln);
+                const x = margin + ((fn - 0.5) / 1.0) * plotW;
+                const y = h - margin - (Math.min(gain, 2) / 2) * plotH;
+                if (i === 0) llcCtx.moveTo(x, y);
+                else llcCtx.lineTo(x, y);
+            }
+            llcCtx.stroke();
+
+            // Mark fr2/fr1 line
+            const fn_fr2 = fr2 / fr1;
+            const x_fr2 = margin + ((fn_fr2 - 0.5) / 1.0) * plotW;
+            llcCtx.strokeStyle = '#FF4444';
+            llcCtx.setLineDash([5, 5]);
+            llcCtx.beginPath();
+            llcCtx.moveTo(x_fr2, margin);
+            llcCtx.lineTo(x_fr2, h - margin);
+            llcCtx.stroke();
+            llcCtx.setLineDash([]);
+            llcCtx.fillStyle = '#FF4444';
+            llcCtx.fillText('fr2', x_fr2 - 10, margin + 20);
+
+            // Unity gain line
+            const y_unity = h - margin - (1 / 2) * plotH;
+            llcCtx.strokeStyle = '#888';
+            llcCtx.setLineDash([3, 3]);
+            llcCtx.beginPath();
+            llcCtx.moveTo(margin, y_unity);
+            llcCtx.lineTo(margin + plotW, y_unity);
+            llcCtx.stroke();
+            llcCtx.setLineDash([]);
+
+            // Legend
+            llcCtx.font = '10px monospace';
+            for (let qi = 0; qi < Qs.length; qi++) {
+                llcCtx.fillStyle = colors[qi];
+                llcCtx.fillText('Q=' + Qs[qi].toFixed(1), margin + 10 + qi * 60, margin + 20);
+            }
+
+            // Right plot: ZVS region
+            const rightX = margin + plotW + margin;
+            llcCtx.fillStyle = '#FFF';
+            llcCtx.font = '14px monospace';
+            llcCtx.fillText('Operating Regions', rightX, 25);
+
+            // Draw regions
+            const regionH = plotH / 3;
+
+            // ZVS region (green)
+            llcCtx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+            llcCtx.fillRect(rightX, margin, plotW, regionH);
+            llcCtx.fillStyle = '#00FF00';
+            llcCtx.font = 'bold 14px monospace';
+            llcCtx.fillText('ZVS Region (f > fr2)', rightX + 10, margin + 25);
+            llcCtx.font = '12px monospace';
+            llcCtx.fillText('• Inductive impedance', rightX + 10, margin + 45);
+            llcCtx.fillText('• Current lags voltage', rightX + 10, margin + 65);
+            llcCtx.fillText('• Soft turn-on', rightX + 10, margin + 85);
+
+            // Transition region (yellow)
+            llcCtx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+            llcCtx.fillRect(rightX, margin + regionH, plotW, regionH);
+            llcCtx.fillStyle = '#FFFF00';
+            llcCtx.font = 'bold 14px monospace';
+            llcCtx.fillText('Resonant Region (fr2 < f < fr1)', rightX + 10, margin + regionH + 25);
+            llcCtx.font = '12px monospace';
+            llcCtx.fillText('• Maximum gain available', rightX + 10, margin + regionH + 45);
+            llcCtx.fillText('• ZVS maintained', rightX + 10, margin + regionH + 65);
+            llcCtx.fillText('• Boost mode operation', rightX + 10, margin + regionH + 85);
+
+            // ZCS/Hard switching region (red)
+            llcCtx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+            llcCtx.fillRect(rightX, margin + 2*regionH, plotW, regionH);
+            llcCtx.fillStyle = '#FF4444';
+            llcCtx.font = 'bold 14px monospace';
+            llcCtx.fillText('Capacitive Region (f < fr2)', rightX + 10, margin + 2*regionH + 25);
+            llcCtx.font = '12px monospace';
+            llcCtx.fillText('• AVOID - Hard switching!', rightX + 10, margin + 2*regionH + 45);
+            llcCtx.fillText('• Current leads voltage', rightX + 10, margin + 2*regionH + 65);
+            llcCtx.fillText('• High switching losses', rightX + 10, margin + 2*regionH + 85);
+
+            // Calculate gain at fr1
+            const gainAtFr1 = llcGain(1.0, Q, Ln);
+
+            // Update values
+            document.getElementById('fr1-val').textContent = (fr1 / 1000).toFixed(0) + 'kHz';
+            document.getElementById('fr2-val').textContent = (fr2 / 1000).toFixed(0) + 'kHz';
+            document.getElementById('llc-q-val').textContent = Q.toFixed(2);
+            document.getElementById('gain-fr1-val').textContent = gainAtFr1.toFixed(2);
+        }
+
+        document.getElementById('llc-lr').addEventListener('input', drawLLC);
+        document.getElementById('llc-ratio').addEventListener('input', drawLLC);
+        document.getElementById('llc-cr').addEventListener('input', drawLLC);
+        document.getElementById('llc-load').addEventListener('input', drawLLC);
+        drawLLC();
+
+        // ========== Interactive 4: Control Loop Design ==========
+        const controlCanvas = document.getElementById('control-canvas');
+        const controlCtx = controlCanvas.getContext('2d');
+
+        function drawControlLoop() {
+            const vloopBW = parseFloat(document.getElementById('vloop-bw').value);
+            const iloopBW = parseFloat(document.getElementById('iloop-bw').value);
+            const loadStep = parseFloat(document.getElementById('load-step').value);
+
+            document.getElementById('vloop-bw-val').textContent = vloopBW + 'Hz';
+            document.getElementById('iloop-bw-val').textContent = iloopBW + 'kHz';
+            document.getElementById('load-step-val').textContent = loadStep + '%';
+
+            controlCtx.fillStyle = '#181818';
+            controlCtx.fillRect(0, 0, controlCanvas.width, controlCanvas.height);
+
+            const w = controlCanvas.width;
+            const h = controlCanvas.height;
+            const margin = 60;
+
+            // Left plot: Voltage bus transient response
+            const plotW = (w - 3*margin) / 2;
+            const plotH = h - 2*margin;
+
+            controlCtx.fillStyle = '#FFF';
+            controlCtx.font = '14px monospace';
+            controlCtx.fillText('Bus Voltage Response to Load Step', margin, 25);
+
+            // Axes
+            controlCtx.strokeStyle = '#444';
+            controlCtx.lineWidth = 1;
+            controlCtx.beginPath();
+            controlCtx.moveTo(margin, margin);
+            controlCtx.lineTo(margin, h - margin);
+            controlCtx.lineTo(margin + plotW, h - margin);
+            controlCtx.stroke();
+
+            // Y axis: 360V to 420V
+            controlCtx.fillStyle = '#888';
+            controlCtx.font = '11px monospace';
+            for (let v = 360; v <= 420; v += 10) {
+                const y = h - margin - ((v - 360) / 60) * plotH;
+                controlCtx.fillText(v + 'V', margin - 35, y + 4);
+                controlCtx.strokeStyle = '#333';
+                controlCtx.beginPath();
+                controlCtx.moveTo(margin, y);
+                controlCtx.lineTo(margin + plotW, y);
+                controlCtx.stroke();
+            }
+
+            // X axis: 0 to 200ms
+            for (let t = 0; t <= 200; t += 50) {
+                const x = margin + (t / 200) * plotW;
+                controlCtx.fillStyle = '#888';
+                controlCtx.fillText(t + 'ms', x - 15, h - margin + 20);
+            }
+
+            // Calculate transient response
+            const vbus_nom = 400;
+            const cbus = 330e-6; // 330uF bus capacitor
+            const pout = 300;
+            const pStep = pout * loadStep / 100;
+
+            // Step response with second-order approximation
+            const tau = 1 / (2 * Math.PI * vloopBW);
+            const zeta = 0.7; // Damping ratio
+
+            controlCtx.strokeStyle = '#FFFF00';
+            controlCtx.lineWidth = 2;
+            controlCtx.beginPath();
+
+            let vMin = vbus_nom;
+            let vMax = vbus_nom;
+
+            for (let i = 0; i <= 200; i++) {
+                const t_ms = i;
+                const t_s = t_ms / 1000;
+
+                let vbus;
+                if (t_ms < 50) {
+                    vbus = vbus_nom;
+                } else {
+                    const t_step = (t_ms - 50) / 1000;
+                    // Voltage sag from power step
+                    const vDrop = (pStep * t_step) / (cbus * vbus_nom);
+                    // Recovery from control loop
+                    const recovery = 1 - Math.exp(-t_step / tau) * (Math.cos(2 * Math.PI * vloopBW * t_step * 0.5) +
+                                    zeta * Math.sin(2 * Math.PI * vloopBW * t_step * 0.5));
+                    vbus = vbus_nom - vDrop * (1 - recovery) * 0.7;
+                    vbus = Math.max(350, Math.min(430, vbus));
+                }
+
+                if (vbus < vMin) vMin = vbus;
+                if (vbus > vMax) vMax = vbus;
+
+                const x = margin + (i / 200) * plotW;
+                const y = h - margin - ((vbus - 360) / 60) * plotH;
+                if (i === 0) controlCtx.moveTo(x, y);
+                else controlCtx.lineTo(x, y);
+            }
+            controlCtx.stroke();
+
+            // Mark step point
+            const stepX = margin + (50 / 200) * plotW;
+            controlCtx.strokeStyle = '#FF6600';
+            controlCtx.setLineDash([5, 5]);
+            controlCtx.beginPath();
+            controlCtx.moveTo(stepX, margin);
+            controlCtx.lineTo(stepX, h - margin);
+            controlCtx.stroke();
+            controlCtx.setLineDash([]);
+            controlCtx.fillStyle = '#FF6600';
+            controlCtx.fillText('Load Step', stepX + 5, margin + 20);
+
+            // Right plot: Current loop Bode
+            const rightX = margin + plotW + margin;
+            controlCtx.fillStyle = '#FFF';
+            controlCtx.font = '14px monospace';
+            controlCtx.fillText('Current Loop Bode Plot', rightX, 25);
+
+            // Axes
+            controlCtx.strokeStyle = '#444';
+            controlCtx.beginPath();
+            controlCtx.moveTo(rightX, margin);
+            controlCtx.lineTo(rightX, h - margin);
+            controlCtx.lineTo(rightX + plotW, h - margin);
+            controlCtx.stroke();
+
+            // Y axis: -40 to 40 dB
+            controlCtx.fillStyle = '#888';
+            for (let g = -40; g <= 40; g += 20) {
+                const y = h - margin - ((g + 40) / 80) * plotH;
+                controlCtx.fillText(g + 'dB', rightX - 35, y + 4);
+                controlCtx.strokeStyle = '#333';
+                controlCtx.beginPath();
+                controlCtx.moveTo(rightX, y);
+                controlCtx.lineTo(rightX + plotW, y);
+                controlCtx.stroke();
+            }
+
+            // X axis: 10Hz to 100kHz (log scale)
+            const freqs = [10, 100, 1000, 10000, 100000];
+            const freqLabels = ['10', '100', '1k', '10k', '100k'];
+            for (let fi = 0; fi < freqs.length; fi++) {
+                const x = rightX + (fi / (freqs.length - 1)) * plotW;
+                controlCtx.fillStyle = '#888';
+                controlCtx.fillText(freqLabels[fi], x - 10, h - margin + 20);
+            }
+
+            // Draw loop gain
+            controlCtx.strokeStyle = '#00FFFF';
+            controlCtx.lineWidth = 2;
+            controlCtx.beginPath();
+
+            const fBW = iloopBW * 1000;
+            let phaseMargin = 0;
+
+            for (let i = 0; i <= 100; i++) {
+                const f = Math.pow(10, 1 + i * 4 / 100); // 10Hz to 100kHz
+                const fNorm = f / fBW;
+
+                // Simple type II compensated loop
+                const gain = 20 * Math.log10(1 / fNorm) + 20 * Math.log10(Math.sqrt(1 + Math.pow(fNorm * 3, 2))) -
+                             20 * Math.log10(Math.sqrt(1 + Math.pow(fNorm * 0.1, 2)));
+
+                const x = rightX + (Math.log10(f) - 1) / 4 * plotW;
+                const y = h - margin - ((gain + 40) / 80) * plotH;
+
+                if (i === 0) controlCtx.moveTo(x, y);
+                else controlCtx.lineTo(x, y);
+
+                // Find phase margin at 0dB crossing
+                if (gain >= 0 && gain < 3) {
+                    const phase = -90 + Math.atan(fNorm * 3) * 180 / Math.PI - Math.atan(fNorm * 0.1) * 180 / Math.PI;
+                    phaseMargin = 180 + phase;
+                }
+            }
+            controlCtx.stroke();
+
+            // Draw 0dB line
+            const y0dB = h - margin - (40 / 80) * plotH;
+            controlCtx.strokeStyle = '#888';
+            controlCtx.setLineDash([3, 3]);
+            controlCtx.beginPath();
+            controlCtx.moveTo(rightX, y0dB);
+            controlCtx.lineTo(rightX + plotW, y0dB);
+            controlCtx.stroke();
+            controlCtx.setLineDash([]);
+            controlCtx.fillStyle = '#888';
+            controlCtx.fillText('0dB', rightX + plotW + 5, y0dB + 4);
+
+            // THD impact from voltage loop BW
+            const thdImpact = 100 * vloopBW / 120; // Rough approximation
+
+            // Hold-up time calculation
+            const vbusMin = 330;
+            const holdupTime = cbus * (vbus_nom * vbus_nom - vbusMin * vbusMin) / (2 * pout) * 1000;
+
+            // Update values
+            document.getElementById('vbus-ripple-val').textContent = '±' + Math.round(vbus_nom - vMin) + 'V';
+            document.getElementById('holdup-val').textContent = holdupTime.toFixed(0) + 'ms';
+            document.getElementById('pm-val').textContent = phaseMargin.toFixed(0) + '°';
+            document.getElementById('thd-impact-val').textContent = thdImpact.toFixed(1) + '%';
+        }
+
+        document.getElementById('vloop-bw').addEventListener('input', drawControlLoop);
+        document.getElementById('iloop-bw').addEventListener('input', drawControlLoop);
+        document.getElementById('load-step').addEventListener('input', drawControlLoop);
+        drawControlLoop();
+
+        // ========== Interactive 5: Efficiency Analysis ==========
+        const effCanvas = document.getElementById('eff-canvas');
+        const effCtx = effCanvas.getContext('2d');
+
+        function drawEfficiency() {
+            const load = parseFloat(document.getElementById('eff-load').value);
+            const vinSel = document.getElementById('eff-vin').value;
+
+            document.getElementById('eff-load-val').textContent = load + '%';
+
+            effCtx.fillStyle = '#181818';
+            effCtx.fillRect(0, 0, effCanvas.width, effCanvas.height);
+
+            const w = effCanvas.width;
+            const h = effCanvas.height;
+            const margin = 60;
+
+            // Left: Efficiency vs Load curve
+            const plotW = (w - 3*margin) / 2;
+            const plotH = h - 2*margin;
+
+            effCtx.fillStyle = '#FFF';
+            effCtx.font = '14px monospace';
+            effCtx.fillText('Efficiency vs Load', margin, 25);
+
+            // Axes
+            effCtx.strokeStyle = '#444';
+            effCtx.lineWidth = 1;
+            effCtx.beginPath();
+            effCtx.moveTo(margin, margin);
+            effCtx.lineTo(margin, h - margin);
+            effCtx.lineTo(margin + plotW, h - margin);
+            effCtx.stroke();
+
+            // Y axis: 80% to 100%
+            for (let e = 80; e <= 100; e += 5) {
+                const y = h - margin - ((e - 80) / 20) * plotH;
+                effCtx.fillStyle = '#888';
+                effCtx.fillText(e + '%', margin - 35, y + 4);
+                effCtx.strokeStyle = '#333';
+                effCtx.beginPath();
+                effCtx.moveTo(margin, y);
+                effCtx.lineTo(margin + plotW, y);
+                effCtx.stroke();
+            }
+
+            // X axis: 0 to 100% load
+            for (let l = 0; l <= 100; l += 20) {
+                const x = margin + (l / 100) * plotW;
+                effCtx.fillStyle = '#888';
+                effCtx.fillText(l + '%', x - 10, h - margin + 20);
+            }
+            effCtx.fillText('Load', margin + plotW / 2 - 15, h - 15);
+
+            // Efficiency curves for different Vin
+            const vins = [100, 115, 230];
+            const vinColors = ['#FF66FF', '#00FFFF', '#FFFF00'];
+            const vinLabels = ['100VAC (JP)', '115VAC (US)', '230VAC (EU)'];
+
+            for (let vi = 0; vi < vins.length; vi++) {
+                effCtx.strokeStyle = vinColors[vi];
+                effCtx.lineWidth = parseInt(vinSel) === vins[vi] ? 3 : 1.5;
+                effCtx.beginPath();
+
+                for (let l = 5; l <= 100; l++) {
+                    // Efficiency model: peak around 50-70% load
+                    const pOut = 300 * l / 100;
+
+                    // Fixed losses (control, gate drive, etc)
+                    const pFixed = 2;
+
+                    // Conduction losses (proportional to I^2)
+                    const iRms = pOut / (vins[vi] * 0.99);
+                    const pCond = 0.015 * iRms * iRms;
+
+                    // Switching losses (proportional to load)
+                    const pSw = 3 * (l / 100) * (vins[vi] < 150 ? 1.5 : 1);
+
+                    // Core losses (relatively constant)
+                    const pCore = 2.5;
+
+                    // LLC losses
+                    const pLLC = 3 * (l / 100) + 1;
+
+                    const pLoss = pFixed + pCond + pSw + pCore + pLLC;
+                    const eff = 100 * pOut / (pOut + pLoss);
+
+                    const x = margin + (l / 100) * plotW;
+                    const y = h - margin - ((eff - 80) / 20) * plotH;
+
+                    if (l === 5) effCtx.moveTo(x, y);
+                    else effCtx.lineTo(x, y);
+                }
+                effCtx.stroke();
+            }
+
+            // Mark current operating point
+            const vin = parseInt(vinSel);
+            const pOut = 300 * load / 100;
+            const iRms = pOut / (vin * 0.99);
+            const pFixed = 2;
+            const pCond = 0.015 * iRms * iRms;
+            const pSw = 3 * (load / 100) * (vin < 150 ? 1.5 : 1);
+            const pCore = 2.5;
+            const pLLC = 3 * (load / 100) + 1;
+            const pLoss = pFixed + pCond + pSw + pCore + pLLC;
+            const effTotal = pOut / (pOut + pLoss);
+
+            const opX = margin + (load / 100) * plotW;
+            const opY = h - margin - ((effTotal * 100 - 80) / 20) * plotH;
+
+            effCtx.fillStyle = '#FF6600';
+            effCtx.beginPath();
+            effCtx.arc(opX, opY, 8, 0, 2 * Math.PI);
+            effCtx.fill();
+
+            // Legend
+            for (let vi = 0; vi < vins.length; vi++) {
+                effCtx.fillStyle = vinColors[vi];
+                effCtx.fillRect(margin + 10, margin + 15 + vi * 18, 30, 3);
+                effCtx.fillText(vinLabels[vi], margin + 45, margin + 20 + vi * 18);
+            }
+
+            // Right: Loss breakdown pie chart
+            const rightX = margin + plotW + margin;
+            effCtx.fillStyle = '#FFF';
+            effCtx.font = '14px monospace';
+            effCtx.fillText('Loss Breakdown @ ' + load + '% Load', rightX, 25);
+
+            // Calculate individual losses
+            const losses = [
+                { name: 'Bridge Rectifier', value: pCond * 0.3, color: '#FF4444' },
+                { name: 'PFC MOSFET Cond', value: pCond * 0.4, color: '#FF6600' },
+                { name: 'PFC Switching', value: pSw * 0.6, color: '#FFFF00' },
+                { name: 'PFC Inductor', value: pCore, color: '#00FF00' },
+                { name: 'LLC Primary', value: pLLC * 0.4, color: '#00FFFF' },
+                { name: 'LLC Transformer', value: pLLC * 0.35, color: '#0088FF' },
+                { name: 'Output Rectifier', value: pLLC * 0.25, color: '#FF66FF' },
+                { name: 'Control/Aux', value: pFixed, color: '#888888' }
+            ];
+
+            const centerX = rightX + plotW / 2;
+            const centerY = margin + plotH / 2;
+            const radius = Math.min(plotW, plotH) / 2.5;
+
+            let startAngle = -Math.PI / 2;
+            const totalLoss = losses.reduce((sum, l) => sum + l.value, 0);
+
+            for (let li = 0; li < losses.length; li++) {
+                const loss = losses[li];
+                const sweepAngle = (loss.value / totalLoss) * 2 * Math.PI;
+
+                effCtx.fillStyle = loss.color;
+                effCtx.beginPath();
+                effCtx.moveTo(centerX, centerY);
+                effCtx.arc(centerX, centerY, radius, startAngle, startAngle + sweepAngle);
+                effCtx.closePath();
+                effCtx.fill();
+
+                // Label
+                const midAngle = startAngle + sweepAngle / 2;
+                const labelR = radius * 1.25;
+                const lx = centerX + Math.cos(midAngle) * labelR;
+                const ly = centerY + Math.sin(midAngle) * labelR;
+
+                effCtx.fillStyle = loss.color;
+                effCtx.font = '10px monospace';
+                const pct = (loss.value / totalLoss * 100).toFixed(0);
+                if (parseFloat(pct) > 5) {
+                    effCtx.fillText(loss.name, lx - 40, ly);
+                    effCtx.fillText(loss.value.toFixed(1) + 'W (' + pct + '%)', lx - 40, ly + 12);
+                }
+
+                startAngle += sweepAngle;
+            }
+
+            // Total loss in center
+            effCtx.fillStyle = '#FFF';
+            effCtx.font = 'bold 16px monospace';
+            effCtx.fillText(totalLoss.toFixed(1) + 'W', centerX - 25, centerY + 5);
+
+            // Calculate stage efficiencies
+            const pfcLoss = pCond + pSw * 0.6 + pCore + 0.3 * pFixed;
+            const llcLoss = pLLC + 0.7 * pFixed;
+            const pfcEff = pOut / (pOut + pfcLoss);
+            const llcEff = pOut / (pOut + llcLoss);
+
+            // Update values
+            document.getElementById('pfc-eff-val').textContent = (pfcEff * 100).toFixed(1) + '%';
+            document.getElementById('llc-eff-val').textContent = (llcEff * 100).toFixed(1) + '%';
+            document.getElementById('total-eff-val').textContent = (effTotal * 100).toFixed(1) + '%';
+            document.getElementById('total-loss-val').textContent = totalLoss.toFixed(1) + 'W';
+        }
+
+        document.getElementById('eff-load').addEventListener('input', drawEfficiency);
+        document.getElementById('eff-vin').addEventListener('change', drawEfficiency);
+        drawEfficiency();
+
+        // ========== Schematic ==========
+        (function() {
+            const container = document.getElementById('pfc-psu-schematic');
+            const svg = new SchematicSVG(980, 500);
+
+            // This is a complex two-stage power supply - use block diagram style
+            // with key component callouts
+
+            svg.addText(490, 20, 'PFC Power Supply Block Diagram', 'bold 16px monospace', '#FFF', 'middle');
+
+            // AC Input section
+            svg.addRect(30, 80, 80, 60, '#333', '#888', 2);
+            svg.addText(70, 105, 'AC', '14px monospace', '#FFF', 'middle');
+            svg.addText(70, 120, 'Input', '12px monospace', '#888', 'middle');
+
+            // EMI Filter
+            svg.addRect(140, 80, 80, 60, '#333', '#00FFFF', 2);
+            svg.addText(180, 105, 'EMI', '14px monospace', '#00FFFF', 'middle');
+            svg.addText(180, 120, 'Filter', '12px monospace', '#00FFFF', 'middle');
+
+            // Bridge Rectifier
+            svg.addRect(250, 80, 80, 60, '#333', '#FF6600', 2);
+            svg.addText(290, 105, 'Bridge', '14px monospace', '#FF6600', 'middle');
+            svg.addText(290, 120, 'Rectifier', '12px monospace', '#FF6600', 'middle');
+
+            // PFC Boost Stage
+            svg.addRect(360, 60, 120, 100, '#333', '#00FF00', 2);
+            svg.addText(420, 90, 'Boost PFC', 'bold 14px monospace', '#00FF00', 'middle');
+            svg.addText(420, 110, 'L: 400μH', '11px monospace', '#888', 'middle');
+            svg.addText(420, 125, 'fsw: 100kHz', '11px monospace', '#888', 'middle');
+            svg.addText(420, 140, 'Vout: 400VDC', '11px monospace', '#888', 'middle');
+
+            // Bus Capacitor
+            svg.addRect(510, 80, 60, 60, '#333', '#FFFF00', 2);
+            svg.addText(540, 105, 'Cbus', '12px monospace', '#FFFF00', 'middle');
+            svg.addText(540, 120, '330μF', '11px monospace', '#888', 'middle');
+
+            // LLC Stage
+            svg.addRect(600, 60, 120, 100, '#333', '#FF66FF', 2);
+            svg.addText(660, 90, 'LLC', 'bold 14px monospace', '#FF66FF', 'middle');
+            svg.addText(660, 110, 'Lr: 50μH', '11px monospace', '#888', 'middle');
+            svg.addText(660, 125, 'fr: 135kHz', '11px monospace', '#888', 'middle');
+            svg.addText(660, 140, 'n: 16:1', '11px monospace', '#888', 'middle');
+
+            // Output Rectifier
+            svg.addRect(750, 80, 80, 60, '#333', '#00FFFF', 2);
+            svg.addText(790, 105, 'Sync', '14px monospace', '#00FFFF', 'middle');
+            svg.addText(790, 120, 'Rect', '12px monospace', '#00FFFF', 'middle');
+
+            // Output
+            svg.addRect(860, 80, 80, 60, '#333', '#888', 2);
+            svg.addText(900, 105, '24V', '14px monospace', '#FFF', 'middle');
+            svg.addText(900, 120, '300W', '12px monospace', '#888', 'middle');
+
+            // Connection lines
+            svg.addWire([[110, 110], [140, 110]], '#888', 2);
+            svg.addWire([[220, 110], [250, 110]], '#888', 2);
+            svg.addWire([[330, 110], [360, 110]], '#888', 2);
+            svg.addWire([[480, 110], [510, 110]], '#888', 2);
+            svg.addWire([[570, 110], [600, 110]], '#888', 2);
+            svg.addWire([[720, 110], [750, 110]], '#888', 2);
+            svg.addWire([[830, 110], [860, 110]], '#888', 2);
+
+            // PFC Controller
+            svg.addRect(360, 200, 100, 70, '#333', '#00FF00', 1);
+            svg.addText(410, 225, 'PFC', '12px monospace', '#00FF00', 'middle');
+            svg.addText(410, 240, 'Controller', '11px monospace', '#00FF00', 'middle');
+            svg.addText(410, 255, '(UC3854)', '10px monospace', '#888', 'middle');
+
+            // Feedback from PFC
+            svg.addWire([[420, 160], [420, 200]], '#00FF00', 1);
+            svg.addText(425, 180, 'Vbus', '10px monospace', '#00FF00', 'start');
+
+            // LLC Controller
+            svg.addRect(600, 200, 100, 70, '#333', '#FF66FF', 1);
+            svg.addText(650, 225, 'LLC', '12px monospace', '#FF66FF', 'middle');
+            svg.addText(650, 240, 'Controller', '11px monospace', '#FF66FF', 'middle');
+            svg.addText(650, 255, '(UCC256304)', '10px monospace', '#888', 'middle');
+
+            // Feedback from LLC
+            svg.addWire([[660, 160], [660, 200]], '#FF66FF', 1);
+
+            // Opto feedback line
+            svg.addWire([[790, 140], [790, 280], [700, 280], [700, 270]], '#FF66FF', 1);
+            svg.addText(745, 290, 'Opto FB', '10px monospace', '#FF66FF', 'middle');
+
+            // Input current sense
+            svg.addWire([[380, 160], [380, 200]], '#FFFF00', 1);
+            svg.addText(340, 180, 'Isense', '10px monospace', '#FFFF00', 'end');
+
+            // Component callouts
+            svg.addText(70, 180, 'L,N,PE', '10px monospace', '#888', 'middle');
+            svg.addText(70, 195, '85-265VAC', '10px monospace', '#888', 'middle');
+
+            // Key specifications box
+            svg.addRect(30, 320, 450, 150, '#222', '#444', 1);
+            svg.addText(40, 345, 'KEY SPECIFICATIONS:', 'bold 12px monospace', '#FFF', 'start');
+            svg.addText(40, 365, '• Input: 85-265VAC, 47-63Hz universal', '11px monospace', '#888', 'start');
+            svg.addText(40, 385, '• Output: 24VDC @ 12.5A (300W)', '11px monospace', '#888', 'start');
+            svg.addText(40, 405, '• Power Factor: >0.99 (PF corrected)', '11px monospace', '#888', 'start');
+            svg.addText(40, 425, '• Efficiency: >92% @ full load', '11px monospace', '#888', 'start');
+            svg.addText(40, 445, '• THD: <5% (meets IEC 61000-3-2)', '11px monospace', '#888', 'start');
+
+            // Safety/Regulatory box
+            svg.addRect(500, 320, 440, 150, '#222', '#444', 1);
+            svg.addText(510, 345, 'SAFETY & COMPLIANCE:', 'bold 12px monospace', '#FFF', 'start');
+            svg.addText(510, 365, '• IEC 61000-3-2 Class A (harmonic limits)', '11px monospace', '#888', 'start');
+            svg.addText(510, 385, '• IEC 61000-4-5 surge immunity (2kV L-N)', '11px monospace', '#888', 'start');
+            svg.addText(510, 405, '• UL/IEC 62368-1 safety', '11px monospace', '#888', 'start');
+            svg.addText(510, 425, '• 80 PLUS Gold efficiency standard', '11px monospace', '#888', 'start');
+            svg.addText(510, 445, '• Hold-up time: >16ms @ full load', '11px monospace', '#888', 'start');
+
+            container.appendChild(svg.svg);
+        })();
+
+        // ========== SPICE Netlist ==========
+        (function() {
+            const spice = new SpiceNetlistWidget('pfc-spice');
+            spice.setNetlist(`* Boost PFC Stage - Average Model for Control Design
+* 300W, 85-265VAC input, 400V output
+
+.SUBCKT BOOST_PFC VIN_RECT VBUS GND CTRL
+* Averaged boost converter model
+
+* Input rectified voltage (full-wave)
+VIN_AC VIN_AC_NODE GND SIN(0 170 60)  ; 120Vrms
+BRECT VIN_RECT GND V=ABS(V(VIN_AC_NODE))
+
+* PFC boost inductor (averaged)
+LPFC VIN_RECT SW_NODE 400u IC=0
+
+* Switch node with duty cycle control
+* D = 1 - Vin/Vout (for PFC)
+BDUTY DUTY GND V=1-V(VIN_RECT)/V(VBUS)
+ESW SW_NODE GND VALUE={V(VIN_RECT)+V(DUTY)*(V(VBUS)-V(VIN_RECT))}
+
+* Boost diode (averaged current)
+GDIODE VBUS GND VALUE={I(LPFC)*(1-V(DUTY))}
+
+* Bus capacitor
+CBUS VBUS GND 330u IC=400
+
+* Load resistor (300W @ 400V = 533 ohms)
+RLOAD VBUS GND 533
+
+.ENDS BOOST_PFC
+
+* PFC Controller - Simplified Average Current Mode
+.SUBCKT PFC_CTRL VIN VBUS IOUT DUTY GND
+
+* Voltage error amplifier
+* Reference = 400V, slow bandwidth (15Hz)
+VREF VREF_NODE GND 2.5  ; Represents 400V
+RDIV1 VBUS VSEN 1MEG
+RDIV2 VSEN GND 6.25k  ; 400V -> 2.5V
+
+* Voltage loop compensator (Type II)
+EVEA VEA_OUT GND VALUE={10*(V(VREF_NODE)-V(VSEN))}
+RVEA VEA_OUT VEA_INT 100k
+CVEA VEA_INT GND 100n
+
+* Multiplier: I_ref = Vea * |Vin| / Vin_rms^2
+BMULT IREF GND V=V(VEA_INT)*ABS(V(VIN))/(120*120)
+
+* Current error amplifier (fast, 8kHz BW)
+ECEA CEA_OUT GND VALUE={5*(V(IREF)-V(IOUT))}
+
+* PWM comparator (simplified)
+BPWM DUTY GND V=LIMIT(V(CEA_OUT)/5,0.05,0.95)
+
+.ENDS PFC_CTRL
+
+* LLC Resonant Converter (FHA model)
+.SUBCKT LLC VIN VOUT GND FREQ
+* First Harmonic Approximation model
+
+* Resonant tank
+LR N1 N2 50u
+CR N2 N3 22n
+LM N3 GND 300u
+
+* Input half-bridge (FHA voltage source)
+VHB N1 GND AC 1 SIN(0 {2*V(VIN)/3.14159} 135k)
+
+* Transformer and rectifier (simplified)
+* n = 16, output reflects to 24V
+ERECT VOUT GND VALUE={ABS(V(N3))*16*0.9}
+COUT VOUT GND 1000u
+RLOAD VOUT GND 1.92  ; 24V @ 12.5A
+
+.ENDS LLC
+
+* Top-level simulation
+XPFC AC_RECT BUS GND CTRL BOOST_PFC
+XCTRL AC_RECT BUS IMON DUTY GND PFC_CTRL
+XLLC BUS OUT GND FCTRL LLC
+
+.TRAN 1u 100m 0 10u UIC
+.PROBE V(BUS) V(OUT) I(LPFC)
+.END`);
+        })();
+
+        // ========== Checklist ==========
+        (function() {
+            new ChecklistWidget('pfc-checklist', {
+                lessonKey: 'm24l10',
+                items: [
+                    'EMI Filter Design: X2 capacitors sized for required attenuation',
+                    'EMI Filter Design: Y1/Y2 capacitors meet leakage current limits (<3.5mA)',
+                    'EMI Filter Design: Common-mode choke adequate for CM noise',
+                    'EMI Filter Design: Differential mode inductance calculated',
+                    'EMI Filter Design: Damping resistors prevent filter ringing',
+                    'EMI Filter Design: Inrush current limiting (NTC or relay)',
+                    'PFC Stage Design: Inductor sized for CCM at minimum load',
+                    'PFC Stage Design: Peak current rating includes worst-case ripple',
+                    'PFC Stage Design: MOSFET Vds rating > Vbus + margin (600V min)',
+                    'PFC Stage Design: Boost diode ultrafast or SiC for efficiency',
+                    'PFC Stage Design: Bus capacitor hold-up time adequate',
+                    'PFC Stage Design: Bus capacitor ripple current rating sufficient',
+                    'PFC Stage Design: Current sensing accuracy verified',
+                    'LLC Stage Design: Resonant frequency selection for gain range',
+                    'LLC Stage Design: Lm/Lr ratio balances ZVS and gain',
+                    'LLC Stage Design: Dead time adequate for ZVS across load',
+                    'LLC Stage Design: Transformer turns ratio optimized',
+                    'LLC Stage Design: Magnetizing inductance verified',
+                    'LLC Stage Design: Synchronous rectifier timing correct',
+                    'LLC Stage Design: Soft-start and inrush protection',
+                    'Control & Protection: Voltage loop bandwidth <20Hz for low THD',
+                    'Control & Protection: Current loop bandwidth 5-10kHz',
+                    'Control & Protection: Over-voltage protection on bus',
+                    'Control & Protection: Over-current protection both stages',
+                    'Control & Protection: Brown-out detection and recovery',
+                    'Control & Protection: Thermal shutdown implemented',
+                    'Control & Protection: Isolated feedback (optocoupler specified)',
+                    'Thermal & Layout: Power semiconductors thermal resistance budgeted',
+                    'Thermal & Layout: Heatsink or thermal management designed',
+                    'Thermal & Layout: Hot-spot components identified',
+                    'Thermal & Layout: Creepage/clearance distances met',
+                    'Thermal & Layout: High-frequency layout minimizes loops',
+                    'Thermal & Layout: Star grounding or ground plane strategy',
+                    'Thermal & Layout: EMI containment (shielding if needed)',
+                    'Compliance Testing: Conducted emissions (CISPR 32)',
+                    'Compliance Testing: Radiated emissions (CISPR 32)',
+                    'Compliance Testing: Harmonic current (IEC 61000-3-2)',
+                    'Compliance Testing: Voltage fluctuations (IEC 61000-3-3)',
+                    'Compliance Testing: ESD immunity (IEC 61000-4-2)',
+                    'Compliance Testing: Surge immunity (IEC 61000-4-5)',
+                    'Compliance Testing: Safety certification (UL/IEC 62368-1)'
+                ]
+            });
+        })();
+
+        // ========== Exercises ==========
+        (function() {
+            const exercises = new ExerciseWidget('pfc-exercises');
+            exercises.setExercises = function(list) {
+                const container = this.container;
+                if (!container || !Array.isArray(list)) return;
+                container.innerHTML = '';
+                list.forEach((ex, i) => {
+                    const div = document.createElement('div');
+                    div.id = `exercise-m24l10-${i}`;
+                    div.style.marginBottom = '15px';
+                    container.appendChild(div);
+
+                    const isChoice = ex.type === 'multiple-choice' || ex.type === 'choice';
+                    const normalized = {
+                        id: ex.id || `m24l10-ex${i + 1}`,
+                        type: isChoice ? 'choice' : (ex.type || 'numeric'),
+                        question: ex.question || '',
+                        expected: ex.expected ?? ex.answer,
+                        tolerance: ex.tolerance ?? 0.05,
+                        unit: ex.unit || '',
+                        hint: Array.isArray(ex.hints) ? ex.hints.join('<br>') : (ex.hint || ''),
+                        solution: ex.solution || ex.explanation || '',
+                        explanation: ex.solution ? (ex.explanation || '') : ''
+                    };
+                    if (isChoice) {
+                        const options = ex.options || [];
+                        normalized.choices = options.map((opt) => ({
+                            text: opt,
+                            correct: opt === ex.answer
+                        }));
+                    }
+
+                    new ExerciseWidget(div.id, normalized);
+                });
+            };
+            exercises.setExercises([
+                {
+                    question: 'A 300W PFC supply operates at 120VAC input with PF=0.99. What is the RMS input current?',
+                    type: 'numeric',
+                    answer: 2.53,
+                    tolerance: 0.1,
+                    unit: 'A',
+                    hints: ['P = Vrms × Irms × PF', 'Irms = P / (Vrms × PF)', 'Irms = 300 / (120 × 0.99)'],
+                    explanation: 'I = P / (V × PF) = 300 / (120 × 0.99) = 2.53A. The high power factor means current is nearly in phase with voltage, maximizing power delivery.'
+                },
+                {
+                    question: 'Calculate the bus capacitor energy storage needed for 20ms hold-up time at 300W, with Vbus dropping from 400V to 330V.',
+                    type: 'numeric',
+                    answer: 330,
+                    tolerance: 20,
+                    unit: 'μF',
+                    hints: ['Energy needed = P × t', 'Energy stored = ½CV²', 'Use ΔE = ½C(V1² - V2²)'],
+                    explanation: 'E = P × t = 300W × 0.020s = 6J. E = ½C(400² - 330²) = ½C × 51100. C = 6 / 25550 = 235μF minimum. With margin: ~330μF.'
+                },
+                {
+                    question: 'An LLC converter has Lr=50μH and Cr=22nF. What is the series resonant frequency fr1?',
+                    type: 'numeric',
+                    answer: 152,
+                    tolerance: 5,
+                    unit: 'kHz',
+                    hints: ['fr = 1 / (2π√(LC))', 'Convert units: 50μH = 50×10⁻⁶H, 22nF = 22×10⁻⁹F'],
+                    explanation: 'fr1 = 1 / (2π√(50×10⁻⁶ × 22×10⁻⁹)) = 1 / (2π × 33.2×10⁻⁸) = 1 / (2.08×10⁻⁶) = 152kHz'
+                },
+                {
+                    question: 'If the PFC voltage loop bandwidth is 30Hz, what is the estimated THD contribution from the control loop?',
+                    type: 'multiple-choice',
+                    options: ['<3%', '~5%', '~12%', '>20%'],
+                    answer: '~12%',
+                    hints: ['Higher voltage loop BW causes current distortion at line frequency', 'THD roughly proportional to BW/60Hz ratio'],
+                    explanation: 'A 30Hz voltage loop bandwidth is too high. At twice line frequency (120Hz for 60Hz input), the voltage loop tries to "correct" the 100/120Hz ripple, distorting the current. THD ≈ 30/60 × 24% ≈ 12%. Keep BW under 20Hz for low THD.'
+                },
+                {
+                    question: 'What determines whether an LLC converter operates in ZVS (inductive) or hard-switching (capacitive) mode?',
+                    type: 'multiple-choice',
+                    options: [
+                        'Output voltage level',
+                        'Operating frequency relative to resonant frequencies',
+                        'Input voltage magnitude',
+                        'Load current magnitude only'
+                    ],
+                    answer: 'Operating frequency relative to resonant frequencies',
+                    hints: ['ZVS requires current to lag voltage', 'Inductive mode occurs when f > fr2'],
+                    explanation: 'ZVS (inductive mode) occurs when switching frequency is above the parallel resonant frequency fr2 = 1/(2π√((Lr+Lm)Cr)). Below fr2, the tank becomes capacitive and hard switching occurs. The LLC must be designed to always operate in the inductive region across all load and input conditions.'
+                }
+            ]);
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 17: Flyback Converter & Transformer Design - EE Learning</title>
+    <link rel="stylesheet" href="../../assets/main.css">
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <a href="../../index.html" class="home-link">EE Learning</a>
+        </div>
+        <nav class="lesson-nav">
+            <a href="lesson-16.html" class="prev-link">Previous</a>
+            <a href="../index.html" class="module-link">Module 23</a>
+            <a href="lesson-18.html" class="next-link">Next</a>
+        </nav>
+    </header>
+
+    <main>
+        <article class="lesson">
+            <h1>Flyback Converter & Transformer Design</h1>
+
+            <section class="intro">
+                <p>The flyback converter is the workhorse of isolated power supplies under 100W. From USB chargers to telecom power modules, flyback topologies dominate due to their simplicity, low component count, and inherent isolation. This lesson covers the complete design flow from specification to working prototype.</p>
+
+                <div class="key-concepts">
+                    <h3>Industry Applications</h3>
+                    <ul>
+                        <li><strong>USB-C/PD Chargers</strong> - 5V to 20V multi-output adapters</li>
+                        <li><strong>LED Drivers</strong> - Isolated constant-current supplies</li>
+                        <li><strong>Auxiliary Power</strong> - Bias supplies for gate drivers, controllers</li>
+                        <li><strong>Telecom Equipment</strong> - -48V to 3.3V/5V isolated converters</li>
+                        <li><strong>Industrial I/O</strong> - Isolated sensor power modules</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>1. Flyback Operating Principle</h2>
+
+                <p>Unlike a true transformer that transfers energy instantaneously, the flyback "transformer" is actually a <strong>coupled inductor</strong> that stores energy in its core during the ON time and releases it to the secondary during OFF time.</p>
+
+                <h3>Energy Transfer Phases</h3>
+
+                <div class="svg-container" style="max-width: 700px; margin: 20px auto;">
+                    <svg viewBox="0 0 700 300" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;">
+                        <defs>
+                            <marker id="arrow-sig" viewBox="0 0 5 4" refX="5" refY="2" markerWidth="5" markerHeight="4" orient="auto">
+                                <path d="M 0 0 L 5 2 L 0 4 z" fill="#00d4ff"/>
+                            </marker>
+                        </defs>
+
+                        <!-- Title -->
+                        <text x="350" y="25" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">Flyback Converter Topology</text>
+
+                        <!-- Input Section -->
+                        <text x="60" y="60" fill="#888" font-size="10" text-anchor="middle">Vin</text>
+                        <line x1="60" y1="70" x2="60" y2="230" stroke="#666" stroke-width="2"/>
+
+                        <!-- Input capacitor -->
+                        <line x1="55" y1="100" x2="65" y2="100" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="55" y1="110" x2="65" y2="110" stroke="#00d4ff" stroke-width="2"/>
+                        <text x="75" y="108" fill="#888" font-size="9">Cin</text>
+
+                        <!-- Primary winding -->
+                        <line x1="60" y1="70" x2="180" y2="70" stroke="#666" stroke-width="2"/>
+                        <line x1="180" y1="70" x2="180" y2="90" stroke="#666" stroke-width="2"/>
+
+                        <!-- Transformer symbol - Primary -->
+                        <path d="M 170 90 Q 180 100 190 90 Q 200 80 210 90 Q 220 100 230 90 Q 240 80 250 90"
+                              stroke="#ff6b6b" stroke-width="2" fill="none" transform="rotate(90, 180, 130)"/>
+
+                        <!-- Dot notation -->
+                        <circle cx="175" cy="95" r="3" fill="#ff6b6b"/>
+                        <circle cx="245" cy="95" r="3" fill="#ff6b6b"/>
+
+                        <!-- Core -->
+                        <line x1="205" y1="85" x2="205" y2="175" stroke="#666" stroke-width="3"/>
+                        <line x1="215" y1="85" x2="215" y2="175" stroke="#666" stroke-width="3"/>
+
+                        <!-- Secondary winding -->
+                        <path d="M 230 90 Q 240 100 250 90 Q 260 80 270 90 Q 280 100 290 90 Q 300 80 310 90"
+                              stroke="#4ade80" stroke-width="2" fill="none" transform="rotate(90, 240, 130)"/>
+
+                        <!-- MOSFET -->
+                        <rect x="170" y="180" width="20" height="30" fill="none" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="180" y1="180" x2="180" y2="170" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="180" y1="210" x2="180" y2="230" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="140" y1="195" x2="170" y2="195" stroke="#00d4ff" stroke-width="2"/>
+                        <text x="155" y="190" fill="#888" font-size="9">Gate</text>
+                        <text x="180" y="225" fill="#888" font-size="9" text-anchor="middle">Q1</text>
+
+                        <!-- Ground connection -->
+                        <line x1="60" y1="230" x2="180" y2="230" stroke="#666" stroke-width="2"/>
+                        <line x1="165" y1="240" x2="195" y2="240" stroke="#666" stroke-width="2"/>
+                        <line x1="170" y1="245" x2="190" y2="245" stroke="#666" stroke-width="2"/>
+                        <line x1="175" y1="250" x2="185" y2="250" stroke="#666" stroke-width="2"/>
+
+                        <!-- Output Diode -->
+                        <line x1="240" y1="90" x2="240" y2="70" stroke="#4ade80" stroke-width="2"/>
+                        <line x1="240" y1="70" x2="300" y2="70" stroke="#4ade80" stroke-width="2"/>
+                        <polygon points="300,70 320,60 320,80" fill="none" stroke="#4ade80" stroke-width="2"/>
+                        <line x1="320" y1="55" x2="320" y2="85" stroke="#4ade80" stroke-width="2"/>
+                        <line x1="320" y1="70" x2="380" y2="70" stroke="#4ade80" stroke-width="2"/>
+                        <text x="310" y="50" fill="#888" font-size="9">D1</text>
+
+                        <!-- Secondary return -->
+                        <line x1="240" y1="170" x2="240" y2="230" stroke="#4ade80" stroke-width="2"/>
+                        <line x1="240" y1="230" x2="380" y2="230" stroke="#4ade80" stroke-width="2"/>
+
+                        <!-- Output capacitor -->
+                        <line x1="380" y1="70" x2="380" y2="140" stroke="#4ade80" stroke-width="2"/>
+                        <line x1="370" y1="140" x2="390" y2="140" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="370" y1="150" x2="390" y2="150" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="380" y1="150" x2="380" y2="230" stroke="#4ade80" stroke-width="2"/>
+                        <text x="398" y="148" fill="#888" font-size="9">Cout</text>
+
+                        <!-- Load -->
+                        <line x1="380" y1="70" x2="440" y2="70" stroke="#4ade80" stroke-width="2"/>
+                        <rect x="430" y="120" width="20" height="40" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                        <line x1="440" y1="70" x2="440" y2="120" stroke="#4ade80" stroke-width="2"/>
+                        <line x1="440" y1="160" x2="440" y2="230" stroke="#4ade80" stroke-width="2"/>
+                        <line x1="380" y1="230" x2="440" y2="230" stroke="#4ade80" stroke-width="2"/>
+                        <text x="460" y="145" fill="#888" font-size="9">Rload</text>
+
+                        <!-- Output voltage label -->
+                        <text x="410" y="60" fill="#4ade80" font-size="10">Vout</text>
+
+                        <!-- Feedback path (optocoupler) -->
+                        <rect x="480" y="100" width="60" height="80" fill="none" stroke="#a855f7" stroke-width="1" stroke-dasharray="4,2"/>
+                        <text x="510" y="95" fill="#a855f7" font-size="9" text-anchor="middle">Opto</text>
+
+                        <!-- Isolation barrier -->
+                        <line x1="210" y1="50" x2="210" y2="260" stroke="#ff6b6b" stroke-width="1" stroke-dasharray="8,4"/>
+                        <text x="210" y="275" fill="#ff6b6b" font-size="9" text-anchor="middle">Isolation Barrier</text>
+
+                        <!-- Current flow annotations -->
+                        <text x="120" y="58" fill="#00d4ff" font-size="9">Ipri (ON)</text>
+                        <path d="M 95 65 L 155 65" stroke="#00d4ff" stroke-width="1" marker-end="url(#arrow-sig)"/>
+
+                        <text x="280" y="58" fill="#4ade80" font-size="9">Isec (OFF)</text>
+                        <path d="M 265 65 L 340 65" stroke="#4ade80" stroke-width="1" marker-end="url(#arrow-sig)"/>
+
+                        <!-- Labels for windings -->
+                        <text x="160" y="140" fill="#ff6b6b" font-size="10">Np</text>
+                        <text x="255" y="140" fill="#4ade80" font-size="10">Ns</text>
+                    </svg>
+                </div>
+
+                <div class="concept-row">
+                    <div class="concept-box">
+                        <h4>ON Time (MOSFET Conducting)</h4>
+                        <ul>
+                            <li>Current ramps up in primary: \( I_p = \frac{V_{in} \cdot t}{L_p} \)</li>
+                            <li>Energy stored in magnetic field: \( E = \frac{1}{2}L_p I_{pk}^2 \)</li>
+                            <li>Secondary diode reverse-biased</li>
+                            <li>Output capacitor supplies load</li>
+                        </ul>
+                    </div>
+                    <div class="concept-box">
+                        <h4>OFF Time (MOSFET Off)</h4>
+                        <ul>
+                            <li>Core field collapses, inducing secondary voltage</li>
+                            <li>Secondary diode forward-biased</li>
+                            <li>Energy transfers to output: \( E_{out} = \frac{1}{2}L_s I_{s,pk}^2 \)</li>
+                            <li>Current ramps down: \( I_s = I_{s,pk} - \frac{V_{out} \cdot t}{L_s} \)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="formula-box">
+                    <h4>Fundamental Flyback Relationships</h4>
+                    <p><strong>Turns Ratio:</strong> \( n = \frac{N_p}{N_s} \)</p>
+                    <p><strong>Reflected Voltage:</strong> \( V_R = \frac{V_{out} + V_f}{n} \) (Vf = diode forward drop)</p>
+                    <p><strong>MOSFET Voltage Stress:</strong> \( V_{DS,max} = V_{in,max} + V_R + V_{spike} \)</p>
+                    <p><strong>Duty Cycle (CCM):</strong> \( D = \frac{V_{out}}{V_{out} + n \cdot V_{in}} \)</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>2. DCM vs CCM Operation</h2>
+
+                <p>Flyback converters can operate in two modes, each with distinct characteristics that affect control loop design and component stress.</p>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>DCM (Discontinuous)</th>
+                            <th>CCM (Continuous)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Inductor Current</td>
+                            <td>Returns to zero each cycle</td>
+                            <td>Never reaches zero</td>
+                        </tr>
+                        <tr>
+                            <td>Peak Current</td>
+                            <td>Higher (2× average)</td>
+                            <td>Lower (closer to average)</td>
+                        </tr>
+                        <tr>
+                            <td>MOSFET/Diode Stress</td>
+                            <td>Higher peak, lower RMS</td>
+                            <td>Lower peak, higher RMS</td>
+                        </tr>
+                        <tr>
+                            <td>Control Dynamics</td>
+                            <td>Single pole, easier to stabilize</td>
+                            <td>RHP zero, more complex compensation</td>
+                        </tr>
+                        <tr>
+                            <td>Efficiency at Light Load</td>
+                            <td>Better (ZVS possible)</td>
+                            <td>Worse (continuous losses)</td>
+                        </tr>
+                        <tr>
+                            <td>Transformer Size</td>
+                            <td>Larger (higher peak flux)</td>
+                            <td>Smaller (lower peak flux)</td>
+                        </tr>
+                        <tr>
+                            <td>Typical Power Range</td>
+                            <td>&lt; 50W</td>
+                            <td>50W - 150W</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Critical Conduction Mode (CrCM / BCM)</h3>
+                <p>Operating at the DCM/CCM boundary offers benefits of both modes. Controllers like the UCC28C42 can implement this mode with variable frequency, achieving ZVS while minimizing peak currents.</p>
+            </section>
+
+            <section>
+                <h2>3. Transformer Design Procedure</h2>
+
+                <h3>Step 1: Define Specifications</h3>
+
+                <div class="calculator-section">
+                    <h4>Flyback Design Calculator</h4>
+                    <div class="input-grid">
+                        <div class="input-group">
+                            <label>Input Voltage Min (V):</label>
+                            <input type="number" id="vin-min" value="85" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label>Input Voltage Max (V):</label>
+                            <input type="number" id="vin-max" value="265" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label>Output Voltage (V):</label>
+                            <input type="number" id="vout" value="12" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label>Output Current (A):</label>
+                            <input type="number" id="iout" value="2" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label>Switching Frequency (kHz):</label>
+                            <input type="number" id="fsw" value="100" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label>Efficiency Estimate (%):</label>
+                            <input type="number" id="eff" value="85" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label>Max Duty Cycle (%):</label>
+                            <input type="number" id="dmax" value="45" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label>Diode Forward Drop (V):</label>
+                            <input type="number" id="vf" value="0.5" step="0.1">
+                        </div>
+                    </div>
+                    <button onclick="calculateFlyback()" class="calc-button">Calculate Flyback Parameters</button>
+
+                    <div id="flyback-results" class="results-section" style="display: none;">
+                        <h4>Calculated Parameters</h4>
+                        <div class="results-grid" id="results-grid"></div>
+                    </div>
+                </div>
+
+                <h3>Step 2: Core Selection</h3>
+
+                <p>The transformer core must handle the required energy storage without saturating. Key parameter is the Area Product (Ap):</p>
+
+                <div class="formula-box">
+                    <p>\[ A_p = A_e \times A_w = \frac{L_p \cdot I_{pk}^2}{K_u \cdot B_{max} \cdot J} \times 10^8 \text{ (cm}^4\text{)} \]</p>
+                    <p>Where: Ae = core cross-section, Aw = window area, Ku = window utilization (0.3-0.4), Bmax = max flux (0.25-0.3T for ferrite), J = current density (400-600 A/cm²)</p>
+                </div>
+
+                <h4>Common Flyback Cores</h4>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Core</th>
+                            <th>Ap (cm⁴)</th>
+                            <th>Ae (mm²)</th>
+                            <th>Typical Power</th>
+                            <th>Application</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>EE13</td>
+                            <td>0.024</td>
+                            <td>12</td>
+                            <td>3-5W</td>
+                            <td>Phone chargers</td>
+                        </tr>
+                        <tr>
+                            <td>EE16</td>
+                            <td>0.065</td>
+                            <td>20</td>
+                            <td>5-10W</td>
+                            <td>USB adapters</td>
+                        </tr>
+                        <tr>
+                            <td>EE19</td>
+                            <td>0.12</td>
+                            <td>23</td>
+                            <td>10-15W</td>
+                            <td>LED drivers</td>
+                        </tr>
+                        <tr>
+                            <td>EE25</td>
+                            <td>0.35</td>
+                            <td>40</td>
+                            <td>20-35W</td>
+                            <td>Laptop adapters</td>
+                        </tr>
+                        <tr>
+                            <td>EE30</td>
+                            <td>0.7</td>
+                            <td>60</td>
+                            <td>35-50W</td>
+                            <td>Industrial supplies</td>
+                        </tr>
+                        <tr>
+                            <td>ETD34</td>
+                            <td>1.6</td>
+                            <td>97</td>
+                            <td>50-100W</td>
+                            <td>High-power adapters</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Step 3: Turns Calculation</h3>
+
+                <div class="formula-box">
+                    <h4>Primary Turns</h4>
+                    <p>\[ N_p = \frac{L_p \cdot I_{pk}}{B_{max} \cdot A_e} \times 10^6 \]</p>
+
+                    <h4>Secondary Turns</h4>
+                    <p>\[ N_s = \frac{N_p}{n} = \frac{N_p \cdot (V_{out} + V_f)}{V_R} \]</p>
+
+                    <h4>Auxiliary Winding (for controller bias)</h4>
+                    <p>\[ N_{aux} = \frac{N_s \cdot V_{aux}}{V_{out} + V_f} \]</p>
+                </div>
+
+                <h3>Step 4: Gap Calculation</h3>
+
+                <p>Flyback transformers require an air gap to store energy and prevent core saturation:</p>
+
+                <div class="formula-box">
+                    <p>\[ l_g = \frac{\mu_0 \cdot N_p^2 \cdot A_e}{L_p} \times 10^3 \text{ (mm)} \]</p>
+                    <p>For EE/EI cores, the gap is typically ground in the center leg. The actual spacer thickness is lg/2 since flux crosses two gaps.</p>
+                </div>
+
+                <div class="warning-box">
+                    <h4>Gap Fringing Considerations</h4>
+                    <ul>
+                        <li>Fringing flux near gap increases effective area by ~10-20%</li>
+                        <li>Keep windings away from gap to reduce eddy current losses</li>
+                        <li>Distributed gap (low-perm material) reduces fringing but limits inductance control</li>
+                        <li>Verify Bmax doesn't exceed 0.3T at Vin,min and max Ipk</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>4. Leakage Inductance & Snubber Design</h2>
+
+                <p>Leakage inductance is unavoidable in any transformer and causes voltage spikes when the MOSFET turns off. Proper snubber design is critical for reliability.</p>
+
+                <div class="svg-container" style="max-width: 600px; margin: 20px auto;">
+                    <svg viewBox="0 0 600 280" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;">
+                        <defs>
+                            <marker id="arrow-v" viewBox="0 0 5 4" refX="5" refY="2" markerWidth="5" markerHeight="4" orient="auto">
+                                <path d="M 0 0 L 5 2 L 0 4 z" fill="#ff6b6b"/>
+                            </marker>
+                        </defs>
+
+                        <text x="300" y="25" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">RCD Clamp Snubber Circuit</text>
+
+                        <!-- Primary side -->
+                        <line x1="50" y1="60" x2="50" y2="220" stroke="#666" stroke-width="2"/>
+                        <text x="35" y="140" fill="#888" font-size="10">Vin</text>
+
+                        <!-- To transformer -->
+                        <line x1="50" y1="60" x2="150" y2="60" stroke="#666" stroke-width="2"/>
+
+                        <!-- Leakage inductance symbol -->
+                        <line x1="150" y1="60" x2="150" y2="80" stroke="#ff6b6b" stroke-width="2"/>
+                        <path d="M 140 80 Q 150 90 160 80 Q 150 70 140 80" stroke="#ff6b6b" stroke-width="2" fill="none"/>
+                        <path d="M 140 95 Q 150 105 160 95 Q 150 85 140 95" stroke="#ff6b6b" stroke-width="2" fill="none"/>
+                        <path d="M 140 110 Q 150 120 160 110 Q 150 100 140 110" stroke="#ff6b6b" stroke-width="2" fill="none"/>
+                        <line x1="150" y1="120" x2="150" y2="140" stroke="#ff6b6b" stroke-width="2"/>
+                        <text x="170" y="100" fill="#ff6b6b" font-size="10">Llk</text>
+
+                        <!-- Primary winding (magnetizing) -->
+                        <line x1="150" y1="140" x2="150" y2="160" stroke="#4ade80" stroke-width="2"/>
+                        <path d="M 140 160 Q 150 170 160 160 Q 150 150 140 160" stroke="#4ade80" stroke-width="2" fill="none"/>
+                        <path d="M 140 175 Q 150 185 160 175 Q 150 165 140 175" stroke="#4ade80" stroke-width="2" fill="none"/>
+                        <line x1="150" y1="185" x2="150" y2="200" stroke="#4ade80" stroke-width="2"/>
+                        <text x="170" y="175" fill="#4ade80" font-size="10">Lm</text>
+
+                        <!-- MOSFET -->
+                        <rect x="140" y="200" width="20" height="25" fill="none" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="150" y1="225" x2="150" y2="240" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="50" y1="240" x2="150" y2="240" stroke="#666" stroke-width="2"/>
+                        <text x="125" y="215" fill="#888" font-size="9">Q1</text>
+
+                        <!-- RCD Clamp -->
+                        <!-- Diode from drain to clamp cap -->
+                        <line x1="150" y1="200" x2="250" y2="200" stroke="#fbbf24" stroke-width="2"/>
+                        <line x1="250" y1="200" x2="250" y2="160" stroke="#fbbf24" stroke-width="2"/>
+
+                        <!-- Clamp diode -->
+                        <polygon points="250,160 240,140 260,140" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                        <line x1="240" y1="135" x2="260" y2="135" stroke="#fbbf24" stroke-width="2"/>
+                        <text x="270" y="150" fill="#888" font-size="9">Dclamp</text>
+
+                        <!-- Clamp capacitor -->
+                        <line x1="250" y1="135" x2="250" y2="100" stroke="#fbbf24" stroke-width="2"/>
+                        <line x1="240" y1="100" x2="260" y2="100" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="240" y1="90" x2="260" y2="90" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="250" y1="90" x2="250" y2="60" stroke="#fbbf24" stroke-width="2"/>
+                        <text x="270" y="98" fill="#888" font-size="9">Cclamp</text>
+
+                        <!-- Clamp resistor -->
+                        <line x1="250" y1="60" x2="320" y2="60" stroke="#fbbf24" stroke-width="2"/>
+                        <rect x="320" y="50" width="40" height="20" fill="none" stroke="#00d4ff" stroke-width="2"/>
+                        <line x1="360" y1="60" x2="400" y2="60" stroke="#fbbf24" stroke-width="2"/>
+                        <line x1="400" y1="60" x2="400" y2="240" stroke="#666" stroke-width="2"/>
+                        <line x1="150" y1="240" x2="400" y2="240" stroke="#666" stroke-width="2"/>
+                        <text x="340" y="45" fill="#888" font-size="9">Rclamp</text>
+
+                        <!-- Voltage annotations -->
+                        <line x1="180" y1="200" x2="180" y2="240" stroke="#ff6b6b" stroke-width="1" stroke-dasharray="3,2"/>
+                        <path d="M 195 240 L 195 200" stroke="#ff6b6b" stroke-width="1" marker-end="url(#arrow-v)"/>
+                        <text x="200" y="225" fill="#ff6b6b" font-size="9">VDS</text>
+
+                        <!-- Waveform area -->
+                        <rect x="420" y="50" width="170" height="200" fill="#0d0d1a" stroke="#444" stroke-width="1"/>
+                        <text x="505" y="45" fill="#888" font-size="10" text-anchor="middle">VDS Waveform</text>
+
+                        <!-- VDS waveform -->
+                        <polyline points="430,150 450,150 450,80 480,80 480,100 510,100 510,150 540,150 540,80 560,80 560,100 580,100 580,150"
+                                  stroke="#00d4ff" stroke-width="2" fill="none"/>
+
+                        <!-- Voltage levels -->
+                        <line x1="425" y1="150" x2="590" y2="150" stroke="#666" stroke-width="1" stroke-dasharray="2,2"/>
+                        <line x1="425" y1="100" x2="590" y2="100" stroke="#4ade80" stroke-width="1" stroke-dasharray="2,2"/>
+                        <line x1="425" y1="80" x2="590" y2="80" stroke="#ff6b6b" stroke-width="1" stroke-dasharray="2,2"/>
+
+                        <text x="592" y="153" fill="#666" font-size="8">0V</text>
+                        <text x="592" y="103" fill="#4ade80" font-size="8">Vin+VR</text>
+                        <text x="592" y="83" fill="#ff6b6b" font-size="8">+Vspike</text>
+
+                        <!-- Labels -->
+                        <text x="455" y="175" fill="#888" font-size="8">OFF</text>
+                        <text x="520" y="175" fill="#888" font-size="8">OFF</text>
+                        <text x="490" y="195" fill="#888" font-size="8">ON</text>
+                        <text x="555" y="195" fill="#888" font-size="8">ON</text>
+                    </svg>
+                </div>
+
+                <h3>Snubber Design Equations</h3>
+
+                <div class="formula-box">
+                    <h4>Leakage Energy per Cycle</h4>
+                    <p>\[ E_{lk} = \frac{1}{2} L_{lk} \cdot I_{pk}^2 \]</p>
+
+                    <h4>Clamp Voltage Selection</h4>
+                    <p>Choose Vclamp such that: \( V_{DS,max} = V_{in,max} + V_{clamp} < V_{DS,rating} \times 0.8 \)</p>
+                    <p>Typical: \( V_{clamp} = 1.5 \times V_R \) to \( 2.0 \times V_R \)</p>
+
+                    <h4>Clamp Resistor</h4>
+                    <p>\[ R_{clamp} = \frac{V_{clamp}^2}{P_{lk}} = \frac{V_{clamp}^2}{E_{lk} \cdot f_{sw}} \]</p>
+
+                    <h4>Clamp Capacitor</h4>
+                    <p>\[ C_{clamp} \geq \frac{V_{clamp}}{R_{clamp} \cdot \Delta V \cdot f_{sw}} \]</p>
+                    <p>Where ΔV is acceptable ripple (typically 5-10% of Vclamp)</p>
+                </div>
+
+                <div class="tip-box">
+                    <h4>Snubber Best Practices</h4>
+                    <ul>
+                        <li>Use fast recovery or ultrafast diodes (≤75ns trr)</li>
+                        <li>Cclamp should be film or ceramic (low ESR)</li>
+                        <li>Rclamp power rating: use 2× calculated Plk for margin</li>
+                        <li>Consider TVS diode across MOSFET for extra protection</li>
+                        <li>Route snubber directly to MOSFET drain, not through long traces</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>5. Component Selection</h2>
+
+                <h3>Primary MOSFET Selection</h3>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Requirement</th>
+                            <th>Typical Selection</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>VDS Rating</td>
+                            <td>≥ 1.25 × (Vin,max + Vclamp)</td>
+                            <td>600V or 650V for universal input</td>
+                        </tr>
+                        <tr>
+                            <td>ID Rating</td>
+                            <td>≥ 2 × Ipk,pri (for thermal margin)</td>
+                            <td>2-10A depending on power level</td>
+                        </tr>
+                        <tr>
+                            <td>RDS(on)</td>
+                            <td>Low for efficiency, but secondary to Coss</td>
+                            <td>0.5-2Ω at 100°C</td>
+                        </tr>
+                        <tr>
+                            <td>Coss</td>
+                            <td>Low for switching loss reduction</td>
+                            <td>&lt;100pF at 400V</td>
+                        </tr>
+                        <tr>
+                            <td>Qg</td>
+                            <td>Low for fast switching and low drive power</td>
+                            <td>&lt;30nC for good efficiency</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Output Diode Selection</h3>
+
+                <div class="formula-box">
+                    <h4>Diode Voltage Rating</h4>
+                    <p>\[ V_{RRM} \geq 1.25 \times \left( V_{out} + \frac{V_{in,max}}{n} \right) \]</p>
+
+                    <h4>Diode Current Rating</h4>
+                    <p>\[ I_{F,avg} = I_{out} \cdot (1-D_{min}) \]</p>
+                    <p>\[ I_{F,peak} = I_{sec,pk} = n \cdot I_{pri,pk} \]</p>
+                </div>
+
+                <p><strong>Diode Types:</strong></p>
+                <ul>
+                    <li><strong>Schottky</strong> - Low Vf (~0.3-0.5V), fast, but limited to ~100V. Best for low Vout.</li>
+                    <li><strong>Ultrafast</strong> - Higher Vf (~0.8-1.2V), but available to 600V. Use for Vout > 24V.</li>
+                    <li><strong>SiC Schottky</strong> - Best of both worlds, but expensive. Use for high-efficiency designs.</li>
+                </ul>
+
+                <h3>Output Capacitor Selection</h3>
+
+                <div class="formula-box">
+                    <p><strong>Capacitance for ripple:</strong></p>
+                    <p>\[ C_{out} \geq \frac{I_{out} \cdot D_{max}}{f_{sw} \cdot \Delta V_{out}} \]</p>
+
+                    <p><strong>ESR for ripple:</strong></p>
+                    <p>\[ ESR \leq \frac{\Delta V_{out}}{I_{sec,pk}} \]</p>
+                </div>
+
+                <p>Use low-ESR electrolytics or polymer caps. Parallel multiple caps to reduce ESR and increase ripple current rating.</p>
+            </section>
+
+            <section>
+                <h2>6. Practical Winding Techniques</h2>
+
+                <h3>Winding Order (Interleaved)</h3>
+
+<canvas id="winding-order-canvas" width="700" height="320"></canvas>
+                <script>
+                (function() {
+                    const canvas = document.getElementById('winding-order-canvas');
+                    if (!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    const W = canvas.width, H = canvas.height;
+
+                    function roundRect(ctx, x, y, w, h, r) {
+                        ctx.beginPath();
+                        ctx.moveTo(x + r, y);
+                        ctx.lineTo(x + w - r, y);
+                        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+                        ctx.lineTo(x + w, y + h - r);
+                        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                        ctx.lineTo(x + r, y + h);
+                        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+                        ctx.lineTo(x, y + r);
+                        ctx.quadraticCurveTo(x, y, x + r, y);
+                        ctx.closePath();
+                    }
+
+                    ctx.fillStyle = '#1a1a2e';
+                    ctx.fillRect(0, 0, W, H);
+
+                    // Title
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 14px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Bobbin Cross-Section (Inside to Outside)', W/2, 25);
+
+                    // Outer bobbin
+                    ctx.strokeStyle = '#666';
+                    ctx.lineWidth = 3;
+                    roundRect(ctx, 80, 45, 540, 260, 10);
+                    ctx.stroke();
+
+                    const layers = [
+                        { name: 'Primary Half (Np/2 turns)', color: '#ff6b6b', y: 60 },
+                        { name: 'Insulation Tape (3 layers)', color: '#888', y: 95, height: 25 },
+                        { name: 'Secondary (Ns turns)', color: '#4ade80', y: 125 },
+                        { name: 'Insulation Tape (3 layers)', color: '#888', y: 160, height: 25 },
+                        { name: 'Primary Half (Np/2 turns)', color: '#ff6b6b', y: 190 },
+                        { name: 'Auxiliary (Naux turns)', color: '#a855f7', y: 230 }
+                    ];
+
+                    layers.forEach(l => {
+                        const h = l.height || 30;
+                        ctx.fillStyle = l.color + '30';
+                        roundRect(ctx, 120, l.y, 460, h, 4);
+                        ctx.fill();
+                        ctx.strokeStyle = l.color;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        ctx.fillStyle = l.color === '#888' ? '#aaa' : '#fff';
+                        ctx.font = '12px monospace';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(l.name, 350, l.y + h/2 + 4);
+                    });
+
+                    // Arrow showing inside to outside
+                    ctx.strokeStyle = '#00d4ff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(50, 80);
+                    ctx.lineTo(50, 250);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(50, 250);
+                    ctx.lineTo(45, 240);
+                    ctx.lineTo(55, 240);
+                    ctx.closePath();
+                    ctx.fillStyle = '#00d4ff';
+                    ctx.fill();
+                    ctx.font = '10px monospace';
+                    ctx.save();
+                    ctx.translate(35, 165);
+                    ctx.rotate(-Math.PI/2);
+                    ctx.fillText('Inside → Outside', 0, 0);
+                    ctx.restore();
+
+                    // Legend
+                    ctx.fillStyle = '#888';
+                    ctx.font = '10px monospace';
+                    ctx.textAlign = 'left';
+                    ctx.fillText('Interleaving reduces leakage inductance by ~4×', 120, 285);
+                })();
+                </script>
+
+                <div class="tip-box">
+                    <h4>Winding Best Practices</h4>
+                    <ul>
+                        <li><strong>Interleaving</strong> reduces leakage inductance by 4× compared to non-interleaved</li>
+                        <li><strong>Triple-insulated wire</strong> for secondary eliminates tape layers (safety rated)</li>
+                        <li><strong>Margin tape</strong> on bobbin edges ensures creepage distance (4-8mm for reinforced)</li>
+                        <li><strong>Litz wire</strong> reduces skin effect losses above 100kHz</li>
+                        <li><strong>Bank winding</strong> (wound in same direction each layer) minimizes capacitance</li>
+                    </ul>
+                </div>
+
+                <h3>Safety Requirements (IEC 62368-1)</h3>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Insulation Type</th>
+                            <th>Creepage</th>
+                            <th>Clearance</th>
+                            <th>Tape Layers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Basic (250Vac)</td>
+                            <td>2.5mm</td>
+                            <td>2.0mm</td>
+                            <td>2 layers</td>
+                        </tr>
+                        <tr>
+                            <td>Reinforced (250Vac)</td>
+                            <td>5.0mm</td>
+                            <td>4.0mm</td>
+                            <td>6 layers or TIW</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
+                <h2>7. SPICE Simulation Model</h2>
+
+                <p>Simulate the flyback before building hardware to verify stability and transient response:</p>
+
+<pre class="code-block">
+* Flyback Converter Simulation - LTspice
+* Universal Input 12V/2A Output
+
+.param Vin=100        ; DC input (rectified AC)
+.param Lp=400u        ; Primary inductance
+.param Llk=4u         ; Leakage inductance (1% of Lp)
+.param n=5            ; Turns ratio Np/Ns
+.param Fsw=100k       ; Switching frequency
+.param Dmax=0.45      ; Max duty cycle
+
+* Input
+Vin in 0 {Vin}
+Cin in 0 100u IC={Vin}
+
+* Primary with leakage model
+L_lk in pri_a {Llk}
+L_pri pri_a sw {Lp} Rser=50m
+
+* Ideal transformer coupling
+K1 L_pri L_sec 0.99
+
+* Secondary
+L_sec sec_a out_n {Lp/n/n}
+
+* Output diode (MBR1060)
+D1 sec_a out_p MBR1060
+
+* Output capacitor
+Cout out_p out_n 470u IC=12 Rser=20m
+
+* Load
+Rload out_p out_n 6  ; 12V/2A = 6 ohms
+
+* Primary MOSFET (simplified switch model)
+S1 sw 0 pwm 0 MYSW
+.model MYSW SW(Ron=0.5 Roff=1Meg Vt=0.5)
+
+* PWM source
+Vpwm pwm 0 PULSE(0 1 0 10n 10n {Dmax/Fsw} {1/Fsw})
+
+* RCD Clamp
+D_clamp sw clamp_cap D1N4148
+R_clamp clamp_cap in 10k
+C_clamp clamp_cap in 10n IC=150
+
+.model MBR1060 D(Is=1e-6 Rs=0.02 N=1.5 Cjo=100p)
+.model D1N4148 D(Is=2.52e-9 Rs=0.568)
+
+* Simulation
+.tran 0 5m 0 10n
+.probe
+
+.end
+</pre>
+            </section>
+
+            <section>
+                <h2>8. Design Checklist</h2>
+
+                <div class="checklist">
+                    <h4>Pre-Design</h4>
+                    <ul>
+                        <li>☐ Define input voltage range (consider rectified AC ripple)</li>
+                        <li>☐ Define output voltage, current, and ripple requirements</li>
+                        <li>☐ Choose DCM or CCM based on power level</li>
+                        <li>☐ Select switching frequency (higher = smaller magnetics, more switching loss)</li>
+                    </ul>
+
+                    <h4>Transformer Design</h4>
+                    <ul>
+                        <li>☐ Calculate Lp for chosen operating mode</li>
+                        <li>☐ Select core based on Area Product</li>
+                        <li>☐ Calculate turns ratio for target reflected voltage</li>
+                        <li>☐ Calculate primary and secondary turns</li>
+                        <li>☐ Calculate gap length</li>
+                        <li>☐ Verify Bmax < 0.3T at worst case</li>
+                        <li>☐ Choose wire gauge for acceptable fill factor</li>
+                        <li>☐ Plan interleaving for low leakage</li>
+                    </ul>
+
+                    <h4>Power Stage</h4>
+                    <ul>
+                        <li>☐ MOSFET voltage rating > Vin,max + Vclamp with margin</li>
+                        <li>☐ MOSFET current rating > 2× peak current</li>
+                        <li>☐ Output diode voltage rating verified</li>
+                        <li>☐ Output capacitor ripple current rating adequate</li>
+                        <li>☐ Snubber designed for measured leakage</li>
+                    </ul>
+
+                    <h4>Control & Safety</h4>
+                    <ul>
+                        <li>☐ Feedback loop compensated for target bandwidth</li>
+                        <li>☐ Optocoupler CTR variation accounted for</li>
+                        <li>☐ Creepage/clearance requirements met</li>
+                        <li>☐ Y-capacitor value appropriate for leakage current</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>9. Exercises</h2>
+
+                <div class="exercise-box">
+                    <h4>Exercise 1: Basic Flyback Sizing</h4>
+                    <p>Design a flyback converter for a 5V/2A USB charger with 85-265Vac input. The switching frequency is 65kHz (quasi-resonant controller). Assuming DCM operation:</p>
+                    <ol>
+                        <li>Calculate the required primary inductance</li>
+                        <li>Determine the turns ratio for 150V reflected voltage</li>
+                        <li>Calculate peak primary current</li>
+                        <li>Select an appropriate EE core size</li>
+                    </ol>
+                </div>
+
+                <div class="exercise-box">
+                    <h4>Exercise 2: Snubber Design</h4>
+                    <p>A flyback converter has 4µH leakage inductance and 3A peak primary current at 100kHz. The MOSFET is rated for 650V, and Vin,max = 375V (rectified 265Vac).</p>
+                    <ol>
+                        <li>Calculate the energy stored in leakage inductance per cycle</li>
+                        <li>Design an RCD clamp to limit VDS to 550V</li>
+                        <li>Calculate the clamp resistor power dissipation</li>
+                        <li>What capacitor value gives 5% ripple on Vclamp?</li>
+                    </ol>
+                </div>
+
+                <div class="exercise-box">
+                    <h4>Exercise 3: Multi-Output Design</h4>
+                    <p>Design a flyback transformer with 3 outputs: 12V/1A, 5V/2A, and 3.3V/0.5A. The main regulated output is 5V. Calculate:</p>
+                    <ol>
+                        <li>Secondary turns for each output (relative to 5V winding)</li>
+                        <li>Cross-regulation effects: if 5V load drops to 0.1A while others stay at full load, estimate the 12V and 3.3V output voltage changes</li>
+                        <li>Suggest techniques to improve cross-regulation</li>
+                    </ol>
+                </div>
+            </section>
+
+        </article>
+    </main>
+
+    <script src="../../assets/common.js"></script>
+    <script>
+        function calculateFlyback() {
+            const vinMin = parseFloat(document.getElementById('vin-min').value);
+            const vinMax = parseFloat(document.getElementById('vin-max').value);
+            const vout = parseFloat(document.getElementById('vout').value);
+            const iout = parseFloat(document.getElementById('iout').value);
+            const fsw = parseFloat(document.getElementById('fsw').value) * 1000;
+            const eff = parseFloat(document.getElementById('eff').value) / 100;
+            const dmax = parseFloat(document.getElementById('dmax').value) / 100;
+            const vf = parseFloat(document.getElementById('vf').value);
+
+            // Output power
+            const pout = vout * iout;
+            const pin = pout / eff;
+
+            // For DCM at Vin_min, max duty cycle
+            // Reflected voltage (target ~1.5x Vout for good MOSFET margin)
+            const vr = 1.5 * (vout + vf);
+
+            // Turns ratio
+            const n = vinMin * dmax / vr;
+
+            // Primary inductance for DCM
+            // Energy transfer: Pin = 0.5 * Lp * Ipk^2 * fsw * eff
+            // At Vin_min with Dmax: Ipk = Vin_min * Dmax * Tsw / Lp
+            // Combining: Lp = (Vin_min * Dmax)^2 / (2 * Pin * fsw)
+            const lp = Math.pow(vinMin * dmax, 2) / (2 * pin * fsw);
+
+            // Peak primary current
+            const ipkPri = vinMin * dmax / (lp * fsw);
+
+            // Peak secondary current
+            const ipkSec = ipkPri * n;
+
+            // RMS currents (DCM triangular waveform)
+            const irmsPri = ipkPri * Math.sqrt(dmax / 3);
+            const dOff = (1 - dmax) * (vout + vf) / (n * vinMin + vout + vf); // Approx
+            const irmsSec = ipkSec * Math.sqrt(dOff / 3);
+
+            // MOSFET voltage stress
+            const vdsMax = vinMax + vr + 50; // 50V spike margin
+
+            // Diode voltage stress
+            const vrrm = vout + vinMax / n;
+
+            // Display results
+            const resultsGrid = document.getElementById('results-grid');
+            resultsGrid.innerHTML = `
+                <div class="result-item">
+                    <span class="result-label">Output Power:</span>
+                    <span class="result-value">${pout.toFixed(1)} W</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Input Power:</span>
+                    <span class="result-value">${pin.toFixed(1)} W</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Turns Ratio (n = Np/Ns):</span>
+                    <span class="result-value">${n.toFixed(2)}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Reflected Voltage:</span>
+                    <span class="result-value">${vr.toFixed(1)} V</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Primary Inductance:</span>
+                    <span class="result-value">${(lp * 1e6).toFixed(0)} µH</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Peak Primary Current:</span>
+                    <span class="result-value">${ipkPri.toFixed(2)} A</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">RMS Primary Current:</span>
+                    <span class="result-value">${irmsPri.toFixed(2)} A</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Peak Secondary Current:</span>
+                    <span class="result-value">${ipkSec.toFixed(2)} A</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">MOSFET V<sub>DS</sub> Stress:</span>
+                    <span class="result-value">${vdsMax.toFixed(0)} V (use ≥${Math.ceil(vdsMax / 50) * 50}V FET)</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Diode V<sub>RRM</sub> Stress:</span>
+                    <span class="result-value">${vrrm.toFixed(0)} V</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Suggested Core:</span>
+                    <span class="result-value">${suggestCore(pout)}</span>
+                </div>
+            `;
+
+            document.getElementById('flyback-results').style.display = 'block';
+        }
+
+        function suggestCore(power) {
+            if (power < 5) return 'EE13 or EE16';
+            if (power < 10) return 'EE16 or EE19';
+            if (power < 20) return 'EE19 or EE25';
+            if (power < 40) return 'EE25 or EE30';
+            if (power < 75) return 'EE30 or ETD29';
+            return 'ETD34 or larger';
+        }
+    </script>
+
+    <footer>
+        <p>&copy; 2025 EE Learning Platform. Designed for BSEE graduates entering the hardware industry.</p>
+    </footer>
+</body>
+</html>

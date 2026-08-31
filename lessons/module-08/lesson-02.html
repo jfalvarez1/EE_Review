@@ -1,0 +1,311 @@
+<!-- Module 8, Lesson 2: ADC Fundamentals -->
+<div class="lesson-content" data-module="8" data-lesson="2">
+
+    <div class="card">
+        <h2>ADC Fundamentals</h2>
+        <p>Analog-to-Digital Converters sample analog signals and quantize them to digital codes. The choice of ADC architecture depends on speed, resolution, and power requirements.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Quantization Step</div>
+                <div class="v mono">Q = V<sub>ref</sub> / 2<sup>N</sup></div>
+            </div>
+            <div class="box">
+                <div class="k">Quantization Noise</div>
+                <div class="v mono">SNR<sub>Q</sub> = 6.02×N + 1.76 dB</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Quantization adds noise proportional to LSB/√12. Faster sampling doesn't improve resolution—you need more bits or oversampling with noise shaping (sigma-delta).
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: ADC Quantization</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="adc-bits">Resolution (bits)</label>
+                <input type="range" id="adc-bits" min="4" max="16" step="1" value="8">
+                <span id="adc-bits-val" class="mono">8</span>
+            </div>
+            <div class="c3">
+                <label for="adc-vref">V<sub>ref</sub> (V)</label>
+                <input type="range" id="adc-vref" min="1" max="5" step="0.1" value="3.3">
+                <span id="adc-vref-val" class="mono">3.3V</span>
+            </div>
+            <div class="c3">
+                <label for="adc-freq">Signal Freq (Hz)</label>
+                <input type="range" id="adc-freq" min="1" max="20" step="1" value="5">
+                <span id="adc-freq-val" class="mono">5Hz</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="adc-canvas" width="980" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">LSB Size</div>
+                <div class="v mono" id="adc-lsb">—</div>
+            </div>
+            <div class="box">
+                <div class="k">SNR (ideal)</div>
+                <div class="v mono" id="adc-snr">—</div>
+            </div>
+            <div class="box">
+                <div class="k">ENOB estimate</div>
+                <div class="v mono" id="adc-enob">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>ADC Architectures</h3>
+
+        <table class="table">
+            <tr>
+                <th>Architecture</th>
+                <th>Speed</th>
+                <th>Resolution</th>
+                <th>Application</th>
+            </tr>
+            <tr>
+                <td>Flash</td>
+                <td>1+ GSPS</td>
+                <td>6-8 bit</td>
+                <td>Oscilloscopes, video</td>
+            </tr>
+            <tr>
+                <td>SAR (Successive Approx)</td>
+                <td>1-10 MSPS</td>
+                <td>10-18 bit</td>
+                <td>General purpose, sensors</td>
+            </tr>
+            <tr>
+                <td>Pipeline</td>
+                <td>10-500 MSPS</td>
+                <td>10-16 bit</td>
+                <td>Communications, imaging</td>
+            </tr>
+            <tr>
+                <td>Sigma-Delta (ΣΔ)</td>
+                <td>10-1000 SPS</td>
+                <td>16-24 bit</td>
+                <td>Audio, precision sensors</td>
+            </tr>
+            <tr>
+                <td>Dual-Slope</td>
+                <td>1-100 SPS</td>
+                <td>12-22 bit</td>
+                <td>DMMs, low cost precision</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Sampling Theory</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Nyquist Criterion</div>
+                <div class="v mono">f<sub>sample</sub> > 2 × f<sub>max</sub></div>
+            </div>
+            <div class="box">
+                <div class="k">Anti-Alias Filter</div>
+                <div class="v">LP filter before ADC to remove f > fs/2</div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>Aliasing:</strong> Frequencies above Nyquist fold back into the signal band. A 1kHz signal sampled at 800 SPS appears as 200Hz! Always use anti-alias filtering.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('adc-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const bits = parseInt(document.getElementById('adc-bits').value);
+        const vref = parseFloat(document.getElementById('adc-vref').value);
+        const freq = parseFloat(document.getElementById('adc-freq').value);
+
+        document.getElementById('adc-bits-val').textContent = bits;
+        document.getElementById('adc-vref-val').textContent = vref + 'V';
+        document.getElementById('adc-freq-val').textContent = freq + 'Hz';
+
+        const lsb = vref / Math.pow(2, bits);
+        const snr = 6.02 * bits + 1.76;
+        const enob = bits - 0.5; // Typical ENOB is slightly less than bits
+
+        document.getElementById('adc-lsb').textContent = AD.fmtUnit(lsb, 'V');
+        document.getElementById('adc-snr').textContent = snr.toFixed(1) + ' dB';
+        document.getElementById('adc-enob').textContent = enob.toFixed(1) + ' bits';
+
+        plotQuantization(bits, vref, freq);
+    }
+
+    function plotQuantization(bits, vref, freq) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        const N = 500;
+        const levels = Math.pow(2, bits);
+        const lsb = vref / levels;
+
+        // Generate analog sine wave
+        const analog = [];
+        const quantized = [];
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * 3; // 3 periods
+            const v = (vref / 2) + (vref * 0.45) * Math.sin(2 * Math.PI * freq * t / freq);
+            analog.push(v);
+
+            // Quantize
+            const code = Math.floor(v / lsb);
+            const vq = (code + 0.5) * lsb;
+            quantized.push(Math.min(vref, Math.max(0, vq)));
+        }
+
+        // Plot analog (smooth)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(110, 231, 255, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        analog.forEach((v, i) => {
+            const x = (i / N) * w;
+            const y = h - (v / vref) * h * 0.8 - h * 0.1;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.restore();
+
+        // Plot quantized (staircase)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        quantized.forEach((v, i) => {
+            const x = (i / N) * w;
+            const y = h - (v / vref) * h * 0.8 - h * 0.1;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.restore();
+
+        // Show quantization levels if visible
+        if (bits <= 6) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            for (let i = 0; i <= levels; i++) {
+                const y = h - (i / levels) * h * 0.8 - h * 0.1;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // Labels
+        ctx.save();
+        ctx.font = '12px ui-sans-serif';
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.7)';
+        ctx.fillText('Analog input', 10, 20);
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.fillText('Quantized output', 10, 35);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText(`${bits} bits = ${levels} levels`, w - 150, 20);
+        ctx.restore();
+    }
+
+    ['adc-bits', 'adc-vref', 'adc-freq'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'SAR ADC Sample-and-Hold',
+        netlist: `* Sample-and-Hold for SAR ADC
+* Key front-end stage
+
+.MODEL NMOS_SW NMOS (VTO=1 KP=50m RD=10)
+
+* Input signal
+VIN in 0 SIN(1.65 1.5 1k)
+
+* Sample switch (MOSFET)
+M1 in sample hold 0 NMOS_SW W=10u L=1u
+
+* Hold capacitor
+CHOLD hold 0 100p IC=0
+
+* Sample clock (10kHz sampling)
+VSAMPLE sample 0 PULSE(0 5 0 1n 1n 10u 100u)
+
+* Buffer amplifier
+.include opamp.sub
+X1 hold 0 out 0 vcc vee OPAMP
+VCC vcc 0 DC 5
+VEE vee 0 DC 0
+
+.TRAN 0.1u 1m
+
+.PROBE V(in) V(hold) V(out)
+.END
+
+* Note: Real SAR ADC follows with
+* successive approximation logic`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm8l2',
+        items: [
+            'Calculate quantization step size',
+            'Know SNR formula: 6.02N + 1.76 dB',
+            'Understand Nyquist sampling criterion',
+            'Know anti-aliasing filter requirements',
+            'Compare SAR, sigma-delta, pipeline ADCs'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'G1-2',
+        type: 'numeric',
+        question: 'What is the theoretical SNR of a 12-bit ADC in dB?',
+        hint: 'SNR = 6.02×N + 1.76 dB',
+        expected: 74,
+        tolerance: 0.02,
+        unit: 'dB',
+        solution: 'SNR = 6.02×12 + 1.76 = 72.24 + 1.76 = 74 dB',
+        explanation: 'Each bit adds ~6dB of dynamic range. This is the theoretical limit assuming ideal quantization noise only.'
+    });
+})();
+</script>

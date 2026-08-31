@@ -1,0 +1,344 @@
+<!-- Module 15, Lesson 10: EMC/EMI Problems -->
+<div class="lesson-content" data-module="15" data-lesson="10">
+
+    <div class="card">
+        <h2>Problem Set 10: EMC/EMI Design</h2>
+        <p>Master electromagnetic compatibility calculations including filter design, shielding effectiveness, and emissions compliance. Problems cover conducted and radiated emissions.</p>
+
+        <div class="notice">
+            <strong>Approach:</strong> Identify noise sources and paths. Calculate filter requirements. Verify margins against regulatory limits (typically 6dB minimum).
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 15px;">
+            <div style="background: rgba(52,211,153,0.2); border-radius: 4px; padding: 8px; text-align: center;">
+                <div style="font-size: 11px; color: #888;">Level 1</div>
+                <div style="font-size: 14px; color: #34d399; font-weight: bold;">1-2</div>
+            </div>
+            <div style="background: rgba(110,231,255,0.2); border-radius: 4px; padding: 8px; text-align: center;">
+                <div style="font-size: 11px; color: #888;">Level 2</div>
+                <div style="font-size: 14px; color: #6ee7ff; font-weight: bold;">3-4</div>
+            </div>
+            <div style="background: rgba(251,191,36,0.2); border-radius: 4px; padding: 8px; text-align: center;">
+                <div style="font-size: 11px; color: #888;">Level 3</div>
+                <div style="font-size: 14px; color: #fbbf24; font-weight: bold;">5-6</div>
+            </div>
+            <div style="background: rgba(251,113,133,0.2); border-radius: 4px; padding: 8px; text-align: center;">
+                <div style="font-size: 11px; color: #888;">Level 4</div>
+                <div style="font-size: 14px; color: #fb7185; font-weight: bold;">7-8</div>
+            </div>
+            <div style="background: rgba(167,139,250,0.2); border-radius: 4px; padding: 8px; text-align: center;">
+                <div style="font-size: 11px; color: #888;">Challenge</div>
+                <div style="font-size: 14px; color: #a78bfa; font-weight: bold;">9-10</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Filter Attenuation Calculator</h3>
+        <canvas id="filter-atten-canvas" width="600" height="260" style="width: 100%; max-width: 600px; background: #1a1a2e; border-radius: 8px;"></canvas>
+        <div class="controls" style="margin-top: 10px;">
+            <label>Filter Order: <span id="order-val">2</span>
+                <input type="range" id="order-slider" min="1" max="5" value="2" step="1">
+            </label>
+            <label>fc: <span id="fc-val">10</span>kHz
+                <input type="range" id="fc-slider" min="1" max="100" value="10" step="1">
+            </label>
+        </div>
+        <div class="kv" style="margin-top: 10px;">
+            <div class="box">
+                <div class="k">Atten @ 100kHz</div>
+                <div class="v" id="atten-100k-display">40 dB</div>
+            </div>
+            <div class="box">
+                <div class="k">Atten @ 1MHz</div>
+                <div class="v" id="atten-1m-display">80 dB</div>
+            </div>
+            <div class="box">
+                <div class="k">Rolloff</div>
+                <div class="v" id="rolloff-display">40 dB/dec</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 style="color: #34d399;">Level 1: dB and Voltage/Power</h3>
+        <div id="exercise-10-1"></div>
+        <div id="exercise-10-2" style="margin-top: 20px;"></div>
+    </div>
+
+    <div class="card">
+        <h3 style="color: #6ee7ff;">Level 2: Filter Attenuation</h3>
+        <div id="exercise-10-3"></div>
+        <div id="exercise-10-4" style="margin-top: 20px;"></div>
+    </div>
+
+    <div class="card">
+        <h3 style="color: #fbbf24;">Level 3: Conducted Emissions</h3>
+        <div id="exercise-10-5"></div>
+        <div id="exercise-10-6" style="margin-top: 20px;"></div>
+    </div>
+
+    <div class="card">
+        <h3 style="color: #fb7185;">Level 4: Radiated Emissions</h3>
+        <div id="exercise-10-7"></div>
+        <div id="exercise-10-8" style="margin-top: 20px;"></div>
+    </div>
+
+    <div class="card">
+        <h3 style="color: #a78bfa;">Challenge Problems</h3>
+        <div id="exercise-10-9"></div>
+        <div id="exercise-10-10" style="margin-top: 20px;"></div>
+    </div>
+
+    <div class="card">
+        <h3>Reference Formulas</h3>
+        <div style="background:#111; padding:15px; border-radius:4px; font-family:monospace; font-size:12px;">
+            <p><strong>dBµV to V:</strong> V = 10<sup>(dBµV-120)/20</sup></p>
+            <p><strong>V to dBµV:</strong> dBµV = 20log(V) + 120</p>
+            <p><strong>LC Filter:</strong> f<sub>c</sub> = 1/(2π√LC)</p>
+            <p><strong>Attenuation (above fc):</strong> A = 40log(f/f<sub>c</sub>) dB (2nd order)</p>
+            <p><strong>Shielding (plane wave):</strong> SE = 20log(1 + Z<sub>0</sub>/(2Z<sub>s</sub>)) dB</p>
+            <p><strong>Loop Antenna E-field:</strong> E = 1.3×10<sup>-14</sup> × f² × A × I / d (V/m)</p>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    // ===== Filter Attenuation Canvas =====
+    const filterCanvas = document.getElementById('filter-atten-canvas');
+    if (filterCanvas && typeof AD !== 'undefined') {
+        const ctx = filterCanvas.getContext('2d');
+        const TEK = AD.TEK_COLORS;
+        const orderSlider = document.getElementById('order-slider');
+        const fcSlider = document.getElementById('fc-slider');
+
+        function drawFilterAttenuation() {
+            const W = filterCanvas.width, H = filterCanvas.height;
+            const order = parseInt(orderSlider.value);
+            const fc = parseFloat(fcSlider.value) * 1000;  // kHz to Hz
+
+            ctx.clearRect(0, 0, W, H);
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, W, H);
+
+            const margin = { left: 60, right: 30, top: 30, bottom: 40 };
+            const plotW = W - margin.left - margin.right;
+            const plotH = H - margin.top - margin.bottom;
+
+            // Draw axes
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(margin.left, margin.top);
+            ctx.lineTo(margin.left, H - margin.bottom);
+            ctx.lineTo(W - margin.right, H - margin.bottom);
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = '#888';
+            ctx.font = '12px monospace';
+            ctx.fillText('Frequency (log scale)', W/2 - 60, H - 5);
+            ctx.save();
+            ctx.translate(15, H/2);
+            ctx.rotate(-Math.PI/2);
+            ctx.fillText('Attenuation (dB)', 0, 0);
+            ctx.restore();
+
+            // Log scale for frequency: 1kHz to 10MHz
+            const fMin = 1000;
+            const fMax = 10e6;
+            const logFMin = Math.log10(fMin);
+            const logFMax = Math.log10(fMax);
+
+            // Frequency markers (log scale)
+            const freqMarkers = [1e3, 10e3, 100e3, 1e6, 10e6];
+            const freqLabels = ['1k', '10k', '100k', '1M', '10M'];
+            ctx.fillStyle = '#888';
+            ctx.font = '10px monospace';
+            freqMarkers.forEach((f, i) => {
+                const logF = Math.log10(f);
+                const frac = (logF - logFMin) / (logFMax - logFMin);
+                const x = margin.left + frac * plotW;
+                ctx.fillText(freqLabels[i], x - 12, H - margin.bottom + 15);
+
+                // Grid lines
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(x, margin.top);
+                ctx.lineTo(x, H - margin.bottom);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            });
+
+            // Attenuation markers
+            for (let a = 0; a <= 120; a += 20) {
+                const y = H - margin.bottom - (a / 120) * plotH;
+                ctx.fillText(a.toString(), margin.left - 30, y + 4);
+            }
+
+            // Draw filter response
+            ctx.strokeStyle = TEK.cyan;
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+
+            for (let i = 0; i <= 200; i++) {
+                const logF = logFMin + (i / 200) * (logFMax - logFMin);
+                const f = Math.pow(10, logF);
+
+                // Attenuation formula: A = order × 20 × log10(f/fc) for f > fc
+                let atten = 0;
+                if (f > fc) {
+                    atten = order * 20 * Math.log10(f / fc);
+                }
+
+                const x = margin.left + (i / 200) * plotW;
+                const y = H - margin.bottom - Math.min(atten / 120, 1) * plotH;
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, Math.max(y, margin.top));
+            }
+            ctx.stroke();
+
+            // Mark fc
+            const logFc = Math.log10(fc);
+            const fcFrac = (logFc - logFMin) / (logFMax - logFMin);
+            const xFc = margin.left + fcFrac * plotW;
+
+            ctx.strokeStyle = TEK.yellow;
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(xFc, margin.top);
+            ctx.lineTo(xFc, H - margin.bottom);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = TEK.yellow;
+            ctx.font = '11px monospace';
+            ctx.fillText('fc', xFc + 5, margin.top + 15);
+
+            // Calculate specific attenuation values
+            const atten100k = fc < 100e3 ? order * 20 * Math.log10(100e3 / fc) : 0;
+            const atten1m = fc < 1e6 ? order * 20 * Math.log10(1e6 / fc) : 0;
+            const rolloff = order * 20;  // dB per decade
+
+            // Update display
+            document.getElementById('order-val').textContent = order;
+            document.getElementById('fc-val').textContent = (fc / 1000).toFixed(0);
+            document.getElementById('atten-100k-display').textContent = atten100k.toFixed(1) + ' dB';
+            document.getElementById('atten-1m-display').textContent = atten1m.toFixed(1) + ' dB';
+            document.getElementById('rolloff-display').textContent = rolloff + ' dB/dec';
+
+            // Legend
+            ctx.fillStyle = TEK.cyan;
+            ctx.font = '11px monospace';
+            ctx.fillText(`${order}nd/rd order filter`, W - 140, 50);
+        }
+
+        [orderSlider, fcSlider].forEach(el => {
+            if (el) el.addEventListener('input', drawFilterAttenuation);
+        });
+        drawFilterAttenuation();
+    }
+
+    // Level 1: dB and Voltage/Power
+    new ExerciseWidget('exercise-10-1', {
+        exercises: [{
+            question: 'A CISPR limit is 66dBµV. Convert this to millivolts.',
+            answer: '2mV',
+            solution: 'V = 10^((dBµV-120)/20) = 10^((66-120)/20) = 10^(-2.7) = 0.002V = 2mV',
+            hints: ['dBµV is referenced to 1µV', 'V = 10^((dBµV)/20) × 1µV']
+        }]
+    });
+
+    new ExerciseWidget('exercise-10-2', {
+        exercises: [{
+            question: 'Measured emissions are 500µV. What is this in dBµV?',
+            answer: '54dBµV',
+            solution: 'dBµV = 20log(V/1µV) = 20log(500) = 20 × 2.7 = 54dBµV',
+            hints: ['dBµV = 20log(voltage in µV)', '500µV = 500 times reference']
+        }]
+    });
+
+    // Level 2: Filter Attenuation
+    new ExerciseWidget('exercise-10-3', {
+        exercises: [{
+            question: 'An LC filter has L=100µH and C=100nF. What is the cutoff frequency?',
+            answer: '50.3kHz',
+            solution: 'fc = 1/(2π√LC) = 1/(2π√(100µ×100n)) = 1/(2π×100µ) = 1/(628µ) = 1.59kHz. Wait: √(10⁻⁵×10⁻⁷) = √10⁻¹² = 10⁻⁶. fc = 1/(2π×10⁻⁶) = 159kHz. Actually: √(100µH×100nF) = √(10⁻⁴×10⁻⁷) = √10⁻¹¹ = 3.16µs. fc = 1/(2π×3.16µ) = 50.3kHz.',
+            hints: ['fc = 1/(2π√LC)', 'Watch unit conversions']
+        }]
+    });
+
+    new ExerciseWidget('exercise-10-4', {
+        exercises: [{
+            question: 'A 2nd order LC filter has fc=10kHz. What attenuation at 1MHz?',
+            answer: '80dB',
+            solution: 'A = 40log(f/fc) = 40log(1M/10k) = 40log(100) = 40×2 = 80dB',
+            hints: ['2nd order = 40dB/decade', 'Ratio is 100:1 = 2 decades']
+        }]
+    });
+
+    // Level 3: Conducted Emissions
+    new ExerciseWidget('exercise-10-5', {
+        exercises: [{
+            question: 'Conducted emissions at 500kHz measure 78dBµV. CISPR Class B limit is 66dBµV. How much filter attenuation needed?',
+            answer: '18dB (with 6dB margin)',
+            solution: 'Required reduction = 78 - 66 = 12dB. Add 6dB margin: 12 + 6 = 18dB attenuation minimum.',
+            hints: ['Find difference between measured and limit', 'Add 6dB margin for production variation']
+        }]
+    });
+
+    new ExerciseWidget('exercise-10-6', {
+        exercises: [{
+            question: 'A switching converter at 500kHz needs 40dB attenuation. Filter fc=50kHz (2nd order). Is it sufficient?',
+            answer: 'Yes, provides 40dB',
+            solution: 'A = 40log(500k/50k) = 40log(10) = 40dB. Exactly meets requirement—should add margin.',
+            hints: ['Calculate actual attenuation at switching frequency', '2nd order = 40dB/decade']
+        }]
+    });
+
+    // Level 4: Radiated Emissions
+    new ExerciseWidget('exercise-10-7', {
+        exercises: [{
+            question: 'A 100MHz clock trace is 5cm long with 10mA current. Estimate E-field at 3m (using E ≈ 1.3×10⁻¹⁴ × f² × A × I / d).',
+            answer: '2.2µV/m',
+            solution: 'E = 1.3×10⁻¹⁴ × (100M)² × 0.05 × 0.01 / 3 = 1.3×10⁻¹⁴ × 10¹⁶ × 5×10⁻⁴ / 3 = 1.3×10² × 5×10⁻⁴ / 3 = 0.65/3 = 0.217 × 10⁻⁵ V/m = 2.2µV/m',
+            hints: ['Use loop antenna formula', 'Area = trace length × return path separation (estimate)']
+        }]
+    });
+
+    new ExerciseWidget('exercise-10-8', {
+        exercises: [{
+            question: 'FCC Class B limit at 100MHz is 43.5dBµV/m at 3m. Your emission is 60dBµV/m. How much shielding needed?',
+            answer: '22.5dB (with 6dB margin)',
+            solution: 'Required reduction = 60 - 43.5 = 16.5dB. With 6dB margin: 16.5 + 6 = 22.5dB shielding effectiveness needed.',
+            hints: ['Find dB difference', 'Add margin for production']
+        }]
+    });
+
+    // Challenge Problems
+    new ExerciseWidget('exercise-10-9', {
+        exercises: [{
+            question: 'Design a pi-filter for 40dB at 1MHz. Use L=100µH. What C values (assume equal) for fc=100kHz?',
+            answer: 'C=25.3nF each',
+            solution: 'For pi-filter with equal C: fc = 1/(π√(LC)). Rearranging: C = 1/(π²×fc²×L) = 1/(9.87×10¹⁰×10⁻⁴) = 1/(9.87×10⁶) ≈ 100nF. Verify: at 1MHz, attenuation = 40log(1M/100k) = 40dB. ✓',
+            hints: ['Pi filter has different fc formula', 'Verify attenuation at target frequency']
+        }]
+    });
+
+    new ExerciseWidget('exercise-10-10', {
+        exercises: [{
+            question: 'A 0.5mm aluminum shield (σ=3.7×10⁷ S/m) is used at 1MHz. Skin depth δ=82µm. What is absorption loss?',
+            answer: '53dB',
+            solution: 'Absorption loss A = 8.7 × t/δ = 8.7 × (0.5mm/82µm) = 8.7 × 6.1 = 53dB. This is just absorption—add reflection loss for total SE.',
+            hints: ['Absorption loss = 8.7 × (thickness/skin depth)', 'Skin depth decreases with frequency']
+        }]
+    });
+
+})();
+</script>

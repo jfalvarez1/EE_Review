@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 23.13: Automotive 48V Mild Hybrid Systems | Analog Discovery</title>
+    <link rel="stylesheet" href="../../assets/main.css">
+    <link rel="stylesheet" href="../../assets/lesson-layout.css">
+    <script src="../../assets/main.js" defer></script>
+    <script src="../../assets/widgets.js" defer></script>
+    <style>
+        .system-diagram { font-family: monospace; font-size: 11px; line-height: 1.3; background: #1a1a2e; padding: 15px; border-radius: 8px; overflow-x: auto; }
+        .system-diagram .power48 { color: #ff6b6b; }
+        .system-diagram .power12 { color: #ffd93d; }
+        .system-diagram .signal { color: #4ecdc4; }
+        .system-diagram .ground { color: #45b7d1; }
+        .system-diagram .component { color: #f9ca24; }
+        .system-diagram .label { color: #a0a0a0; }
+        .spec-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .spec-table th, .spec-table td { border: 1px solid #444; padding: 8px; text-align: left; }
+        .spec-table th { background: #2a2a4a; }
+        .calc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
+        .calc-box { background: #1e1e3f; padding: 15px; border-radius: 8px; }
+        .calc-box label { display: block; margin-bottom: 5px; font-size: 14px; }
+        .calc-box input[type="range"] { width: 100%; }
+        .result-box { background: #2a2a5a; padding: 10px; border-radius: 4px; margin-top: 10px; font-family: monospace; }
+        .warning-box { background: #4a2a2a; border: 1px solid #ff6b6b; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-nav-container">
+            <nav class="lesson-nav" aria-label="Lesson navigation">
+                <div class="hamburger-menu" onclick="toggleNav()">
+                    <span></span><span></span><span></span>
+                </div>
+                <a href="../../index.html" class="nav-home">↩</a>
+                <a href="lesson-12.html" class="nav-prev" title="Previous: 4-20mA Current Loop">←</a>
+                <a href="lesson-14.html" class="nav-next" title="Next: ESD Protection Design">→</a>
+            </nav>
+        </div>
+
+        <header class="lesson-header">
+            <div class="module-tag">Module 23: Industry Design Examples</div>
+            <h1>Automotive 48V Mild Hybrid Systems</h1>
+            <p class="lesson-subtitle">Dual-voltage architecture for fuel efficiency and electrification</p>
+        </header>
+
+        <article class="lesson-content">
+            <!-- Section 1: Why 48V? -->
+            <section class="content-section">
+                <h2>Why 48V in Automotive?</h2>
+                <div class="card">
+                    <p>The automotive industry is transitioning from 12V-only to 48V/12V dual systems:</p>
+
+                    <table class="spec-table">
+                        <tr><th>Factor</th><th>12V System</th><th>48V System</th><th>Benefit</th></tr>
+                        <tr><td>Max Power (practical)</td><td>~3 kW</td><td>~15 kW</td><td>5× more electrical power</td></tr>
+                        <tr><td>Current @ 3kW</td><td>250A</td><td>62.5A</td><td>4× smaller cables</td></tr>
+                        <tr><td>Cable weight</td><td>Baseline</td><td>-75%</td><td>Fuel savings</td></tr>
+                        <tr><td>Touch-safe?</td><td>Yes</td><td>Yes (<60V DC)</td><td>No HV isolation needed</td></tr>
+                        <tr><td>Motor efficiency</td><td>Lower</td><td>Higher</td><td>Better fuel economy</td></tr>
+                    </table>
+
+                    <h4>48V Enables:</h4>
+                    <ul>
+                        <li><strong>Mild Hybrid (MHEV):</strong> 10-15kW motor/generator for start-stop, regenerative braking</li>
+                        <li><strong>Electric Supercharger:</strong> Instant boost without turbo lag</li>
+                        <li><strong>Electric A/C Compressor:</strong> Climate control independent of engine</li>
+                        <li><strong>Active Suspension:</strong> High-power actuators for ride control</li>
+                        <li><strong>Heated Catalyst:</strong> Faster emissions compliance at cold start</li>
+                    </ul>
+
+                    <div class="warning-box">
+                        <strong>LV 148 Standard:</strong> 48V automotive systems follow LV 148 (German OEM standard) defining voltage ranges, transients, and safety requirements. Nominal is 48V, operating range is 36-52V, transients up to 70V.
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: System Architecture -->
+            <section class="content-section">
+                <h2>48V/12V Dual Voltage Architecture</h2>
+                <div class="card">
+                    <canvas id="mhev-architecture-canvas" width="900" height="500" style="width:100%;max-width:900px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <h4>Voltage Specifications (LV 148)</h4>
+                    <table class="spec-table">
+                        <tr><th>Parameter</th><th>48V System</th><th>12V System</th></tr>
+                        <tr><td>Nominal Voltage</td><td>48V</td><td>13.5V (engine running)</td></tr>
+                        <tr><td>Operating Range</td><td>36V - 52V</td><td>9V - 16V</td></tr>
+                        <tr><td>Jump Start</td><td>Up to 70V for 1 min</td><td>Up to 24V</td></tr>
+                        <tr><td>Load Dump</td><td>Up to 58V</td><td>Up to 40V (ISO 7637)</td></tr>
+                        <tr><td>Cold Crank</td><td>Down to 24V</td><td>Down to 4.5V</td></tr>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Section 3: 48V/12V DC-DC Converter -->
+            <section class="content-section">
+                <h2>48V/12V Bidirectional DC-DC Converter</h2>
+                <div class="card">
+                    <canvas id="dcdc-converter-canvas" width="750" height="420" style="width:100%;max-width:750px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <h4>DC-DC Converter Calculator</h4>
+                    <div class="calc-grid">
+                        <div class="calc-box">
+                            <label>48V Bus Voltage: <span id="v48-val">48</span>V</label>
+                            <input type="range" id="v48" min="36" max="52" value="48" step="1">
+                        </div>
+                        <div class="calc-box">
+                            <label>12V Output Current: <span id="i12-val">150</span>A</label>
+                            <input type="range" id="i12" min="10" max="250" value="150" step="10">
+                        </div>
+                        <div class="calc-box">
+                            <label>Switching Frequency: <span id="fsw-val">100</span>kHz</label>
+                            <input type="range" id="fsw" min="50" max="300" value="100" step="10">
+                        </div>
+                        <div class="calc-box">
+                            <label>Ripple Current (%): <span id="ripple-val">30</span>%</label>
+                            <input type="range" id="ripple" min="10" max="50" value="30" step="5">
+                        </div>
+                    </div>
+
+                    <div class="result-box" id="dcdc-result">
+                        Calculating...
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: BSG/ISG Motor Controller -->
+            <section class="content-section">
+                <h2>Belt Starter Generator (BSG) Controller</h2>
+                <div class="card">
+                    <canvas id="bsg-inverter-canvas" width="800" height="480" style="width:100%;max-width:800px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <h4>BSG Operating Modes</h4>
+                    <table class="spec-table">
+                        <tr><th>Mode</th><th>Power Flow</th><th>Function</th></tr>
+                        <tr><td>Motor (Start)</td><td>Battery → Motor</td><td>Engine cranking, boost assist</td></tr>
+                        <tr><td>Generator (Regen)</td><td>Motor → Battery</td><td>Regenerative braking, charging</td></tr>
+                        <tr><td>Idle</td><td>None</td><td>Engine running, no load</td></tr>
+                    </table>
+
+                    <h4>MOSFET Selection for 48V Inverter</h4>
+                    <table class="spec-table">
+                        <tr><th>Parameter</th><th>Requirement</th><th>Typical Part</th></tr>
+                        <tr><td>V<sub>DS</sub></td><td>>80V (for 70V transient)</td><td>100V MOSFETs</td></tr>
+                        <tr><td>I<sub>D</sub> (continuous)</td><td>>200A per phase</td><td>Paralleled MOSFETs</td></tr>
+                        <tr><td>R<sub>DS(on)</sub></td><td><2mΩ (for losses)</td><td>1-1.5mΩ @ 10V gate</td></tr>
+                        <tr><td>Package</td><td>High thermal</td><td>LFPAK56, D2PAK, TOLL</td></tr>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Section 5: 48V Battery System -->
+            <section class="content-section">
+                <h2>48V Battery Pack Design</h2>
+                <div class="card">
+                    <canvas id="battery-pack-canvas" width="750" height="480" style="width:100%;max-width:750px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <h4>48V Battery Specifications</h4>
+                    <div class="calc-grid">
+                        <div class="calc-box">
+                            <label>Pack Capacity: <span id="cap-val">10</span> Ah</label>
+                            <input type="range" id="cap" min="5" max="30" value="10" step="1">
+                        </div>
+                        <div class="calc-box">
+                            <label>Cell Configuration: <span id="cells-val">12S</span></label>
+                            <select id="cells">
+                                <option value="12">12S (44.4V nom, NMC)</option>
+                                <option value="13">13S (48.1V nom, NMC)</option>
+                                <option value="15">15S (48V nom, LFP)</option>
+                                <option value="16">16S (51.2V nom, LFP)</option>
+                            </select>
+                        </div>
+                        <div class="calc-box">
+                            <label>Max Discharge Rate: <span id="crate-val">10</span>C</label>
+                            <input type="range" id="crate" min="1" max="30" value="10" step="1">
+                        </div>
+                    </div>
+
+                    <div class="result-box" id="battery-result">
+                        Calculating...
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 6: Thermal Management -->
+            <section class="content-section">
+                <h2>Thermal Management</h2>
+                <div class="card">
+                    <p>48V components generate significant heat and require careful thermal design:</p>
+
+                    <h4>Power Loss Calculator</h4>
+                    <div class="calc-grid">
+                        <div class="calc-box">
+                            <label>DC-DC Power: <span id="dcdc-pwr-val">2000</span>W</label>
+                            <input type="range" id="dcdc-pwr" min="500" max="3000" value="2000" step="100">
+                        </div>
+                        <div class="calc-box">
+                            <label>DC-DC Efficiency: <span id="dcdc-eff-val">96</span>%</label>
+                            <input type="range" id="dcdc-eff" min="90" max="99" value="96" step="0.5">
+                        </div>
+                        <div class="calc-box">
+                            <label>BSG Power: <span id="bsg-pwr-val">10000</span>W</label>
+                            <input type="range" id="bsg-pwr" min="5000" max="15000" value="10000" step="500">
+                        </div>
+                        <div class="calc-box">
+                            <label>BSG Efficiency: <span id="bsg-eff-val">92</span>%</label>
+                            <input type="range" id="bsg-eff" min="85" max="98" value="92" step="0.5">
+                        </div>
+                    </div>
+
+                    <div class="result-box" id="thermal-result">
+                        Calculating...
+                    </div>
+
+                    <h4>Cooling Strategies</h4>
+                    <table class="spec-table">
+                        <tr><th>Component</th><th>Heat Dissipation</th><th>Cooling Method</th></tr>
+                        <tr><td>48V/12V DC-DC</td><td>40-100W</td><td>Forced air or liquid (shared with engine)</td></tr>
+                        <tr><td>BSG Inverter</td><td>200-800W</td><td>Liquid cooling (engine coolant loop)</td></tr>
+                        <tr><td>48V Battery</td><td>50-200W</td><td>Passive + air (separate from engine heat)</td></tr>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Section 7: Safety Features -->
+            <section class="content-section">
+                <h2>48V Safety Features</h2>
+                <div class="card">
+                    <canvas id="safety-arch-canvas" width="750" height="380" style="width:100%;max-width:750px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <h4>ASIL Requirements</h4>
+                    <table class="spec-table">
+                        <tr><th>Function</th><th>ASIL Level</th><th>Requirement</th></tr>
+                        <tr><td>48V Bus Overvoltage</td><td>ASIL-B</td><td>Prevent >60V (touch-safe limit)</td></tr>
+                        <tr><td>High Current Disconnect</td><td>ASIL-B</td><td>Interrupt fault current in <10ms</td></tr>
+                        <tr><td>Battery Isolation</td><td>ASIL-B</td><td>Galvanic isolation in crash</td></tr>
+                        <tr><td>Thermal Runaway</td><td>ASIL-C</td><td>Detection and containment</td></tr>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>Active Discharge:</strong> 48V systems must discharge bus capacitors to <30V within 1 second after key-off or fault. This typically requires a dedicated discharge resistor with MOSFET switch.
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 8: EMC Considerations -->
+            <section class="content-section">
+                <h2>EMC Considerations</h2>
+                <div class="card">
+                    <p>48V systems create EMC challenges due to high switching currents:</p>
+
+                    <canvas id="emc-filter-canvas" width="700" height="350" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+
+                    <h4>48V-Specific EMC Challenges</h4>
+                    <ul>
+                        <li><strong>Higher di/dt:</strong> 48V inverters switch 200A+ at 20kHz → high frequency noise</li>
+                        <li><strong>Longer cables:</strong> 48V wiring acts as antenna</li>
+                        <li><strong>Ground loops:</strong> Between 48V and 12V grounds</li>
+                        <li><strong>DC-DC converter:</strong> Major noise source, needs careful filtering</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Section 9: Design Checklist -->
+            <section class="content-section">
+                <h2>Design Verification Checklist</h2>
+                <div class="card" id="checklist-container"></div>
+            </section>
+
+            <!-- Section 10: Practice Exercises -->
+            <section class="content-section">
+                <h2>Practice Exercises</h2>
+                <div class="card" id="exercise-container"></div>
+            </section>
+        </article>
+    </div>
+
+    <script>
+        // Canvas Drawing Functions
+        (function() {
+            const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00'};
+
+            function roundRect(c, x, y, w, h, r) {
+                c.beginPath();
+                c.moveTo(x+r, y);
+                c.lineTo(x+w-r, y);
+                c.quadraticCurveTo(x+w, y, x+w, y+r);
+                c.lineTo(x+w, y+h-r);
+                c.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+                c.lineTo(x+r, y+h);
+                c.quadraticCurveTo(x, y+h, x, y+h-r);
+                c.lineTo(x, y+r);
+                c.quadraticCurveTo(x, y, x+r, y);
+                c.closePath();
+            }
+
+            // Canvas 1: MHEV Architecture
+            const mhevCanvas = document.getElementById('mhev-architecture-canvas');
+            if (mhevCanvas) {
+                const ctx = mhevCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 900, 500);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('48V MILD HYBRID ARCHITECTURE (P0 Configuration)', 450, 20);
+
+                // 48V Bus Line
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(30, 90);
+                ctx.lineTo(870, 90);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('48V BUS', 30, 80);
+
+                // 48V Battery
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 50, 110, 100, 80, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 2;
+                roundRect(ctx, 50, 110, 100, 80, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('48V BATTERY', 100, 140);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('Li-Ion', 100, 160);
+                ctx.fillText('0.5-1kWh', 100, 175);
+
+                // BSG Motor
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 180, 110, 100, 80, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                roundRect(ctx, 180, 110, 100, 80, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.fillText('BSG/ISG', 230, 140);
+                ctx.fillText('MOTOR', 230, 155);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('10-15kW', 230, 175);
+
+                // eSupercharger
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 330, 110, 90, 60, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                roundRect(ctx, 330, 110, 90, 60, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '10px monospace';
+                ctx.fillText('eSUPER-', 375, 135);
+                ctx.fillText('CHARGER', 375, 150);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.fillText('2kW', 375, 165);
+
+                // Active Chassis
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 470, 110, 90, 60, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                roundRect(ctx, 470, 110, 90, 60, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.fillText('ACTIVE', 515, 135);
+                ctx.fillText('CHASSIS', 515, 150);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.fillText('1-3kW', 515, 165);
+
+                // Heated Catalyst
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 610, 110, 90, 60, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#ff6b6b';
+                roundRect(ctx, 610, 110, 90, 60, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fillText('HEATED', 655, 135);
+                ctx.fillText('CATALYST', 655, 150);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.fillText('4kW', 655, 165);
+
+                // Electric A/C
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 750, 110, 90, 60, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                roundRect(ctx, 750, 110, 90, 60, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch3;
+                ctx.fillText('ELECTRIC', 795, 135);
+                ctx.fillText('A/C', 795, 150);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.fillText('3-5kW', 795, 165);
+
+                // Engine block
+                ctx.fillStyle = '#2a2a4a';
+                roundRect(ctx, 300, 200, 120, 70, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#9fb0c0';
+                roundRect(ctx, 300, 200, 120, 70, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '11px monospace';
+                ctx.fillText('ENGINE', 360, 225);
+                ctx.fillText('ICE', 360, 245);
+                ctx.font = '10px monospace';
+                ctx.fillText('CRANKSHAFT', 360, 260);
+
+                // Belt connection
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([6, 4]);
+                ctx.beginPath();
+                ctx.moveTo(230, 190);
+                ctx.lineTo(230, 235);
+                ctx.lineTo(300, 235);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '10px monospace';
+                ctx.fillText('BELT DRIVE', 265, 220);
+
+                // DC-DC Converter
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 100, 300, 700, 60, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                ctx.lineWidth = 2;
+                roundRect(ctx, 100, 300, 700, 60, 8);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '12px monospace';
+                ctx.fillText('48V/12V DC-DC CONVERTER', 450, 325);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('Bidirectional, 2-3kW    |    48V nominal \u2192 13.5V regulated', 450, 345);
+
+                // Connection from 48V bus to DC-DC
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(100, 190);
+                ctx.lineTo(100, 300);
+                ctx.stroke();
+
+                // 12V Bus Line
+                ctx.strokeStyle = '#ffd93d';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(30, 400);
+                ctx.lineTo(870, 400);
+                ctx.stroke();
+                ctx.fillStyle = '#ffd93d';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('12V BUS', 30, 390);
+
+                // Connection from DC-DC to 12V bus
+                ctx.strokeStyle = '#ffd93d';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(100, 360);
+                ctx.lineTo(100, 400);
+                ctx.stroke();
+
+                // 12V loads
+                const loads12v = [
+                    {x: 100, label: '12V\nBATTERY', sub: 'Lead-Acid'},
+                    {x: 220, label: 'ECU\nCAN', sub: ''},
+                    {x: 340, label: 'LIGHTS\nLED/HID', sub: ''},
+                    {x: 460, label: 'INFOTAIN-\nMENT', sub: ''},
+                    {x: 580, label: 'WINDOWS\nSEATS', sub: ''},
+                    {x: 700, label: 'LEGACY\nLOADS', sub: ''}
+                ];
+
+                loads12v.forEach((load, i) => {
+                    ctx.fillStyle = '#1a1a2e';
+                    roundRect(ctx, load.x - 45, 420, 90, 55, 6);
+                    ctx.fill();
+                    ctx.strokeStyle = '#ffd93d';
+                    ctx.lineWidth = 1.5;
+                    roundRect(ctx, load.x - 45, 420, 90, 55, 6);
+                    ctx.stroke();
+                    ctx.fillStyle = TEK.ch1;
+                    ctx.font = '9px monospace';
+                    ctx.textAlign = 'center';
+                    const lines = load.label.split('\n');
+                    ctx.fillText(lines[0], load.x, 440);
+                    ctx.fillText(lines[1], load.x, 455);
+                    if (load.sub) {
+                        ctx.fillStyle = '#9fb0c0';
+                        ctx.fillText(load.sub, load.x, 468);
+                    }
+
+                    // Connection to 12V bus
+                    ctx.strokeStyle = '#ffd93d';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(load.x, 400);
+                    ctx.lineTo(load.x, 420);
+                    ctx.stroke();
+                });
+            }
+
+            // Canvas 2: DC-DC Converter
+            const dcdcCanvas = document.getElementById('dcdc-converter-canvas');
+            if (dcdcCanvas) {
+                const ctx = dcdcCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 750, 420);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('BIDIRECTIONAL BUCK/BOOST DC-DC CONVERTER (HALF-BRIDGE)', 375, 20);
+
+                // 48V rail
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(50, 60);
+                ctx.lineTo(50, 250);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('48V', 30, 55);
+
+                // 12V rail
+                ctx.strokeStyle = '#ffd93d';
+                ctx.beginPath();
+                ctx.moveTo(650, 60);
+                ctx.lineTo(650, 250);
+                ctx.stroke();
+                ctx.fillStyle = '#ffd93d';
+                ctx.textAlign = 'right';
+                ctx.fillText('12V', 670, 55);
+
+                // GND rail
+                ctx.strokeStyle = '#45b7d1';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(50, 250);
+                ctx.lineTo(650, 250);
+                ctx.stroke();
+                ctx.fillStyle = '#45b7d1';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('\u23DA GND', 350, 275);
+
+                // C1 (48V capacitor)
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 100, 100, 60, 100, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                roundRect(ctx, 100, 100, 60, 100, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '10px monospace';
+                ctx.fillText('C1', 130, 145);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.fillText('48V Input', 130, 165);
+                ctx.fillText('Caps', 130, 180);
+
+                // Q1 (High-side)
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 220, 80, 80, 50, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                roundRect(ctx, 220, 80, 80, 50, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.fillText('Q1', 260, 105);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('High-side', 260, 122);
+
+                // Q2 (Low-side)
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 220, 180, 80, 50, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                roundRect(ctx, 220, 180, 80, 50, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.font = '10px monospace';
+                ctx.fillText('Q2', 260, 205);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('Low-side', 260, 222);
+
+                // Inductor
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 360, 130, 80, 50, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                ctx.lineWidth = 2;
+                roundRect(ctx, 360, 130, 80, 50, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch3;
+                ctx.font = '10px monospace';
+                ctx.fillText('L', 400, 155);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('4.7\u00b5H', 400, 172);
+
+                // C2 (12V capacitor)
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 500, 100, 60, 100, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                roundRect(ctx, 500, 100, 60, 100, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '10px monospace';
+                ctx.fillText('C2', 530, 145);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.fillText('12V Output', 530, 165);
+                ctx.fillText('Caps', 530, 180);
+
+                // Connections
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 2;
+                // 48V to C1
+                ctx.beginPath();
+                ctx.moveTo(50, 100);
+                ctx.lineTo(100, 100);
+                ctx.moveTo(50, 200);
+                ctx.lineTo(100, 200);
+                ctx.stroke();
+                // C1 to Q1
+                ctx.beginPath();
+                ctx.moveTo(160, 105);
+                ctx.lineTo(220, 105);
+                ctx.stroke();
+                // Q1 to Q2 and to L
+                ctx.beginPath();
+                ctx.moveTo(260, 130);
+                ctx.lineTo(260, 155);
+                ctx.lineTo(360, 155);
+                ctx.moveTo(260, 155);
+                ctx.lineTo(260, 180);
+                ctx.stroke();
+                // L to C2
+                ctx.beginPath();
+                ctx.moveTo(440, 155);
+                ctx.lineTo(500, 155);
+                ctx.stroke();
+                // C2 to 12V
+                ctx.beginPath();
+                ctx.moveTo(560, 150);
+                ctx.lineTo(650, 150);
+                ctx.stroke();
+                // GND connections
+                ctx.beginPath();
+                ctx.moveTo(130, 200);
+                ctx.lineTo(130, 250);
+                ctx.moveTo(260, 230);
+                ctx.lineTo(260, 250);
+                ctx.moveTo(530, 200);
+                ctx.lineTo(530, 250);
+                ctx.stroke();
+
+                // Operation modes box
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 50, 290, 650, 120, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#9fb0c0';
+                roundRect(ctx, 50, 290, 650, 120, 8);
+                ctx.stroke();
+
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('OPERATION MODES:', 70, 315);
+
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '10px monospace';
+                ctx.fillText('BUCK MODE (48V \u2192 12V):', 70, 340);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.fillText('Q1 = PWM switching, Q2 = Sync rect', 70, 358);
+                ctx.fillText('D = V_out/V_in \u2248 12/48 = 25%', 70, 375);
+                ctx.fillText('Power flow: 48V \u2192 12V loads', 70, 392);
+
+                ctx.fillStyle = '#ffd93d';
+                ctx.fillText('BOOST MODE (12V \u2192 48V):', 400, 340);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.fillText('Q2 = PWM switching, Q1 = Sync rect', 400, 358);
+                ctx.fillText('D = 1 - V_in/V_out \u2248 75%', 400, 375);
+                ctx.fillText('Power flow: 12V \u2192 48V charging', 400, 392);
+            }
+
+            // Canvas 3: BSG Inverter
+            const bsgCanvas = document.getElementById('bsg-inverter-canvas');
+            if (bsgCanvas) {
+                const ctx = bsgCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 800, 480);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('48V BSG/ISG THREE-PHASE INVERTER', 400, 20);
+
+                // 48V Bus
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(50, 50);
+                ctx.lineTo(50, 380);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('48V BUS', 60, 50);
+
+                // DC Link Capacitors
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 100, 60, 80, 50, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                roundRect(ctx, 100, 60, 80, 50, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('CDC', 140, 80);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('~500\u00b5F', 140, 100);
+
+                // Three phase legs
+                const phases = ['U', 'V', 'W'];
+                const phaseX = [200, 300, 400];
+                const colors = [TEK.ch1, TEK.ch2, TEK.ch4];
+
+                phases.forEach((phase, i) => {
+                    const x = phaseX[i];
+
+                    // High-side MOSFET
+                    ctx.fillStyle = '#1a1a2e';
+                    roundRect(ctx, x-30, 120, 60, 40, 4);
+                    ctx.fill();
+                    ctx.strokeStyle = colors[i];
+                    roundRect(ctx, x-30, 120, 60, 40, 4);
+                    ctx.stroke();
+                    ctx.fillStyle = colors[i];
+                    ctx.font = '10px monospace';
+                    ctx.fillText('Q' + (i+1) + 'H', x, 145);
+
+                    // Low-side MOSFET
+                    ctx.fillStyle = '#1a1a2e';
+                    roundRect(ctx, x-30, 220, 60, 40, 4);
+                    ctx.fill();
+                    ctx.strokeStyle = colors[i];
+                    roundRect(ctx, x-30, 220, 60, 40, 4);
+                    ctx.stroke();
+                    ctx.fillStyle = colors[i];
+                    ctx.fillText('Q' + (i+1) + 'L', x, 245);
+
+                    // Inductor
+                    ctx.fillStyle = '#1a1a2e';
+                    roundRect(ctx, x-20, 175, 40, 30, 4);
+                    ctx.fill();
+                    ctx.strokeStyle = TEK.ch3;
+                    roundRect(ctx, x-20, 175, 40, 30, 4);
+                    ctx.stroke();
+                    ctx.fillStyle = TEK.ch3;
+                    ctx.font = '9px monospace';
+                    ctx.fillText('L', x, 195);
+
+                    // Connections
+                    ctx.strokeStyle = colors[i];
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(x, 160);
+                    ctx.lineTo(x, 175);
+                    ctx.moveTo(x, 205);
+                    ctx.lineTo(x, 220);
+                    ctx.stroke();
+
+                    // Phase output line
+                    ctx.beginPath();
+                    ctx.moveTo(x, 190);
+                    ctx.lineTo(x + 50, 190);
+                    ctx.lineTo(500, 150 + i * 40);
+                    ctx.stroke();
+
+                    // Phase label
+                    ctx.fillStyle = colors[i];
+                    ctx.font = '12px monospace';
+                    ctx.fillText(phase, 480, 155 + i * 40);
+                });
+
+                // GND connection
+                ctx.strokeStyle = '#45b7d1';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(170, 280);
+                ctx.lineTo(430, 280);
+                ctx.stroke();
+                ctx.fillStyle = '#45b7d1';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('\u23DA CHASSIS GND', 300, 300);
+
+                // BSG Motor
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 530, 120, 120, 130, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                roundRect(ctx, 530, 120, 120, 130, 8);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '12px monospace';
+                ctx.fillText('BSG', 590, 160);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('PMSM/BLDC', 590, 185);
+                ctx.fillText('10-15kW', 590, 205);
+
+                // Belt output
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 4;
+                ctx.setLineDash([8, 4]);
+                ctx.beginPath();
+                ctx.moveTo(650, 185);
+                ctx.lineTo(750, 185);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('BELT', 700, 175);
+
+                // Gate Driver
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 150, 330, 300, 80, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                roundRect(ctx, 150, 330, 300, 80, 8);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '11px monospace';
+                ctx.fillText('GATE DRIVER IC', 300, 355);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('6 channels, Bootstrap supply', 300, 375);
+                ctx.fillText('Current sensing, OC protect', 300, 392);
+
+                // MCU
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 200, 430, 200, 40, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                roundRect(ctx, 200, 430, 200, 40, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.font = '10px monospace';
+                ctx.fillText('MCU - TC3xx - FOC Algorithm', 300, 455);
+
+                // Connections
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(300, 410);
+                ctx.lineTo(300, 430);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '9px monospace';
+                ctx.fillText('PWM', 310, 422);
+            }
+
+            // Canvas 4: Battery Pack
+            const battCanvas = document.getElementById('battery-pack-canvas');
+            if (battCanvas) {
+                const ctx = battCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 750, 480);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('48V LITHIUM-ION BATTERY PACK', 375, 20);
+
+                // Battery module outline
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 2;
+                roundRect(ctx, 50, 40, 650, 400, 10);
+                ctx.stroke();
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '12px monospace';
+                ctx.fillText('48V BATTERY MODULE', 375, 60);
+
+                // Battery cells - row 1 (8 cells)
+                for (let i = 0; i < 8; i++) {
+                    ctx.fillStyle = '#1a1a2e';
+                    roundRect(ctx, 80 + i * 70, 80, 60, 50, 4);
+                    ctx.fill();
+                    ctx.strokeStyle = '#ff6b6b';
+                    roundRect(ctx, 80 + i * 70, 60 + 20, 60, 50, 4);
+                    ctx.stroke();
+                    ctx.fillStyle = '#ff6b6b';
+                    ctx.font = '10px monospace';
+                    ctx.fillText('C' + (i+1), 110 + i * 70, 95);
+                    ctx.fillStyle = '#9fb0c0';
+                    ctx.font = '9px monospace';
+                    ctx.fillText('3.7V', 110 + i * 70, 115);
+                }
+
+                // Battery cells - row 2 (4 cells)
+                for (let i = 0; i < 4; i++) {
+                    ctx.fillStyle = '#1a1a2e';
+                    roundRect(ctx, 220 + i * 70, 145, 60, 50, 4);
+                    ctx.fill();
+                    ctx.strokeStyle = '#ff6b6b';
+                    roundRect(ctx, 220 + i * 70, 145, 60, 50, 4);
+                    ctx.stroke();
+                    ctx.fillStyle = '#ff6b6b';
+                    ctx.font = '10px monospace';
+                    ctx.fillText('C' + (i+9), 250 + i * 70, 165);
+                    ctx.fillStyle = '#9fb0c0';
+                    ctx.font = '9px monospace';
+                    ctx.fillText('3.7V', 250 + i * 70, 185);
+                }
+
+                // Series label
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '10px monospace';
+                ctx.fillText('SERIES: 12S (or 13S) NMC/LFP cells', 375, 215);
+                ctx.fillText('Nominal: 12 \u00d7 3.7V = 44.4V (52V max charged)', 375, 232);
+
+                // BMS section
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 80, 250, 590, 120, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                roundRect(ctx, 80, 250, 590, 120, 8);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '11px monospace';
+                ctx.fillText('BATTERY MANAGEMENT SYSTEM', 375, 275);
+
+                // BMS sub-blocks
+                const bmsBlocks = [
+                    {x: 130, label: 'CELL MON', sub: 'MAX17853'},
+                    {x: 280, label: 'BALANCING', sub: 'Passive 100mA'},
+                    {x: 430, label: 'TEMP SEN', sub: 'NTC Arrays'},
+                    {x: 580, label: 'BMS CTRL', sub: 'SOC/SOH'}
+                ];
+
+                bmsBlocks.forEach(b => {
+                    ctx.fillStyle = '#2a2a4a';
+                    roundRect(ctx, b.x - 50, 290, 100, 55, 4);
+                    ctx.fill();
+                    ctx.strokeStyle = '#9fb0c0';
+                    roundRect(ctx, b.x - 50, 290, 100, 55, 4);
+                    ctx.stroke();
+                    ctx.fillStyle = TEK.ch1;
+                    ctx.font = '9px monospace';
+                    ctx.fillText(b.label, b.x, 310);
+                    ctx.fillStyle = '#9fb0c0';
+                    ctx.fillText(b.sub, b.x, 330);
+                });
+
+                // CAN output
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '10px monospace';
+                ctx.fillText('CAN', 375, 365);
+
+                // Contactor section
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 200, 390, 350, 40, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#ff6b6b';
+                roundRect(ctx, 200, 390, 350, 40, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '10px monospace';
+                ctx.fillText('MAIN CONTACTOR (K+) + PRECHARGE', 375, 415);
+
+                // Output
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(375, 430);
+                ctx.lineTo(375, 460);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '12px monospace';
+                ctx.fillText('48V OUTPUT', 375, 475);
+            }
+
+            // Canvas 5: Safety Architecture
+            const safetyCanvas = document.getElementById('safety-arch-canvas');
+            if (safetyCanvas) {
+                const ctx = safetyCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 750, 380);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('48V SAFETY ARCHITECTURE', 375, 20);
+
+                // Safety Controller outline
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 2;
+                roundRect(ctx, 50, 40, 650, 320, 10);
+                ctx.stroke();
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '12px monospace';
+                ctx.fillText('SAFETY CONTROLLER (ASIL-B or ASIL-D)', 375, 60);
+
+                // Fault Detection section
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 80, 80, 590, 100, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#ff6b6b';
+                roundRect(ctx, 80, 80, 590, 100, 8);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '11px monospace';
+                ctx.fillText('FAULT DETECTION', 375, 100);
+
+                // Fault types
+                const faults = [
+                    {x: 150, label: 'OVERVOLT', sub: '>52V'},
+                    {x: 290, label: 'OVERCURR', sub: '>300A'},
+                    {x: 430, label: 'OVERTEMP', sub: '>85\u00b0C'},
+                    {x: 570, label: 'GROUND', sub: 'FAULT'}
+                ];
+
+                faults.forEach(f => {
+                    ctx.fillStyle = '#2a2a4a';
+                    roundRect(ctx, f.x - 50, 115, 100, 45, 4);
+                    ctx.fill();
+                    ctx.strokeStyle = TEK.ch1;
+                    roundRect(ctx, f.x - 50, 115, 100, 45, 4);
+                    ctx.stroke();
+                    ctx.fillStyle = TEK.ch1;
+                    ctx.font = '9px monospace';
+                    ctx.fillText(f.label, f.x, 135);
+                    ctx.fillStyle = '#9fb0c0';
+                    ctx.fillText(f.sub, f.x, 152);
+                });
+
+                // Fault Logic
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 300, 195, 150, 40, 6);
+                ctx.fill();
+                ctx.strokeStyle = '#ff6b6b';
+                roundRect(ctx, 300, 195, 150, 40, 6);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '11px monospace';
+                ctx.fillText('FAULT LOGIC', 375, 220);
+
+                // Connection arrow
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(375, 180);
+                ctx.lineTo(375, 195);
+                ctx.stroke();
+
+                // Protection Actions section
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 80, 250, 590, 90, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                roundRect(ctx, 80, 250, 590, 90, 8);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.font = '11px monospace';
+                ctx.fillText('PROTECTION ACTIONS', 375, 270);
+
+                // Action types
+                const actions = [
+                    {x: 150, label: 'CONTACTOR', sub: 'OPEN <3ms'},
+                    {x: 290, label: 'ACTIVE', sub: 'DISCHARGE'},
+                    {x: 430, label: 'CURRENT', sub: 'LIMIT'},
+                    {x: 570, label: 'LIMP', sub: 'HOME'}
+                ];
+
+                actions.forEach(a => {
+                    ctx.fillStyle = '#2a2a4a';
+                    roundRect(ctx, a.x - 50, 285, 100, 45, 4);
+                    ctx.fill();
+                    ctx.strokeStyle = TEK.ch2;
+                    roundRect(ctx, a.x - 50, 285, 100, 45, 4);
+                    ctx.stroke();
+                    ctx.fillStyle = TEK.ch2;
+                    ctx.font = '9px monospace';
+                    ctx.fillText(a.label, a.x, 305);
+                    ctx.fillStyle = '#9fb0c0';
+                    ctx.fillText(a.sub, a.x, 322);
+                });
+
+                // Connection arrow
+                ctx.beginPath();
+                ctx.moveTo(375, 235);
+                ctx.lineTo(375, 250);
+                ctx.stroke();
+            }
+
+            // Canvas 6: EMC Filter
+            const emcCanvas = document.getElementById('emc-filter-canvas');
+            if (emcCanvas) {
+                const ctx = emcCanvas.getContext('2d');
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, 700, 350);
+
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('EMC FILTER FOR 48V BUS', 350, 20);
+
+                // 48V Bus input
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(50, 60);
+                ctx.lineTo(50, 200);
+                ctx.stroke();
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = '12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('48V BUS', 30, 50);
+
+                // 48V Load output
+                ctx.strokeStyle = '#ff6b6b';
+                ctx.beginPath();
+                ctx.moveTo(550, 60);
+                ctx.lineTo(550, 200);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.textAlign = 'right';
+                ctx.fillText('48V LOAD', 570, 50);
+
+                // Horizontal lines
+                ctx.strokeStyle = '#9fb0c0';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(50, 80);
+                ctx.lineTo(550, 80);
+                ctx.moveTo(50, 180);
+                ctx.lineTo(550, 180);
+                ctx.stroke();
+
+                // CY1 (Y-cap to chassis)
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 120, 90, 60, 40, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                roundRect(ctx, 120, 90, 60, 40, 4);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('CY1', 150, 110);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('4.7nF', 150, 125);
+
+                // Connection to chassis
+                ctx.strokeStyle = '#45b7d1';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(150, 130);
+                ctx.lineTo(150, 210);
+                ctx.stroke();
+
+                // Common Mode Choke
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 250, 100, 100, 60, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                ctx.lineWidth = 2;
+                roundRect(ctx, 250, 100, 100, 60, 6);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch3;
+                ctx.font = '10px monospace';
+                ctx.fillText('COMMON', 300, 120);
+                ctx.fillText('MODE CHOKE', 300, 135);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('100\u00b5H', 300, 152);
+
+                // CX (X-cap across lines)
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 420, 110, 60, 40, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                roundRect(ctx, 420, 110, 60, 40, 4);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.font = '10px monospace';
+                ctx.fillText('CX', 450, 130);
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '9px monospace';
+                ctx.fillText('10\u00b5F', 450, 145);
+
+                // Ground symbol
+                ctx.fillStyle = '#45b7d1';
+                ctx.font = '14px monospace';
+                ctx.fillText('\u23DA CHASSIS', 150, 230);
+
+                // EMC Standards box
+                ctx.fillStyle = '#1a1a2e';
+                roundRect(ctx, 50, 255, 600, 80, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#9fb0c0';
+                roundRect(ctx, 50, 255, 600, 80, 8);
+                ctx.stroke();
+                ctx.fillStyle = '#9fb0c0';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('EMC STANDARDS:', 70, 280);
+                ctx.font = '10px monospace';
+                ctx.fillText('\u2022 CISPR 25 Class 5 (most stringent)', 70, 300);
+                ctx.fillText('\u2022 ISO 11452 (immunity)', 70, 318);
+                ctx.fillText('\u2022 ISO 7637 (transients)', 350, 300);
+            }
+        })();
+
+        // DC-DC Converter Calculator
+        function updateDCDC() {
+            const v48 = parseFloat(document.getElementById('v48').value);
+            const i12 = parseFloat(document.getElementById('i12').value);
+            const fsw = parseFloat(document.getElementById('fsw').value) * 1000; // Hz
+            const ripple = parseFloat(document.getElementById('ripple').value) / 100;
+
+            document.getElementById('v48-val').textContent = v48;
+            document.getElementById('i12-val').textContent = i12;
+            document.getElementById('fsw-val').textContent = fsw / 1000;
+            document.getElementById('ripple-val').textContent = Math.round(ripple * 100);
+
+            const v12 = 13.5; // Target 12V bus voltage
+            const pOut = v12 * i12;
+            const duty = v12 / v48;
+            const i48 = i12 * duty * 1.05; // Include 5% losses
+            const dI = i12 * ripple;
+
+            // Inductor calculation: L = V * D / (f * dI)
+            const vL = (v48 - v12) * duty;
+            const inductance = vL / (fsw * dI) * 1e6; // µH
+
+            // Capacitor for ripple
+            const dV = 0.050; // 50mV ripple target
+            const capOut = dI / (8 * fsw * dV) * 1e6; // µF
+
+            document.getElementById('dcdc-result').innerHTML = `
+<strong>Operating Parameters:</strong>
+  • Duty Cycle:         ${(duty * 100).toFixed(1)}%
+  • Output Power:       ${pOut.toFixed(0)}W
+  • 48V Input Current:  ${i48.toFixed(1)}A
+
+<strong>Inductor Sizing:</strong>
+  • Ripple Current ΔI:  ${dI.toFixed(1)}A
+  • Required L:         ${inductance.toFixed(1)}µH
+  • Peak Current:       ${(i12 + dI/2).toFixed(1)}A
+  • Recommendation:     ${Math.ceil(inductance / 0.5) * 0.5}µH, ${Math.ceil((i12 + dI/2) * 1.3)}A rated
+
+<strong>Output Capacitor:</strong>
+  • For 50mV ripple:    ${capOut.toFixed(0)}µF
+  • Recommendation:     ${Math.ceil(capOut / 100) * 100}µF ceramic + bulk
+
+<strong>MOSFET Selection:</strong>
+  • V_DS rating:        ≥100V (for 70V transients)
+  • I_D rating:         ≥${Math.ceil(i48 * 1.5)}A (with margin)
+  • R_DS(on) target:    <${(0.1 / i48 * 1000).toFixed(1)}mΩ (for <10% conduction loss)
+            `;
+        }
+
+        // Battery Calculator
+        function updateBattery() {
+            const cap = parseFloat(document.getElementById('cap').value);
+            const cells = parseInt(document.getElementById('cells').value);
+            const crate = parseFloat(document.getElementById('crate').value);
+
+            document.getElementById('cap-val').textContent = cap;
+            document.getElementById('cells-val').textContent = cells + 'S';
+            document.getElementById('crate-val').textContent = crate;
+
+            const vCell = cells <= 13 ? 3.7 : 3.2; // NMC vs LFP
+            const vMax = cells <= 13 ? 4.2 : 3.65;
+            const vMin = cells <= 13 ? 3.0 : 2.5;
+
+            const vNom = cells * vCell;
+            const vFull = cells * vMax;
+            const vEmpty = cells * vMin;
+            const energy = cap * vNom / 1000; // kWh
+            const maxCurrent = cap * crate;
+            const maxPower = maxCurrent * vNom / 1000; // kW
+
+            document.getElementById('battery-result').innerHTML = `
+<strong>Pack Configuration:</strong> ${cells}S (${cells} cells in series)
+<strong>Chemistry:</strong> ${cells <= 13 ? 'NMC (Li-ion)' : 'LFP (LiFePO4)'}
+
+<strong>Voltage Range:</strong>
+  • Nominal:   ${vNom.toFixed(1)}V
+  • Full:      ${vFull.toFixed(1)}V
+  • Empty:     ${vEmpty.toFixed(1)}V
+
+<strong>Energy & Power:</strong>
+  • Capacity:      ${cap} Ah
+  • Energy:        ${energy.toFixed(2)} kWh
+  • Max Current:   ${maxCurrent.toFixed(0)}A (${crate}C)
+  • Peak Power:    ${maxPower.toFixed(1)} kW
+
+<strong>Regen Braking Potential:</strong>
+  • At 10kW for 10s: ${(10 * 10 / 3600 * 1000 / vNom).toFixed(1)} Ah recovered
+  • Energy saved:    ${(10 * 10 / 3600).toFixed(3)} kWh
+
+${vFull > 52 ? '⚠️ Warning: Fully charged voltage exceeds 52V LV148 limit!' : '✓ Voltage within LV148 operating range'}
+            `;
+        }
+
+        // Thermal Calculator
+        function updateThermal() {
+            const dcdcPwr = parseFloat(document.getElementById('dcdc-pwr').value);
+            const dcdcEff = parseFloat(document.getElementById('dcdc-eff').value) / 100;
+            const bsgPwr = parseFloat(document.getElementById('bsg-pwr').value);
+            const bsgEff = parseFloat(document.getElementById('bsg-eff').value) / 100;
+
+            document.getElementById('dcdc-pwr-val').textContent = dcdcPwr;
+            document.getElementById('dcdc-eff-val').textContent = Math.round(dcdcEff * 100);
+            document.getElementById('bsg-pwr-val').textContent = bsgPwr;
+            document.getElementById('bsg-eff-val').textContent = Math.round(bsgEff * 100);
+
+            const dcdcLoss = dcdcPwr * (1 - dcdcEff);
+            const bsgLoss = bsgPwr * (1 - bsgEff);
+            const totalLoss = dcdcLoss + bsgLoss;
+
+            // Estimate cooling requirements
+            const dTmax = 60; // Max rise above coolant (°C)
+            const dcdcRth = dTmax / dcdcLoss; // Required thermal resistance
+            const bsgRth = dTmax / bsgLoss;
+
+            document.getElementById('thermal-result').innerHTML = `
+<strong>Power Loss Analysis:</strong>
+  • DC-DC Converter:  ${dcdcLoss.toFixed(0)}W (${(100 - dcdcEff * 100).toFixed(1)}% loss)
+  • BSG Inverter:     ${bsgLoss.toFixed(0)}W (${(100 - bsgEff * 100).toFixed(1)}% loss)
+  • Total:            ${totalLoss.toFixed(0)}W
+
+<strong>Cooling Requirements (ΔT_max = 60°C):</strong>
+  • DC-DC R_th_ja:    <${dcdcRth.toFixed(2)} °C/W
+  • BSG R_th_ja:      <${bsgRth.toFixed(2)} °C/W
+
+<strong>Cooling Method Guidance:</strong>
+  ${dcdcLoss < 50 ? '• DC-DC: Passive heatsink may suffice' : dcdcLoss < 100 ? '• DC-DC: Forced air required' : '• DC-DC: Liquid cooling recommended'}
+  ${bsgLoss < 200 ? '• BSG: Forced air cooling' : bsgLoss < 500 ? '• BSG: Liquid cooling required' : '• BSG: High-flow liquid cooling essential'}
+
+<strong>Fuel Consumption Impact:</strong>
+  • Thermal load on engine: ${(totalLoss / 1000).toFixed(2)}kW
+  • Approx fuel penalty: ${(totalLoss / 1000 * 0.3).toFixed(2)} L/hr
+            `;
+        }
+
+        // Initialize calculators
+        document.querySelectorAll('#v48, #i12, #fsw, #ripple').forEach(el => {
+            el.addEventListener('input', updateDCDC);
+        });
+
+        document.querySelectorAll('#cap, #cells, #crate').forEach(el => {
+            el.addEventListener('input', updateBattery);
+        });
+
+        document.querySelectorAll('#dcdc-pwr, #dcdc-eff, #bsg-pwr, #bsg-eff').forEach(el => {
+            el.addEventListener('input', updateThermal);
+        });
+
+        updateDCDC();
+        updateBattery();
+        updateThermal();
+
+        // Initialize widgets
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof ChecklistWidget !== 'undefined') {
+                new ChecklistWidget(document.getElementById('checklist-container'), {
+                    storageKey: 'lesson-23-13-checklist',
+                    items: [
+                        { id: 'lv148', label: 'Verify all components meet LV 148 voltage requirements (36-52V, 70V transient)', category: 'Standards' },
+                        { id: 'dcdc', label: 'Size 48V/12V DC-DC for 12V load + margin (typically 3kW)', category: 'Power' },
+                        { id: 'battery', label: 'Select 48V battery chemistry and capacity for application', category: 'Battery' },
+                        { id: 'bms', label: 'Implement BMS with cell balancing, SOC/SOH, and fault protection', category: 'Battery' },
+                        { id: 'inverter', label: 'Size BSG inverter MOSFETs for current and switching losses', category: 'Motor' },
+                        { id: 'thermal', label: 'Design cooling for all high-power components', category: 'Thermal' },
+                        { id: 'safety', label: 'Implement ASIL-B safety functions (OV, OC, OT, discharge)', category: 'Safety' },
+                        { id: 'emc', label: 'Add EMC filtering for CISPR 25 compliance', category: 'EMC' },
+                        { id: 'harness', label: 'Route 48V and 12V wiring separately with proper fusing', category: 'Wiring' },
+                        { id: 'ground', label: 'Design grounding strategy to prevent ground loops', category: 'Wiring' }
+                    ]
+                });
+            }
+
+            if (typeof ExerciseWidget !== 'undefined') {
+                new ExerciseWidget(document.getElementById('exercise-container'), {
+                    storageKey: 'lesson-23-13-exercises',
+                    exercises: [
+                        {
+                            id: 'ex1',
+                            question: 'A 48V mild hybrid system needs to power 150A of 12V loads. What is the minimum 48V input current to the DC-DC converter assuming 95% efficiency?',
+                            type: 'numeric',
+                            correctAnswer: 44.2,
+                            tolerance: 2,
+                            unit: 'A',
+                            hint: 'P_out = V_out × I_out, P_in = P_out / efficiency, I_in = P_in / V_in',
+                            solution: 'P_out = 13.5V × 150A = 2025W. P_in = 2025W / 0.95 = 2132W. I_in = 2132W / 48V = 44.4A'
+                        },
+                        {
+                            id: 'ex2',
+                            question: 'Why does 48V (not 72V or 96V) become the standard for mild hybrid systems?',
+                            type: 'choice',
+                            options: ['Higher voltage is more efficient', 'Lower than 60V DC is touch-safe (no HV isolation needed)', '48V matches existing batteries', 'Arbitrary industry choice'],
+                            correctAnswer: 1,
+                            hint: 'Consider the safety and cost implications of high-voltage systems.',
+                            solution: 'Below 60V DC is considered touch-safe according to IEC 60479-1. This means no special HV isolation, orange cables, or interlocks are required, dramatically reducing system cost and complexity compared to full HEV/BEV systems.'
+                        },
+                        {
+                            id: 'ex3',
+                            question: 'A 12S NMC 48V battery has cells at 4.1V. What is the pack voltage and is it within LV 148 spec?',
+                            type: 'numeric',
+                            correctAnswer: 49.2,
+                            tolerance: 0.1,
+                            unit: 'V',
+                            hint: 'Multiply cell voltage by number of cells. LV 148 operating range is 36-52V.',
+                            solution: 'V_pack = 12 × 4.1V = 49.2V. This is within the 36-52V LV 148 operating range. Fully charged (4.2V/cell = 50.4V) is also within spec.'
+                        },
+                        {
+                            id: 'ex4',
+                            question: 'During regenerative braking, a BSG generates 8kW at 92% efficiency. How much heat must the inverter dissipate?',
+                            type: 'numeric',
+                            correctAnswer: 696,
+                            tolerance: 50,
+                            unit: 'W',
+                            hint: 'In generator mode, power flows from motor to battery. Calculate input power first.',
+                            solution: 'In generator mode, 8kW electrical output at 92% efficiency means P_mechanical = 8kW / 0.92 = 8.7kW input. Loss = 8.7kW - 8kW = 696W (in the motor and inverter combined).'
+                        }
+                    ]
+                });
+            }
+        });
+    </script>
+</body>
+</html>

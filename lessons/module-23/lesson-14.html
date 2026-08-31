@@ -1,0 +1,1993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 23.14: ESD Protection Design | Analog Discovery</title>
+    <link rel="stylesheet" href="../../assets/main.css">
+    <link rel="stylesheet" href="../../assets/lesson-layout.css">
+    <script src="../../assets/main.js" defer></script>
+    <script src="../../assets/widgets.js" defer></script>
+    <style>
+        .esd-diagram { font-family: monospace; font-size: 11px; line-height: 1.3; background: #1a1a2e; padding: 15px; border-radius: 8px; overflow-x: auto; }
+        .esd-diagram .esd { color: #ff6b6b; }
+        .esd-diagram .clamp { color: #4ecdc4; }
+        .esd-diagram .signal { color: #ffd93d; }
+        .esd-diagram .ground { color: #45b7d1; }
+        .esd-diagram .component { color: #f9ca24; }
+        .esd-diagram .label { color: #a0a0a0; }
+        .spec-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .spec-table th, .spec-table td { border: 1px solid #444; padding: 8px; text-align: left; }
+        .spec-table th { background: #2a2a4a; }
+        .calc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
+        .calc-box { background: #1e1e3f; padding: 15px; border-radius: 8px; }
+        .calc-box label { display: block; margin-bottom: 5px; font-size: 14px; }
+        .calc-box input[type="range"] { width: 100%; }
+        .result-box { background: #2a2a5a; padding: 10px; border-radius: 4px; margin-top: 10px; font-family: monospace; }
+        .warning-box { background: #4a2a2a; border: 1px solid #ff6b6b; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .success-box { background: #2a4a2a; border: 1px solid #4ade80; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="lesson-nav-container">
+            <nav class="lesson-nav" aria-label="Lesson navigation">
+                <div class="hamburger-menu" onclick="toggleNav()">
+                    <span></span><span></span><span></span>
+                </div>
+                <a href="../../index.html" class="nav-home">↩</a>
+                <a href="lesson-13.html" class="nav-prev" title="Previous: Automotive 48V Systems">←</a>
+                <a href="lesson-15.html" class="nav-next" title="Next: Precision Data Acquisition">→</a>
+            </nav>
+        </div>
+
+        <header class="lesson-header">
+            <div class="module-tag">Module 23: Industry Design Examples</div>
+            <h1>ESD Protection Design</h1>
+            <p class="lesson-subtitle">Protecting electronic systems from electrostatic discharge</p>
+        </header>
+
+        <article class="lesson-content">
+            <!-- Section 1: Understanding ESD -->
+            <section class="content-section">
+                <h2>Understanding ESD Threats</h2>
+                <div class="card">
+                    <p>Electrostatic Discharge (ESD) is a sudden flow of electricity between charged objects. It can destroy sensitive electronics instantly:</p>
+
+<canvas id="esd-event-canvas" width="850" height="360"></canvas>
+
+                    <h4>ESD Test Models</h4>
+                    <table class="spec-table">
+                        <tr><th>Model</th><th>Source</th><th>C</th><th>R</th><th>Peak Current @8kV</th></tr>
+                        <tr><td>HBM (Human Body)</td><td>Person touching device</td><td>100pF</td><td>1500Ω</td><td>5.3A</td></tr>
+                        <tr><td>MM (Machine Model)</td><td>Machinery/tools</td><td>200pF</td><td>0Ω</td><td>>>10A</td></tr>
+                        <tr><td>CDM (Charged Device)</td><td>Device itself charged</td><td>Device cap</td><td>~1Ω</td><td>>>15A</td></tr>
+                        <tr><td>IEC 61000-4-2</td><td>System-level test</td><td>150pF</td><td>330Ω</td><td>30A</td></tr>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>Failure Modes:</strong>
+                        <ul style="margin: 10px 0;">
+                            <li><strong>Gate oxide breakdown:</strong> MOSFETs with thin gate oxide (< 10nm)</li>
+                            <li><strong>Junction damage:</strong> PN junctions with low breakdown voltage</li>
+                            <li><strong>Metal migration:</strong> Thin metal traces vaporized by current</li>
+                            <li><strong>Latent damage:</strong> Weakened but functional - fails later in field</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: ESD Protection Devices -->
+            <section class="content-section">
+                <h2>ESD Protection Devices</h2>
+                <div class="card">
+<canvas id="esd-devices-canvas" width="850" height="420"></canvas>
+
+                    <h4>ESD Protection Selection Guide</h4>
+                    <table class="spec-table">
+                        <tr><th>Device Type</th><th>Capacitance</th><th>Best For</th><th>Limitations</th></tr>
+                        <tr><td>TVS Diode</td><td>10-100pF</td><td>Power lines, slow I/O</td><td>Too slow for high-speed</td></tr>
+                        <tr><td>ESD Diode Array</td><td>0.5-5pF</td><td>General I/O, USB, HDMI</td><td>Needs VCC rail</td></tr>
+                        <tr><td>Polymer PTC</td><td><0.5pF</td><td>RF, antenna, USB 3.0+</td><td>Limited clamping</td></tr>
+                        <tr><td>Spark Gap</td><td><0.3pF</td><td>RF front-end</td><td>High trigger voltage</td></tr>
+                        <tr><td>Varistor (MOV)</td><td>10-1000pF</td><td>AC mains protection</td><td>Degrades over time</td></tr>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Section 3: Key Parameters -->
+            <section class="content-section">
+                <h2>Key ESD Protection Parameters</h2>
+                <div class="card">
+<canvas id="tvs-iv-canvas" width="850" height="380"></canvas>
+
+                    <h4>ESD Protection Calculator</h4>
+                    <div class="calc-grid">
+                        <div class="calc-box">
+                            <label>Signal Voltage: <span id="v-sig-val">3.3</span>V</label>
+                            <input type="range" id="v-sig" min="1.8" max="24" value="3.3" step="0.1">
+                        </div>
+                        <div class="calc-box">
+                            <label>ESD Level Required: <span id="esd-level-val">8</span>kV (IEC)</label>
+                            <input type="range" id="esd-level" min="2" max="15" value="8" step="1">
+                        </div>
+                        <div class="calc-box">
+                            <label>Signal Frequency: <span id="sig-freq-val">100</span>MHz</label>
+                            <input type="range" id="sig-freq" min="1" max="5000" value="100" step="10">
+                        </div>
+                        <div class="calc-box">
+                            <label>Source Impedance: <span id="z-src-val">50</span>Ω</label>
+                            <input type="range" id="z-src" min="10" max="100" value="50" step="5">
+                        </div>
+                    </div>
+
+                    <div class="result-box" id="esd-calc-result">
+                        Calculating...
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: USB Interface Protection -->
+            <section class="content-section">
+                <h2>USB Interface ESD Protection</h2>
+                <div class="card">
+<canvas id="usb-esd-canvas" width="850" height="380"></canvas>
+
+                    <h4>USB ESD Solutions by Speed</h4>
+                    <table class="spec-table">
+                        <tr><th>USB Standard</th><th>Data Rate</th><th>Max Capacitance</th><th>Recommended ESD IC</th></tr>
+                        <tr><td>USB 2.0 FS/HS</td><td>480 Mbps</td><td>4pF</td><td>USBLC6-2SC6</td></tr>
+                        <tr><td>USB 3.0</td><td>5 Gbps</td><td>0.5pF</td><td>TPD4EUSB30</td></tr>
+                        <tr><td>USB 3.1 Gen2</td><td>10 Gbps</td><td>0.3pF</td><td>TPD3S714</td></tr>
+                        <tr><td>USB4/TB3</td><td>40 Gbps</td><td>0.15pF</td><td>TPD6S300A</td></tr>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Section 5: Power Line Protection -->
+            <section class="content-section">
+                <h2>Power Line ESD Protection</h2>
+                <div class="card">
+<canvas id="power-protection-canvas" width="850" height="400"></canvas>
+
+                    <h4>TVS Selection for Power Rails</h4>
+                    <div class="calc-grid">
+                        <div class="calc-box">
+                            <label>Operating Voltage: <span id="v-op-val">12</span>V</label>
+                            <input type="range" id="v-op" min="3.3" max="48" value="12" step="0.5">
+                        </div>
+                        <div class="calc-box">
+                            <label>Max Transient: <span id="v-trans-val">50</span>V</label>
+                            <input type="range" id="v-trans" min="10" max="100" value="50" step="5">
+                        </div>
+                        <div class="calc-box">
+                            <label>Peak Surge Current: <span id="i-surge-val">10</span>A</label>
+                            <input type="range" id="i-surge" min="1" max="50" value="10" step="1">
+                        </div>
+                    </div>
+
+                    <div class="result-box" id="power-tvs-result">
+                        Calculating...
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 6: Layout Guidelines -->
+            <section class="content-section">
+                <h2>PCB Layout for ESD Protection</h2>
+                <div class="card">
+<canvas id="layout-canvas" width="850" height="420"></canvas>
+
+                    <h4>Critical Layout Rules</h4>
+                    <table class="spec-table">
+                        <tr><th>Rule</th><th>Why</th><th>Implementation</th></tr>
+                        <tr><td>ESD device first</td><td>Minimize exposed trace</td><td>Place within 3mm of connector</td></tr>
+                        <tr><td>Short GND path</td><td>Reduce inductance</td><td>Multiple vias to GND plane</td></tr>
+                        <tr><td>Wide traces</td><td>Lower inductance</td><td>≥0.3mm width for ESD path</td></tr>
+                        <tr><td>No trace stubs</td><td>Avoid reflections</td><td>Inline placement only</td></tr>
+                        <tr><td>Keep away from sensitive</td><td>Prevent coupling</td><td>>3mm from sensitive traces</td></tr>
+                    </table>
+
+                    <div class="success-box">
+                        <strong>Via Guideline:</strong> Use at least 2-3 vias for ESD device ground connections. Calculate total via inductance: L ≈ 1nH per via. Three 0.3mm vias ≈ 0.3nH total, acceptable for most applications.
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 7: System-Level Protection -->
+            <section class="content-section">
+                <h2>System-Level ESD Design</h2>
+                <div class="card">
+<canvas id="multilayer-canvas" width="850" height="450"></canvas>
+
+                    <h4>Protection Coordination</h4>
+                    <div class="warning-box">
+                        <strong>Coordination Principle:</strong> Each protection layer should:
+                        <ol style="margin: 10px 0;">
+                            <li>React faster than the next inner layer</li>
+                            <li>Have lower clamping voltage than the next layer's damage threshold</li>
+                            <li>Handle peak current that may pass through</li>
+                        </ol>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 8: Testing and Verification -->
+            <section class="content-section">
+                <h2>ESD Testing and Verification</h2>
+                <div class="card">
+                    <h4>IEC 61000-4-2 Test Setup</h4>
+                    <canvas id="iec-test-canvas" width="850" height="380"></canvas>
+
+                    <table class="spec-table">
+                        <tr><th>Test Type</th><th>Where</th><th>Pass Criteria</th></tr>
+                        <tr><td>Contact Discharge</td><td>Conductive surfaces, connectors</td><td>No damage, normal operation</td></tr>
+                        <tr><td>Air Discharge</td><td>Insulated surfaces</td><td>No damage, may reset</td></tr>
+                        <tr><td>Indirect Discharge</td><td>Horizontal/vertical coupling planes</td><td>No damage or upset</td></tr>
+                    </table>
+
+                    <h4>Test Result Classification</h4>
+                    <table class="spec-table">
+                        <tr><th>Result</th><th>Definition</th><th>Acceptable?</th></tr>
+                        <tr><td>Class A</td><td>Normal operation during/after test</td><td>Always</td></tr>
+                        <tr><td>Class B</td><td>Temporary loss, self-recovery</td><td>Usually</td></tr>
+                        <tr><td>Class C</td><td>Temporary loss, operator reset needed</td><td>Sometimes</td></tr>
+                        <tr><td>Class D</td><td>Permanent damage or data loss</td><td>Never</td></tr>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Section 9: Design Checklist -->
+            <section class="content-section">
+                <h2>Design Verification Checklist</h2>
+                <div class="card" id="checklist-container"></div>
+            </section>
+
+            <!-- Section 10: Practice Exercises -->
+            <section class="content-section">
+                <h2>Practice Exercises</h2>
+                <div class="card" id="exercise-container"></div>
+            </section>
+        </article>
+    </div>
+
+    <script>
+        // ESD Protection Calculator
+        function updateESDCalc() {
+            const vSig = parseFloat(document.getElementById('v-sig').value);
+            const esdLevel = parseFloat(document.getElementById('esd-level').value);
+            const sigFreq = parseFloat(document.getElementById('sig-freq').value);
+            const zSrc = parseFloat(document.getElementById('z-src').value);
+
+            document.getElementById('v-sig-val').textContent = vSig;
+            document.getElementById('esd-level-val').textContent = esdLevel;
+            document.getElementById('sig-freq-val').textContent = sigFreq;
+            document.getElementById('z-src-val').textContent = zSrc;
+
+            // Calculate required specifications
+            const vRwm = vSig * 1.1; // 10% margin above signal
+            const vBr = vRwm * 1.1;  // Breakdown above working
+
+            // Maximum capacitance for signal integrity
+            // Rule of thumb: Xc > 10*Z at operating frequency
+            const maxCap = 1 / (2 * Math.PI * sigFreq * 1e6 * zSrc * 10) * 1e12; // pF
+
+            // Peak current from IEC model
+            const iPeak = esdLevel * 1000 / 330; // V/Ω for IEC 61000-4-2
+
+            // Determine device type recommendation
+            let recommendation = '';
+            if (sigFreq > 1000) {
+                recommendation = 'Polymer ESD or spark gap (<0.3pF)';
+            } else if (sigFreq > 100) {
+                recommendation = 'Low-cap ESD array (<1pF)';
+            } else if (sigFreq > 10) {
+                recommendation = 'Standard ESD array (1-5pF)';
+            } else {
+                recommendation = 'TVS diode (any capacitance)';
+            }
+
+            document.getElementById('esd-calc-result').innerHTML = `
+<strong>ESD Protection Requirements:</strong>
+
+  <strong>Voltage Ratings:</strong>
+  • V_RWM (working):    ≥${vRwm.toFixed(1)}V
+  • V_BR (breakdown):   ~${vBr.toFixed(1)}V
+  • V_CLAMP @ ${iPeak.toFixed(1)}A:   <${(vSig * 3).toFixed(1)}V (to protect IC)
+
+  <strong>Signal Integrity:</strong>
+  • Signal frequency:   ${sigFreq} MHz
+  • Max capacitance:    ${maxCap.toFixed(2)}pF
+  • Source impedance:   ${zSrc}Ω
+
+  <strong>ESD Capability:</strong>
+  • IEC 61000-4-2:      ±${esdLevel}kV contact
+  • Peak current:       ${iPeak.toFixed(1)}A (330Ω, 150pF)
+
+<strong>Recommended Device Type:</strong>
+  ${recommendation}
+
+<strong>Example Parts:</strong>
+  ${sigFreq > 1000 ? '• TPD1E10B06 (10Gbps, 0.15pF)' :
+    sigFreq > 100 ? '• TPD4S012 (0.4pF per line)' :
+    sigFreq > 10 ? '• USBLC6-2SC6 (2.5pF)' :
+    '• SMAJ' + Math.ceil(vRwm) + 'CA'}
+            `;
+        }
+
+        // Power TVS Calculator
+        function updatePowerTVS() {
+            const vOp = parseFloat(document.getElementById('v-op').value);
+            const vTrans = parseFloat(document.getElementById('v-trans').value);
+            const iSurge = parseFloat(document.getElementById('i-surge').value);
+
+            document.getElementById('v-op-val').textContent = vOp;
+            document.getElementById('v-trans-val').textContent = vTrans;
+            document.getElementById('i-surge-val').textContent = iSurge;
+
+            // TVS selection
+            const vRwm = vOp * 1.1;  // 10% margin
+            const vBr = vRwm * 1.1;  // Breakdown voltage
+            const vClampMax = vTrans; // Must clamp below transient
+
+            // Power dissipation
+            const pPulse = vClampMax * iSurge;
+
+            // Package recommendation based on power
+            let packageRec = '';
+            if (pPulse < 400) {
+                packageRec = 'SMB (DO-214AA) - 400W';
+            } else if (pPulse < 600) {
+                packageRec = 'SMC (DO-214AB) - 600W';
+            } else if (pPulse < 1500) {
+                packageRec = 'SMA (DO-214AC) - 1500W';
+            } else if (pPulse < 3000) {
+                packageRec = 'P600 or 5KP - 3000W';
+            } else {
+                packageRec = 'Multiple TVS in parallel or MOV required';
+            }
+
+            // Standard TVS voltage (common values)
+            const stdVoltages = [3.3, 5, 6.5, 8.5, 10, 12, 13, 15, 18, 20, 22, 24, 28, 30, 33, 36, 40, 43, 48];
+            const nearestVrwm = stdVoltages.reduce((prev, curr) =>
+                Math.abs(curr - vRwm) < Math.abs(prev - vRwm) ? curr : prev
+            );
+
+            document.getElementById('power-tvs-result').innerHTML = `
+<strong>TVS Voltage Ratings:</strong>
+  • Operating voltage:    ${vOp}V
+  • Required V_RWM:       ≥${vRwm.toFixed(1)}V
+  • Nearest standard:     ${nearestVrwm}V
+  • V_BR (min):           ${(nearestVrwm * 1.1).toFixed(1)}V
+  • V_CLAMP (max):        <${vTrans}V (your transient limit)
+
+<strong>Surge Handling:</strong>
+  • Peak surge current:   ${iSurge}A
+  • Peak pulse power:     ${pPulse.toFixed(0)}W
+  • Package:              ${packageRec}
+
+<strong>Recommended Part:</strong>
+  ${'SMBJ' + nearestVrwm + 'CA'} (bidirectional)
+  or ${'SMBJ' + nearestVrwm + 'A'} (unidirectional for DC only)
+
+<strong>Notes:</strong>
+  ${vClampMax < nearestVrwm * 1.5 ? '⚠️ Margin between V_clamp and V_transient is tight - verify datasheet' : '✓ Good margin between clamping and damage threshold'}
+  ${pPulse > 1500 ? '⚠️ High peak power - consider paralleling or larger package' : ''}
+            `;
+        }
+
+        // Initialize calculators
+        document.querySelectorAll('#v-sig, #esd-level, #sig-freq, #z-src').forEach(el => {
+            el.addEventListener('input', updateESDCalc);
+        });
+
+        document.querySelectorAll('#v-op, #v-trans, #i-surge').forEach(el => {
+            el.addEventListener('input', updatePowerTVS);
+        });
+
+        updateESDCalc();
+        updatePowerTVS();
+
+        // Initialize widgets
+        document.addEventListener('DOMContentLoaded', function() {
+            // Canvas rendering helper
+            function roundRect(ctx, x, y, w, h, r) {
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + w - r, y);
+                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+                ctx.lineTo(x + w, y + h - r);
+                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                ctx.lineTo(x + r, y + h);
+                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+                ctx.lineTo(x, y + r);
+                ctx.quadraticCurveTo(x, y, x + r, y);
+                ctx.closePath();
+            }
+
+            const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00', esd: '#ff6b6b', clamp: '#4ecdc4' };
+
+            // ESD Event Characteristics Canvas
+            (function() {
+                const canvas = document.getElementById('esd-event-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const W = canvas.width, H = canvas.height;
+
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, W, H);
+
+                // Title
+                ctx.fillStyle = '#aaa';
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('ESD EVENT CHARACTERISTICS', W/2, 25);
+
+                // Voltage graph (top half)
+                const vGraphX = 50, vGraphY = 45, vGraphW = 350, vGraphH = 120;
+
+                ctx.strokeStyle = '#444';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(vGraphX, vGraphY, vGraphW, vGraphH);
+
+                // Y axis labels for voltage
+                ctx.fillStyle = TEK.esd;
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText('VOLTAGE (V)', vGraphX - 5, vGraphY - 5);
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('8000', vGraphX - 5, vGraphY + 15);
+                ctx.fillText('6000', vGraphX - 5, vGraphY + 45);
+                ctx.fillText('4000', vGraphX - 5, vGraphY + 75);
+                ctx.fillText('2000', vGraphX - 5, vGraphY + 105);
+                ctx.fillText('0', vGraphX - 5, vGraphY + vGraphH);
+
+                // X axis labels
+                ctx.textAlign = 'center';
+                ctx.fillText('0', vGraphX, vGraphY + vGraphH + 15);
+                ctx.fillText('50', vGraphX + 70, vGraphY + vGraphH + 15);
+                ctx.fillText('100', vGraphX + 140, vGraphY + vGraphH + 15);
+                ctx.fillText('150', vGraphX + 210, vGraphY + vGraphH + 15);
+                ctx.fillText('200 ns', vGraphX + 280, vGraphY + vGraphH + 15);
+
+                // Voltage waveform
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(vGraphX + 10, vGraphY + vGraphH);
+                ctx.lineTo(vGraphX + 30, vGraphY + vGraphH);
+                ctx.lineTo(vGraphX + 35, vGraphY + 10);  // Fast rise
+                ctx.lineTo(vGraphX + 50, vGraphY + 10);  // Peak
+                ctx.lineTo(vGraphX + 55, vGraphY + 90);  // Start decay
+                ctx.lineTo(vGraphX + 200, vGraphY + vGraphH - 10);  // Decay
+                ctx.lineTo(vGraphX + vGraphW, vGraphY + vGraphH);
+                ctx.stroke();
+
+                // HBM annotations
+                ctx.fillStyle = 'rgba(255,107,107,0.1)';
+                roundRect(ctx, 420, 45, 200, 110, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.esd;
+                ctx.font = 'bold 11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('Human Body Model (HBM)', 430, 65);
+                ctx.fillStyle = '#aaa';
+                ctx.font = '10px monospace';
+                ctx.fillText('Peak: 2-8 kV', 430, 85);
+                ctx.fillText('Rise time: 2-10 ns', 430, 102);
+                ctx.fillText('Duration: ~150 ns', 430, 119);
+                ctx.fillText('R = 1500Ω, C = 100pF', 430, 136);
+
+                // Current graph (bottom half)
+                const iGraphX = 50, iGraphY = 200, iGraphW = 350, iGraphH = 120;
+
+                ctx.strokeStyle = '#444';
+                ctx.strokeRect(iGraphX, iGraphY, iGraphW, iGraphH);
+
+                // Y axis labels for current
+                ctx.fillStyle = TEK.clamp;
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText('CURRENT (A)', iGraphX - 5, iGraphY - 5);
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('3.7', iGraphX - 5, iGraphY + 20);
+                ctx.fillText('2.5', iGraphX - 5, iGraphY + 50);
+                ctx.fillText('1.0', iGraphX - 5, iGraphY + 85);
+                ctx.fillText('0', iGraphX - 5, iGraphY + iGraphH);
+
+                // X axis labels
+                ctx.textAlign = 'center';
+                ctx.fillText('0', iGraphX, iGraphY + iGraphH + 15);
+                ctx.fillText('30', iGraphX + 60, iGraphY + iGraphH + 15);
+                ctx.fillText('60', iGraphX + 120, iGraphY + iGraphH + 15);
+                ctx.fillText('90', iGraphX + 180, iGraphY + iGraphH + 15);
+                ctx.fillText('150 ns', iGraphX + 280, iGraphY + iGraphH + 15);
+
+                // Current waveform (exponential decay)
+                ctx.strokeStyle = TEK.clamp;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(iGraphX + 10, iGraphY + iGraphH);
+                ctx.lineTo(iGraphX + 20, iGraphY + iGraphH);
+                ctx.quadraticCurveTo(iGraphX + 35, iGraphY + 10, iGraphX + 50, iGraphY + 15);
+                ctx.quadraticCurveTo(iGraphX + 100, iGraphY + 50, iGraphX + 180, iGraphY + 100);
+                ctx.lineTo(iGraphX + iGraphW, iGraphY + iGraphH - 5);
+                ctx.stroke();
+
+                // Current annotations
+                ctx.fillStyle = 'rgba(78,205,196,0.1)';
+                roundRect(ctx, 420, 200, 200, 90, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.clamp;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.clamp;
+                ctx.font = 'bold 11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('Peak Current @ 8kV', 430, 220);
+                ctx.fillStyle = '#aaa';
+                ctx.font = '10px monospace';
+                ctx.fillText('I_peak = V / R', 430, 240);
+                ctx.fillText('= 8kV / 1500Ω', 430, 257);
+                ctx.fillText('= 5.3A (HBM)', 430, 274);
+
+                // Warning about IEC
+                ctx.fillStyle = 'rgba(255,255,0,0.1)';
+                roundRect(ctx, 640, 45, 195, 120, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = 'bold 11px monospace';
+                ctx.fillText('IEC 61000-4-2', 655, 65);
+                ctx.fillStyle = '#aaa';
+                ctx.font = '10px monospace';
+                ctx.fillText('R = 330Ω, C = 150pF', 655, 85);
+                ctx.fillText('Much higher peak!', 655, 105);
+                ctx.fillStyle = TEK.esd;
+                ctx.fillText('I_peak = 8kV/330Ω', 655, 125);
+                ctx.fillText('≈ 24A!', 655, 145);
+            })();
+
+            // ESD Protection Device Types Canvas
+            (function() {
+                const canvas = document.getElementById('esd-devices-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const W = canvas.width, H = canvas.height;
+
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.fillStyle = '#aaa';
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('ESD PROTECTION DEVICE TYPES', W/2, 25);
+
+                // 1. TVS Diode
+                ctx.fillStyle = 'rgba(78,205,196,0.1)';
+                roundRect(ctx, 20, 45, 260, 110, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.clamp;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.clamp;
+                ctx.font = 'bold 11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('1. TVS DIODE', 35, 65);
+
+                // Signal line
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(35, 100);
+                ctx.lineTo(100, 100);
+                ctx.lineTo(100, 120);
+                ctx.stroke();
+
+                // TVS symbol
+                ctx.fillStyle = 'rgba(78,205,196,0.3)';
+                ctx.fillRect(85, 120, 30, 20);
+                ctx.strokeStyle = TEK.clamp;
+                ctx.strokeRect(85, 120, 30, 20);
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('TVS', 100, 133);
+
+                // Continue to IC
+                ctx.strokeStyle = TEK.ch1;
+                ctx.beginPath();
+                ctx.moveTo(100, 100);
+                ctx.lineTo(200, 100);
+                ctx.stroke();
+
+                // IC block
+                ctx.fillStyle = 'rgba(255,255,0,0.2)';
+                roundRect(ctx, 200, 85, 60, 30, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.fillText('IC', 230, 104);
+
+                // GND
+                ctx.strokeStyle = '#666';
+                ctx.beginPath();
+                ctx.moveTo(100, 140);
+                ctx.lineTo(100, 145);
+                ctx.moveTo(90, 145);
+                ctx.lineTo(110, 145);
+                ctx.stroke();
+
+                ctx.fillStyle = '#888';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('Bidirectional', 130, 130);
+                ctx.fillText('V_BR = V_work + 10%', 130, 142);
+
+                // 2. ESD Diode Array
+                ctx.fillStyle = 'rgba(255,255,0,0.1)';
+                roundRect(ctx, 295, 45, 260, 110, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = 'bold 11px monospace';
+                ctx.fillText('2. ESD DIODE ARRAY', 310, 65);
+
+                // VCC rail
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(380, 75);
+                ctx.lineTo(380, 95);
+                ctx.stroke();
+                ctx.fillStyle = TEK.esd;
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('VCC', 380, 72);
+
+                // Signal line with diodes
+                ctx.strokeStyle = TEK.ch1;
+                ctx.beginPath();
+                ctx.moveTo(310, 105);
+                ctx.lineTo(360, 105);
+                ctx.stroke();
+
+                // Diode to VCC
+                ctx.strokeStyle = TEK.clamp;
+                ctx.beginPath();
+                ctx.moveTo(360, 105);
+                ctx.lineTo(380, 95);
+                ctx.stroke();
+                ctx.fillStyle = TEK.clamp;
+                ctx.font = '8px monospace';
+                ctx.fillText('D1', 370, 90);
+
+                // Diode to GND
+                ctx.beginPath();
+                ctx.moveTo(360, 105);
+                ctx.lineTo(380, 125);
+                ctx.stroke();
+                ctx.fillText('D2', 370, 132);
+
+                // Continue signal
+                ctx.strokeStyle = TEK.ch1;
+                ctx.beginPath();
+                ctx.moveTo(360, 105);
+                ctx.lineTo(430, 105);
+                ctx.stroke();
+
+                // IC
+                ctx.fillStyle = 'rgba(255,255,0,0.2)';
+                roundRect(ctx, 430, 90, 60, 30, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.fillText('IC', 460, 109);
+
+                // GND
+                ctx.strokeStyle = '#666';
+                ctx.beginPath();
+                ctx.moveTo(380, 125);
+                ctx.lineTo(380, 140);
+                ctx.moveTo(370, 140);
+                ctx.lineTo(390, 140);
+                ctx.stroke();
+
+                ctx.fillStyle = '#888';
+                ctx.textAlign = 'left';
+                ctx.fillText('Clamp to rails', 400, 140);
+
+                // 3. Polymer ESD
+                ctx.fillStyle = 'rgba(255,102,255,0.1)';
+                roundRect(ctx, 570, 45, 260, 110, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch3;
+                ctx.font = 'bold 11px monospace';
+                ctx.fillText('3. POLYMER ESD', 585, 65);
+
+                // Signal line
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(585, 100);
+                ctx.lineTo(640, 100);
+                ctx.lineTo(640, 115);
+                ctx.stroke();
+
+                // Polymer device
+                ctx.fillStyle = 'rgba(255,102,255,0.3)';
+                ctx.fillRect(620, 115, 40, 25);
+                ctx.strokeStyle = TEK.ch3;
+                ctx.strokeRect(620, 115, 40, 25);
+                ctx.fillStyle = '#fff';
+                ctx.font = '8px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('POLYMER', 640, 131);
+
+                // Continue to IC
+                ctx.strokeStyle = TEK.ch1;
+                ctx.beginPath();
+                ctx.moveTo(640, 100);
+                ctx.lineTo(740, 100);
+                ctx.stroke();
+
+                // IC
+                ctx.fillStyle = 'rgba(255,255,0,0.2)';
+                roundRect(ctx, 740, 85, 60, 30, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.fillText('IC', 770, 104);
+
+                // GND
+                ctx.strokeStyle = '#666';
+                ctx.beginPath();
+                ctx.moveTo(640, 140);
+                ctx.lineTo(640, 150);
+                ctx.moveTo(630, 150);
+                ctx.lineTo(650, 150);
+                ctx.stroke();
+
+                ctx.fillStyle = '#888';
+                ctx.textAlign = 'left';
+                ctx.fillText('<0.5pF', 665, 125);
+                ctx.fillText('High-speed', 665, 137);
+
+                // Comparison section
+                ctx.fillStyle = 'rgba(52,211,153,0.1)';
+                roundRect(ctx, 20, 170, 810, 240, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#34d399';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = '#34d399';
+                ctx.font = 'bold 12px monospace';
+                ctx.fillText('COMPARISON', 35, 195);
+
+                // Draw comparison bars
+                const devices = [
+                    { name: 'TVS Diode', cap: '10-100pF', speed: 'Slow I/O', color: TEK.clamp },
+                    { name: 'ESD Array', cap: '0.5-5pF', speed: 'USB, HDMI', color: TEK.ch1 },
+                    { name: 'Polymer', cap: '<0.5pF', speed: 'USB 3.0+, RF', color: TEK.ch3 },
+                    { name: 'Spark Gap', cap: '<0.3pF', speed: 'RF front-end', color: TEK.ch4 }
+                ];
+
+                devices.forEach((d, i) => {
+                    const y = 220 + i * 50;
+                    ctx.fillStyle = d.color;
+                    ctx.font = '11px monospace';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(d.name, 35, y);
+                    ctx.fillStyle = '#aaa';
+                    ctx.fillText('Cap: ' + d.cap, 150, y);
+                    ctx.fillText('Best for: ' + d.speed, 300, y);
+
+                    // Capacitance bar visualization
+                    const capVal = parseFloat(d.cap) || 0.3;
+                    const barWidth = Math.min(capVal * 2, 200);
+                    ctx.fillStyle = d.color + '40';
+                    ctx.fillRect(550, y - 12, barWidth, 15);
+                    ctx.strokeStyle = d.color;
+                    ctx.strokeRect(550, y - 12, barWidth, 15);
+                });
+
+                ctx.fillStyle = '#888';
+                ctx.font = '10px monospace';
+                ctx.fillText('← Lower capacitance = higher speed capability', 550, 395);
+            })();
+
+            // TVS I-V Characteristic Canvas
+            (function() {
+                const canvas = document.getElementById('tvs-iv-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const W = canvas.width, H = canvas.height;
+
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.fillStyle = '#aaa';
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('TVS DIODE I-V CHARACTERISTIC', W/2, 25);
+
+                // Graph area
+                const gx = 100, gy = 50, gw = 400, gh = 250;
+
+                // Axes
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(gx, gy);
+                ctx.lineTo(gx, gy + gh);
+                ctx.lineTo(gx + gw, gy + gh);
+                ctx.stroke();
+
+                // Axis labels
+                ctx.fillStyle = TEK.esd;
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'center';
+                ctx.save();
+                ctx.translate(50, gy + gh/2);
+                ctx.rotate(-Math.PI/2);
+                ctx.fillText('CURRENT (A)', 0, 0);
+                ctx.restore();
+
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('VOLTAGE (V)', gx + gw/2, gy + gh + 35);
+
+                // Y axis labels
+                ctx.textAlign = 'right';
+                ctx.fillText('Ipp', gx - 10, gy + 30);
+                ctx.fillText('1mA', gx - 10, gy + gh - 80);
+                ctx.fillText('0', gx - 10, gy + gh + 5);
+
+                // X axis labels
+                ctx.textAlign = 'center';
+                ctx.fillStyle = TEK.ch1;
+                ctx.fillText('V_RWM', gx + 100, gy + gh + 20);
+                ctx.fillStyle = TEK.clamp;
+                ctx.fillText('V_BR', gx + 170, gy + gh + 20);
+                ctx.fillStyle = TEK.esd;
+                ctx.fillText('V_CLAMP', gx + 280, gy + gh + 20);
+
+                // TVS I-V curve
+                ctx.strokeStyle = TEK.ch2;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(gx, gy + gh);
+                ctx.lineTo(gx + 80, gy + gh - 5);  // Leakage region
+                ctx.lineTo(gx + 100, gy + gh - 10);  // V_RWM
+                ctx.quadraticCurveTo(gx + 150, gy + gh - 60, gx + 170, gy + gh - 80);  // Knee at V_BR
+                ctx.lineTo(gx + 280, gy + 20);  // V_CLAMP @ Ipp
+                ctx.stroke();
+
+                // Vertical reference lines
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(gx + 100, gy + gh);
+                ctx.lineTo(gx + 100, gy + gh - 40);
+                ctx.stroke();
+
+                ctx.strokeStyle = TEK.clamp;
+                ctx.beginPath();
+                ctx.moveTo(gx + 170, gy + gh);
+                ctx.lineTo(gx + 170, gy + gh - 80);
+                ctx.stroke();
+
+                ctx.strokeStyle = TEK.esd;
+                ctx.beginPath();
+                ctx.moveTo(gx + 280, gy + gh);
+                ctx.lineTo(gx + 280, gy + 20);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Horizontal line at 1mA
+                ctx.strokeStyle = '#444';
+                ctx.beginPath();
+                ctx.moveTo(gx, gy + gh - 80);
+                ctx.lineTo(gx + gw, gy + gh - 80);
+                ctx.stroke();
+
+                // Key Parameters box
+                ctx.fillStyle = 'rgba(255,255,0,0.1)';
+                roundRect(ctx, 530, 50, 300, 180, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = 'bold 12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('KEY PARAMETERS:', 545, 75);
+
+                ctx.font = '11px monospace';
+                ctx.fillStyle = TEK.ch1;
+                ctx.fillText('V_RWM', 545, 100);
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('= Max working voltage', 620, 100);
+
+                ctx.fillStyle = TEK.clamp;
+                ctx.fillText('V_BR', 545, 125);
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('= Breakdown voltage', 620, 125);
+
+                ctx.fillStyle = TEK.esd;
+                ctx.fillText('V_CLAMP', 545, 150);
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('= Clamping @ Ipp', 620, 150);
+
+                ctx.fillStyle = TEK.esd;
+                ctx.fillText('I_PP', 545, 175);
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('= Peak pulse current', 620, 175);
+
+                ctx.fillStyle = '#888';
+                ctx.fillText('C_J', 545, 200);
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('= Junction capacitance', 620, 200);
+
+                // Selection note
+                ctx.fillStyle = 'rgba(52,211,153,0.1)';
+                roundRect(ctx, 530, 250, 300, 100, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#34d399';
+                ctx.stroke();
+
+                ctx.fillStyle = '#34d399';
+                ctx.font = 'bold 11px monospace';
+                ctx.fillText('SELECTION RULE:', 545, 275);
+                ctx.fillStyle = '#aaa';
+                ctx.font = '10px monospace';
+                ctx.fillText('V_RWM > Signal voltage × 1.1', 545, 295);
+                ctx.fillText('V_CLAMP < IC absolute max', 545, 312);
+                ctx.fillText('C_J acceptable for signal freq', 545, 329);
+            })();
+
+            // USB ESD Protection Canvas
+            (function() {
+                const canvas = document.getElementById('usb-esd-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const W = canvas.width, H = canvas.height;
+
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.fillStyle = '#aaa';
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('USB 2.0/3.0 ESD PROTECTION', W/2, 25);
+
+                // USB Connector block
+                ctx.fillStyle = 'rgba(255,255,0,0.2)';
+                roundRect(ctx, 30, 60, 100, 180, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 11px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('USB', 80, 85);
+                ctx.fillText('CONNECTOR', 80, 100);
+
+                // Pin labels
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillStyle = TEK.esd;
+                ctx.fillText('VBUS', 45, 130);
+                ctx.fillStyle = TEK.ch2;
+                ctx.fillText('D+', 55, 165);
+                ctx.fillText('D-', 55, 200);
+                ctx.fillStyle = '#888';
+                ctx.fillText('GND', 50, 230);
+
+                // USB PHY block
+                ctx.fillStyle = 'rgba(0,255,255,0.2)';
+                roundRect(ctx, 520, 60, 100, 180, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.fillText('USB PHY', 570, 85);
+                ctx.fillStyle = '#888';
+                ctx.font = '9px monospace';
+                ctx.fillText('IC', 570, 100);
+
+                // VBUS line with TVS
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(130, 125);
+                ctx.lineTo(200, 125);
+                ctx.stroke();
+
+                // TVS for VBUS
+                ctx.fillStyle = 'rgba(78,205,196,0.3)';
+                ctx.fillRect(200, 115, 50, 20);
+                ctx.strokeStyle = TEK.clamp;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(200, 115, 50, 20);
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('TVS', 225, 129);
+
+                // TVS GND connection
+                ctx.strokeStyle = '#666';
+                ctx.beginPath();
+                ctx.moveTo(225, 135);
+                ctx.lineTo(225, 150);
+                ctx.stroke();
+
+                // Continue VBUS
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(250, 125);
+                ctx.lineTo(520, 125);
+                ctx.stroke();
+
+                // VBUS annotation
+                ctx.fillStyle = '#888';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('SMAJ5.0A', 260, 120);
+                ctx.fillText('V_RWM=5V', 260, 132);
+
+                // Data lines D+/D-
+                ctx.strokeStyle = TEK.ch2;
+                ctx.beginPath();
+                ctx.moveTo(130, 160);
+                ctx.lineTo(310, 160);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(130, 195);
+                ctx.lineTo(310, 195);
+                ctx.stroke();
+
+                // ESD Array for data lines
+                ctx.fillStyle = 'rgba(78,205,196,0.3)';
+                roundRect(ctx, 310, 150, 80, 55, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.clamp;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('ESD ARRAY', 350, 172);
+                ctx.fillText('USBLC6-2', 350, 187);
+
+                // Data lines continue
+                ctx.strokeStyle = TEK.ch2;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(390, 160);
+                ctx.lineTo(520, 160);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(390, 195);
+                ctx.lineTo(520, 195);
+                ctx.stroke();
+
+                // ESD array GND
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(350, 205);
+                ctx.lineTo(350, 230);
+                ctx.stroke();
+
+                // GND rail
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(130, 230);
+                ctx.lineTo(520, 230);
+                ctx.stroke();
+
+                // USB 3.0 requirements box
+                ctx.fillStyle = 'rgba(255,255,0,0.1)';
+                roundRect(ctx, 640, 60, 195, 160, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = 'bold 11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('USB 3.0 SuperSpeed', 655, 85);
+                ctx.fillText('(5 Gbps)', 655, 100);
+
+                ctx.fillStyle = '#aaa';
+                ctx.font = '10px monospace';
+                ctx.fillText('• Max cap: 0.5pF/line', 655, 125);
+                ctx.fillText('• Z_diff: 90Ω ±10%', 655, 145);
+                ctx.fillText('• ESD: ±8kV contact', 655, 165);
+                ctx.fillText('• Recommended:', 655, 185);
+                ctx.fillStyle = TEK.clamp;
+                ctx.fillText('  TPD4EUSB30', 655, 200);
+
+                // USB4 note
+                ctx.fillStyle = 'rgba(255,102,255,0.1)';
+                roundRect(ctx, 640, 235, 195, 100, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch3;
+                ctx.font = 'bold 11px monospace';
+                ctx.fillText('USB4 / Thunderbolt', 655, 260);
+
+                ctx.fillStyle = '#aaa';
+                ctx.font = '10px monospace';
+                ctx.fillText('40 Gbps requires:', 655, 285);
+                ctx.fillText('• Cap < 0.15pF', 655, 305);
+                ctx.fillText('• TPD6S300A', 655, 325);
+            })();
+
+            // Power Protection Canvas
+            (function() {
+                const canvas = document.getElementById('power-protection-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const W = canvas.width, H = canvas.height;
+
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.fillStyle = '#aaa';
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('DC POWER INPUT PROTECTION', W/2, 25);
+
+                // VIN label
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = 'bold 12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('VIN', 40, 75);
+
+                // Main power rail
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(70, 70);
+                ctx.lineTo(150, 70);
+                ctx.stroke();
+
+                // TVS
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(110, 70);
+                ctx.lineTo(110, 100);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(78,205,196,0.3)';
+                roundRect(ctx, 85, 100, 50, 35, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.clamp;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('TVS', 110, 115);
+                ctx.fillText('24CA', 110, 128);
+
+                ctx.strokeStyle = '#666';
+                ctx.beginPath();
+                ctx.moveTo(110, 135);
+                ctx.lineTo(110, 155);
+                ctx.moveTo(100, 155);
+                ctx.lineTo(120, 155);
+                ctx.stroke();
+
+                // Continue rail
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(150, 70);
+                ctx.lineTo(200, 70);
+                ctx.stroke();
+
+                // Fuse
+                ctx.fillStyle = 'rgba(255,255,0,0.3)';
+                roundRect(ctx, 200, 55, 60, 30, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px monospace';
+                ctx.fillText('FUSE', 230, 70);
+                ctx.fillText('3A', 230, 82);
+
+                // Continue rail
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(260, 70);
+                ctx.lineTo(320, 70);
+                ctx.stroke();
+
+                // Ferrite bead
+                ctx.fillStyle = 'rgba(255,102,255,0.3)';
+                roundRect(ctx, 320, 55, 60, 30, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.fillText('FERRITE', 350, 73);
+
+                // Capacitor
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(350, 85);
+                ctx.lineTo(350, 110);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(0,255,255,0.3)';
+                roundRect(ctx, 325, 110, 50, 25, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.fillText('100nF', 350, 127);
+
+                ctx.strokeStyle = '#666';
+                ctx.beginPath();
+                ctx.moveTo(350, 135);
+                ctx.lineTo(350, 155);
+                ctx.moveTo(340, 155);
+                ctx.lineTo(360, 155);
+                ctx.stroke();
+
+                // Continue to regulator
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(380, 70);
+                ctx.lineTo(450, 70);
+                ctx.stroke();
+
+                // Regulator block
+                ctx.fillStyle = 'rgba(0,255,0,0.2)';
+                roundRect(ctx, 450, 45, 80, 50, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 11px monospace';
+                ctx.fillText('REGULATOR', 490, 75);
+
+                // GND connection
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(70, 155);
+                ctx.lineTo(490, 155);
+                ctx.stroke();
+                ctx.fillStyle = '#888';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('GND', 50, 160);
+
+                // Protection Coordination box
+                ctx.fillStyle = 'rgba(52,211,153,0.15)';
+                roundRect(ctx, 560, 40, 270, 150, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#34d399';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = '#34d399';
+                ctx.font = 'bold 12px monospace';
+                ctx.fillText('PROTECTION COORDINATION:', 575, 65);
+
+                ctx.fillStyle = '#aaa';
+                ctx.font = '11px monospace';
+                const steps = [
+                    '1. TVS clamps surge voltage',
+                    '2. Fuse limits fault current',
+                    '3. LC filter attenuates noise',
+                    '4. Regulator sees clean supply'
+                ];
+                steps.forEach((s, i) => ctx.fillText(s, 575, 90 + i * 25));
+
+                // Specs box
+                ctx.fillStyle = 'rgba(255,255,0,0.1)';
+                roundRect(ctx, 40, 200, 500, 160, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = 'bold 12px monospace';
+                ctx.fillText('TVS SPECIFICATIONS (SMBJ24CA):', 55, 225);
+
+                ctx.fillStyle = '#aaa';
+                ctx.font = '11px monospace';
+                ctx.fillText('V_RWM = 24V (matches input voltage)', 55, 250);
+                ctx.fillText('V_BR = 26.7V (breakdown)', 55, 270);
+                ctx.fillText('V_CLAMP = 38.9V @ 12.8A', 55, 290);
+                ctx.fillText('Peak Power = 600W (10/1000µs pulse)', 55, 310);
+                ctx.fillText('Bidirectional (CA) for AC/bipolar transients', 55, 330);
+
+                // Fuse coordination note
+                ctx.fillStyle = 'rgba(255,102,255,0.1)';
+                roundRect(ctx, 560, 200, 270, 80, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch3;
+                ctx.font = 'bold 11px monospace';
+                ctx.fillText('FUSE COORDINATION:', 575, 225);
+                ctx.fillStyle = '#aaa';
+                ctx.font = '10px monospace';
+                ctx.fillText('I²t (fuse) < I²t (TVS)', 575, 248);
+                ctx.fillText('Fuse clears before TVS overheats', 575, 265);
+            })();
+
+            // Layout Canvas
+            (function() {
+                const canvas = document.getElementById('layout-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const W = canvas.width, H = canvas.height;
+
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.fillStyle = '#aaa';
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('ESD LAYOUT BEST PRACTICES', W/2, 25);
+
+                // CORRECT layout
+                ctx.fillStyle = 'rgba(52,211,153,0.1)';
+                roundRect(ctx, 20, 45, 400, 160, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#34d399';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillStyle = '#34d399';
+                ctx.font = 'bold 12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('✓ CORRECT PLACEMENT', 35, 70);
+
+                // PCB outline
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 1;
+                roundRect(ctx, 35, 85, 370, 100, 4);
+                ctx.stroke();
+                ctx.fillStyle = '#888';
+                ctx.font = '9px monospace';
+                ctx.fillText('PCB', 40, 98);
+
+                // Connector
+                ctx.fillStyle = 'rgba(255,255,0,0.2)';
+                roundRect(ctx, 50, 110, 60, 40, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('CONN', 80, 135);
+
+                // Short trace to ESD
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(110, 130);
+                ctx.lineTo(140, 130);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '8px monospace';
+                ctx.fillText('SHORT', 125, 120);
+
+                // ESD Device
+                ctx.fillStyle = 'rgba(78,205,196,0.3)';
+                roundRect(ctx, 140, 115, 50, 30, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.clamp;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.fillText('TVS', 165, 134);
+
+                // Wide GND via
+                ctx.fillStyle = TEK.clamp;
+                ctx.beginPath();
+                ctx.arc(165, 155, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(165, 155, 4, 0, Math.PI * 2);
+                ctx.arc(175, 155, 4, 0, Math.PI * 2);
+                ctx.arc(155, 155, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Longer trace to IC
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(190, 130);
+                ctx.lineTo(300, 130);
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '8px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('TRACE OK', 245, 120);
+
+                // IC
+                ctx.fillStyle = 'rgba(0,255,0,0.2)';
+                roundRect(ctx, 300, 110, 80, 40, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.fillText('PROTECTED', 340, 127);
+                ctx.fillText('IC', 340, 140);
+
+                // GND plane
+                ctx.fillStyle = 'rgba(69,183,209,0.2)';
+                ctx.fillRect(35, 165, 370, 15);
+                ctx.fillStyle = '#45b7d1';
+                ctx.font = '8px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('GND PLANE', 180, 176);
+
+                // Key points
+                ctx.fillStyle = '#34d399';
+                ctx.font = '10px monospace';
+                ctx.fillText('• ESD device CLOSEST to connector', 35, 195);
+
+                // INCORRECT layout
+                ctx.fillStyle = 'rgba(255,107,107,0.1)';
+                roundRect(ctx, 440, 45, 390, 160, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.esd;
+                ctx.font = 'bold 12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('✗ INCORRECT (DON\'T DO THIS!)', 455, 70);
+
+                // PCB outline
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 1;
+                roundRect(ctx, 455, 85, 360, 100, 4);
+                ctx.stroke();
+
+                // Connector
+                ctx.fillStyle = 'rgba(255,255,0,0.2)';
+                roundRect(ctx, 470, 110, 60, 40, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('CONN', 500, 135);
+
+                // Long trace to IC FIRST (wrong!)
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(530, 130);
+                ctx.lineTo(620, 130);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // IC before ESD (wrong!)
+                ctx.fillStyle = 'rgba(0,255,0,0.2)';
+                roundRect(ctx, 620, 110, 70, 40, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.fillText('IC', 655, 135);
+
+                // ESD too far
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(690, 130);
+                ctx.lineTo(720, 130);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = 'rgba(255,107,107,0.3)';
+                roundRect(ctx, 720, 115, 50, 30, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.fillText('TVS', 745, 134);
+
+                ctx.fillStyle = TEK.esd;
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('← TOO FAR!', 775, 135);
+
+                // Problems
+                ctx.font = '10px monospace';
+                ctx.fillText('✗ ESD reaches IC before TVS responds', 455, 195);
+
+                // Rules summary
+                ctx.fillStyle = 'rgba(255,255,0,0.1)';
+                roundRect(ctx, 20, 220, 810, 180, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = 'bold 12px monospace';
+                ctx.fillText('CRITICAL LAYOUT RULES:', 35, 245);
+
+                const rules = [
+                    { rule: 'ESD device first', why: 'Minimize exposed trace', how: 'Place within 3mm of connector' },
+                    { rule: 'Short GND path', why: 'Reduce inductance', how: 'Multiple vias, wide traces' },
+                    { rule: 'No trace stubs', why: 'Avoid reflections', how: 'Inline placement only' }
+                ];
+
+                ctx.font = '11px monospace';
+                rules.forEach((r, i) => {
+                    const y = 275 + i * 40;
+                    ctx.fillStyle = TEK.clamp;
+                    ctx.fillText('• ' + r.rule, 35, y);
+                    ctx.fillStyle = '#aaa';
+                    ctx.fillText(r.why, 200, y);
+                    ctx.fillText(r.how, 400, y);
+                });
+
+                // Via calculation
+                ctx.fillStyle = '#888';
+                ctx.font = '10px monospace';
+                ctx.fillText('Via inductance: L ≈ 1nH/via. Use 3+ vias for ESD GND (total ~0.3nH)', 35, 385);
+            })();
+
+            // Multilayer Protection Canvas
+            (function() {
+                const canvas = document.getElementById('multilayer-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const W = canvas.width, H = canvas.height;
+
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.fillStyle = '#aaa';
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('MULTI-LAYER ESD PROTECTION STRATEGY', W/2, 25);
+
+                // Layer 1: Enclosure (outermost)
+                ctx.fillStyle = 'rgba(255,255,0,0.05)';
+                roundRect(ctx, 20, 45, 500, 290, 12);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('LAYER 1: Metal Enclosure (Chassis GND)', 30, 65);
+
+                // Layer 2: Connector
+                ctx.fillStyle = 'rgba(0,255,255,0.1)';
+                roundRect(ctx, 40, 80, 460, 235, 10);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch2;
+                ctx.fillText('LAYER 2: Shielded Connector', 50, 100);
+
+                // Layer 3: TVS/ESD
+                ctx.fillStyle = 'rgba(78,205,196,0.15)';
+                roundRect(ctx, 60, 115, 420, 180, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.clamp;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = TEK.clamp;
+                ctx.fillText('LAYER 3: TVS / ESD Array', 70, 135);
+
+                // Layer 4: Signal conditioning
+                ctx.fillStyle = 'rgba(255,102,255,0.15)';
+                roundRect(ctx, 80, 150, 380, 125, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch3;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch3;
+                ctx.fillText('LAYER 4: Series R + Filter', 90, 170);
+
+                // Layer 5: IC internal
+                ctx.fillStyle = 'rgba(0,255,0,0.2)';
+                roundRect(ctx, 100, 185, 340, 70, 4);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch4;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = TEK.ch4;
+                ctx.fillText('LAYER 5: IC Internal ESD Structures', 110, 205);
+                ctx.fillStyle = '#888';
+                ctx.font = '10px monospace';
+                ctx.fillText('(Don\'t rely on this alone!)', 110, 225);
+
+                // Arrow showing ESD path
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([6, 4]);
+                ctx.beginPath();
+                ctx.moveTo(10, 180);
+                ctx.lineTo(95, 180);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.moveTo(95, 180);
+                ctx.lineTo(85, 175);
+                ctx.lineTo(85, 185);
+                ctx.closePath();
+                ctx.fillStyle = TEK.esd;
+                ctx.fill();
+
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('ESD', 50, 175);
+
+                // Layer descriptions
+                ctx.fillStyle = 'rgba(52,211,153,0.1)';
+                roundRect(ctx, 540, 45, 290, 290, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#34d399';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = '#34d399';
+                ctx.font = 'bold 12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('EACH LAYER PROVIDES:', 555, 70);
+
+                const layers = [
+                    { n: '1', desc: 'Block direct discharge', color: TEK.ch1 },
+                    { n: '2', desc: 'Control entry point', color: TEK.ch2 },
+                    { n: '3', desc: 'Clamp voltage, divert I', color: TEK.clamp },
+                    { n: '4', desc: 'Limit current, filter', color: TEK.ch3 },
+                    { n: '5', desc: 'Final protection', color: TEK.ch4 }
+                ];
+
+                ctx.font = '11px monospace';
+                layers.forEach((l, i) => {
+                    ctx.fillStyle = l.color;
+                    ctx.fillText('Layer ' + l.n + ':', 555, 100 + i * 30);
+                    ctx.fillStyle = '#aaa';
+                    ctx.fillText(l.desc, 640, 100 + i * 30);
+                });
+
+                // Coordination principle
+                ctx.fillStyle = 'rgba(255,107,107,0.1)';
+                roundRect(ctx, 555, 260, 265, 65, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.esd;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.esd;
+                ctx.font = 'bold 10px monospace';
+                ctx.fillText('COORDINATION:', 565, 280);
+                ctx.fillStyle = '#aaa';
+                ctx.font = '10px monospace';
+                ctx.fillText('Each layer reacts faster than', 565, 298);
+                ctx.fillText('the next inner layer', 565, 313);
+
+                // Response time visualization
+                ctx.fillStyle = 'rgba(255,255,0,0.1)';
+                roundRect(ctx, 20, 350, 810, 80, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = 'bold 11px monospace';
+                ctx.fillText('RESPONSE TIME:', 35, 375);
+
+                // Time scale
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(150, 400);
+                ctx.lineTo(800, 400);
+                ctx.stroke();
+
+                ctx.fillStyle = '#888';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('0ns', 150, 415);
+                ctx.fillText('1ns', 300, 415);
+                ctx.fillText('10ns', 500, 415);
+                ctx.fillText('100ns', 700, 415);
+
+                // Response bars
+                const responses = [
+                    { name: 'Enclosure', start: 150, width: 30, color: TEK.ch1 },
+                    { name: 'Connector shield', start: 180, width: 50, color: TEK.ch2 },
+                    { name: 'TVS clamp', start: 230, width: 200, color: TEK.clamp },
+                    { name: 'Filter', start: 350, width: 250, color: TEK.ch3 }
+                ];
+
+                responses.forEach((r, i) => {
+                    ctx.fillStyle = r.color + '60';
+                    ctx.fillRect(r.start, 380 - i * 8, r.width, 6);
+                });
+            })();
+
+            // IEC Test Setup Canvas
+            (function() {
+                const canvas = document.getElementById('iec-test-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const W = canvas.width, H = canvas.height;
+
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.fillStyle = '#aaa';
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('IEC 61000-4-2 ESD TEST SETUP', W/2, 25);
+
+                // ESD Simulator
+                ctx.fillStyle = 'rgba(255,107,107,0.2)';
+                roundRect(ctx, 180, 50, 120, 80, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 11px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('ESD SIMULATOR', 240, 75);
+                ctx.fillStyle = '#aaa';
+                ctx.font = '10px monospace';
+                ctx.fillText('8kV Contact', 240, 95);
+                ctx.fillText('15kV Air', 240, 110);
+
+                // ESD gun cable
+                ctx.strokeStyle = TEK.esd;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(240, 130);
+                ctx.lineTo(240, 160);
+                ctx.lineTo(280, 180);
+                ctx.stroke();
+
+                // Gun tip
+                ctx.fillStyle = TEK.esd;
+                ctx.beginPath();
+                ctx.moveTo(280, 180);
+                ctx.lineTo(295, 175);
+                ctx.lineTo(295, 185);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = TEK.esd;
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('ESD GUN', 300, 185);
+
+                // Test table
+                ctx.fillStyle = 'rgba(255,255,0,0.1)';
+                roundRect(ctx, 50, 200, 400, 120, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                // DUT
+                ctx.fillStyle = 'rgba(0,255,255,0.2)';
+                roundRect(ctx, 100, 220, 300, 50, 6);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch2;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('DEVICE UNDER TEST (DUT)', 250, 250);
+
+                // Ground Reference Plane
+                ctx.fillStyle = 'rgba(69,183,209,0.3)';
+                ctx.fillRect(50, 280, 400, 20);
+                ctx.fillStyle = '#45b7d1';
+                ctx.font = '10px monospace';
+                ctx.fillText('GROUND REFERENCE PLANE (GRP)', 250, 295);
+
+                // Return connection
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(200, 130);
+                ctx.lineTo(150, 130);
+                ctx.lineTo(150, 290);
+                ctx.lineTo(50, 290);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#888';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('Return', 155, 200);
+
+                // Test levels box
+                ctx.fillStyle = 'rgba(255,255,0,0.1)';
+                roundRect(ctx, 480, 50, 350, 130, 8);
+                ctx.fill();
+                ctx.strokeStyle = TEK.ch1;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = TEK.ch1;
+                ctx.font = 'bold 12px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('TEST LEVELS:', 495, 75);
+
+                ctx.font = '11px monospace';
+                const levels = [
+                    { level: '1', contact: '2kV', air: '2kV' },
+                    { level: '2', contact: '4kV', air: '4kV' },
+                    { level: '3', contact: '6kV', air: '8kV' },
+                    { level: '4', contact: '8kV', air: '15kV' }
+                ];
+
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('Level   Contact   Air', 495, 100);
+                levels.forEach((l, i) => {
+                    ctx.fillStyle = i === 3 ? TEK.esd : '#aaa';
+                    ctx.fillText(`  ${l.level}      ${l.contact}     ${l.air}`, 495, 120 + i * 18);
+                });
+
+                // Result classification
+                ctx.fillStyle = 'rgba(52,211,153,0.1)';
+                roundRect(ctx, 480, 200, 350, 130, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#34d399';
+                ctx.stroke();
+
+                ctx.fillStyle = '#34d399';
+                ctx.font = 'bold 12px monospace';
+                ctx.fillText('RESULT CLASSIFICATION:', 495, 225);
+
+                ctx.font = '10px monospace';
+                const results = [
+                    { cls: 'A', desc: 'Normal operation', ok: '✓', color: '#34d399' },
+                    { cls: 'B', desc: 'Self-recovery', ok: '✓', color: TEK.ch1 },
+                    { cls: 'C', desc: 'Reset needed', ok: '~', color: TEK.ch3 },
+                    { cls: 'D', desc: 'Damage', ok: '✗', color: TEK.esd }
+                ];
+
+                results.forEach((r, i) => {
+                    ctx.fillStyle = r.color;
+                    ctx.fillText(`Class ${r.cls}: ${r.desc}`, 495, 250 + i * 20);
+                    ctx.textAlign = 'right';
+                    ctx.fillText(r.ok, 810, 250 + i * 20);
+                    ctx.textAlign = 'left';
+                });
+
+                // Notes
+                ctx.fillStyle = '#888';
+                ctx.font = '10px monospace';
+                ctx.fillText('GRP connected to ESD simulator return', 65, 340);
+                ctx.fillText('DUT operating during test', 65, 358);
+            })();
+
+            if (typeof ChecklistWidget !== 'undefined') {
+                new ChecklistWidget(document.getElementById('checklist-container'), {
+                    storageKey: 'lesson-23-14-checklist',
+                    items: [
+                        { id: 'identify', label: 'Identify all external interfaces requiring ESD protection', category: 'Analysis' },
+                        { id: 'level', label: 'Determine required ESD immunity level (IEC 61000-4-2)', category: 'Requirements' },
+                        { id: 'vrwm', label: 'Select V_RWM > max signal voltage with margin', category: 'Selection' },
+                        { id: 'cap', label: 'Verify capacitance compatible with signal frequency', category: 'Selection' },
+                        { id: 'vclamp', label: 'Confirm V_clamp < protected IC absolute maximum rating', category: 'Selection' },
+                        { id: 'placement', label: 'Place ESD devices closest to connector entry point', category: 'Layout' },
+                        { id: 'gnd', label: 'Use short, wide, low-inductance ground connections', category: 'Layout' },
+                        { id: 'vias', label: 'Add multiple ground vias for ESD devices', category: 'Layout' },
+                        { id: 'coordination', label: 'Verify protection coordination (TVS → fuse → system)', category: 'System' },
+                        { id: 'test', label: 'Plan ESD testing per IEC 61000-4-2 (all ports, all levels)', category: 'Verification' }
+                    ]
+                });
+            }
+
+            if (typeof ExerciseWidget !== 'undefined') {
+                new ExerciseWidget(document.getElementById('exercise-container'), {
+                    storageKey: 'lesson-23-14-exercises',
+                    exercises: [
+                        {
+                            id: 'ex1',
+                            question: 'A USB 3.0 interface operates at 5 Gbps with 90Ω differential impedance. What is the maximum acceptable ESD protection capacitance per line?',
+                            type: 'choice',
+                            options: ['2pF', '0.5pF', '5pF', '10pF'],
+                            correctAnswer: 1,
+                            hint: 'Higher data rates require lower capacitance to maintain signal integrity.',
+                            solution: 'USB 3.0 SuperSpeed at 5Gbps requires very low capacitance (<0.5pF per line) to avoid signal degradation. At these frequencies, even small capacitances cause significant impedance mismatch and eye diagram closure.'
+                        },
+                        {
+                            id: 'ex2',
+                            question: 'For IEC 61000-4-2 Level 4 contact discharge (8kV), what is the approximate peak current through the ESD device?',
+                            type: 'numeric',
+                            correctAnswer: 24,
+                            tolerance: 3,
+                            unit: 'A',
+                            hint: 'IEC model uses 150pF, 330Ω. Peak current = V/R (approximately).',
+                            solution: 'For IEC 61000-4-2: I_peak ≈ V/R = 8000V / 330Ω = 24.2A. The actual waveform shows about 30A peak due to the double-exponential shape.'
+                        },
+                        {
+                            id: 'ex3',
+                            question: 'A 3.3V GPIO needs ESD protection. The IC absolute maximum rating is 6V. What V_RWM and maximum V_clamp should you specify for the TVS?',
+                            type: 'choice',
+                            options: ['V_RWM=3.0V, V_clamp<5V', 'V_RWM=3.6V, V_clamp<6V', 'V_RWM=5.0V, V_clamp<8V', 'V_RWM=6.0V, V_clamp<10V'],
+                            correctAnswer: 1,
+                            hint: 'V_RWM must exceed signal voltage, V_clamp must be below absolute max.',
+                            solution: 'V_RWM should be 3.3V × 1.1 ≈ 3.6V to avoid clamping normal signals. V_clamp must be less than the 6V absolute maximum rating of the IC. Choice B (3.6V/6V) provides proper margins.'
+                        },
+                        {
+                            id: 'ex4',
+                            question: 'Why is ESD device placement near the connector critical, not near the protected IC?',
+                            type: 'choice',
+                            options: ['It looks neater on the PCB', 'ESD travels at light speed and damages IC before TVS responds', 'Trace inductance limits TVS clamping effectiveness', 'It makes routing easier'],
+                            correctAnswer: 2,
+                            hint: 'Consider what happens to the ESD pulse as it travels along a PCB trace.',
+                            solution: 'Trace inductance between connector and TVS adds to the effective clamping voltage. A 10nH trace at 30A produces V = L(di/dt) = 10nH × 30A/1ns = 300V spike BEFORE the TVS can clamp. The TVS must be at the point of entry.'
+                        }
+                    ]
+                });
+            }
+        });
+    </script>
+</body>
+</html>

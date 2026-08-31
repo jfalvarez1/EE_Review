@@ -1,0 +1,608 @@
+<!-- Module 17, Lesson 6: Ground Loop Issues -->
+<div class="lesson-content" data-module="17" data-lesson="6">
+
+    <div class="card">
+        <h2>Debugging Ground Loop Issues</h2>
+        <p>Ground loops create mysterious noise, hum, and measurement errors. Learn to identify and eliminate ground loop problems in audio, instrumentation, and mixed-signal systems.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">50/60Hz Hum</div>
+                <div class="v">Classic ground loop symptom</div>
+            </div>
+            <div class="box">
+                <div class="k">Common Impedance</div>
+                <div class="v">Shared return path coupling</div>
+            </div>
+            <div class="box">
+                <div class="k">Magnetic Pickup</div>
+                <div class="v">Loop area couples H-field</div>
+            </div>
+            <div class="box">
+                <div class="k">Solution</div>
+                <div class="v">Single-point or isolation</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>The Rule:</strong> Current flows in loops. If two circuits share any part of their return path, they're coupled. The fix is either to break the loop (isolation) or ensure the shared path has zero impedance (proper grounding).
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Ground Loop Simulator</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="gl-rgnd">Ground Resistance (mΩ)</label>
+                <input type="range" id="gl-rgnd" min="1" max="500" step="1" value="100">
+                <span id="gl-rgnd-val" class="mono">100mΩ</span>
+            </div>
+            <div class="c3">
+                <label for="gl-inoise">Noise Current (mA)</label>
+                <input type="range" id="gl-inoise" min="1" max="1000" step="10" value="100">
+                <span id="gl-inoise-val" class="mono">100mA</span>
+            </div>
+            <div class="c3">
+                <label for="gl-gain">Signal Gain</label>
+                <input type="range" id="gl-gain" min="1" max="1000" step="10" value="100">
+                <span id="gl-gain-val" class="mono">100</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="gl-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Ground Noise</div>
+                <div class="v mono" id="gl-vnoise">—</div>
+            </div>
+            <div class="box">
+                <div class="k">At Output</div>
+                <div class="v mono" id="gl-vout">—</div>
+            </div>
+            <div class="box">
+                <div class="k">SNR Impact</div>
+                <div class="v mono" id="gl-snr">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Status</div>
+                <div class="v mono" id="gl-status">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Ground Loop Scenarios</h3>
+
+        <table class="table">
+            <tr>
+                <th>Scenario</th>
+                <th>Cause</th>
+                <th>Symptom</th>
+                <th>Fix</th>
+            </tr>
+            <tr>
+                <td>Audio hum</td>
+                <td>AC mains ground difference</td>
+                <td>50/60Hz + harmonics</td>
+                <td>Balanced connections, DI box</td>
+            </tr>
+            <tr>
+                <td>Scope measurement error</td>
+                <td>Ground lead loop area</td>
+                <td>Ringing, HF noise</td>
+                <td>Ground spring, short lead</td>
+            </tr>
+            <tr>
+                <td>ADC noise floor</td>
+                <td>Digital return current</td>
+                <td>Code-dependent noise</td>
+                <td>Star ground, separate returns</td>
+            </tr>
+            <tr>
+                <td>Motor drive interference</td>
+                <td>High dI/dt in ground</td>
+                <td>Bursts sync to PWM</td>
+                <td>Separate power ground</td>
+            </tr>
+            <tr>
+                <td>Multi-chassis hum</td>
+                <td>Safety ground differences</td>
+                <td>60Hz when connected</td>
+                <td>Isolation, balanced I/O</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Ground Loop Illustration</h3>
+        <div id="gl-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>Grounding Strategies</h3>
+        <canvas id="grounding-strategies-canvas" width="900" height="340"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="gl-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Debug Checklist</h3>
+        <div id="gl-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="gl-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('gl-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    function update() {
+        const Rgnd = parseFloat(document.getElementById('gl-rgnd').value) || 100;
+        const Inoise = parseFloat(document.getElementById('gl-inoise').value) || 100;
+        const gain = parseFloat(document.getElementById('gl-gain').value) || 100;
+
+        document.getElementById('gl-rgnd-val').textContent = Rgnd + 'mΩ';
+        document.getElementById('gl-inoise-val').textContent = Inoise + 'mA';
+        document.getElementById('gl-gain-val').textContent = gain;
+
+        const Vnoise = Rgnd * Inoise / 1000; // mV
+        const Vout = Vnoise * gain; // mV at output
+        const snrLoss = 20 * Math.log10(1000 / Vnoise); // Assuming 1V signal
+
+        let status, statusColor;
+        if (Vnoise < 0.1) {
+            status = 'OK - Negligible noise';
+            statusColor = '#4f4';
+        } else if (Vnoise < 1) {
+            status = 'MARGINAL - Visible on scope';
+            statusColor = '#fa4';
+        } else {
+            status = 'PROBLEM - Significant coupling';
+            statusColor = '#f44';
+        }
+
+        document.getElementById('gl-vnoise').textContent = Vnoise.toFixed(2) + 'mV';
+        document.getElementById('gl-vout').textContent = Vout.toFixed(0) + 'mV';
+        document.getElementById('gl-snr').textContent = snrLoss.toFixed(0) + 'dB limit';
+        document.getElementById('gl-status').innerHTML = '<span style="color:' + statusColor + '">' + status + '</span>';
+
+        // Draw ground loop diagram
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        // Draw circuit blocks
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 2;
+
+        // Sensitive analog circuit
+        ctx.strokeRect(150, 80, 120, 80);
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Analog', 210, 115);
+        ctx.fillText('Circuit', 210, 135);
+
+        // Noisy digital/power circuit
+        ctx.strokeRect(500, 80, 120, 80);
+        ctx.fillText('Digital/', 560, 115);
+        ctx.fillText('Power', 560, 135);
+
+        // Ground symbol at each
+        ctx.fillStyle = '#4af';
+        ctx.fillText('GND', 210, 180);
+        ctx.fillText('GND', 560, 180);
+
+        // Shared ground path
+        ctx.strokeStyle = Vnoise < 1 ? TEK.ch4 : TEK.ch1;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(210, 160);
+        ctx.lineTo(210, 220);
+        ctx.lineTo(560, 220);
+        ctx.lineTo(560, 160);
+        ctx.stroke();
+
+        // Ground impedance
+        ctx.fillStyle = '#f44';
+        ctx.font = '11px monospace';
+        ctx.fillText('Rgnd = ' + Rgnd + 'mΩ', 385, 210);
+
+        // Noise current arrow
+        ctx.strokeStyle = TEK.ch3;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(500, 220);
+        ctx.lineTo(270, 220);
+        ctx.stroke();
+        // Arrow head
+        ctx.beginPath();
+        ctx.moveTo(280, 215);
+        ctx.lineTo(270, 220);
+        ctx.lineTo(280, 225);
+        ctx.stroke();
+        ctx.fillStyle = TEK.ch3;
+        ctx.fillText('Inoise = ' + Inoise + 'mA', 385, 245);
+
+        // Voltage across ground
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('Vnoise = ' + Vnoise.toFixed(2) + 'mV', 385, 265);
+
+        // Signal path
+        ctx.strokeStyle = '#4af';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(50, 120);
+        ctx.lineTo(150, 120);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(270, 120);
+        ctx.lineTo(350, 120);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'left';
+        ctx.fillText('Signal', 60, 110);
+        ctx.fillText('to ADC', 280, 110);
+
+        // Output noise
+        ctx.fillStyle = statusColor;
+        ctx.font = '14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Output: ±' + (Vout/1000).toFixed(3) + 'V noise', W/2, 50);
+
+        // Fix suggestion
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.fillText('Fix: Star ground, separate returns, or isolation', W/2, H - 20);
+    }
+
+    ['gl-rgnd', 'gl-inoise', 'gl-gain'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('gl-schematic');
+        const svg = new SchematicSVG(600, 240);
+
+        // Two-ground scenario
+        svg.text(50, 30, 'Ground Loop Problem:', {fontSize: 12, fill: '#f44'});
+
+        // Chassis 1
+        svg.rect(50, 60, 100, 60, {fill: 'none', stroke: '#888'});
+        svg.text(100, 95, 'Device A', {fontSize: 10});
+
+        // Chassis 2
+        svg.rect(250, 60, 100, 60, {fill: 'none', stroke: '#888'});
+        svg.text(300, 95, 'Device B', {fontSize: 10});
+
+        // Signal cable
+        svg.wire([[150, 80], [250, 80]]);
+        svg.text(200, 70, 'Signal', {fontSize: 9});
+
+        // Ground through cable
+        svg.wire([[150, 100], [250, 100]]);
+        svg.text(200, 115, 'Shield/Gnd', {fontSize: 9});
+
+        // Safety grounds
+        svg.wire([[100, 120], [100, 160]]);
+        svg.wire([[300, 120], [300, 160]]);
+
+        // AC mains ground with impedance
+        svg.wire([[100, 160], [200, 160]]);
+        svg.resistor(200, 160, {horizontal: true});
+        svg.text(200, 175, 'Rgnd', {fontSize: 9, fill: '#f44'});
+        svg.wire([[220, 160], [300, 160]]);
+
+        // Loop indication
+        svg.text(200, 195, '↺ Ground Loop!', {fontSize: 11, fill: '#f44'});
+
+        // Fix: Star ground
+        svg.text(400, 30, 'Fix: Star Ground', {fontSize: 12, fill: '#4af'});
+
+        svg.rect(400, 60, 80, 40, {fill: 'none', stroke: '#888'});
+        svg.text(440, 85, 'Analog', {fontSize: 9});
+
+        svg.rect(500, 60, 80, 40, {fill: 'none', stroke: '#888'});
+        svg.text(540, 85, 'Digital', {fontSize: 9});
+
+        // Star point
+        svg.wire([[440, 100], [440, 140]]);
+        svg.wire([[540, 100], [540, 140]]);
+        svg.wire([[440, 140], [490, 160]]);
+        svg.wire([[540, 140], [490, 160]]);
+        svg.text(490, 180, '★', {fontSize: 16, fill: '#4af'});
+        svg.text(490, 200, 'Star Point', {fontSize: 9});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('gl-spice', {
+            title: 'Ground Loop Coupling',
+            netlist: `* Ground Loop Coupling Simulation
+* Shows how ground impedance couples noise
+
+* Clean analog signal
+Vsig sig 0 SIN(0 1 1k)
+
+* Analog amplifier
+* Input referenced to local ground
+Rin sig amp_in 10k
+Xamp amp_in gnd_local out opamp
+.subckt opamp inp inn out
+Egain out 0 inp inn 100
+.ends
+
+* Ground impedance
+Rgnd gnd_local 0 0.1  ; 100mΩ
+
+* Noise source (digital/power)
+* Couples through ground impedance
+Inoise 0 gnd_local SIN(0 0.1 60)  ; 100mA of 60Hz
+
+* Output measurement
+Rload out 0 10k
+
+* Ground noise = Inoise × Rgnd = 100mA × 0.1Ω = 10mV
+* This appears in series with input!
+
+.tran 0.1m 50m
+.probe V(out) V(sig) V(gnd_local)
+.end`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('gl-checklist', {
+            title: 'Ground Loop Debug Checklist',
+            items: [
+                'Identify all ground connections',
+                'Trace high-current return paths',
+                'Measure voltage between grounds',
+                'Check for multiple chassis connections',
+                'Verify star ground implementation',
+                'Use differential/balanced signals',
+                'Add isolation where needed',
+                'Use ground spring for scope probing',
+                'Separate analog and digital grounds'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('gl-exercises', {
+            exercises: [
+                {
+                    question: 'Ground impedance is 50mΩ. Motor draws 2A at 1kHz PWM. What ground noise?',
+                    answer: '100mV',
+                    solution: 'V = I × R = 2A × 50mΩ = 100mV. This 100mV appears at 1kHz and harmonics.'
+                },
+                {
+                    question: 'Hum is 10mV at 60Hz on a ground wire 10m long (2mΩ/m). What current is flowing?',
+                    answer: '500mA',
+                    solution: 'R = 10m × 2mΩ/m = 20mΩ. I = V/R = 10mV/20mΩ = 500mA'
+                },
+                {
+                    question: 'Audio cable shield grounds at both ends, 5m apart. AC ground difference is 500mV. What current flows?',
+                    answer: '~50mA (assuming 10Ω shield)',
+                    solution: 'Shield resistance ≈ 2Ω/m × 5m = 10Ω. I = 500mV/10Ω = 50mA. This causes magnetic field and hum.'
+                }
+            ]
+        });
+    }
+
+    // ==================== GROUNDING STRATEGIES CANVAS ====================
+    function drawGroundingStrategies() {
+        const canvas = document.getElementById('grounding-strategies-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+
+        // Background
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        const colW = 290;
+        const startY = 30;
+
+        // Helper to draw rounded rect
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        // Column 1: Star Ground
+        const col1X = 10;
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        roundRect(col1X, startY, colW, 300, 8);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('STAR GROUND', col1X + colW/2, startY + 25);
+
+        // Draw star ground diagram
+        const starCX = col1X + colW/2;
+        const starCY = startY + 100;
+        ctx.fillStyle = '#FFFF00';
+        ctx.beginPath();
+        ctx.arc(starCX, starCY, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.font = '16px monospace';
+        ctx.fillText('★', starCX, starCY + 5);
+
+        // Branches from star
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        const branches = [
+            {label: 'Analog', angle: -2.5},
+            {label: 'Digital', angle: -1.8},
+            {label: 'Power', angle: -1.1},
+            {label: 'Signal', angle: -0.4}
+        ];
+        branches.forEach(b => {
+            const x2 = starCX + Math.cos(b.angle) * 60;
+            const y2 = starCY + Math.sin(b.angle) * 35;
+            ctx.beginPath();
+            ctx.moveTo(starCX, starCY);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = '9px monospace';
+            ctx.fillText(b.label, x2 + (x2 > starCX ? 5 : -30), y2);
+        });
+
+        // Pros/Cons
+        ctx.fillStyle = '#4f4';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('+ Prevents ground loops', col1X + 15, startY + 180);
+        ctx.fillText('+ Clean analog ground', col1X + 15, startY + 195);
+        ctx.fillText('+ Predictable currents', col1X + 15, startY + 210);
+
+        ctx.fillStyle = '#f44';
+        ctx.fillText('- Complex wiring', col1X + 15, startY + 235);
+        ctx.fillText('- Higher inductance', col1X + 15, startY + 250);
+        ctx.fillText('- Not for high freq', col1X + 15, startY + 265);
+
+        // Column 2: Ground Plane
+        const col2X = 310;
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        roundRect(col2X, startY, colW, 300, 8);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('GROUND PLANE', col2X + colW/2, startY + 25);
+
+        // Draw ground plane
+        ctx.fillStyle = '#224466';
+        ctx.fillRect(col2X + 30, startY + 50, colW - 60, 80);
+        ctx.strokeStyle = '#4af';
+        ctx.strokeRect(col2X + 30, startY + 50, colW - 60, 80);
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.fillText('Solid Copper Pour', col2X + colW/2, startY + 95);
+
+        // Via connections
+        for (let i = 0; i < 5; i++) {
+            ctx.fillStyle = '#888';
+            ctx.beginPath();
+            ctx.arc(col2X + 60 + i * 45, startY + 70, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText('Vias to GND', col2X + colW/2, startY + 145);
+
+        // Pros/Cons
+        ctx.fillStyle = '#4f4';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('+ Low impedance', col2X + 15, startY + 180);
+        ctx.fillText('+ Good for RF/HF', col2X + 15, startY + 195);
+        ctx.fillText('+ EMI shielding', col2X + 15, startY + 210);
+
+        ctx.fillStyle = '#f44';
+        ctx.fillText('- Can create loops', col2X + 15, startY + 235);
+        ctx.fillText('- Needs careful splits', col2X + 15, startY + 250);
+        ctx.fillText('- Uses PCB layer', col2X + 15, startY + 265);
+
+        // Column 3: Isolation
+        const col3X = 610;
+        ctx.strokeStyle = TEK.ch3;
+        ctx.lineWidth = 2;
+        roundRect(col3X, startY, colW, 300, 8);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch3;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('ISOLATION', col3X + colW/2, startY + 25);
+
+        // Isolation methods list
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        const isoMethods = [
+            '◆ Transformers',
+            '◆ Optocouplers',
+            '◆ Isolated DC-DC',
+            '◆ Differential signaling'
+        ];
+        isoMethods.forEach((m, i) => {
+            ctx.fillText(m, col3X + 20, startY + 60 + i * 18);
+        });
+
+        // Draw isolation barrier
+        ctx.strokeStyle = '#f0f';
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+        ctx.moveTo(col3X + colW/2, startY + 125);
+        ctx.lineTo(col3X + colW/2, startY + 155);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Galvanic Barrier', col3X + colW/2, startY + 145);
+
+        // Pros/Cons
+        ctx.fillStyle = '#4f4';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('+ Breaks all loops', col3X + 15, startY + 180);
+        ctx.fillText('+ Safety isolation', col3X + 15, startY + 195);
+        ctx.fillText('+ No shared ground', col3X + 15, startY + 210);
+
+        ctx.fillStyle = '#f44';
+        ctx.fillText('- Cost and complexity', col3X + 15, startY + 235);
+        ctx.fillText('- Bandwidth limits', col3X + 15, startY + 250);
+        ctx.fillText('- Needs isolated power', col3X + 15, startY + 265);
+    }
+
+    update();
+    drawSchematic();
+    drawGroundingStrategies();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

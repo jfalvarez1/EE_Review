@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 22: PLL & Clock Generation - EE Learning</title>
+    <link rel="stylesheet" href="../../assets/main.css">
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <a href="../../index.html" class="home-link">EE Learning</a>
+        </div>
+        <nav class="lesson-nav">
+            <a href="lesson-21.html" class="prev-link">Previous</a>
+            <a href="../index.html" class="module-link">Module 23</a>
+            <a href="lesson-23.html" class="next-link">Next</a>
+        </nav>
+    </header>
+
+    <main>
+        <article class="lesson">
+            <h1>PLL & Clock Generation</h1>
+
+            <section class="intro">
+                <p>Phase-Locked Loops (PLLs) are essential for frequency synthesis, clock multiplication, and jitter cleaning in modern electronics. From generating processor clocks to synthesizing RF carriers, PLLs are everywhere. This lesson covers PLL fundamentals, loop filter design, and practical clock distribution considerations.</p>
+
+                <div class="key-concepts">
+                    <h3>Industry Applications</h3>
+                    <ul>
+                        <li><strong>Clock Synthesis</strong> - CPU, FPGA, SerDes clocking</li>
+                        <li><strong>Frequency Synthesis</strong> - RF transceivers, software-defined radio</li>
+                        <li><strong>Clock Recovery</strong> - CDR in high-speed serial links</li>
+                        <li><strong>Motor Control</strong> - Resolver/encoder signal processing</li>
+                        <li><strong>Data Converters</strong> - Low-jitter sampling clocks for ADCs</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>1. PLL Architecture</h2>
+
+                <p>A PLL is a feedback system that locks an oscillator to a reference frequency:</p>
+
+<div class="svg-container" style="max-width: 700px; margin: 20px auto;">
+    <canvas id="pll-block-canvas" width="700" height="340" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;"></canvas>
+</div>
+<script>
+(function() {
+    const canvas = document.getElementById('pll-block-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+
+    // Background
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Basic Integer-N PLL Block Diagram', W/2, 25);
+
+    // Colors
+    const block = '#00d4ff';
+    const loop = '#a855f7';
+    const signal = '#4ade80';
+    const feedback = '#fbbf24';
+
+    // Loop filter enclosure (dashed)
+    ctx.strokeStyle = loop;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.strokeRect(120, 50, 450, 200);
+    ctx.setLineDash([]);
+    ctx.fillStyle = loop;
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Feedback Loop', 345, 68);
+
+    // Reference input
+    ctx.strokeStyle = block;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(20, 110, 80, 40);
+    ctx.fillStyle = block;
+    ctx.font = '11px monospace';
+    ctx.fillText('Reference', 60, 128);
+    ctx.fillText('Fref', 60, 142);
+
+    // Signal line from ref to PD
+    ctx.strokeStyle = signal;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(100, 130);
+    ctx.lineTo(160, 130);
+    ctx.stroke();
+    // Arrow
+    ctx.beginPath();
+    ctx.moveTo(150, 125);
+    ctx.lineTo(160, 130);
+    ctx.lineTo(150, 135);
+    ctx.stroke();
+
+    // Phase Detector
+    ctx.strokeStyle = block;
+    ctx.strokeRect(160, 110, 80, 50);
+    ctx.fillStyle = block;
+    ctx.fillText('Phase', 200, 130);
+    ctx.fillText('Detector', 200, 145);
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.fillText('(PFD)', 200, 156);
+
+    // Signal to Loop Filter
+    ctx.strokeStyle = signal;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(240, 130);
+    ctx.lineTo(300, 130);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(290, 125);
+    ctx.lineTo(300, 130);
+    ctx.lineTo(290, 135);
+    ctx.stroke();
+
+    // Loop Filter
+    ctx.strokeStyle = block;
+    ctx.strokeRect(300, 110, 80, 50);
+    ctx.fillStyle = block;
+    ctx.font = '11px monospace';
+    ctx.fillText('Loop', 340, 130);
+    ctx.fillText('Filter', 340, 145);
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.fillText('(LPF)', 340, 156);
+
+    // Signal to VCO
+    ctx.strokeStyle = signal;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(380, 130);
+    ctx.lineTo(440, 130);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(430, 125);
+    ctx.lineTo(440, 130);
+    ctx.lineTo(430, 135);
+    ctx.stroke();
+
+    // VCO
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.strokeRect(440, 110, 70, 50);
+    ctx.fillStyle = '#ff6b6b';
+    ctx.font = '12px monospace';
+    ctx.fillText('VCO', 475, 140);
+
+    // Output from VCO
+    ctx.strokeStyle = signal;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(510, 130);
+    ctx.lineTo(600, 130);
+    ctx.stroke();
+
+    // Junction point for feedback
+    ctx.fillStyle = signal;
+    ctx.beginPath();
+    ctx.arc(550, 130, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Fout label
+    ctx.strokeStyle = block;
+    ctx.strokeRect(600, 110, 70, 40);
+    ctx.fillStyle = block;
+    ctx.font = '12px monospace';
+    ctx.fillText('Fout', 635, 135);
+
+    // Arrow to output
+    ctx.strokeStyle = signal;
+    ctx.beginPath();
+    ctx.moveTo(590, 125);
+    ctx.lineTo(600, 130);
+    ctx.lineTo(590, 135);
+    ctx.stroke();
+
+    // Feedback path
+    ctx.strokeStyle = feedback;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(550, 130);
+    ctx.lineTo(550, 210);
+    ctx.lineTo(200, 210);
+    ctx.lineTo(200, 165);
+    ctx.stroke();
+    // Arrow up to PD
+    ctx.beginPath();
+    ctx.moveTo(195, 175);
+    ctx.lineTo(200, 165);
+    ctx.lineTo(205, 175);
+    ctx.stroke();
+
+    // Divider in feedback
+    ctx.strokeStyle = feedback;
+    ctx.strokeRect(340, 190, 80, 40);
+    ctx.fillStyle = feedback;
+    ctx.font = '11px monospace';
+    ctx.fillText('Divider', 380, 208);
+    ctx.fillText('÷N', 380, 222);
+
+    // Equations box
+    ctx.fillStyle = '#0d0d1a';
+    ctx.fillRect(100, 265, 500, 60);
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(100, 265, 500, 60);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Output Frequency: Fout = N × Fref', 120, 288);
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('(When locked, the PD sees Fref and Fout/N at the same frequency)', 120, 310);
+})();
+</script>
+
+                <h3>Key PLL Components</h3>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Block</th>
+                            <th>Function</th>
+                            <th>Key Parameter</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Phase Detector (PD)</td>
+                            <td>Compares reference and feedback phase</td>
+                            <td>Gain K<sub>PD</sub> (V/rad or A/rad)</td>
+                        </tr>
+                        <tr>
+                            <td>Charge Pump (CP)</td>
+                            <td>Converts PD output to current pulses</td>
+                            <td>I<sub>CP</sub> (typically 0.1-5 mA)</td>
+                        </tr>
+                        <tr>
+                            <td>Loop Filter (LPF)</td>
+                            <td>Filters CP output, sets loop dynamics</td>
+                            <td>Bandwidth, phase margin</td>
+                        </tr>
+                        <tr>
+                            <td>VCO</td>
+                            <td>Voltage-controlled oscillator</td>
+                            <td>K<sub>VCO</sub> (Hz/V or rad/s/V)</td>
+                        </tr>
+                        <tr>
+                            <td>Divider</td>
+                            <td>Divides VCO output by N</td>
+                            <td>N (integer or fractional)</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="formula-box">
+                    <h4>Basic PLL Equations</h4>
+                    <p><strong>Output Frequency:</strong> \( F_{out} = N \times F_{ref} \)</p>
+                    <p><strong>Phase Detector Comparison Frequency:</strong> \( F_{PD} = F_{ref} = \frac{F_{out}}{N} \)</p>
+                    <p><strong>Open Loop Gain:</strong> \( G(s) = \frac{K_{PD} \cdot K_{VCO}}{N} \cdot Z(s) \)</p>
+                    <p>Where Z(s) is the loop filter transfer function</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>2. Phase Detector Types</h2>
+
+                <h3>Type I: XOR/Analog Phase Detector</h3>
+                <ul>
+                    <li>Simple XOR gate or analog multiplier</li>
+                    <li>Locks at 90° phase offset</li>
+                    <li>Limited capture range</li>
+                    <li>Used in simple clock recovery</li>
+                </ul>
+
+                <h3>Type II: Phase-Frequency Detector (PFD)</h3>
+                <ul>
+                    <li>Detects both phase and frequency error</li>
+                    <li>Wide capture range (can lock from any initial frequency)</li>
+                    <li>Outputs UP/DOWN pulses to charge pump</li>
+                    <li>Most common in modern PLLs</li>
+                </ul>
+
+                <div class="svg-container" style="max-width: 600px; margin: 20px auto;">
+                    <svg viewBox="0 0 600 240" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;">
+                        <text x="300" y="25" fill="#ffffff" font-size="13" font-weight="bold" text-anchor="middle">PFD + Charge Pump Operation</text>
+
+                        <!-- Waveform area -->
+                        <rect x="50" y="40" width="500" height="180" fill="#0d0d1a" stroke="#444" stroke-width="1"/>
+
+                        <!-- Fref -->
+                        <text x="30" y="65" fill="#4ade80" font-size="9">Fref</text>
+                        <polyline points="60,75 100,75 100,55 150,55 150,75 200,75 200,55 250,55 250,75 300,75 300,55 350,55 350,75 400,75 400,55 450,55 450,75 500,75"
+                                  stroke="#4ade80" stroke-width="2" fill="none"/>
+
+                        <!-- Fdiv (slightly behind = UP pulses) -->
+                        <text x="30" y="105" fill="#00d4ff" font-size="9">Fdiv</text>
+                        <polyline points="60,115 130,115 130,95 180,95 180,115 230,115 230,95 280,95 280,115 330,115 330,95 380,95 380,115 430,115 430,95 480,95 480,115 500,115"
+                                  stroke="#00d4ff" stroke-width="2" fill="none"/>
+
+                        <!-- UP pulse -->
+                        <text x="30" y="145" fill="#fbbf24" font-size="9">UP</text>
+                        <polyline points="60,155 100,155 100,135 130,135 130,155 200,155 200,135 230,135 230,155 300,155 300,135 330,135 330,155 400,155 400,135 430,135 430,155 500,155"
+                                  stroke="#fbbf24" stroke-width="2" fill="none"/>
+
+                        <!-- DOWN pulse (none in this case - Fdiv is late) -->
+                        <text x="30" y="175" fill="#ff6b6b" font-size="9">DOWN</text>
+                        <line x1="60" y1="185" x2="500" y2="185" stroke="#ff6b6b" stroke-width="2"/>
+
+                        <!-- Charge pump current -->
+                        <text x="30" y="210" fill="#a855f7" font-size="9">Icp</text>
+                        <polyline points="60,205 100,205 100,195 130,195 130,205 200,205 200,195 230,195 230,205 300,205 300,195 330,195 330,205 400,205 400,195 430,195 430,205 500,205"
+                                  stroke="#a855f7" stroke-width="2" fill="none"/>
+
+                        <!-- Annotation -->
+                        <text x="300" y="230" fill="#888" font-size="10" text-anchor="middle">Fdiv lags Fref → UP pulses → Charge pump sources current → VCO speeds up</text>
+                    </svg>
+                </div>
+
+                <div class="tip-box">
+                    <h4>Dead Zone Problem</h4>
+                    <p>If UP and DOWN pulses are too short, the charge pump may not respond (dead zone). This causes increased jitter near lock. Solutions:</p>
+                    <ul>
+                        <li>Add programmable delay to ensure minimum pulse width</li>
+                        <li>Use "anti-backlash" PFD architecture</li>
+                        <li>Modern PLL ICs have this built-in</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>3. Loop Filter Design</h2>
+
+                <p>The loop filter determines PLL bandwidth, phase margin, and lock time. Most PLLs use a 2nd or 3rd order loop filter.</p>
+
+                <h3>2nd Order (Type 2) Loop Filter</h3>
+
+                <div class="svg-container" style="max-width: 500px; margin: 20px auto;">
+                    <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; background: #1a1a2e; border-radius: 8px;">
+                        <text x="250" y="25" fill="#ffffff" font-size="13" font-weight="bold" text-anchor="middle">2nd Order Passive Loop Filter</text>
+
+                        <!-- Charge pump current source -->
+                        <circle cx="80" cy="100" r="15" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                        <text x="80" y="105" fill="#fbbf24" font-size="10" text-anchor="middle">Icp</text>
+                        <line x1="95" y1="100" x2="130" y2="100" stroke="#666" stroke-width="2"/>
+
+                        <!-- R1 -->
+                        <rect x="130" y="90" width="40" height="20" fill="none" stroke="#00d4ff" stroke-width="2"/>
+                        <text x="150" y="85" fill="#00d4ff" font-size="10" text-anchor="middle">R1</text>
+                        <line x1="170" y1="100" x2="200" y2="100" stroke="#666" stroke-width="2"/>
+
+                        <!-- C1 -->
+                        <line x1="200" y1="100" x2="200" y2="110" stroke="#666" stroke-width="1"/>
+                        <line x1="190" y1="110" x2="210" y2="110" stroke="#00d4ff" stroke-width="3"/>
+                        <line x1="190" y1="120" x2="210" y2="120" stroke="#00d4ff" stroke-width="3"/>
+                        <line x1="200" y1="120" x2="200" y2="170" stroke="#666" stroke-width="1"/>
+                        <text x="220" y="118" fill="#00d4ff" font-size="10">C1</text>
+
+                        <!-- Node for C2 -->
+                        <line x1="200" y1="100" x2="280" y2="100" stroke="#666" stroke-width="2"/>
+
+                        <!-- C2 -->
+                        <line x1="280" y1="100" x2="280" y2="110" stroke="#666" stroke-width="1"/>
+                        <line x1="270" y1="110" x2="290" y2="110" stroke="#00d4ff" stroke-width="3"/>
+                        <line x1="270" y1="120" x2="290" y2="120" stroke="#00d4ff" stroke-width="3"/>
+                        <line x1="280" y1="120" x2="280" y2="170" stroke="#666" stroke-width="1"/>
+                        <text x="300" y="118" fill="#00d4ff" font-size="10">C2</text>
+
+                        <!-- Output to VCO -->
+                        <line x1="280" y1="100" x2="350" y2="100" stroke="#666" stroke-width="2"/>
+                        <text x="370" y="105" fill="#4ade80" font-size="10">To VCO</text>
+
+                        <!-- Ground -->
+                        <line x1="200" y1="170" x2="280" y2="170" stroke="#666" stroke-width="2"/>
+                        <line x1="230" y1="175" x2="250" y2="175" stroke="#666" stroke-width="2"/>
+                        <line x1="235" y1="180" x2="245" y2="180" stroke="#666" stroke-width="1"/>
+
+                        <!-- Equations -->
+                        <text x="250" y="195" fill="#888" font-size="9" text-anchor="middle">C1 sets integration (dominant pole) | C2 filters reference spurs</text>
+                    </svg>
+                </div>
+
+                <div class="formula-box">
+                    <h4>Loop Filter Transfer Function</h4>
+                    <p>\[ Z(s) = \frac{1 + sR_1C_1}{s(C_1 + C_2)(1 + sR_1\frac{C_1C_2}{C_1+C_2})} \]</p>
+
+                    <h4>Design Equations</h4>
+                    <p><strong>Loop Bandwidth:</strong> \( \omega_{BW} = \frac{K_{PD} \cdot K_{VCO}}{N} \cdot \frac{R_1C_1}{C_1 + C_2} \)</p>
+                    <p><strong>Phase Margin:</strong> Typically design for 45° - 60°</p>
+                    <p><strong>Zero:</strong> \( \omega_z = \frac{1}{R_1 C_1} \) (place below crossover for phase boost)</p>
+                    <p><strong>Pole:</strong> \( \omega_p = \frac{C_1 + C_2}{R_1 C_1 C_2} \) (filters high-frequency noise)</p>
+                </div>
+
+                <div class="calculator-section">
+                    <h4>PLL Loop Filter Calculator</h4>
+                    <div class="input-grid">
+                        <div class="input-group">
+                            <label>Reference Frequency (MHz):</label>
+                            <input type="number" id="fref" value="10" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label>Output Frequency (MHz):</label>
+                            <input type="number" id="fout" value="100" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label>Charge Pump Current (mA):</label>
+                            <input type="number" id="icp" value="1" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label>VCO Gain K<sub>VCO</sub> (MHz/V):</label>
+                            <input type="number" id="kvco" value="50" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label>Loop Bandwidth (kHz):</label>
+                            <input type="number" id="bw" value="10" step="1">
+                        </div>
+                        <div class="input-group">
+                            <label>Phase Margin (deg):</label>
+                            <input type="number" id="pm" value="55" step="5">
+                        </div>
+                    </div>
+                    <button onclick="calculateLoopFilter()" class="calc-button">Calculate Loop Filter</button>
+
+                    <div id="lf-results" class="results-section" style="display: none;">
+                        <h4>Loop Filter Component Values</h4>
+                        <div class="results-grid" id="lf-results-grid"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2>4. Jitter and Phase Noise</h2>
+
+                <p>Clock quality is measured by phase noise (frequency domain) and jitter (time domain):</p>
+
+                <div class="concept-row">
+                    <div class="concept-box">
+                        <h4>Phase Noise</h4>
+                        <ul>
+                            <li>Measured in dBc/Hz at offset from carrier</li>
+                            <li>Specification: L(f) at offset frequency</li>
+                            <li>Example: -110 dBc/Hz @ 10kHz offset</li>
+                            <li>Dominated by VCO noise at high offsets</li>
+                        </ul>
+                    </div>
+                    <div class="concept-box">
+                        <h4>Jitter</h4>
+                        <ul>
+                            <li>Time-domain variation of clock edges</li>
+                            <li>RMS jitter (ps or fs)</li>
+                            <li>Peak-to-peak jitter (deterministic component)</li>
+                            <li>Integrated over bandwidth of interest</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="formula-box">
+                    <h4>Jitter-Phase Noise Relationship</h4>
+                    <p>RMS jitter from integrated phase noise:</p>
+                    <p>\[ \sigma_t = \frac{1}{2\pi f_0} \sqrt{2 \int_{f_1}^{f_2} L(f) df} \]</p>
+                    <p>Where f<sub>0</sub> = carrier frequency, L(f) = phase noise in linear units</p>
+
+                    <h4>Approximate Conversion</h4>
+                    <p>For flat phase noise L<sub>0</sub> over bandwidth B:</p>
+                    <p>\[ \sigma_t \approx \frac{1}{2\pi f_0} \sqrt{2 L_0 \cdot B} \]</p>
+                </div>
+
+                <h3>Jitter Budget Example</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Source</th>
+                            <th>Jitter Contribution</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Reference oscillator</td>
+                            <td>0.5 ps RMS</td>
+                            <td>High-quality TCXO</td>
+                        </tr>
+                        <tr>
+                            <td>PLL in-band noise</td>
+                            <td>1.0 ps RMS</td>
+                            <td>Dominated by PFD/CP noise</td>
+                        </tr>
+                        <tr>
+                            <td>VCO out-of-band</td>
+                            <td>0.8 ps RMS</td>
+                            <td>Filtered by loop bandwidth</td>
+                        </tr>
+                        <tr>
+                            <td>Output buffer</td>
+                            <td>0.3 ps RMS</td>
+                            <td>Added by clock distribution</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Total (RSS)</strong></td>
+                            <td><strong>1.4 ps RMS</strong></td>
+                            <td>Root-sum-squares</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
+                <h2>5. Fractional-N PLLs</h2>
+
+                <p>Integer-N PLLs are limited to output frequencies that are integer multiples of the reference. Fractional-N PLLs overcome this limitation:</p>
+
+                <div class="formula-box">
+                    <h4>Fractional-N Output</h4>
+                    <p>\[ F_{out} = \left(N + \frac{F}{M}\right) \times F_{ref} \]</p>
+                    <p>Where N = integer divider, F = fractional numerator, M = modulus</p>
+                    <p>Example: N=10, F=1, M=4 → Division ratio = 10.25</p>
+                </div>
+
+                <h3>Delta-Sigma Modulation</h3>
+                <p>Modern fractional-N PLLs use delta-sigma (ΔΣ) modulation to shape quantization noise:</p>
+                <ul>
+                    <li>Instantaneous divide value toggles between N and N+1</li>
+                    <li>ΔΣ modulator pushes noise to high frequencies</li>
+                    <li>Loop filter attenuates high-frequency noise</li>
+                    <li>Results in low in-band spurs</li>
+                </ul>
+
+                <div class="tip-box">
+                    <h4>Fractional-N Advantages</h4>
+                    <ul>
+                        <li>Higher comparison frequency → lower in-band noise</li>
+                        <li>Faster lock time</li>
+                        <li>Fine frequency resolution without narrow loop bandwidth</li>
+                        <li>Lower reference spurs (higher Fref = farther from carrier)</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>6. Clock Distribution</h2>
+
+                <h3>Clock Tree Considerations</h3>
+                <ul>
+                    <li><strong>Fanout buffers:</strong> LVDS, LVPECL, HCSL for high-speed</li>
+                    <li><strong>Skew matching:</strong> Equal trace lengths to all destinations</li>
+                    <li><strong>Termination:</strong> Match to trace impedance (50Ω or 100Ω diff)</li>
+                    <li><strong>Decoupling:</strong> Local bypass at each buffer</li>
+                    <li><strong>Jitter additive:</strong> Each buffer adds ~50-200fs jitter</li>
+                </ul>
+
+                <h3>Common Clock Standards</h3>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Standard</th>
+                            <th>Signaling</th>
+                            <th>Amplitude</th>
+                            <th>Speed</th>
+                            <th>Application</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>LVDS</td>
+                            <td>Differential</td>
+                            <td>350mV</td>
+                            <td>Up to 3 Gbps</td>
+                            <td>FPGA, SerDes</td>
+                        </tr>
+                        <tr>
+                            <td>LVPECL</td>
+                            <td>Differential</td>
+                            <td>800mV</td>
+                            <td>Up to 5 Gbps</td>
+                            <td>Telecom, networking</td>
+                        </tr>
+                        <tr>
+                            <td>HCSL</td>
+                            <td>Differential</td>
+                            <td>400mV</td>
+                            <td>Up to 200 MHz</td>
+                            <td>PCIe, DDR</td>
+                        </tr>
+                        <tr>
+                            <td>LVCMOS</td>
+                            <td>Single-ended</td>
+                            <td>3.3V/1.8V</td>
+                            <td>Up to 200 MHz</td>
+                            <td>General purpose</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
+                <h2>7. PLL Design Checklist</h2>
+
+                <div class="checklist">
+                    <h4>Specifications</h4>
+                    <ul>
+                        <li>☐ Output frequency and tuning range</li>
+                        <li>☐ Reference frequency</li>
+                        <li>☐ Phase noise / jitter requirements</li>
+                        <li>☐ Lock time requirement</li>
+                        <li>☐ Spur requirements (reference spurs, fractional spurs)</li>
+                    </ul>
+
+                    <h4>Loop Design</h4>
+                    <ul>
+                        <li>☐ Choose loop bandwidth (typically Fref/10 to Fref/50)</li>
+                        <li>☐ Design for adequate phase margin (45-60°)</li>
+                        <li>☐ Calculate loop filter components</li>
+                        <li>☐ Verify VCO tuning range covers all operating frequencies</li>
+                        <li>☐ Check lock time meets requirements</li>
+                    </ul>
+
+                    <h4>Layout</h4>
+                    <ul>
+                        <li>☐ Separate analog/digital grounds (tie at one point)</li>
+                        <li>☐ Shield VCO from digital noise</li>
+                        <li>☐ Keep loop filter close to PLL IC</li>
+                        <li>☐ Use ground plane under VCO and loop filter</li>
+                        <li>☐ Proper decoupling on all supply pins</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>8. Exercises</h2>
+
+                <div class="exercise-box">
+                    <h4>Exercise 1: Integer-N PLL Design</h4>
+                    <p>Design an integer-N PLL to generate 156.25 MHz from a 25 MHz reference.</p>
+                    <ol>
+                        <li>What is the required divide ratio N?</li>
+                        <li>What is the comparison frequency?</li>
+                        <li>If loop bandwidth is 100 kHz, calculate approximate lock time</li>
+                    </ol>
+                </div>
+
+                <div class="exercise-box">
+                    <h4>Exercise 2: Fractional-N Advantage</h4>
+                    <p>Compare integer-N vs fractional-N for generating 122.88 MHz from a 10 MHz reference.</p>
+                    <ol>
+                        <li>Can integer-N achieve this exactly?</li>
+                        <li>What fractional divider value is needed?</li>
+                        <li>With fractional-N, what comparison frequency can be used?</li>
+                    </ol>
+                </div>
+
+                <div class="exercise-box">
+                    <h4>Exercise 3: Jitter Budget</h4>
+                    <p>An ADC requires <1.5 ps RMS jitter on its sampling clock (100 MHz). The clock path includes:</p>
+                    <ul>
+                        <li>Crystal oscillator: 0.3 ps</li>
+                        <li>PLL: 0.8 ps</li>
+                        <li>Clock buffer: 0.4 ps</li>
+                        <li>PCB trace: 0.2 ps</li>
+                    </ul>
+                    <ol>
+                        <li>Calculate total jitter (RSS)</li>
+                        <li>Does this meet the requirement?</li>
+                        <li>How much margin remains?</li>
+                    </ol>
+                </div>
+            </section>
+
+        </article>
+    </main>
+
+    <script src="../../assets/common.js"></script>
+    <script>
+        function calculateLoopFilter() {
+            const fref = parseFloat(document.getElementById('fref').value) * 1e6;
+            const fout = parseFloat(document.getElementById('fout').value) * 1e6;
+            const icp = parseFloat(document.getElementById('icp').value) * 1e-3;
+            const kvco = parseFloat(document.getElementById('kvco').value) * 1e6 * 2 * Math.PI; // rad/s/V
+            const bw = parseFloat(document.getElementById('bw').value) * 1e3 * 2 * Math.PI; // rad/s
+            const pm = parseFloat(document.getElementById('pm').value) * Math.PI / 180; // rad
+
+            const N = fout / fref;
+
+            // For 2nd order Type 2 loop filter
+            // Phase margin occurs at crossover where |G(s)H(s)| = 1
+            // PM = arctan(wc * T1) - arctan(wc * T2) + 180 - 90
+            // For simplification, using standard design approach
+
+            const T1 = Math.tan(pm + Math.PI/4) / bw; // Zero time constant
+            const T2 = 1 / (bw * Math.tan(pm + Math.PI/4)); // Pole time constant (approximation)
+
+            // Loop gain at crossover
+            // Kloop = Icp * Kvco / N
+            const Kloop = icp * kvco / N;
+
+            // C1 from loop gain and bandwidth
+            const C1 = Kloop * T1 / (bw * bw);
+            const R1 = T1 / C1;
+            const C2 = T2 * C1 / (R1 * C1 - T2);
+
+            const resultsGrid = document.getElementById('lf-results-grid');
+            resultsGrid.innerHTML = `
+                <div class="result-item">
+                    <span class="result-label">Divide Ratio N:</span>
+                    <span class="result-value">${N.toFixed(0)}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Comparison Frequency:</span>
+                    <span class="result-value">${(fref / 1e6).toFixed(2)} MHz</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">R1:</span>
+                    <span class="result-value">${formatResistance(R1)}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">C1:</span>
+                    <span class="result-value">${formatCapacitance(C1)}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">C2:</span>
+                    <span class="result-value">${formatCapacitance(Math.abs(C2))}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Zero Frequency:</span>
+                    <span class="result-value">${(1 / (2 * Math.PI * T1) / 1000).toFixed(2)} kHz</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Lock Time (approx):</span>
+                    <span class="result-value">${(5 / (bw / (2 * Math.PI)) * 1000).toFixed(1)} ms</span>
+                </div>
+            `;
+
+            document.getElementById('lf-results').style.display = 'block';
+        }
+
+        function formatResistance(r) {
+            if (r >= 1e6) return (r / 1e6).toFixed(2) + ' MΩ';
+            if (r >= 1e3) return (r / 1e3).toFixed(2) + ' kΩ';
+            return r.toFixed(1) + ' Ω';
+        }
+
+        function formatCapacitance(c) {
+            if (c >= 1e-6) return (c * 1e6).toFixed(2) + ' µF';
+            if (c >= 1e-9) return (c * 1e9).toFixed(2) + ' nF';
+            return (c * 1e12).toFixed(1) + ' pF';
+        }
+    </script>
+
+    <footer>
+        <p>&copy; 2025 EE Learning Platform. Designed for BSEE graduates entering the hardware industry.</p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,310 @@
+<!-- Module 16, Lesson 1: Multi-Rail Power Sequencing -->
+<div class="lesson-content" data-module="16" data-lesson="1">
+
+    <div class="card">
+        <h2>Multi-Rail Power Sequencing</h2>
+        <p>Complex ICs like FPGAs and SoCs require multiple voltage rails that must power up in specific order. Incorrect sequencing can cause latch-up, excessive current, or damage.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Typical Order</div>
+                <div class="v">Core → Aux → I/O</div>
+            </div>
+            <div class="box">
+                <div class="k">Monotonic Rise</div>
+                <div class="v">No dips during ramp</div>
+            </div>
+            <div class="box">
+                <div class="k">Ramp Rate</div>
+                <div class="v">Controlled slew (V/ms)</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> I/O rails must not exceed core voltage during startup to prevent internal ESD structures from forward-biasing. Check the device datasheet for specific sequencing requirements.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Power-Up Sequence</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="seq-delay1">Core→Aux Delay (ms)</label>
+                <input type="range" id="seq-delay1" min="0" max="20" step="1" value="5">
+                <span id="seq-delay1-val" class="mono">5ms</span>
+            </div>
+            <div class="c3">
+                <label for="seq-delay2">Aux→I/O Delay (ms)</label>
+                <input type="range" id="seq-delay2" min="0" max="20" step="1" value="10">
+                <span id="seq-delay2-val" class="mono">10ms</span>
+            </div>
+            <div class="c3">
+                <label for="seq-ramp">Ramp Time (ms)</label>
+                <input type="range" id="seq-ramp" min="0.5" max="10" step="0.5" value="2">
+                <span id="seq-ramp-val" class="mono">2ms</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="seq-canvas" width="980" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Total Startup</div>
+                <div class="v mono" id="seq-total">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Core Ramp Rate</div>
+                <div class="v mono" id="seq-rate">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Sequence Status</div>
+                <div class="v mono" id="seq-status">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Sequencing Methods</h3>
+
+        <table class="table">
+            <tr>
+                <th>Method</th>
+                <th>Complexity</th>
+                <th>Notes</th>
+            </tr>
+            <tr>
+                <td>RC Delay</td>
+                <td>Low</td>
+                <td>Simple, but imprecise timing</td>
+            </tr>
+            <tr>
+                <td>Voltage Supervisor</td>
+                <td>Medium</td>
+                <td>Releases next rail when first is good</td>
+            </tr>
+            <tr>
+                <td>Sequencer IC</td>
+                <td>Medium</td>
+                <td>TPS382x, MAX16000 families</td>
+            </tr>
+            <tr>
+                <td>PMIC</td>
+                <td>Integrated</td>
+                <td>Complete solution for complex systems</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('seq-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const delay1 = parseFloat(document.getElementById('seq-delay1').value);
+        const delay2 = parseFloat(document.getElementById('seq-delay2').value);
+        const ramp = parseFloat(document.getElementById('seq-ramp').value);
+
+        document.getElementById('seq-delay1-val').textContent = delay1 + 'ms';
+        document.getElementById('seq-delay2-val').textContent = delay2 + 'ms';
+        document.getElementById('seq-ramp-val').textContent = ramp + 'ms';
+
+        const total = delay1 + delay2 + 3 * ramp;
+        const rampRate = 1.2 / ramp; // Core is 1.2V
+
+        document.getElementById('seq-total').textContent = total.toFixed(1) + 'ms';
+        document.getElementById('seq-rate').textContent = rampRate.toFixed(2) + ' V/ms';
+
+        // Check if sequence is valid
+        const statusEl = document.getElementById('seq-status');
+        if (delay1 >= ramp && delay2 >= ramp) {
+            statusEl.textContent = 'VALID';
+            statusEl.style.color = 'var(--ok)';
+        } else {
+            statusEl.textContent = 'OVERLAP RISK';
+            statusEl.style.color = 'var(--bad)';
+        }
+
+        plotSequence(delay1, delay2, ramp);
+    }
+
+    function plotSequence(delay1, delay2, ramp) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const totalTime = delay1 + delay2 + 4 * ramp + 10;
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: totalTime,
+            yMin: 0,
+            yMax: 4,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 'ms',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 8
+        });
+
+        const N = 400;
+        const tData = [];
+        const coreData = [];
+        const auxData = [];
+        const ioData = [];
+
+        // Voltage levels
+        const vCore = 1.2;
+        const vAux = 1.8;
+        const vIO = 3.3;
+
+        // Start times
+        const tCore = 0;
+        const tAux = delay1;
+        const tIO = delay1 + delay2;
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * totalTime;
+            tData.push(t);
+
+            // Core rail (starts at 0, ramps to 1.2V)
+            let core = 0;
+            if (t >= tCore) {
+                if (t < tCore + ramp) {
+                    core = vCore * (t - tCore) / ramp;
+                } else {
+                    core = vCore;
+                }
+            }
+            coreData.push(core);
+
+            // Aux rail (starts at delay1, ramps to 1.8V)
+            let aux = 0;
+            if (t >= tAux) {
+                if (t < tAux + ramp) {
+                    aux = vAux * (t - tAux) / ramp;
+                } else {
+                    aux = vAux;
+                }
+            }
+            auxData.push(aux);
+
+            // I/O rail (starts at delay1+delay2, ramps to 3.3V)
+            let io = 0;
+            if (t >= tIO) {
+                if (t < tIO + ramp) {
+                    io = vIO * (t - tIO) / ramp;
+                } else {
+                    io = vIO;
+                }
+            }
+            ioData.push(io);
+        }
+
+        // Plot all rails
+        AD.plotData(ctx, axes, tData, coreData, {
+            color: 'rgba(251, 113, 133, 0.95)',
+            lineWidth: 2,
+            label: 'Core (1.2V)'
+        });
+
+        AD.plotData(ctx, axes, tData, auxData, {
+            color: 'rgba(251, 191, 36, 0.95)',
+            lineWidth: 2,
+            label: 'Aux (1.8V)'
+        });
+
+        AD.plotData(ctx, axes, tData, ioData, {
+            color: 'rgba(52, 211, 153, 0.95)',
+            lineWidth: 2,
+            label: 'I/O (3.3V)'
+        });
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(251, 113, 133, 0.95)', label: 'Core (1.2V)' },
+            { color: 'rgba(251, 191, 36, 0.95)', label: 'Aux (1.8V)' },
+            { color: 'rgba(52, 211, 153, 0.95)', label: 'I/O (3.3V)' }
+        ]);
+    }
+
+    ['seq-delay1', 'seq-delay2', 'seq-ramp'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Power Sequencing with RC Delay',
+        netlist: `* Simple RC Power Sequencing
+* Core → Aux → I/O with RC delays
+
+* Input power (step at t=0)
+VIN vin 0 PULSE(0 5 0 100u 100u 1)
+
+* Core rail (no delay, direct enable)
+* Using enable-controlled regulator model
+B_CORE vcore 0 V={1.2*min(1, (TIME/2m))}
+
+* Aux rail (delayed by R1C1)
+R1 vin aux_en 100k
+C1 aux_en 0 100n
+B_AUX vaux 0 V={1.8*min(1, max(0, (TIME-5m)/2m))}
+
+* I/O rail (delayed by R2C2 from aux)
+R2 aux_en io_en 100k
+C2 io_en 0 100n
+B_IO vio 0 V={3.3*min(1, max(0, (TIME-10m)/2m))}
+
+.TRAN 10u 30m
+
+.PROBE V(vcore) V(vaux) V(vio)
+.END
+
+* Delays: Core starts at 0, Aux at ~5ms, I/O at ~10ms
+* Adjust R×C for different delays (tau = R×C)`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm16l1',
+        items: [
+            'Know typical sequence: Core → Aux → I/O',
+            'Understand monotonic rise requirement',
+            'Can calculate RC delay timing',
+            'Know to check datasheet for specific requirements',
+            'Recognize sequencer IC applications'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'Q1-1',
+        type: 'numeric',
+        question: 'A power sequence uses RC delay with R = 47kΩ and C = 1µF. What is the time constant (delay approximation)?',
+        hint: 'τ = R × C',
+        expected: 47,
+        tolerance: 0.05,
+        unit: 'ms',
+        solution: 'τ = R × C = 47kΩ × 1µF = 47ms',
+        explanation: 'The enable signal crosses threshold (typically ~0.7V for a 3.3V system) at about 0.2τ to 0.5τ depending on threshold ratio.'
+    });
+})();
+</script>

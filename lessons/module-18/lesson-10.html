@@ -1,0 +1,814 @@
+<!-- Module 18, Lesson 10: Power Sequencing -->
+<div class="lesson-content" data-module="18" data-lesson="10">
+
+    <div class="card">
+        <h2>Power Sequencing Design</h2>
+        <p>Modern systems require multiple voltage rails to power up and down in specific order. Learn sequencing strategies, timing requirements, and implementation methods to prevent damage and ensure reliable operation.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Sequential</div>
+                <div class="v">One rail at a time</div>
+            </div>
+            <div class="box">
+                <div class="k">Ratiometric</div>
+                <div class="v">Fixed voltage ratio</div>
+            </div>
+            <div class="box">
+                <div class="k">Simultaneous</div>
+                <div class="v">All rails together</div>
+            </div>
+            <div class="box">
+                <div class="k">PGOOD</div>
+                <div class="v">Power good signal</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Critical:</strong> Check IC datasheets for power sequencing requirements. Violating sequence order can cause latch-up, excess current, or permanent damage. FPGA, CPU, and DDR memory are particularly sensitive.
+        </note>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Sequencing Simulator</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="seq-mode">Sequencing Mode</label>
+                <select id="seq-mode">
+                    <option value="sequential">Sequential (1→2→3)</option>
+                    <option value="ratiometric">Ratiometric</option>
+                    <option value="simultaneous">Simultaneous</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="seq-delay">Delay Between Rails (ms)</label>
+                <input type="range" id="seq-delay" min="0" max="50" step="1" value="10">
+                <span id="seq-delay-val" class="mono">10ms</span>
+            </div>
+            <div class="c3">
+                <label for="seq-ramp">Ramp Time (ms)</label>
+                <input type="range" id="seq-ramp" min="1" max="20" step="1" value="5">
+                <span id="seq-ramp-val" class="mono">5ms</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="seq-canvas" width="980" height="360"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Total Sequence Time</div>
+                <div class="v mono" id="seq-total">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Power Good Delay</div>
+                <div class="v mono" id="seq-pgood">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Min Rail Separation</div>
+                <div class="v mono" id="seq-sep">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Common Sequencing Requirements</h3>
+
+        <table class="table">
+            <tr>
+                <th>Device Type</th>
+                <th>Typical Requirement</th>
+                <th>Reason</th>
+            </tr>
+            <tr>
+                <td>FPGA</td>
+                <td>Vccint → Vccaux → Vcco</td>
+                <td>Core first, then I/O, prevents latch-up</td>
+            </tr>
+            <tr>
+                <td>DDR Memory</td>
+                <td>VDD → VDDQ → VTT</td>
+                <td>Core stable before I/O, termination last</td>
+            </tr>
+            <tr>
+                <td>CPU/SoC</td>
+                <td>Core → I/O → Peripherals</td>
+                <td>Internal regulators need stable input</td>
+            </tr>
+            <tr>
+                <td>High-speed SerDes</td>
+                <td>AVDD → DVDD → VTT</td>
+                <td>PLL stability before digital</td>
+            </tr>
+            <tr>
+                <td>Op-amps (±supply)</td>
+                <td>±V simultaneous or V+ first</td>
+                <td>Prevent output swing to rail</td>
+            </tr>
+            <tr>
+                <td>Mixed-signal</td>
+                <td>Analog → Digital</td>
+                <td>Stable reference before ADC/DAC</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Sequencing Implementation</h3>
+        <canvas id="seq-methods-canvas" width="900" height="380"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Sequencing Circuit</h3>
+        <div id="seq-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="seq-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="seq-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="seq-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('seq-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 80;
+
+    const rails = [
+        {name: 'Vcore (1.0V)', voltage: 1.0, color: TEK.ch1},
+        {name: 'Vio (1.8V)', voltage: 1.8, color: TEK.ch2},
+        {name: 'Vaux (3.3V)', voltage: 3.3, color: TEK.ch3}
+    ];
+
+    function update() {
+        const mode = document.getElementById('seq-mode').value;
+        const delay = parseFloat(document.getElementById('seq-delay').value) || 10;
+        const ramp = parseFloat(document.getElementById('seq-ramp').value) || 5;
+
+        document.getElementById('seq-delay-val').textContent = delay + 'ms';
+        document.getElementById('seq-ramp-val').textContent = ramp + 'ms';
+
+        let totalTime, pgoodDelay;
+
+        if (mode === 'sequential') {
+            totalTime = ramp + (rails.length - 1) * delay + ramp;
+            pgoodDelay = totalTime;
+        } else if (mode === 'ratiometric') {
+            totalTime = ramp;
+            pgoodDelay = ramp;
+        } else {
+            totalTime = ramp;
+            pgoodDelay = ramp;
+        }
+
+        document.getElementById('seq-total').textContent = totalTime.toFixed(0) + 'ms';
+        document.getElementById('seq-pgood').textContent = pgoodDelay.toFixed(0) + 'ms';
+        document.getElementById('seq-sep').textContent = mode === 'sequential' ? delay + 'ms' : '0ms';
+
+        // Draw waveforms
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        const plotW = W - mL - mR;
+        const plotH = H - mT - mB;
+
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
+
+        // Time axis
+        const displayTime = Math.max(50, totalTime * 1.5);
+
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+
+        for (let t = 0; t <= displayTime; t += 10) {
+            const x = mL + (t / displayTime) * plotW;
+            ctx.beginPath();
+            ctx.moveTo(x, mT + plotH);
+            ctx.lineTo(x, mT + plotH + 5);
+            ctx.stroke();
+            ctx.fillText(t + 'ms', x, mT + plotH + 18);
+        }
+        ctx.fillText('Time', mL + plotW/2, mT + plotH + 40);
+
+        // Voltage scale
+        const Vmax = 4;
+        ctx.textAlign = 'right';
+        for (let v = 0; v <= Vmax; v++) {
+            const y = mT + plotH - (v / Vmax) * plotH;
+            ctx.fillText(v + 'V', mL - 5, y + 4);
+        }
+
+        // Draw each rail
+        rails.forEach((rail, idx) => {
+            ctx.strokeStyle = rail.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            for (let i = 0; i <= plotW; i++) {
+                const t = (i / plotW) * displayTime;
+                let V = 0;
+
+                if (mode === 'sequential') {
+                    const startTime = idx * delay;
+                    const rampEnd = startTime + ramp;
+
+                    if (t >= startTime && t < rampEnd) {
+                        V = rail.voltage * (t - startTime) / ramp;
+                    } else if (t >= rampEnd) {
+                        V = rail.voltage;
+                    }
+                } else if (mode === 'ratiometric') {
+                    if (t < ramp) {
+                        V = rail.voltage * t / ramp;
+                    } else {
+                        V = rail.voltage;
+                    }
+                } else { // simultaneous
+                    if (t < ramp) {
+                        V = rail.voltage * t / ramp;
+                    } else {
+                        V = rail.voltage;
+                    }
+                }
+
+                const x = mL + i;
+                const y = mT + plotH - (V / Vmax) * plotH;
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Rail label
+            ctx.fillStyle = rail.color;
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'left';
+            const labelY = mT + 20 + idx * 15;
+            ctx.fillText(rail.name, mL + 10, labelY);
+        });
+
+        // Draw PGOOD signal
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+
+        for (let i = 0; i <= plotW; i++) {
+            const t = (i / plotW) * displayTime;
+            let pgood = 0;
+
+            if (t >= pgoodDelay) {
+                pgood = 0.5; // Show as low voltage for visibility
+            }
+
+            const x = mL + i;
+            const y = mT + plotH - 20 - (pgood * 30);
+
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('PGOOD', mL + 10, mT + plotH - 10);
+
+        // Timing annotations for sequential mode
+        if (mode === 'sequential') {
+            ctx.strokeStyle = '#888';
+            ctx.setLineDash([3, 3]);
+
+            rails.forEach((rail, idx) => {
+                if (idx > 0) {
+                    const startX = mL + ((idx * delay) / displayTime) * plotW;
+                    ctx.beginPath();
+                    ctx.moveTo(startX, mT);
+                    ctx.lineTo(startX, mT + plotH);
+                    ctx.stroke();
+                }
+            });
+            ctx.setLineDash([]);
+        }
+
+        // Mode description
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+
+        const modeDesc = {
+            sequential: 'Sequential: Each rail waits for previous to complete. Safe for strict requirements.',
+            ratiometric: 'Ratiometric: All rails ramp together maintaining ratio. Good for tracking requirements.',
+            simultaneous: 'Simultaneous: All rails start together. Fastest but may violate some device specs.'
+        };
+
+        ctx.fillText(modeDesc[mode], mL, mT + plotH + 60);
+    }
+
+    ['seq-mode', 'seq-delay', 'seq-ramp'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', update);
+        el.addEventListener('change', update);
+    });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('seq-schematic');
+        const svg = new SchematicSVG(700, 240);
+
+        svg.text(50, 25, 'PGOOD Daisy Chain Sequencing:', {fontSize: 12, fill: '#4af'});
+
+        // First regulator
+        svg.rect(50, 50, 80, 60, {fill: 'none', stroke: '#888'});
+        svg.text(90, 75, 'VREG1', {fontSize: 10});
+        svg.text(90, 90, '1.0V', {fontSize: 9});
+
+        svg.wire([[50, 70], [30, 70]]);
+        svg.text(20, 65, 'Vin', {fontSize: 9});
+
+        svg.wire([[130, 70], [160, 70]]);
+        svg.text(145, 60, '1.0V', {fontSize: 9});
+
+        // PGOOD output
+        svg.wire([[130, 90], [170, 90]]);
+        svg.text(140, 100, 'PGOOD', {fontSize: 8});
+
+        // RC delay to second regulator
+        svg.wire([[170, 90], [190, 90]]);
+        svg.resistor(210, 90, {horizontal: true});
+        svg.text(210, 80, 'R', {fontSize: 9});
+        svg.wire([[230, 90], [250, 90]]);
+
+        svg.wire([[240, 90], [240, 110]]);
+        svg.capacitor(240, 125, {horizontal: false});
+        svg.text(255, 125, 'C', {fontSize: 9});
+        svg.wire([[240, 145], [240, 160]]);
+        svg.ground(240, 160);
+
+        // Second regulator
+        svg.rect(270, 50, 80, 60, {fill: 'none', stroke: '#888'});
+        svg.text(310, 75, 'VREG2', {fontSize: 10});
+        svg.text(310, 90, '1.8V', {fontSize: 9});
+
+        svg.wire([[250, 90], [270, 75]]);
+        svg.text(260, 65, 'EN', {fontSize: 8});
+
+        svg.wire([[270, 70], [200, 70], [200, 50], [130, 50], [130, 70]]);
+
+        svg.wire([[350, 70], [380, 70]]);
+        svg.text(365, 60, '1.8V', {fontSize: 9});
+
+        // PGOOD to third
+        svg.wire([[350, 90], [410, 90]]);
+
+        // Third regulator
+        svg.rect(430, 50, 80, 60, {fill: 'none', stroke: '#888'});
+        svg.text(470, 75, 'VREG3', {fontSize: 10});
+        svg.text(470, 90, '3.3V', {fontSize: 9});
+
+        svg.wire([[410, 90], [430, 75]]);
+        svg.text(420, 65, 'EN', {fontSize: 8});
+
+        svg.wire([[430, 70], [400, 70], [400, 50], [350, 50], [350, 70]]);
+
+        svg.wire([[510, 70], [540, 70]]);
+        svg.text(525, 60, '3.3V', {fontSize: 9});
+
+        // Final PGOOD
+        svg.wire([[510, 90], [560, 90]]);
+        svg.text(570, 95, 'System PGOOD', {fontSize: 9});
+
+        // Notes
+        svg.text(50, 150, 'Timing:', {fontSize: 11, fill: '#4af'});
+        svg.text(50, 170, 't1 = VREG1 soft start', {fontSize: 9, fill: '#888'});
+        svg.text(50, 185, 't2 = R×C delay + VREG2 soft start', {fontSize: 9, fill: '#888'});
+        svg.text(50, 200, 't3 = VREG2 PGOOD + VREG3 soft start', {fontSize: 9, fill: '#888'});
+
+        svg.text(350, 150, 'RC delay:', {fontSize: 11, fill: '#fa4'});
+        svg.text(350, 170, 'tdelay ≈ 0.7 × R × C', {fontSize: 9, fill: '#888'});
+        svg.text(350, 185, 'For 10ms: R=100k, C=100nF', {fontSize: 9, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('seq-spice', {
+            title: 'Power Sequencing Simulation',
+            netlist: `* Power Sequencing - 3 Rails with PGOOD Chain
+
+* Input supply
+Vin vin 0 DC 5
+
+* Regulator 1 (1.0V core)
+* Simple model with soft start
+Xreg1 vin en1 v1 pgood1 reg_model
+.subckt reg_model vin en vout pgood
+Vref ref 0 DC 1
+Sen vin sw en 0 SMOD
+Lsoft sw vout 1u
+Rload vout 0 10
+Css en 0 100n IC=0
+Bpgood pgood 0 V=V(vout)>0.9 ? 5 : 0
+.ends
+
+* Enable rail 1 immediately
+Ven1 en1 0 PULSE(0 5 1m 1u 1u 100m 200m)
+
+* RC delay for rail 2
+Rdelay1 pgood1 en2_rc 100k
+Cdelay1 en2_rc 0 100n IC=0
+Sen2 vin en2 en2_rc 0 SMOD
+Xreg2 vin en2 v2 pgood2 reg_model
+
+* RC delay for rail 3
+Rdelay2 pgood2 en3_rc 100k
+Cdelay2 en3_rc 0 100n IC=0
+Sen3 vin en3 en3_rc 0 SMOD
+Xreg3 vin en3 v3 pgood3 reg_model
+
+* Switch model for enables
+.model SMOD SW(Ron=0.01 Roff=1MEG Vt=2.5)
+
+.tran 100u 100m
+
+.probe V(v1) V(v2) V(v3) V(pgood1) V(pgood2) V(pgood3)
+.end
+
+* Expected results:
+* V1 ramps first after en1
+* V2 follows ~10ms after V1 reaches 90%
+* V3 follows ~10ms after V2 reaches 90%
+* Total sequence time ~30ms`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('seq-checklist', {
+            title: 'Power Sequencing Checklist',
+            items: [
+                'Review all IC datasheets for sequence requirements',
+                'Identify required sequence order (power-up and down)',
+                'Determine timing between rails',
+                'Select sequencing method for application',
+                'Calculate RC delays or configure sequencer',
+                'Verify PGOOD thresholds match requirements',
+                'Test sequence at temperature extremes',
+                'Verify power-down sequence if required',
+                'Check behavior during brownout/glitch',
+                'Verify fault handling and recovery'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('seq-exercises', {
+            exercises: [
+                {
+                    question: 'FPGA requires Vcore up before Vio with 5ms minimum delay. Soft start is 2ms. What RC delay needed?',
+                    answer: '3ms',
+                    solution: 'Total delay needed: 5ms. Soft start provides 2ms. RC delay = 5ms - 2ms = 3ms. Use R=43k, C=100nF gives t=0.7×43k×100n=3ms.'
+                },
+                {
+                    question: 'Ratiometric tracking requires V1/V2 = 0.556 at all times. V1=1.0V, V2=1.8V. Is the ratio maintained?',
+                    answer: 'Yes',
+                    solution: 'Ratio = 1.0/1.8 = 0.556. During ramp-up both voltages increase proportionally, maintaining ratio. This is the purpose of ratiometric tracking.'
+                },
+                {
+                    question: 'Power-down sequence often required to be reverse of power-up. Why?',
+                    answer: 'Prevent latch-up',
+                    solution: 'During power-down, I/O pins may still be driven while core loses power. This can inject current into substrate, causing latch-up. Powering down I/O before core prevents this. Some devices require simultaneous power-down instead.'
+                }
+            ]
+        });
+    }
+
+    // ==================== SEQUENCING METHODS CANVAS ====================
+    function drawSequencingMethods() {
+        const canvas = document.getElementById('seq-methods-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Helper for rounded rect
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        const methods = [
+            {
+                title: 'Method 1: PGOOD Daisy Chain',
+                color: TEK.ch1,
+                items: ['Simple, low cost', 'Uses PGOOD → EN chain', 'Delay = soft start time'],
+                diagram: 'daisy'
+            },
+            {
+                title: 'Method 2: RC Delay on Enable',
+                color: TEK.ch2,
+                items: ['Fixed delay, no feedback', 'R-C time constant', 'May vary with temp'],
+                diagram: 'rc'
+            },
+            {
+                title: 'Method 3: Sequencer IC',
+                color: TEK.ch3,
+                items: ['Precise timing', 'Voltage monitoring', 'Fault handling', 'Higher cost'],
+                diagram: 'ic'
+            },
+            {
+                title: 'Method 4: MCU/CPLD Control',
+                color: TEK.ch4,
+                items: ['Maximum flexibility', 'Complex logic OK', 'Fault recovery', 'Needs firmware'],
+                diagram: 'mcu'
+            }
+        ];
+
+        const boxW = 210;
+        const boxH = 165;
+        const gap = 12;
+        const startY = 10;
+
+        methods.forEach((m, i) => {
+            const x = 10 + i * (boxW + gap);
+
+            // Box
+            ctx.strokeStyle = m.color;
+            ctx.lineWidth = 2;
+            roundRect(x, startY, boxW, boxH, 8);
+            ctx.stroke();
+
+            // Title
+            ctx.fillStyle = m.color;
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(m.title, x + boxW/2, startY + 18);
+
+            // Items
+            ctx.fillStyle = '#888';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'left';
+            m.items.forEach((item, j) => {
+                ctx.fillText('• ' + item, x + 10, startY + 38 + j * 13);
+            });
+
+            // Draw mini diagram
+            const diagY = startY + 95;
+            ctx.strokeStyle = m.color;
+            ctx.lineWidth = 1;
+
+            if (m.diagram === 'daisy') {
+                // VREG1 → VREG2 → VREG3
+                for (let r = 0; r < 3; r++) {
+                    const rx = x + 20 + r * 60;
+                    ctx.fillStyle = '#1a1a2e';
+                    ctx.fillRect(rx, diagY, 45, 25);
+                    ctx.strokeRect(rx, diagY, 45, 25);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '8px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('VREG' + (r + 1), rx + 22, diagY + 15);
+                    if (r < 2) {
+                        ctx.strokeStyle = m.color;
+                        ctx.beginPath();
+                        ctx.moveTo(rx + 45, diagY + 12);
+                        ctx.lineTo(rx + 60, diagY + 12);
+                        ctx.stroke();
+                        ctx.fillStyle = '#888';
+                        ctx.font = '7px monospace';
+                        ctx.fillText('PG', rx + 52, diagY + 8);
+                    }
+                }
+            } else if (m.diagram === 'rc') {
+                // EN → R → T junction with C to GND
+                ctx.beginPath();
+                ctx.moveTo(x + 30, diagY + 15);
+                ctx.lineTo(x + 60, diagY + 15);
+                ctx.stroke();
+                ctx.fillStyle = '#fff';
+                ctx.font = '8px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('EN', x + 25, diagY + 18);
+
+                // R symbol
+                ctx.fillStyle = '#333';
+                ctx.fillRect(x + 62, diagY + 10, 30, 10);
+                ctx.strokeRect(x + 62, diagY + 10, 30, 10);
+                ctx.fillStyle = '#fff';
+                ctx.fillText('R', x + 77, diagY + 18);
+
+                // Junction
+                ctx.beginPath();
+                ctx.moveTo(x + 92, diagY + 15);
+                ctx.lineTo(x + 120, diagY + 15);
+                ctx.stroke();
+
+                // C to ground
+                ctx.beginPath();
+                ctx.moveTo(x + 105, diagY + 15);
+                ctx.lineTo(x + 105, diagY + 35);
+                ctx.stroke();
+                ctx.fillRect(x + 95, diagY + 35, 20, 3);
+                ctx.fillRect(x + 98, diagY + 40, 14, 3);
+                ctx.fillStyle = '#fff';
+                ctx.fillText('C', x + 115, diagY + 42);
+
+                // To next EN
+                ctx.fillStyle = '#888';
+                ctx.font = '7px monospace';
+                ctx.fillText('→EN(next)', x + 155, diagY + 18);
+            } else if (m.diagram === 'ic') {
+                // Central sequencer IC with arrows
+                ctx.fillStyle = '#2a2a4a';
+                ctx.fillRect(x + 60, diagY, 80, 55);
+                ctx.strokeRect(x + 60, diagY, 80, 55);
+                ctx.fillStyle = '#fff';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('Sequencer', x + 100, diagY + 20);
+                ctx.fillText('IC', x + 100, diagY + 35);
+
+                // EN outputs
+                ctx.strokeStyle = m.color;
+                for (let e = 0; e < 3; e++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x + 140, diagY + 10 + e * 15);
+                    ctx.lineTo(x + 170, diagY + 10 + e * 15);
+                    ctx.stroke();
+                }
+                ctx.fillStyle = '#888';
+                ctx.font = '7px monospace';
+                ctx.fillText('EN1-3', x + 180, diagY + 30);
+
+                // PG inputs
+                ctx.beginPath();
+                ctx.moveTo(x + 30, diagY + 25);
+                ctx.lineTo(x + 60, diagY + 25);
+                ctx.stroke();
+                ctx.fillText('PG', x + 40, diagY + 45);
+            } else if (m.diagram === 'mcu') {
+                // MCU box
+                ctx.fillStyle = '#2a3a2a';
+                ctx.fillRect(x + 30, diagY, 60, 50);
+                ctx.strokeRect(x + 30, diagY, 60, 50);
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('MCU', x + 60, diagY + 30);
+
+                // GPIO outputs
+                ctx.strokeStyle = m.color;
+                ctx.beginPath();
+                ctx.moveTo(x + 90, diagY + 15);
+                ctx.lineTo(x + 130, diagY + 15);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x + 90, diagY + 25);
+                ctx.lineTo(x + 130, diagY + 25);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x + 90, diagY + 35);
+                ctx.lineTo(x + 130, diagY + 35);
+                ctx.stroke();
+                ctx.fillStyle = '#888';
+                ctx.font = '7px monospace';
+                ctx.fillText('GPIO→EN', x + 160, diagY + 28);
+
+                // ADC input
+                ctx.strokeStyle = '#888';
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(x + 60, diagY + 50);
+                ctx.lineTo(x + 60, diagY + 65);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillText('ADC←V', x + 60, diagY + 58);
+            }
+        });
+
+        // Bottom section: Ratiometric timing
+        const ratioY = 195;
+        ctx.strokeStyle = '#fa4';
+        ctx.lineWidth = 2;
+        roundRect(10, ratioY, W - 20, 85, 6);
+        ctx.stroke();
+
+        ctx.fillStyle = '#fa4';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Ratiometric Timing:', 25, ratioY + 22);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText('V1(t) / V2(t) = constant during ramp', 25, ratioY + 45);
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.fillText('• Requires synchronized soft start', 25, ratioY + 65);
+        ctx.fillText('• Some ICs have tracking pin (TRACK, SS)', 280, ratioY + 65);
+
+        // Draw ratiometric waveform
+        const waveX = 550, waveY = ratioY + 25, waveW = 320, waveH = 50;
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(waveX, waveY, waveW, waveH);
+
+        // V1 ramp
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(waveX, waveY + waveH);
+        ctx.lineTo(waveX + waveW * 0.4, waveY + waveH * 0.7);
+        ctx.lineTo(waveX + waveW, waveY + waveH * 0.7);
+        ctx.stroke();
+
+        // V2 ramp (proportional)
+        ctx.strokeStyle = TEK.ch2;
+        ctx.beginPath();
+        ctx.moveTo(waveX, waveY + waveH);
+        ctx.lineTo(waveX + waveW * 0.4, waveY + waveH * 0.3);
+        ctx.lineTo(waveX + waveW, waveY + waveH * 0.3);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '9px monospace';
+        ctx.fillText('V1 (1.0V)', waveX + waveW + 5, waveY + waveH * 0.7 + 3);
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('V2 (1.8V)', waveX + waveW + 5, waveY + waveH * 0.3 + 3);
+
+        // Key comparison box
+        const compY = 295;
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(10, compY, W - 20, 75);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Method Comparison:', 25, compY + 18);
+
+        const comparisons = [
+            {method: 'Daisy Chain', cost: 'Low', flex: 'Low', prec: 'Medium'},
+            {method: 'RC Delay', cost: 'Low', flex: 'Low', prec: 'Low'},
+            {method: 'Sequencer IC', cost: 'Medium', flex: 'Medium', prec: 'High'},
+            {method: 'MCU Control', cost: 'High', flex: 'High', prec: 'High'}
+        ];
+
+        ctx.font = '9px monospace';
+        ctx.fillStyle = '#888';
+        ctx.fillText('Method', 30, compY + 38);
+        ctx.fillText('Cost', 160, compY + 38);
+        ctx.fillText('Flexibility', 230, compY + 38);
+        ctx.fillText('Precision', 340, compY + 38);
+
+        comparisons.forEach((c, i) => {
+            const cx = 450 + i * 110;
+            ctx.fillStyle = '#666';
+            ctx.fillText(c.method.split(' ')[0], cx, compY + 38);
+        });
+
+        // Recommendation
+        ctx.fillStyle = '#4f4';
+        ctx.font = '10px monospace';
+        ctx.fillText('Recommendation: Start with PGOOD daisy chain. Add sequencer IC if timing is critical or fault handling needed.', 30, compY + 60);
+    }
+
+    update();
+    drawSchematic();
+    drawSequencingMethods();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

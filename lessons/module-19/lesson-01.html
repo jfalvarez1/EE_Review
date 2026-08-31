@@ -1,0 +1,515 @@
+<!-- Module 19, Lesson 1: Oscilloscope Techniques -->
+<div class="lesson-content" data-module="19" data-lesson="1">
+
+    <div class="card">
+        <h2>Oscilloscope Techniques for Analog Debug</h2>
+        <p>The oscilloscope is your primary tool for analog debugging. Mastering probe compensation, triggering, and measurement techniques is essential.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Bandwidth Rule</div>
+                <div class="v">BW ≥ 5× signal frequency</div>
+            </div>
+            <div class="box">
+                <div class="k">Rise Time</div>
+                <div class="v">t<sub>r</sub> = 0.35 / BW</div>
+            </div>
+            <div class="box">
+                <div class="k">Probe Loading</div>
+                <div class="v">10MΩ || 10-15pF typical</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> A 100 MHz oscilloscope can't accurately measure a 100 MHz signal. The 5× rule ensures less than 2% amplitude error and accurate rise time measurement.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Probe Compensation</h3>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="scope-comp">Probe Compensation</label>
+                <select id="scope-comp">
+                    <option value="under">Under-compensated</option>
+                    <option value="correct" selected>Correctly compensated</option>
+                    <option value="over">Over-compensated</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="scope-bw">Scope Bandwidth (MHz)</label>
+                <input type="range" id="scope-bw" min="20" max="500" step="10" value="100">
+                <span id="scope-bw-val" class="mono">100 MHz</span>
+            </div>
+            <div class="c4">
+                <label for="scope-sigfreq">Signal Frequency (MHz)</label>
+                <input type="range" id="scope-sigfreq" min="1" max="100" step="1" value="10">
+                <span id="scope-sigfreq-val" class="mono">10 MHz</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="scope-canvas" width="980" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">BW / Signal Ratio</div>
+                <div class="v mono" id="scope-ratio">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Amplitude Error</div>
+                <div class="v mono" id="scope-error">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Measured Rise Time</div>
+                <div class="v mono" id="scope-risetime">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Probe Ground Lead Effects</h3>
+        <canvas id="probe-ground-canvas" width="900" height="300"></canvas>
+
+        <div class="warn">
+            <strong>Ringing Artifacts:</strong> If you see ringing on fast edges that wasn't there before probing, suspect ground lead inductance. Switch to a spring ground or probe directly across component.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Triggering Techniques</h3>
+
+        <table class="table">
+            <tr>
+                <th>Trigger Type</th>
+                <th>Use Case</th>
+            </tr>
+            <tr>
+                <td>Edge</td>
+                <td>Basic waveform capture, clock signals</td>
+            </tr>
+            <tr>
+                <td>Pulse Width</td>
+                <td>Glitch detection, runt pulses</td>
+            </tr>
+            <tr>
+                <td>Pattern</td>
+                <td>Digital bus states, protocol decode</td>
+            </tr>
+            <tr>
+                <td>Video</td>
+                <td>Sync to video signals</td>
+            </tr>
+            <tr>
+                <td>Serial Decode</td>
+                <td>I2C, SPI, UART packet capture</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Common Debug Scenarios</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('scope-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const comp = document.getElementById('scope-comp').value;
+        const bw = parseFloat(document.getElementById('scope-bw').value);
+        const sigFreq = parseFloat(document.getElementById('scope-sigfreq').value);
+
+        document.getElementById('scope-bw-val').textContent = bw + ' MHz';
+        document.getElementById('scope-sigfreq-val').textContent = sigFreq + ' MHz';
+
+        const ratio = bw / sigFreq;
+        document.getElementById('scope-ratio').textContent = ratio.toFixed(1) + '×';
+
+        // Amplitude error due to bandwidth limitation
+        const ampError = (1 - 1 / Math.sqrt(1 + Math.pow(sigFreq / bw, 2))) * 100;
+        const errorEl = document.getElementById('scope-error');
+        errorEl.textContent = ampError.toFixed(1) + '%';
+        errorEl.style.color = ampError < 3 ? 'var(--ok)' : ampError < 10 ? 'var(--warn)' : 'var(--bad)';
+
+        // Rise time (scope + signal combined)
+        const trScope = 0.35 / (bw * 1e6) * 1e9; // ns
+        const trSignal = 0.35 / (sigFreq * 5 * 1e6) * 1e9; // Assuming 5× faster edge
+        const trMeasured = Math.sqrt(trScope * trScope + trSignal * trSignal);
+        document.getElementById('scope-risetime').textContent = trMeasured.toFixed(1) + ' ns';
+
+        plotProbeComp(comp, bw, sigFreq);
+    }
+
+    function plotProbeComp(comp, bw, sigFreq) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Draw square wave with compensation effects
+        const totalTime = 2e-6; // 2µs
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: totalTime,
+            yMin: -0.5,
+            yMax: 1.5,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 's',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 8
+        });
+
+        const N = 500;
+        const tData = [];
+        const vData = [];
+
+        const period = 1 / (sigFreq * 1e6);
+        const tr = 0.35 / (bw * 1e6);
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * totalTime;
+            tData.push(t);
+
+            // Generate square wave with rise time limitation
+            const tInPeriod = t % period;
+            const halfPeriod = period / 2;
+
+            let v;
+            if (tInPeriod < halfPeriod) {
+                // Rising edge region
+                if (tInPeriod < tr * 2.2) {
+                    const riseProgress = tInPeriod / (tr * 2.2);
+                    v = riseProgress;
+
+                    // Add compensation effects
+                    if (comp === 'under') {
+                        v = riseProgress * (1 - 0.3 * Math.exp(-tInPeriod / (tr * 3)));
+                    } else if (comp === 'over') {
+                        v = riseProgress * (1 + 0.3 * Math.exp(-tInPeriod / (tr * 2)));
+                    }
+                } else {
+                    v = 1;
+                    if (comp === 'under') {
+                        v = 1 - 0.15 * Math.exp(-(tInPeriod - tr * 2.2) / (period * 0.1));
+                    } else if (comp === 'over') {
+                        v = 1 + 0.1 * Math.exp(-(tInPeriod - tr * 2.2) / (period * 0.05));
+                    }
+                }
+            } else {
+                // Falling edge region
+                const tFall = tInPeriod - halfPeriod;
+                if (tFall < tr * 2.2) {
+                    const fallProgress = 1 - tFall / (tr * 2.2);
+                    v = fallProgress;
+
+                    if (comp === 'under') {
+                        v = fallProgress * (1 + 0.3 * Math.exp(-tFall / (tr * 3)));
+                    } else if (comp === 'over') {
+                        v = fallProgress * (1 - 0.3 * Math.exp(-tFall / (tr * 2)));
+                    }
+                } else {
+                    v = 0;
+                    if (comp === 'under') {
+                        v = 0.15 * Math.exp(-(tFall - tr * 2.2) / (period * 0.1));
+                    } else if (comp === 'over') {
+                        v = -0.1 * Math.exp(-(tFall - tr * 2.2) / (period * 0.05));
+                    }
+                }
+            }
+
+            vData.push(v);
+        }
+
+        const color = comp === 'correct' ? 'rgba(52, 211, 153, 0.95)' :
+                      comp === 'under' ? 'rgba(251, 191, 36, 0.95)' :
+                      'rgba(251, 113, 133, 0.95)';
+
+        AD.plotData(ctx, axes, tData, vData, {
+            color: color,
+            lineWidth: 2
+        });
+
+        // Draw ideal square wave reference (dashed)
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * totalTime;
+            const tInPeriod = t % period;
+            const v = tInPeriod < period / 2 ? 1 : 0;
+            const pt = axes.toCanvas(t, v);
+            if (i === 0) ctx.moveTo(pt.x, pt.y);
+            else ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: color, label: comp === 'correct' ? 'Correct compensation' :
+                                   comp === 'under' ? 'Under-compensated' : 'Over-compensated' },
+            { color: 'rgba(255, 255, 255, 0.3)', label: 'Ideal square wave' }
+        ]);
+    }
+
+    ['scope-comp', 'scope-bw', 'scope-sigfreq'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    // ==================== PROBE GROUND EFFECTS CANVAS ====================
+    function drawProbeGroundEffects() {
+        const canvas = document.getElementById('probe-ground-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00'};
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Helper for rounded rect
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+        }
+
+        // Title section with equations
+        ctx.fillStyle = '#4af';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Probe Ground Lead Inductance Effect:', 20, 25);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText('Standard 6" ground lead: ~100nH inductance', 20, 50);
+
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('At 100 MHz:  XL = 2π × 100MHz × 100nH = 63Ω', 20, 72);
+        ctx.fillText('At 500 MHz:  XL = 2π × 500MHz × 100nH = 314Ω', 20, 90);
+
+        ctx.fillStyle = '#f44';
+        ctx.fillText('LC resonance: f_res = 1/(2π√(LC)) ≈ 130 MHz', 20, 115);
+
+        // Left side: GOOD probing technique
+        const goodX = 20, goodY = 145;
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        roundRect(goodX, goodY, 400, 130, 8);
+        ctx.stroke();
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('GOOD: Spring ground or short lead', goodX + 200, goodY + 20);
+
+        // Draw probe with spring ground
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 2;
+        // Probe body
+        ctx.fillStyle = '#333';
+        ctx.fillRect(goodX + 80, goodY + 35, 100, 20);
+        ctx.strokeRect(goodX + 80, goodY + 35, 100, 20);
+        // Probe tip
+        ctx.strokeStyle = TEK.ch1;
+        ctx.beginPath();
+        ctx.moveTo(goodX + 180, goodY + 45);
+        ctx.lineTo(goodX + 220, goodY + 45);
+        ctx.stroke();
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('Signal', goodX + 220, goodY + 65);
+
+        // Spring ground (short)
+        ctx.strokeStyle = TEK.ch4;
+        ctx.beginPath();
+        ctx.moveTo(goodX + 180, goodY + 55);
+        ctx.lineTo(goodX + 220, goodY + 55);
+        ctx.stroke();
+        // Ground symbol
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = '14px monospace';
+        ctx.fillText('⏚', goodX + 227, goodY + 60);
+        ctx.font = '9px monospace';
+        ctx.fillText('Spring GND', goodX + 260, goodY + 58);
+
+        // PCB representation
+        ctx.fillStyle = '#1a3322';
+        ctx.fillRect(goodX + 200, goodY + 80, 150, 30);
+        ctx.strokeStyle = '#4a4';
+        ctx.strokeRect(goodX + 200, goodY + 80, 150, 30);
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.fillText('PCB', goodX + 275, goodY + 100);
+
+        // Check mark
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = '24px monospace';
+        ctx.fillText('✓', goodX + 50, goodY + 80);
+
+        // Right side: BAD probing technique
+        const badX = 470, badY = 145;
+        ctx.strokeStyle = '#f44';
+        ctx.lineWidth = 2;
+        roundRect(badX, badY, 400, 130, 8);
+        ctx.stroke();
+
+        ctx.fillStyle = '#f44';
+        ctx.font = 'bold 11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('BAD: Long ground clip lead', badX + 200, badY + 20);
+
+        // Draw probe with long ground lead
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 2;
+        // Probe body
+        ctx.fillStyle = '#333';
+        ctx.fillRect(badX + 80, badY + 35, 100, 20);
+        ctx.strokeRect(badX + 80, badY + 35, 100, 20);
+        // Probe tip
+        ctx.strokeStyle = TEK.ch1;
+        ctx.beginPath();
+        ctx.moveTo(badX + 180, badY + 45);
+        ctx.lineTo(badX + 220, badY + 45);
+        ctx.stroke();
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '10px monospace';
+        ctx.fillText('Signal', badX + 225, badY + 48);
+
+        // Long ground wire (wavy)
+        ctx.strokeStyle = '#f44';
+        ctx.beginPath();
+        ctx.moveTo(badX + 80, badY + 55);
+        for (let i = 0; i < 12; i++) {
+            const wx = badX + 85 + i * 15;
+            const wy = badY + 55 + (i % 2 ? 8 : -8);
+            ctx.lineTo(wx, wy);
+        }
+        ctx.lineTo(badX + 280, badY + 90);
+        ctx.stroke();
+
+        ctx.fillStyle = '#f44';
+        ctx.font = '9px monospace';
+        ctx.fillText('~100nH', badX + 160, badY + 75);
+
+        // Ground connection
+        ctx.fillStyle = '#f44';
+        ctx.font = '14px monospace';
+        ctx.fillText('⏚', badX + 287, badY + 95);
+
+        // PCB representation
+        ctx.fillStyle = '#1a3322';
+        ctx.fillRect(badX + 200, badY + 80, 150, 30);
+        ctx.strokeStyle = '#4a4';
+        ctx.strokeRect(badX + 200, badY + 80, 150, 30);
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.fillText('PCB', badX + 275, badY + 100);
+
+        // X mark
+        ctx.fillStyle = '#f44';
+        ctx.font = '24px monospace';
+        ctx.fillText('✗', badX + 50, badY + 80);
+
+        // Loop area indicator
+        ctx.strokeStyle = 'rgba(255, 68, 68, 0.3)';
+        ctx.fillStyle = 'rgba(255, 68, 68, 0.1)';
+        ctx.beginPath();
+        ctx.moveTo(badX + 180, badY + 45);
+        ctx.lineTo(badX + 220, badY + 45);
+        ctx.lineTo(badX + 280, badY + 90);
+        ctx.lineTo(badX + 80, badY + 55);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#f44';
+        ctx.font = '8px monospace';
+        ctx.fillText('Loop = antenna!', badX + 140, badY + 115);
+    }
+
+    update();
+    drawProbeGroundEffects();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Probe Model with Ground Inductance',
+        netlist: `* Oscilloscope Probe Model
+* Shows effect of ground lead inductance
+
+* Signal source (fast edge)
+VPULSE sig 0 PULSE(0 1 0 1n 1n 100n 200n)
+
+* Probe tip capacitance
+C_TIP sig probe 10p
+
+* 10× probe divider
+R_PROBE probe div 9MEG
+R_INPUT div scope 1MEG
+C_INPUT scope 0 15p
+
+* Ground lead inductance (6" lead ≈ 100nH)
+L_GND 0 gnd_ref 100n
+
+* Scope input referenced to ground via inductance
+* This creates ringing on fast edges
+
+.TRAN 0.1n 500n
+
+.PROBE V(sig) V(scope)
+.END
+
+* Compare V(sig) to V(scope)
+* Ringing appears on V(scope) due to L-C resonance`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm19l1',
+        items: [
+            'Always compensate probe before measurement',
+            'Use BW ≥ 5× signal frequency',
+            'Minimize ground lead length for HF',
+            'Understand probe loading (10MΩ || 15pF)',
+            'Use appropriate trigger for stable display'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'D1-1',
+        type: 'numeric',
+        question: 'You need to measure a signal with 5ns rise time. What minimum oscilloscope bandwidth is required?',
+        hint: 'BW = 0.35 / t_rise, then apply 5× rule for accuracy',
+        expected: 350,
+        tolerance: 0.1,
+        unit: 'MHz',
+        solution: 'Signal BW = 0.35 / 5ns = 70 MHz. For accurate measurement: 70 MHz × 5 = 350 MHz',
+        explanation: 'A 350 MHz scope will have rise time of 0.35/350MHz = 1ns, much faster than the 5ns signal, ensuring accurate measurement.'
+    });
+})();
+</script>

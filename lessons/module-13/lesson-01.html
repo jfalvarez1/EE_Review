@@ -1,0 +1,397 @@
+<!-- Module 13, Lesson 1: I2C Physical Layer & Analog Challenges -->
+<div class="lesson-content" data-module="13" data-lesson="1">
+
+    <div class="card">
+        <h2>I2C Physical Layer & Analog Challenges</h2>
+        <p>I2C is a simple two-wire protocol with subtle analog challenges. Understanding the physical layer—pull-ups, capacitance, rise times, and noise—is critical for reliable communication.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">SDA</div>
+                <div class="v">Serial Data (bidirectional)</div>
+            </div>
+            <div class="box">
+                <div class="k">SCL</div>
+                <div class="v">Serial Clock (master drives)</div>
+            </div>
+            <div class="box">
+                <div class="k">Open-Drain</div>
+                <div class="v">Wired-AND for multi-master</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> I2C's open-drain architecture means the bus is pulled high by resistors and pulled low actively by devices. This allows multiple devices to share the bus, but the RC time constant of pull-ups and bus capacitance limits speed.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: I2C Bus Timing</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="i2c-rpu">Pull-Up R (Ω)</label>
+                <input type="text" id="i2c-rpu" value="4.7k">
+            </div>
+            <div class="c3">
+                <label for="i2c-cbus">Bus Capacitance (F)</label>
+                <input type="text" id="i2c-cbus" value="100p">
+            </div>
+            <div class="c3">
+                <label for="i2c-vcc">V<sub>CC</sub> (V)</label>
+                <input type="text" id="i2c-vcc" value="3.3">
+            </div>
+            <div class="c3">
+                <label for="i2c-speed">Speed Mode</label>
+                <select id="i2c-speed">
+                    <option value="100000">Standard (100kHz)</option>
+                    <option value="400000" selected>Fast (400kHz)</option>
+                    <option value="1000000">Fast+ (1MHz)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="i2c-canvas" width="980" height="350"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Rise Time</div>
+                <div class="v mono" id="i2c-trise">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Max Rise Time</div>
+                <div class="v mono" id="i2c-trise-max">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Timing Status</div>
+                <div class="v mono" id="i2c-status">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Static Current</div>
+                <div class="v mono" id="i2c-current">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>I2C Speed Modes</h3>
+
+        <table class="table">
+            <tr>
+                <th>Mode</th>
+                <th>Max Clock</th>
+                <th>Max Rise Time</th>
+                <th>Max C<sub>bus</sub></th>
+            </tr>
+            <tr>
+                <td>Standard</td>
+                <td>100 kHz</td>
+                <td>1000 ns</td>
+                <td>400 pF</td>
+            </tr>
+            <tr>
+                <td>Fast</td>
+                <td>400 kHz</td>
+                <td>300 ns</td>
+                <td>400 pF</td>
+            </tr>
+            <tr>
+                <td>Fast+</td>
+                <td>1 MHz</td>
+                <td>120 ns</td>
+                <td>550 pF</td>
+            </tr>
+            <tr>
+                <td>High-Speed</td>
+                <td>3.4 MHz</td>
+                <td>40 ns</td>
+                <td>100 pF</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Rise Time Formula:</strong> t<sub>r</sub>(0.3V<sub>CC</sub> to 0.7V<sub>CC</sub>) ≈ 0.8473 × R × C. For Fast mode with 400pF: R<sub>max</sub> = 300ns / (0.8473 × 400pF) = 885Ω. But minimum R depends on sink current capability (typically 3mA → R<sub>min</sub> = V<sub>CC</sub>/3mA ≈ 1.1kΩ at 3.3V).
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Common I2C Problems</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Slow Rise Time</div>
+                <div class="v">Lower pull-up R or reduce C<sub>bus</sub></div>
+            </div>
+            <div class="box">
+                <div class="k">Bus Lockup</div>
+                <div class="v">Add clock recovery logic</div>
+            </div>
+            <div class="box">
+                <div class="k">Noise Glitches</div>
+                <div class="v">Add input filtering, lower R</div>
+            </div>
+            <div class="box">
+                <div class="k">Level Mismatch</div>
+                <div class="v">Use level translator IC</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('i2c-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const rpu = AD.parseValue(document.getElementById('i2c-rpu').value) || 4700;
+        const cbus = AD.parseValue(document.getElementById('i2c-cbus').value) || 100e-12;
+        const vcc = AD.parseValue(document.getElementById('i2c-vcc').value) || 3.3;
+        const speed = parseInt(document.getElementById('i2c-speed').value);
+
+        const tau = rpu * cbus;
+        // Rise time from 0.3VCC to 0.7VCC
+        const t03 = -tau * Math.log(1 - 0.3);
+        const t07 = -tau * Math.log(1 - 0.7);
+        const trise = t07 - t03; // Approximately 0.8473 * tau
+
+        // Maximum rise time for selected mode
+        let triseMax;
+        switch(speed) {
+            case 100000: triseMax = 1000e-9; break;
+            case 400000: triseMax = 300e-9; break;
+            case 1000000: triseMax = 120e-9; break;
+            default: triseMax = 300e-9;
+        }
+
+        // Static current when SDA/SCL driven low
+        const iStatic = vcc / rpu;
+
+        document.getElementById('i2c-trise').textContent = AD.fmtUnit(trise, 's');
+        document.getElementById('i2c-trise-max').textContent = AD.fmtUnit(triseMax, 's');
+        document.getElementById('i2c-current').textContent = AD.fmtUnit(iStatic, 'A');
+
+        const statusEl = document.getElementById('i2c-status');
+        if (trise <= triseMax) {
+            statusEl.textContent = 'PASS';
+            statusEl.style.color = 'var(--ok)';
+        } else {
+            statusEl.textContent = 'TOO SLOW';
+            statusEl.style.color = 'var(--bad)';
+        }
+
+        plotI2C(vcc, tau, speed, triseMax);
+    }
+
+    function plotI2C(vcc, tau, speed, triseMax) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const period = 1 / speed;
+        const totalTime = 3 * period;
+
+        // Draw labeled axes
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: totalTime,
+            yMin: -0.2,
+            yMax: vcc * 1.1,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 's',
+            yUnit: 'V',
+            xDivs: 12,
+            yDivs: 8
+        });
+
+        // Generate I2C-like waveform (SCL clock with realistic rise/fall)
+        const N = 800;
+        const tData = [];
+        const sclData = [];
+        const sdaData = [];
+
+        let sclState = 1;
+        let sdaState = 1;
+        let lastSclTransition = -1e9;
+        let lastSdaTransition = -1e9;
+
+        const halfPeriod = period / 2;
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * totalTime;
+
+            // SCL toggles every half period
+            const sclCycle = Math.floor(t / halfPeriod);
+            const targetScl = (sclCycle % 2 === 0) ? 1 : 0;
+
+            if (targetScl !== sclState) {
+                sclState = targetScl;
+                lastSclTransition = t;
+            }
+
+            // SDA changes during SCL low (simplified pattern: 1,0,1,1,0,0)
+            const bitNum = Math.floor(t / period);
+            const sdaPattern = [1, 0, 1, 1, 0, 0];
+            const targetSda = sdaPattern[bitNum % 6];
+
+            // SDA can only change when SCL is low
+            const sclCurrent = (sclCycle % 2 === 1);
+            if (!sclCurrent && targetSda !== sdaState) {
+                sdaState = targetSda;
+                lastSdaTransition = t;
+            }
+
+            // Calculate actual voltage with RC rise/fall
+            const sclTime = t - lastSclTransition;
+            let sclV;
+            if (sclState === 1) {
+                sclV = vcc * (1 - Math.exp(-sclTime / tau));
+            } else {
+                sclV = vcc * Math.exp(-sclTime / (tau * 0.1)); // Fast fall (active pull-down)
+            }
+
+            const sdaTime = t - lastSdaTransition;
+            let sdaV;
+            if (sdaState === 1) {
+                sdaV = vcc * (1 - Math.exp(-sdaTime / tau));
+            } else {
+                sdaV = vcc * Math.exp(-sdaTime / (tau * 0.1));
+            }
+
+            tData.push(t);
+            sclData.push(sclV);
+            sdaData.push(sdaV);
+        }
+
+        // Plot SCL
+        AD.plotData(ctx, axes, tData, sclData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2,
+            label: 'SCL'
+        });
+
+        // Plot SDA
+        AD.plotData(ctx, axes, tData, sdaData, {
+            color: 'rgba(52, 211, 153, 0.95)',
+            lineWidth: 2,
+            label: 'SDA'
+        });
+
+        // Draw VIH and VIL thresholds
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1;
+
+        const vih = 0.7 * vcc;
+        const vil = 0.3 * vcc;
+        const vihPt = axes.toCanvas(0, vih);
+        const vilPt = axes.toCanvas(0, vil);
+
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
+        ctx.beginPath();
+        ctx.moveTo(axes.left, vihPt.y);
+        ctx.lineTo(axes.left + axes.width, vihPt.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(axes.left, vilPt.y);
+        ctx.lineTo(axes.left + axes.width, vilPt.y);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.7)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('VIH = 0.7VCC', axes.left + axes.width + 3, vihPt.y + 3);
+        ctx.fillText('VIL = 0.3VCC', axes.left + axes.width + 3, vilPt.y + 3);
+        ctx.restore();
+
+        // Legend
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'SCL (clock)' },
+            { color: 'rgba(52, 211, 153, 0.95)', label: 'SDA (data)' }
+        ]);
+    }
+
+    ['i2c-rpu', 'i2c-cbus', 'i2c-vcc'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+    document.getElementById('i2c-speed').addEventListener('change', update);
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'I2C Bus Model',
+        netlist: `* I2C Bus Physical Layer Model
+
+* Pull-up resistors
+RPU_SCL vcc scl 4.7k
+RPU_SDA vcc sda 4.7k
+
+* Bus capacitance (PCB traces + device inputs)
+CBUS_SCL scl 0 100p
+CBUS_SDA sda 0 100p
+
+* Master open-drain outputs (NMOS)
+M_SCL scl scl_gate 0 0 NMOS W=50u L=0.5u
+M_SDA sda sda_gate 0 0 NMOS W=50u L=0.5u
+.MODEL NMOS NMOS (VTO=0.7 KP=110u)
+
+* Clock generator (400kHz)
+VSCL scl_gate 0 PULSE(0 3.3 0 10n 10n 1.25u 2.5u)
+
+* Data pattern (changes during SCL low)
+VSDA sda_gate 0 PULSE(0 3.3 0.625u 10n 10n 2.5u 5u)
+
+* Supply
+VCC vcc 0 DC 3.3
+
+.TRAN 1n 10u
+
+.PROBE V(scl) V(sda)
+.END
+
+* Check rise time: should be <300ns for Fast mode
+* Measure from 0.3*VCC to 0.7*VCC`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm13l1',
+        items: [
+            'Know I2C uses open-drain with pull-ups',
+            'Calculate rise time: tr ≈ 0.85 × R × C',
+            'Match pull-up R to speed mode and capacitance',
+            'Understand VIH = 0.7VCC, VIL = 0.3VCC',
+            'Check sink current capability (typically 3mA)'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'M1-1',
+        type: 'numeric',
+        question: 'An I2C bus has 200pF capacitance and 2.2kΩ pull-ups. What is the rise time (0.3VCC to 0.7VCC)?',
+        hint: 'tr ≈ 0.8473 × R × C',
+        expected: 373,
+        tolerance: 0.05,
+        unit: 'ns',
+        solution: 'tr = 0.8473 × 2200Ω × 200pF = 0.8473 × 440ns = 373ns',
+        explanation: 'This exceeds the 300ns Fast mode limit. Either reduce capacitance, lower pull-up resistance, or use Standard mode.'
+    });
+})();
+</script>

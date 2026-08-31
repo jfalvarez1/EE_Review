@@ -1,0 +1,928 @@
+<lesson-content>
+<section class="card">
+    <h2>LED Backlight Driver Design</h2>
+    <p>
+        Modern laptop and monitor displays use <strong>LED backlighting</strong> for thin profiles,
+        low power consumption, and excellent color gamut. The LED driver must provide
+        <strong>constant current</strong> to strings of series-connected LEDs, typically using
+        a boost converter topology.
+    </p>
+
+    <div class="notice">
+        <strong>What You'll Learn:</strong>
+        <ul>
+            <li>Why boost topology is needed for LED strings</li>
+            <li>Constant current LED driver design</li>
+            <li>PWM and analog dimming techniques</li>
+            <li>Multi-string current matching</li>
+            <li>Efficiency and thermal considerations</li>
+        </ul>
+    </div>
+</section>
+
+<!-- Why Boost for Backlighting -->
+<section class="card">
+    <h3>Why Boost Topology for LED Backlighting?</h3>
+    <p>
+        A laptop display typically has <strong>multiple strings of 6-10 white LEDs in series</strong>.
+        Each LED has a forward voltage of ~3.0-3.3V, so a 7-LED string requires:
+    </p>
+    <p style="text-align: center; font-size: 1.2em; color: var(--accent);">
+        V_LED = 7 × 3.2V = <strong>22.4V</strong>
+    </p>
+    <p>
+        Since the laptop runs from a battery (7-17V) or USB-C adapter (5-20V), a
+        <strong>boost converter</strong> is essential to generate the high voltage needed.
+    </p>
+
+    <!-- SVG: LED String Voltage Diagram -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 550 280" class="circuit-svg" style="max-width: 550px; background: var(--panel);">
+            <defs>
+                <marker id="arrow-led" viewBox="0 0 10 10" refX="9" refY="5"
+                        markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#fbbf24"/>
+                </marker>
+            </defs>
+
+            <!-- Title -->
+            <text x="275" y="25" fill="#e6edf3" font-size="14" text-anchor="middle" font-weight="bold">
+                LED String Voltage Build-up
+            </text>
+
+            <!-- LED String (7 LEDs) -->
+            <g id="led-string">
+                <!-- Wire from boost output -->
+                <line x1="50" y1="80" x2="100" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <text x="50" y="95" fill="#ef4444" font-size="10">V_boost</text>
+                <text x="50" y="107" fill="#e6edf3" font-size="9">(22-25V)</text>
+
+                <!-- LED 1 -->
+                <polygon points="100,70 130,80 100,90" fill="none" stroke="#34d399" stroke-width="2"/>
+                <line x1="100" y1="70" x2="100" y2="90" stroke="#34d399" stroke-width="2"/>
+                <text x="115" y="105" fill="#34d399" font-size="9">3.2V</text>
+
+                <!-- LED 2 -->
+                <line x1="130" y1="80" x2="150" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <polygon points="150,70 180,80 150,90" fill="none" stroke="#34d399" stroke-width="2"/>
+                <line x1="150" y1="70" x2="150" y2="90" stroke="#34d399" stroke-width="2"/>
+                <text x="165" y="105" fill="#34d399" font-size="9">3.2V</text>
+
+                <!-- LED 3 -->
+                <line x1="180" y1="80" x2="200" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <polygon points="200,70 230,80 200,90" fill="none" stroke="#34d399" stroke-width="2"/>
+                <line x1="200" y1="70" x2="200" y2="90" stroke="#34d399" stroke-width="2"/>
+                <text x="215" y="105" fill="#34d399" font-size="9">3.2V</text>
+
+                <!-- ... dots -->
+                <text x="255" y="85" fill="#e6edf3" font-size="14">...</text>
+
+                <!-- LED 6 -->
+                <line x1="280" y1="80" x2="300" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <polygon points="300,70 330,80 300,90" fill="none" stroke="#34d399" stroke-width="2"/>
+                <line x1="300" y1="70" x2="300" y2="90" stroke="#34d399" stroke-width="2"/>
+                <text x="315" y="105" fill="#34d399" font-size="9">3.2V</text>
+
+                <!-- LED 7 -->
+                <line x1="330" y1="80" x2="350" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <polygon points="350,70 380,80 350,90" fill="none" stroke="#34d399" stroke-width="2"/>
+                <line x1="350" y1="70" x2="350" y2="90" stroke="#34d399" stroke-width="2"/>
+                <text x="365" y="105" fill="#34d399" font-size="9">3.2V</text>
+
+                <!-- Current sense resistor -->
+                <line x1="380" y1="80" x2="420" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="420" y="72" width="40" height="16" fill="none" stroke="#fb7185" stroke-width="2"/>
+                <text x="440" y="84" fill="#fb7185" font-size="10" text-anchor="middle">R</text>
+                <text x="440" y="105" fill="#fb7185" font-size="9" text-anchor="middle">sense</text>
+
+                <!-- To GND -->
+                <line x1="460" y1="80" x2="500" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <text x="510" y="85" fill="#6ee7ff" font-size="10">GND</text>
+            </g>
+
+            <!-- Voltage stack illustration -->
+            <rect x="80" y="140" width="380" height="110" fill="none" stroke="#374151" stroke-width="1" rx="5"/>
+            <text x="270" y="160" fill="#e6edf3" font-size="11" text-anchor="middle" font-weight="bold">
+                Voltage Distribution Across String
+            </text>
+
+            <!-- Stacked voltage bars -->
+            <rect x="100" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="120" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">LED1</text>
+
+            <rect x="145" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="165" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">LED2</text>
+
+            <rect x="190" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="210" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">LED3</text>
+
+            <rect x="235" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="255" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">...</text>
+
+            <rect x="280" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="300" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">LED6</text>
+
+            <rect x="325" y="175" width="40" height="60" fill="#34d399" fill-opacity="0.3" stroke="#34d399"/>
+            <text x="345" y="210" fill="#e6edf3" font-size="9" text-anchor="middle">LED7</text>
+
+            <rect x="370" y="220" width="40" height="15" fill="#fb7185" fill-opacity="0.3" stroke="#fb7185"/>
+            <text x="390" y="230" fill="#e6edf3" font-size="8" text-anchor="middle">R</text>
+
+            <!-- Voltage labels -->
+            <text x="95" y="245" fill="#e6edf3" font-size="9">0V</text>
+            <text x="415" y="175" fill="#ef4444" font-size="10">22.4V + Vr</text>
+        </svg>
+    </div>
+</section>
+
+<!-- Boost Converter Topology -->
+<section class="card">
+    <h3>Boost Converter for LED Driving</h3>
+
+    <!-- SVG: Boost Converter Schematic -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 600 320" class="circuit-svg" style="max-width: 600px; background: var(--panel);">
+            <!-- Input -->
+            <text x="30" y="100" fill="#e6edf3" font-size="12" font-weight="bold">VIN</text>
+            <text x="30" y="115" fill="#e6edf3" font-size="9">(5-20V)</text>
+            <line x1="60" y1="100" x2="100" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
+
+            <!-- Input Capacitor -->
+            <line x1="100" y1="100" x2="100" y2="130" stroke="#e6edf3" stroke-width="1.5"/>
+            <line x1="90" y1="130" x2="110" y2="130" stroke="#6ee7ff" stroke-width="3"/>
+            <line x1="90" y1="140" x2="110" y2="140" stroke="#6ee7ff" stroke-width="3"/>
+            <line x1="100" y1="140" x2="100" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+            <text x="75" y="140" fill="#6ee7ff" font-size="9">CIN</text>
+
+            <!-- Inductor -->
+            <line x1="100" y1="100" x2="140" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
+            <path d="M 140 100 C 150 85, 160 85, 170 100 C 180 115, 190 115, 200 100 C 210 85, 220 85, 230 100"
+                  fill="none" stroke="#a78bfa" stroke-width="2"/>
+            <text x="185" y="80" fill="#a78bfa" font-size="10" text-anchor="middle">L</text>
+            <text x="185" y="125" fill="#a78bfa" font-size="9" text-anchor="middle">(22-100µH)</text>
+
+            <!-- SW node -->
+            <line x1="230" y1="100" x2="280" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
+            <circle cx="280" cy="100" r="3" fill="#fbbf24"/>
+            <text x="285" y="90" fill="#fbbf24" font-size="10">SW</text>
+
+            <!-- MOSFET Switch -->
+            <line x1="280" y1="100" x2="280" y2="140" stroke="#e6edf3" stroke-width="1.5"/>
+            <rect x="260" y="140" width="40" height="30" fill="none" stroke="#fbbf24" stroke-width="2"/>
+            <text x="280" y="160" fill="#fbbf24" font-size="10" text-anchor="middle">Q1</text>
+            <line x1="280" y1="170" x2="280" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+
+            <!-- Gate drive -->
+            <line x1="260" y1="155" x2="230" y2="155" stroke="#a78bfa" stroke-width="1"/>
+            <text x="210" y="160" fill="#a78bfa" font-size="9">PWM</text>
+
+            <!-- Schottky Diode -->
+            <line x1="280" y1="100" x2="330" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
+            <polygon points="330,90 360,100 330,110" fill="none" stroke="#34d399" stroke-width="2"/>
+            <line x1="360" y1="90" x2="360" y2="110" stroke="#34d399" stroke-width="2"/>
+            <text x="345" y="80" fill="#34d399" font-size="9">D1</text>
+
+            <!-- Output Capacitor -->
+            <line x1="360" y1="100" x2="400" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
+            <line x1="400" y1="100" x2="400" y2="130" stroke="#e6edf3" stroke-width="1.5"/>
+            <line x1="390" y1="130" x2="410" y2="130" stroke="#6ee7ff" stroke-width="3"/>
+            <line x1="390" y1="140" x2="410" y2="140" stroke="#6ee7ff" stroke-width="3"/>
+            <line x1="400" y1="140" x2="400" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+            <text x="420" y="140" fill="#6ee7ff" font-size="9">COUT</text>
+
+            <!-- VOUT node -->
+            <circle cx="400" cy="100" r="3" fill="#ef4444"/>
+            <text x="410" y="95" fill="#ef4444" font-size="10" font-weight="bold">VOUT</text>
+            <text x="410" y="107" fill="#e6edf3" font-size="9">(22-30V)</text>
+
+            <!-- LED String (simplified) -->
+            <line x1="400" y1="100" x2="480" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
+            <rect x="480" y="85" width="60" height="30" fill="none" stroke="#34d399" stroke-width="2" rx="3"/>
+            <text x="510" y="105" fill="#34d399" font-size="10" text-anchor="middle">LED</text>
+            <text x="510" y="75" fill="#34d399" font-size="9" text-anchor="middle">String</text>
+
+            <!-- Current Sense Resistor -->
+            <line x1="540" y1="100" x2="560" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
+            <rect x="560" y="92" width="30" height="16" fill="none" stroke="#fb7185" stroke-width="2"/>
+            <text x="575" y="104" fill="#fb7185" font-size="9" text-anchor="middle">Rs</text>
+
+            <!-- Feedback to controller -->
+            <line x1="590" y1="100" x2="590" y2="230" stroke="#e6edf3" stroke-width="1"/>
+            <line x1="590" y1="230" x2="200" y2="230" stroke="#a78bfa" stroke-width="1" stroke-dasharray="3,2"/>
+            <text x="390" y="245" fill="#a78bfa" font-size="9" text-anchor="middle">Current Feedback to Controller</text>
+
+            <!-- Ground rail -->
+            <line x1="100" y1="180" x2="590" y2="180" stroke="#6ee7ff" stroke-width="2"/>
+            <text x="340" y="195" fill="#6ee7ff" font-size="10" text-anchor="middle">GND</text>
+            <line x1="590" y1="100" x2="590" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+
+            <!-- Controller block -->
+            <rect x="130" y="220" width="120" height="60" fill="none" stroke="#34d399" stroke-width="2" rx="5"/>
+            <text x="190" y="245" fill="#34d399" font-size="11" text-anchor="middle" font-weight="bold">Boost</text>
+            <text x="190" y="260" fill="#34d399" font-size="11" text-anchor="middle" font-weight="bold">Controller</text>
+
+            <!-- PWM out from controller -->
+            <line x1="190" y1="220" x2="190" y2="155" stroke="#a78bfa" stroke-width="1"/>
+            <line x1="190" y1="155" x2="230" y2="155" stroke="#a78bfa" stroke-width="1"/>
+
+            <!-- Key equations -->
+            <text x="30" y="260" fill="#e6edf3" font-size="10">Boost Equation:</text>
+            <text x="30" y="275" fill="#fbbf24" font-size="11">VOUT = VIN / (1 - D)</text>
+            <text x="30" y="295" fill="#e6edf3" font-size="9">where D = duty cycle</text>
+        </svg>
+    </div>
+
+    <h4>Boost LED Driver Calculator</h4>
+    <div class="controls">
+        <div class="c3">
+            <label>Input Voltage (V)</label>
+            <input type="range" id="boost-vin" min="5" max="20" value="12" step="0.5">
+            <span id="boost-vin-val">12V</span>
+        </div>
+        <div class="c3">
+            <label>LEDs per String</label>
+            <input type="range" id="boost-nleds" min="4" max="12" value="7" step="1">
+            <span id="boost-nleds-val">7</span>
+        </div>
+        <div class="c3">
+            <label>LED Vf (V)</label>
+            <input type="range" id="boost-vf" min="2.8" max="3.5" value="3.2" step="0.1">
+            <span id="boost-vf-val">3.2V</span>
+        </div>
+        <div class="c3">
+            <label>LED Current (mA)</label>
+            <input type="range" id="boost-iled" min="10" max="150" value="80" step="5">
+            <span id="boost-iled-val">80mA</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="c3">
+            <label>Number of Strings</label>
+            <input type="range" id="boost-nstr" min="1" max="8" value="4" step="1">
+            <span id="boost-nstr-val">4</span>
+        </div>
+        <div class="c3">
+            <label>Headroom (V)</label>
+            <input type="range" id="boost-head" min="0.5" max="3" value="1.5" step="0.1">
+            <span id="boost-head-val">1.5V</span>
+        </div>
+        <div class="c3">
+            <label>Efficiency (%)</label>
+            <input type="range" id="boost-eff" min="80" max="95" value="88" step="1">
+            <span id="boost-eff-val">88%</span>
+        </div>
+        <div class="c3">
+            <label>Switching Freq (kHz)</label>
+            <input type="range" id="boost-fsw" min="200" max="2000" value="600" step="50">
+            <span id="boost-fsw-val">600kHz</span>
+        </div>
+    </div>
+
+    <div id="boost-results" class="results">
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">Required VOUT</span>
+                <span class="value" id="boost-vout">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Duty Cycle</span>
+                <span class="value" id="boost-duty">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Total LED Power</span>
+                <span class="value" id="boost-pled">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Input Current</span>
+                <span class="value" id="boost-iin">—</span>
+            </div>
+        </div>
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">Inductor (min)</span>
+                <span class="value" id="boost-lmin">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Sense Resistor</span>
+                <span class="value" id="boost-rsense">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Power Loss</span>
+                <span class="value" id="boost-ploss">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Diode Current (avg)</span>
+                <span class="value" id="boost-idiode">—</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const boostIds = ['boost-vin', 'boost-nleds', 'boost-vf', 'boost-iled', 'boost-nstr', 'boost-head', 'boost-eff', 'boost-fsw'];
+
+        function updateBoost() {
+            const vin = parseFloat(document.getElementById('boost-vin').value);
+            const nleds = parseInt(document.getElementById('boost-nleds').value);
+            const vf = parseFloat(document.getElementById('boost-vf').value);
+            const iled = parseFloat(document.getElementById('boost-iled').value);
+            const nstr = parseInt(document.getElementById('boost-nstr').value);
+            const head = parseFloat(document.getElementById('boost-head').value);
+            const eff = parseFloat(document.getElementById('boost-eff').value) / 100;
+            const fsw = parseFloat(document.getElementById('boost-fsw').value) * 1000;
+
+            // Update displays
+            document.getElementById('boost-vin-val').textContent = vin + 'V';
+            document.getElementById('boost-nleds-val').textContent = nleds;
+            document.getElementById('boost-vf-val').textContent = vf.toFixed(1) + 'V';
+            document.getElementById('boost-iled-val').textContent = iled + 'mA';
+            document.getElementById('boost-nstr-val').textContent = nstr;
+            document.getElementById('boost-head-val').textContent = head.toFixed(1) + 'V';
+            document.getElementById('boost-eff-val').textContent = (eff*100).toFixed(0) + '%';
+            document.getElementById('boost-fsw-val').textContent = (fsw/1000).toFixed(0) + 'kHz';
+
+            // Calculations
+            const vout = nleds * vf + head;
+            const duty = 1 - (vin / vout);
+            const pled = vout * (iled / 1000) * nstr;
+            const pin = pled / eff;
+            const iin = pin / vin;
+            const ploss = pin - pled;
+
+            // Inductor sizing (for CCM, 30% ripple)
+            const iout = (iled / 1000) * nstr;
+            const iinAvg = iout / (1 - duty);
+            const deltaI = iinAvg * 0.3;  // 30% ripple
+            const lmin = (vin * duty) / (fsw * deltaI);
+
+            // Sense resistor (for 100mV at target current)
+            const rsense = 0.1 / (iled / 1000);
+
+            // Diode average current
+            const idiode = iout;
+
+            document.getElementById('boost-vout').textContent = vout.toFixed(1) + 'V';
+            document.getElementById('boost-duty').textContent = (duty * 100).toFixed(1) + '%';
+            document.getElementById('boost-pled').textContent = pled.toFixed(2) + 'W';
+            document.getElementById('boost-iin').textContent = (iin * 1000).toFixed(0) + 'mA';
+            document.getElementById('boost-lmin').textContent = AD.fmt(lmin, 2) + 'H';
+            document.getElementById('boost-rsense').textContent = rsense.toFixed(1) + 'Ω';
+            document.getElementById('boost-ploss').textContent = ploss.toFixed(2) + 'W';
+            document.getElementById('boost-idiode').textContent = (idiode * 1000).toFixed(0) + 'mA';
+        }
+
+        boostIds.forEach(id => {
+            document.getElementById(id).addEventListener('input', updateBoost);
+        });
+
+        updateBoost();
+    })();
+    </script>
+</section>
+
+<!-- Dimming Methods -->
+<section class="card">
+    <h3>LED Dimming Techniques</h3>
+    <p>
+        Display brightness adjustment requires dimming the LEDs. Two primary methods exist:
+    </p>
+
+    <h4>1. PWM Dimming (Digital)</h4>
+    <div class="diagram-container">
+        <canvas id="pwm-dimming-canvas" width="700" height="280" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+    </div>
+
+    <h4>2. Analog (DC) Dimming</h4>
+    <div class="diagram-container">
+        <canvas id="analog-dimming-canvas" width="700" height="280" style="width:100%;max-width:700px;background:#0d1117;border-radius:8px;"></canvas>
+    </div>
+
+    <h4>Hybrid Approach (Best of Both)</h4>
+    <p>
+        Most modern backlight drivers use <strong>hybrid dimming</strong>:
+    </p>
+    <ul>
+        <li><strong>Above ~20%:</strong> Use analog dimming (no flicker)</li>
+        <li><strong>Below ~20%:</strong> Use PWM dimming at high frequency (wide range)</li>
+    </ul>
+</section>
+
+<!-- Multi-String Current Matching -->
+<section class="card">
+    <h3>Multi-String Current Matching</h3>
+    <p>
+        Displays have multiple LED strings for uniform illumination. Due to LED Vf variations,
+        strings need <strong>individual current regulation</strong> to maintain matching.
+    </p>
+
+    <!-- SVG: Multi-String Architecture -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 550 320" class="circuit-svg" style="max-width: 550px; background: var(--panel);">
+            <!-- Boost Output Rail -->
+            <line x1="50" y1="50" x2="500" y2="50" stroke="#ef4444" stroke-width="2"/>
+            <text x="30" y="55" fill="#ef4444" font-size="11">VOUT</text>
+
+            <!-- String 1 -->
+            <g id="string1">
+                <line x1="100" y1="50" x2="100" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="80" y="80" width="40" height="80" fill="none" stroke="#34d399" stroke-width="2" rx="3"/>
+                <text x="100" y="125" fill="#34d399" font-size="10" text-anchor="middle">LED</text>
+                <text x="100" y="140" fill="#34d399" font-size="10" text-anchor="middle">String1</text>
+                <line x1="100" y1="160" x2="100" y2="200" stroke="#e6edf3" stroke-width="1.5"/>
+                <!-- Current sink -->
+                <rect x="80" y="200" width="40" height="30" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="100" y="220" fill="#fbbf24" font-size="9" text-anchor="middle">80mA</text>
+                <line x1="100" y1="230" x2="100" y2="260" stroke="#e6edf3" stroke-width="1.5"/>
+            </g>
+
+            <!-- String 2 -->
+            <g id="string2">
+                <line x1="200" y1="50" x2="200" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="180" y="80" width="40" height="80" fill="none" stroke="#34d399" stroke-width="2" rx="3"/>
+                <text x="200" y="125" fill="#34d399" font-size="10" text-anchor="middle">LED</text>
+                <text x="200" y="140" fill="#34d399" font-size="10" text-anchor="middle">String2</text>
+                <line x1="200" y1="160" x2="200" y2="200" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="180" y="200" width="40" height="30" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="200" y="220" fill="#fbbf24" font-size="9" text-anchor="middle">80mA</text>
+                <line x1="200" y1="230" x2="200" y2="260" stroke="#e6edf3" stroke-width="1.5"/>
+            </g>
+
+            <!-- String 3 -->
+            <g id="string3">
+                <line x1="300" y1="50" x2="300" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="280" y="80" width="40" height="80" fill="none" stroke="#34d399" stroke-width="2" rx="3"/>
+                <text x="300" y="125" fill="#34d399" font-size="10" text-anchor="middle">LED</text>
+                <text x="300" y="140" fill="#34d399" font-size="10" text-anchor="middle">String3</text>
+                <line x1="300" y1="160" x2="300" y2="200" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="280" y="200" width="40" height="30" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="300" y="220" fill="#fbbf24" font-size="9" text-anchor="middle">80mA</text>
+                <line x1="300" y1="230" x2="300" y2="260" stroke="#e6edf3" stroke-width="1.5"/>
+            </g>
+
+            <!-- String 4 -->
+            <g id="string4">
+                <line x1="400" y1="50" x2="400" y2="80" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="380" y="80" width="40" height="80" fill="none" stroke="#34d399" stroke-width="2" rx="3"/>
+                <text x="400" y="125" fill="#34d399" font-size="10" text-anchor="middle">LED</text>
+                <text x="400" y="140" fill="#34d399" font-size="10" text-anchor="middle">String4</text>
+                <line x1="400" y1="160" x2="400" y2="200" stroke="#e6edf3" stroke-width="1.5"/>
+                <rect x="380" y="200" width="40" height="30" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="400" y="220" fill="#fbbf24" font-size="9" text-anchor="middle">80mA</text>
+                <line x1="400" y1="230" x2="400" y2="260" stroke="#e6edf3" stroke-width="1.5"/>
+            </g>
+
+            <!-- GND Rail -->
+            <line x1="50" y1="260" x2="500" y2="260" stroke="#6ee7ff" stroke-width="2"/>
+            <text x="30" y="265" fill="#6ee7ff" font-size="11">GND</text>
+
+            <!-- Current Sink IC -->
+            <rect x="130" y="275" width="220" height="35" fill="none" stroke="#a78bfa" stroke-width="2" rx="5"/>
+            <text x="240" y="298" fill="#a78bfa" font-size="11" text-anchor="middle" font-weight="bold">
+                Multi-Channel Current Sink IC
+            </text>
+
+            <!-- Feedback to boost -->
+            <line x1="470" y1="200" x2="470" y2="300" stroke="#fb7185" stroke-width="1" stroke-dasharray="3,2"/>
+            <text x="480" y="250" fill="#fb7185" font-size="9">Headroom</text>
+            <text x="480" y="262" fill="#fb7185" font-size="9">Feedback</text>
+
+            <!-- Annotations -->
+            <text x="470" y="80" fill="#e6edf3" font-size="9">Boost regulates to</text>
+            <text x="470" y="92" fill="#e6edf3" font-size="9">maintain min headroom</text>
+            <text x="470" y="104" fill="#e6edf3" font-size="9">on current sinks</text>
+        </svg>
+    </div>
+
+    <h4>Adaptive Boost Output</h4>
+    <p>
+        The boost controller monitors the voltage across current sinks and adjusts VOUT
+        to maintain minimum headroom (typically 0.5-1.5V). This maximizes efficiency
+        by not over-driving the boost when LEDs have lower Vf.
+    </p>
+
+    <div class="notice">
+        <strong>Current Matching Spec:</strong> ±1-3% typical between strings.
+        LED drivers like MAX16809, TPS61500, and ISL97684 integrate 4-16 matched
+        current sinks with per-string fault detection.
+    </div>
+</section>
+
+<!-- Component Selection -->
+<section class="card">
+    <h3>Real Component Selection</h3>
+
+    <h4>Boost LED Driver ICs</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Part Number</th>
+                <th>Strings</th>
+                <th>VIN</th>
+                <th>VOUT Max</th>
+                <th>Features</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>MAX16809</td><td>16</td><td>4.5-24V</td><td>45V</td><td>1.2MHz, fault detect</td></tr>
+            <tr><td>MAX20446</td><td>6</td><td>4.5-36V</td><td>55V</td><td>Boost/SEPIC/Flyback</td></tr>
+            <tr><td>TPS61500</td><td>6</td><td>3-18V</td><td>40V</td><td>2.4MHz, adaptive out</td></tr>
+            <tr><td>LED7707</td><td>6</td><td>5-28V</td><td>45V</td><td>ST, 85mA/channel</td></tr>
+            <tr><td>ISL97684</td><td>4</td><td>4.5-23V</td><td>45V</td><td>Phase-shift PWM</td></tr>
+            <tr><td>LM3697</td><td>3</td><td>2.5-5.5V</td><td>40V</td><td>Smartphone backlight</td></tr>
+        </tbody>
+    </table>
+
+    <h4>Key Passive Components</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Component</th>
+                <th>Typical Value</th>
+                <th>Requirements</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>Boost Inductor</td><td>22-100µH</td><td>Low DCR, rated for Ipk, shielded</td></tr>
+            <tr><td>Schottky Diode</td><td>SS34, MBRS340</td><td>Vr > VOUT, low Vf, fast</td></tr>
+            <tr><td>Output Capacitor</td><td>4.7-22µF</td><td>Ceramic X5R/X7R, 50V rated</td></tr>
+            <tr><td>Input Capacitor</td><td>10-47µF</td><td>Low ESR, handle ripple current</td></tr>
+            <tr><td>Sense Resistor</td><td>0.5-5Ω</td><td>1% tolerance, low TCR</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- SPICE Simulation -->
+<section class="card">
+    <h3>SPICE Simulation - Boost LED Driver</h3>
+
+    <div class="spice-netlist">
+        <pre id="spice-led">* Boost Converter LED Backlight Driver
+* 7 LEDs per string, 4 strings, 80mA each
+
+.param VIN=12 VLED=3.2 NLEDS=7 ILED=80m NSTR=4
+
+* Calculate output voltage
+.param VOUT={NLEDS*VLED+1.5}
+
+* Input supply
+VIN vin 0 DC {VIN}
+
+* Boost converter (behavioral model)
+* Simplified: just shows current limiting behavior
+Lboost vin sw 47u IC=0
+Dboost sw vout DSCHOTTKY
+.model DSCHOTTKY D(IS=1u RS=20m VJ=0.4 CJO=50p)
+
+* MOSFET switch (PWM controlled)
+.param DUTY={1-VIN/VOUT}
+Vpwm pwm_in 0 PULSE(0 10 0 1n 1n {DUTY/600k} {1/600k})
+Msw sw 0 pwm_gate NMOS_SW
+Vgate pwm_gate 0 PWL(0 0)
+Bgate pwm_gate 0 V=IF(V(pwm_in)>5, 10, 0)
+.model NMOS_SW NMOS(VTO=2 KP=50 RD=20m)
+
+* Output capacitor
+Cout vout 0 10u IC={VOUT}
+
+* LED Strings (4 parallel strings of 7 LEDs each)
+* Each string modeled as voltage source + current sink
+Vled1 vout led1_bot DC {NLEDS*VLED}
+Iled1 led1_bot 0 DC {ILED}
+
+Vled2 vout led2_bot DC {NLEDS*VLED}
+Iled2 led2_bot 0 DC {ILED}
+
+Vled3 vout led3_bot DC {NLEDS*VLED}
+Iled3 led3_bot 0 DC {ILED}
+
+Vled4 vout led4_bot DC {NLEDS*VLED}
+Iled4 led4_bot 0 DC {ILED}
+
+.tran 100n 500u 0 100n
+
+.control
+run
+plot V(vout) title 'Boost Output Voltage'
+plot I(Lboost) title 'Inductor Current'
+plot V(sw) title 'Switch Node Voltage'
+.endc
+.end</pre>
+        <button onclick="AD.copyToClipboard(document.getElementById('spice-led').textContent)">Copy Netlist</button>
+    </div>
+</section>
+
+<!-- Checklist -->
+<section class="card">
+    <h3>LED Backlight Driver Design Checklist</h3>
+    <div class="checklist" data-lesson="m24l2">
+        <label><input type="checkbox" data-k="1"><span>Calculate total LED string voltage (N × Vf + headroom)</span></label>
+        <label><input type="checkbox" data-k="2"><span>Verify boost can achieve required VOUT at min VIN</span></label>
+        <label><input type="checkbox" data-k="3"><span>Size inductor for continuous conduction mode</span></label>
+        <label><input type="checkbox" data-k="4"><span>Select Schottky diode rated for VOUT and average current</span></label>
+        <label><input type="checkbox" data-k="5"><span>Design current matching for uniform brightness</span></label>
+        <label><input type="checkbox" data-k="6"><span>Choose dimming method (PWM/analog/hybrid)</span></label>
+        <label><input type="checkbox" data-k="7"><span>Calculate efficiency at typical and min brightness</span></label>
+        <label><input type="checkbox" data-k="8"><span>Add open/short LED fault protection</span></label>
+        <label><input type="checkbox" data-k="9"><span>Check thermal design at max brightness</span></label>
+        <label><input type="checkbox" data-k="10"><span>Verify EMI compliance (switching freq, layout)</span></label>
+    </div>
+</section>
+
+<!-- Exercises -->
+<section class="card">
+    <h3>Progressive Exercises</h3>
+
+    <div class="exercise-group">
+        <h4>Level 1: Fundamentals</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 1:</strong> A laptop display has 8 LEDs per string with Vf = 3.1V each. Including 1.2V headroom, what boost output voltage is needed?</p>
+            <input type="text" id="led-ex1" placeholder="VOUT (V)">
+            <button onclick="checkLED(1, 26, 2)">Check</button>
+            <span id="led-ex1-fb" class="feedback"></span>
+            <div class="hint">VOUT = (N × Vf) + headroom</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 2:</strong> A boost converter operates from 12V input to 26V output. What is the duty cycle?</p>
+            <input type="text" id="led-ex2" placeholder="Duty cycle (%)">
+            <button onclick="checkLED(2, 53.85, 3)">Check</button>
+            <span id="led-ex2-fb" class="feedback"></span>
+            <div class="hint">D = 1 - (VIN/VOUT)</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 3:</strong> An LED string draws 60mA at 25.5V. What power does the string consume?</p>
+            <input type="text" id="led-ex3" placeholder="Power (W)">
+            <button onclick="checkLED(3, 1.53, 2)">Check</button>
+            <span id="led-ex3-fb" class="feedback"></span>
+            <div class="hint">P = V × I</div>
+        </div>
+    </div>
+
+    <div class="exercise-group">
+        <h4>Level 2: Application</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 4:</strong> A backlight has 6 strings at 70mA each, 24V output from 8V input. At 85% efficiency, what is the input current?</p>
+            <input type="text" id="led-ex4" placeholder="Input current (mA)">
+            <button onclick="checkLED(4, 1482, 5)">Check</button>
+            <span id="led-ex4-fb" class="feedback"></span>
+            <div class="hint">PIN = POUT/η, then IIN = PIN/VIN</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 5:</strong> A boost LED driver at 500kHz needs CCM with 30% ripple. Input is 12V, duty = 50%, average input current = 400mA. What inductor value?</p>
+            <input type="text" id="led-ex5" placeholder="Inductor (µH)">
+            <button onclick="checkLED(5, 50, 10)">Check</button>
+            <span id="led-ex5-fb" class="feedback"></span>
+            <div class="hint">ΔI = 0.3 × Iavg, L = VIN × D / (f × ΔI)</div>
+        </div>
+    </div>
+
+    <div class="exercise-group">
+        <h4>Level 3: System Design</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 6:</strong> PWM dimming at 200Hz with 1% duty cycle. What is the ON time per cycle?</p>
+            <input type="text" id="led-ex6" placeholder="ON time (µs)">
+            <button onclick="checkLED(6, 50, 5)">Check</button>
+            <span id="led-ex6-fb" class="feedback"></span>
+            <div class="hint">Period = 1/f = 5ms, ON time = D × Period</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 7:</strong> A 4-string backlight with 80mA/string draws total 320mA from 28V output (8.96W). With 88% efficiency from 12V, what is heat dissipated in the boost driver?</p>
+            <input type="text" id="led-ex7" placeholder="Heat (W)">
+            <button onclick="checkLED(7, 1.22, 5)">Check</button>
+            <span id="led-ex7-fb" class="feedback"></span>
+            <div class="hint">PIN = POUT/η, Heat = PIN - POUT</div>
+        </div>
+    </div>
+
+    <script>
+    function checkLED(n, expected, tolerance) {
+        const ans = parseFloat(document.getElementById('led-ex' + n).value);
+        const fb = document.getElementById('led-ex' + n + '-fb');
+
+        if (isNaN(ans)) {
+            fb.textContent = 'Please enter a number';
+            fb.className = 'feedback incorrect';
+            return;
+        }
+
+        const error = Math.abs((ans - expected) / expected * 100);
+
+        if (error <= tolerance) {
+            fb.textContent = '✓ Correct!';
+            fb.className = 'feedback correct';
+        } else {
+            fb.textContent = '✗ Try again. Expected: ' + expected.toFixed(2);
+            fb.className = 'feedback incorrect';
+        }
+    }
+    </script>
+</section>
+
+<!-- References -->
+<section class="card">
+    <h3>Industry References</h3>
+    <ul>
+        <li><a href="https://www.analog.com/en/resources/technical-articles/boost-backlight-led-driver.html" target="_blank">Boost Backlight LED Driver (Analog Devices)</a></li>
+        <li><a href="https://www.analog.com/en/resources/technical-articles/how-to-design-an-led-backlight-driving-system-using-the-max20446.html" target="_blank">LED Backlight System Design with MAX20446 (Analog Devices)</a></li>
+        <li><a href="https://www.ti.com/power-management/led-drivers/backlight-led-drivers/overview.html" target="_blank">Backlight LED Drivers (Texas Instruments)</a></li>
+        <li><a href="https://www.topwaydisplay.com/en/blog/lcd-backlight-design" target="_blank">LCD Backlight Design Guide (Topway Display)</a></li>
+        <li><strong>LM3697 Datasheet</strong> - Smartphone backlight driver</li>
+    </ul>
+</section>
+
+<script>
+(function() {
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    // PWM Dimming Canvas
+    (function() {
+        const canvas = document.getElementById('pwm-dimming-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Title
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('PWM Dimming (Digital)', canvas.width / 2, 20);
+
+        // Column labels
+        const cols = [120, 320, 520];
+        const labels = ['100% Brightness', '50% Brightness', '10% Brightness'];
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEK.ch2;
+        labels.forEach((l, i) => ctx.fillText(l, cols[i], 45));
+
+        // Draw waveforms
+        const baseY = 100;
+        const high = 50;
+        const period = 100;
+
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+
+        // 100% - always on
+        ctx.beginPath();
+        ctx.moveTo(50, baseY - high);
+        ctx.lineTo(190, baseY - high);
+        ctx.stroke();
+
+        // 50% - square wave
+        ctx.beginPath();
+        ctx.moveTo(250, baseY);
+        ctx.lineTo(270, baseY);
+        ctx.lineTo(270, baseY - high);
+        ctx.lineTo(320, baseY - high);
+        ctx.lineTo(320, baseY);
+        ctx.lineTo(370, baseY);
+        ctx.lineTo(370, baseY - high);
+        ctx.lineTo(390, baseY - high);
+        ctx.stroke();
+
+        // 10% - narrow pulses
+        ctx.beginPath();
+        ctx.moveTo(450, baseY);
+        for (let i = 0; i < 4; i++) {
+            const x = 460 + i * 35;
+            ctx.lineTo(x, baseY);
+            ctx.lineTo(x, baseY - high);
+            ctx.lineTo(x + 10, baseY - high);
+            ctx.lineTo(x + 10, baseY);
+        }
+        ctx.lineTo(600, baseY);
+        ctx.stroke();
+
+        // Baseline
+        ctx.strokeStyle = '#6b7280';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(40, baseY);
+        ctx.lineTo(660, baseY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Y-axis labels
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('Imax', 38, baseY - high + 4);
+        ctx.fillText('0', 38, baseY + 4);
+
+        // Period label
+        ctx.textAlign = 'center';
+        ctx.fillText('Period = 1/fPWM (typically 200Hz - 20kHz)', canvas.width / 2, 135);
+
+        // Advantages / Disadvantages
+        ctx.textAlign = 'left';
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('ADVANTAGES:', 50, 165);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('✓ Constant color temperature (LEDs at full current when ON)', 50, 185);
+        ctx.fillText('✓ Wide dimming range (1000:1 or more)', 50, 200);
+        ctx.fillText('✓ Precise digital control', 50, 215);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.fillText('DISADVANTAGES:', 50, 240);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('✗ Can cause audible noise in inductors (< 20kHz)', 50, 255);
+        ctx.fillText('✗ EMI concerns from fast edges', 50, 270);
+    })();
+
+    // Analog Dimming Canvas
+    (function() {
+        const canvas = document.getElementById('analog-dimming-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Title
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Analog (DC) Dimming', canvas.width / 2, 20);
+
+        // Column labels
+        const cols = [120, 320, 520];
+        const labels = ['100% Brightness', '50% Brightness', '10% Brightness'];
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEK.ch2;
+        labels.forEach((l, i) => ctx.fillText(l, cols[i], 45));
+
+        // Draw waveforms - constant DC levels
+        const baseY = 110;
+        const maxH = 60;
+
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+
+        // 100% - full level
+        ctx.beginPath();
+        ctx.moveTo(50, baseY - maxH);
+        ctx.lineTo(190, baseY - maxH);
+        ctx.stroke();
+
+        // 50% - mid level
+        ctx.beginPath();
+        ctx.moveTo(250, baseY - maxH * 0.5);
+        ctx.lineTo(390, baseY - maxH * 0.5);
+        ctx.stroke();
+
+        // 10% - low level
+        ctx.beginPath();
+        ctx.moveTo(450, baseY - maxH * 0.1);
+        ctx.lineTo(590, baseY - maxH * 0.1);
+        ctx.stroke();
+
+        // Baseline
+        ctx.strokeStyle = '#6b7280';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(40, baseY);
+        ctx.lineTo(660, baseY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Y-axis labels
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('Imax', 38, baseY - maxH + 4);
+        ctx.fillText('0.5×Imax', 38, baseY - maxH * 0.5 + 4);
+        ctx.fillText('0.1×Imax', 38, baseY - maxH * 0.1 + 4);
+        ctx.fillText('0', 38, baseY + 4);
+
+        // Advantages / Disadvantages
+        ctx.textAlign = 'left';
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEK.ch4;
+        ctx.fillText('ADVANTAGES:', 50, 155);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('✓ No flicker or audible noise', 50, 175);
+        ctx.fillText('✓ Simpler EMI profile', 50, 190);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.fillText('DISADVANTAGES:', 50, 220);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('✗ Color shift at low currents (LED color temp changes)', 50, 235);
+        ctx.fillText('✗ Limited dimming range (~10:1 practical)', 50, 250);
+        ctx.fillText('✗ Efficiency drops at low currents', 50, 265);
+    })();
+})();
+</script>
+
+</lesson-content>

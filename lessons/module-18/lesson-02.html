@@ -1,0 +1,318 @@
+<!-- Module 18, Lesson 2: Ferrite Beads & EMI Filtering -->
+<div class="lesson-content" data-module="18" data-lesson="2">
+
+    <div class="card">
+        <h2>Ferrite Beads & EMI Filtering</h2>
+        <p>Ferrite beads provide frequency-dependent impedance for EMI filtering. Unlike inductors, they dissipate high-frequency energy as heat rather than storing it.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Low Frequency</div>
+                <div class="v">Low impedance (passes DC)</div>
+            </div>
+            <div class="box">
+                <div class="k">High Frequency</div>
+                <div class="v">High impedance (blocks noise)</div>
+            </div>
+            <div class="box">
+                <div class="k">Key Spec</div>
+                <div class="v mono">Z @ 100 MHz</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Ferrite beads are specified by impedance at 100 MHz, not inductance. Choose based on the noise frequency you want to attenuate, and verify DC resistance doesn't cause unacceptable voltage drop.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Ferrite Bead Impedance</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="fb-z100">Z @ 100 MHz (Ω)</label>
+                <input type="range" id="fb-z100" min="30" max="1000" step="10" value="120">
+                <span id="fb-z100-val" class="mono">120Ω</span>
+            </div>
+            <div class="c3">
+                <label for="fb-rdc">DC Resistance (mΩ)</label>
+                <input type="range" id="fb-rdc" min="10" max="500" step="10" value="50">
+                <span id="fb-rdc-val" class="mono">50mΩ</span>
+            </div>
+            <div class="c3">
+                <label for="fb-idc">DC Current (A)</label>
+                <input type="text" id="fb-idc" value="0.5">
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="fb-canvas" width="980" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">DC Voltage Drop</div>
+                <div class="v mono" id="fb-vdrop">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Power Loss</div>
+                <div class="v mono" id="fb-ploss">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Attenuation @ 100 MHz</div>
+                <div class="v mono" id="fb-atten">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Pi-Filter Configuration</h3>
+        <div class="schematic-container centered" id="pi-filter-schematic"></div>
+
+        <div class="kv" style="margin-top: 1rem;">
+            <div class="box" style="flex: 2;">
+                <div class="k">What It Does</div>
+                <div class="v">
+                    <ul style="margin: 0 0 0 1.1rem;">
+                        <li>Low source impedance at HF (C1)</li>
+                        <li>High series impedance at HF (ferrite bead)</li>
+                        <li>Low load impedance at HF (C2)</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="box" style="flex: 1;">
+                <div class="k">Approx. Corner</div>
+                <div class="v mono">f<sub>c</sub> ≈ 1 / (2π √(L·C))</div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>DC Bias Derating:</strong> Ferrite bead impedance decreases with DC current due to core saturation. Always check Z vs I curves in datasheet.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Selection Guidelines</h3>
+
+        <table class="table">
+            <tr>
+                <th>Application</th>
+                <th>Z @ 100 MHz</th>
+                <th>Notes</th>
+            </tr>
+            <tr>
+                <td>General power filtering</td>
+                <td>30-100Ω</td>
+                <td>Low RDC for power rails</td>
+            </tr>
+            <tr>
+                <td>Analog supply isolation</td>
+                <td>100-300Ω</td>
+                <td>Clean analog from digital</td>
+            </tr>
+            <tr>
+                <td>High-frequency EMI</td>
+                <td>600-1000Ω</td>
+                <td>Strong attenuation</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('fb-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const z100 = parseFloat(document.getElementById('fb-z100').value);
+        const rdc = parseFloat(document.getElementById('fb-rdc').value) / 1000;
+        const idc = AD.parseValue(document.getElementById('fb-idc').value) || 0.5;
+
+        document.getElementById('fb-z100-val').textContent = z100 + 'Ω';
+        document.getElementById('fb-rdc-val').textContent = (rdc * 1000).toFixed(0) + 'mΩ';
+
+        const vdrop = idc * rdc;
+        const ploss = idc * idc * rdc;
+
+        // Attenuation assuming 50Ω source/load
+        const atten = 20 * Math.log10((50 + z100 + 50) / (2 * 50));
+
+        document.getElementById('fb-vdrop').textContent = (vdrop * 1000).toFixed(1) + 'mV';
+        document.getElementById('fb-ploss').textContent = AD.fmtUnit(ploss, 'W');
+        document.getElementById('fb-atten').textContent = atten.toFixed(1) + 'dB';
+
+        plotFerrite(z100, rdc);
+    }
+
+    function plotFerrite(z100, rdc) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const fMin = 1e6; // 1 MHz
+        const fMax = 1e9; // 1 GHz
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: Math.log10(fMin),
+            xMax: Math.log10(fMax),
+            yMin: 0,
+            yMax: z100 * 1.5,
+            xLabel: 'Frequency',
+            yLabel: 'Impedance',
+            xUnit: 'Hz',
+            yUnit: 'Ω',
+            xDivs: 6,
+            yDivs: 6
+        });
+
+        const N = 200;
+        const fData = [];
+        const zData = [];
+        const rData = [];
+        const xData = [];
+
+        // Simplified ferrite model: Z rises with frequency, peaks around 100 MHz
+        for (let i = 0; i < N; i++) {
+            const logF = (i / N) * (Math.log10(fMax) - Math.log10(fMin)) + Math.log10(fMin);
+            const f = Math.pow(10, logF);
+            fData.push(logF);
+
+            // Model ferrite as R(f) + jX(f)
+            // R increases, X increases then decreases
+            const fNorm = f / 100e6;
+            const r = rdc + z100 * 0.8 * fNorm / (1 + fNorm);
+            const x = z100 * 0.6 * fNorm / (1 + fNorm * fNorm);
+            const z = Math.sqrt(r * r + x * x);
+
+            zData.push(z);
+            rData.push(r);
+            xData.push(x);
+        }
+
+        // Plot impedance magnitude
+        AD.plotData(ctx, axes, fData, zData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2,
+            label: '|Z|'
+        });
+
+        // Plot R and X components (dashed)
+        ctx.save();
+        ctx.setLineDash([3, 3]);
+
+        AD.plotData(ctx, axes, fData, rData, {
+            color: 'rgba(251, 113, 133, 0.7)',
+            lineWidth: 1,
+            label: 'R'
+        });
+
+        AD.plotData(ctx, axes, fData, xData, {
+            color: 'rgba(52, 211, 153, 0.7)',
+            lineWidth: 1,
+            label: 'X'
+        });
+
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        // Mark 100 MHz
+        ctx.save();
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
+        ctx.setLineDash([5, 5]);
+        const f100Pt = axes.toCanvas(8, 0); // log10(100e6) = 8
+        ctx.beginPath();
+        ctx.moveTo(f100Pt.x, axes.top);
+        ctx.lineTo(f100Pt.x, axes.top + axes.height);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('100 MHz', f100Pt.x + 5, axes.top + 20);
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(110, 231, 255, 0.95)', label: '|Z| total' },
+            { color: 'rgba(251, 113, 133, 0.7)', label: 'R (resistive)' },
+            { color: 'rgba(52, 211, 153, 0.7)', label: 'X (reactive)' }
+        ]);
+    }
+
+    ['fb-z100', 'fb-rdc', 'fb-idc'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Ferrite Bead Pi-Filter',
+        netlist: `* Ferrite Bead Pi-Filter for Power Supply
+
+* Source (noisy digital supply)
+VIN in 0 DC 3.3 AC 0.1
+
+* Input filter capacitor
+C1 in 0 1u
+
+* Ferrite bead model (simplified)
+* Series R + L with frequency-dependent losses
+L_FB in_filt out_filt 1u
+R_FB out_filt fb_out 0.05
+* Parallel resistor models losses at HF
+R_LOSS in_filt fb_out 120
+
+* Output filter capacitor
+C2 fb_out 0 10u
+
+* Load
+RLOAD fb_out 0 10
+
+.AC DEC 100 1k 1G
+
+.PROBE AC VDB(fb_out) VP(fb_out)
+.END
+
+* Pi-filter provides >20dB attenuation above 10 MHz
+* Adjust C1, C2, and ferrite for specific cutoff`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm18l2',
+        items: [
+            'Specify ferrite by Z @ 100 MHz, not inductance',
+            'Check DC resistance for voltage drop',
+            'Verify current rating and derating',
+            'Use pi-filter for better attenuation',
+            'Consider resonance with load capacitance'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'S2-2',
+        type: 'numeric',
+        question: 'A ferrite bead has 80mΩ DC resistance. With 1.2A current, what is the voltage drop and power loss?',
+        hint: 'V = I×R, P = I²×R',
+        expected: 115,
+        tolerance: 0.1,
+        unit: 'mW',
+        solution: 'V = 1.2A × 0.08Ω = 96mV. P = 1.2² × 0.08 = 115mW',
+        explanation: 'The voltage drop (96mV) may be acceptable for a 3.3V rail but verify it won\'t cause regulation issues. The 115mW heats the ferrite slightly.'
+    });
+})();
+</script>

@@ -1,0 +1,314 @@
+<!-- Module 17, Lesson 3: Hot-Swap & Inrush Limiting -->
+<div class="lesson-content" data-module="17" data-lesson="3">
+
+    <div class="card">
+        <h2>Hot-Swap & Inrush Limiting</h2>
+        <p>Hot-swap circuits allow safe insertion of boards into powered backplanes. They limit inrush current to prevent supply dips and connector damage.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Inrush Problem</div>
+                <div class="v">C × dV/dt can exceed 100A</div>
+            </div>
+            <div class="box">
+                <div class="k">Solution</div>
+                <div class="v">Control FET slew rate</div>
+            </div>
+            <div class="box">
+                <div class="k">Current Limit</div>
+                <div class="v">Protect against shorts</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> When a capacitive load is suddenly connected, the capacitors look like a short circuit. The hot-swap controller limits current during startup and protects against sustained faults.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Inrush Current Control</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="hs-vin">V<sub>IN</sub> (V)</label>
+                <input type="text" id="hs-vin" value="12">
+            </div>
+            <div class="c3">
+                <label for="hs-cout">C<sub>OUT</sub> (µF)</label>
+                <input type="text" id="hs-cout" value="1000">
+            </div>
+            <div class="c3">
+                <label for="hs-ilim">Current Limit (A)</label>
+                <input type="range" id="hs-ilim" min="0.5" max="10" step="0.5" value="2">
+                <span id="hs-ilim-val" class="mono">2A</span>
+            </div>
+            <div class="c3">
+                <label for="hs-tstart">Startup Time (ms)</label>
+                <input type="range" id="hs-tstart" min="1" max="50" step="1" value="10">
+                <span id="hs-tstart-val" class="mono">10ms</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="hs-canvas" width="980" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Uncontrolled Inrush</div>
+                <div class="v mono" id="hs-inrush">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Controlled Startup</div>
+                <div class="v mono" id="hs-tstartup">—</div>
+            </div>
+            <div class="box">
+                <div class="k">FET SOA Check</div>
+                <div class="v mono" id="hs-soa">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Hot-Swap Controller Features</h3>
+
+        <table class="table">
+            <tr>
+                <th>Feature</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td>Soft-Start</td>
+                <td>Slowly turns on FET to limit dV/dt</td>
+            </tr>
+            <tr>
+                <td>Current Limit</td>
+                <td>Prevents excessive current during faults</td>
+            </tr>
+            <tr>
+                <td>SOA Timer</td>
+                <td>Shuts off if FET exceeds safe area too long</td>
+            </tr>
+            <tr>
+                <td>Power Good</td>
+                <td>Output signal when startup is complete</td>
+            </tr>
+            <tr>
+                <td>Retry/Latch</td>
+                <td>Behavior after fault condition</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>FET Selection:</strong> During soft-start, the FET operates in linear region with high VDS and significant current. SOA (Safe Operating Area) must allow this for the startup duration.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('hs-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const vin = AD.parseValue(document.getElementById('hs-vin').value) || 12;
+        const cout = AD.parseValue(document.getElementById('hs-cout').value) * 1e-6 || 1000e-6;
+        const ilim = parseFloat(document.getElementById('hs-ilim').value);
+        const tstart = parseFloat(document.getElementById('hs-tstart').value) * 1e-3;
+
+        document.getElementById('hs-ilim-val').textContent = ilim + 'A';
+        document.getElementById('hs-tstart-val').textContent = (tstart * 1000).toFixed(0) + 'ms';
+
+        // Uncontrolled inrush (assuming 0.1Ω source impedance)
+        const rsource = 0.1;
+        const inrush = vin / rsource;
+
+        // Controlled startup time (at current limit)
+        // t = C × V / I
+        const tstartup = cout * vin / ilim;
+
+        // SOA check (simplified: FET dissipates P = VDS × I during ramp)
+        // Average VDS ≈ VIN/2, Average I = ILIM
+        const pAvg = (vin / 2) * ilim;
+        const energyDissipated = pAvg * tstartup;
+
+        document.getElementById('hs-inrush').textContent = AD.fmtUnit(inrush, 'A') + ' (!)';
+        document.getElementById('hs-tstartup').textContent = AD.fmtUnit(tstartup, 's');
+
+        const soaEl = document.getElementById('hs-soa');
+        // Typical SOA: 10W for 10ms, derate for longer
+        const soaLimit = 0.1; // 100mJ simplified
+        if (energyDissipated < soaLimit) {
+            soaEl.textContent = 'OK (' + (energyDissipated * 1000).toFixed(1) + 'mJ)';
+            soaEl.style.color = 'var(--ok)';
+        } else {
+            soaEl.textContent = 'CHECK FET (' + (energyDissipated * 1000).toFixed(0) + 'mJ)';
+            soaEl.style.color = 'var(--bad)';
+        }
+
+        plotHotSwap(vin, ilim, tstartup);
+    }
+
+    function plotHotSwap(vin, ilim, tstartup) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const totalTime = tstartup * 2.5;
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: totalTime,
+            yMin: 0,
+            yMax: Math.max(vin * 1.2, ilim * 2),
+            xLabel: 'Time',
+            yLabel: 'V / I',
+            xUnit: 's',
+            yUnit: '',
+            xDivs: 10,
+            yDivs: 8
+        });
+
+        const N = 300;
+        const tData = [];
+        const voutData = [];
+        const iData = [];
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * totalTime;
+            tData.push(t);
+
+            let vout, current;
+            if (t < tstartup) {
+                // Current-limited ramp
+                current = ilim;
+                vout = vin * (t / tstartup);
+            } else {
+                // Fully on
+                current = 0.5; // Just load current
+                vout = vin;
+            }
+
+            voutData.push(vout);
+            iData.push(current);
+        }
+
+        // Plot voltage
+        AD.plotData(ctx, axes, tData, voutData, {
+            color: 'rgba(52, 211, 153, 0.95)',
+            lineWidth: 2,
+            label: 'VOUT'
+        });
+
+        // Plot current
+        AD.plotData(ctx, axes, tData, iData, {
+            color: 'rgba(251, 191, 36, 0.95)',
+            lineWidth: 2,
+            label: 'Current'
+        });
+
+        // Mark current limit
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(251, 113, 133, 0.6)';
+        ctx.lineWidth = 1;
+
+        const ilimPt = axes.toCanvas(0, ilim);
+        ctx.beginPath();
+        ctx.moveTo(axes.left, ilimPt.y);
+        ctx.lineTo(axes.left + axes.width, ilimPt.y);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(251, 113, 133, 0.9)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('ILIM', axes.left + axes.width + 3, ilimPt.y + 3);
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(52, 211, 153, 0.95)', label: 'Output voltage (V)' },
+            { color: 'rgba(251, 191, 36, 0.95)', label: 'Inrush current (A)' }
+        ]);
+    }
+
+    ['hs-vin', 'hs-cout', 'hs-ilim', 'hs-tstart'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Hot-Swap Controller',
+        netlist: `* Hot-Swap Circuit with Inrush Limiting
+
+* Input supply
+VIN in 0 DC 12
+
+* Current sense resistor
+RSENSE in sense 10m
+
+* N-FET pass transistor
+M1 sense gate out out NMOS W=10000u L=1u
+.MODEL NMOS NMOS (VTO=2 KP=100)
+
+* Simplified hot-swap controller model
+* Limits gate voltage based on current
+* Gate ramps slowly with soft-start
+B_CTRL gate 0 V={min(10, max(0,
++  5*(TIME/10m) - 100*(I(RSENSE)-2)))}
+
+* Output capacitor (large)
+COUT out 0 1000u IC=0
+
+* Load resistor
+RLOAD out 0 24
+
+.TRAN 1u 50m UIC
+
+.PROBE V(out) I(RSENSE) V(gate)
+.END
+
+* Controller ramps gate over 10ms
+* Current is limited to ~2A
+* Startup time = C × V / I = 1000µF × 12V / 2A = 6ms`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm17l3',
+        items: [
+            'Know uncontrolled inrush = VIN/Rsource',
+            'Calculate startup time: t = C × V / I',
+            'Check FET SOA for linear region operation',
+            'Understand current limit vs soft-start',
+            'Size sense resistor for controller'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'R3-3',
+        type: 'numeric',
+        question: 'A hot-swap circuit must charge 2000µF to 48V with a 3A current limit. What is the minimum startup time?',
+        hint: 't = C × V / I',
+        expected: 32,
+        tolerance: 0.05,
+        unit: 'ms',
+        solution: 't = C × V / I = 2000µF × 48V / 3A = 0.032s = 32ms',
+        explanation: 'During this 32ms, the FET dissipates significant power in linear region. Average power ≈ (48V/2) × 3A = 72W. Check that FET SOA allows this.'
+    });
+})();
+</script>

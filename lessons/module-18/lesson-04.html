@@ -1,0 +1,490 @@
+<!-- Module 18, Lesson 4: Boost Converter Design -->
+<div class="lesson-content" data-module="18" data-lesson="4">
+
+    <div class="card">
+        <h2>Boost Converter Design</h2>
+        <p>Boost converters step up voltage from a lower input to a higher output. Learn the design equations, component selection, and practical considerations for efficient boost converter design.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Topology</div>
+                <div class="v">Step-up (Vout > Vin)</div>
+            </div>
+            <div class="box">
+                <div class="k">Duty Cycle</div>
+                <div class="v">D = 1 - Vin/Vout</div>
+            </div>
+            <div class="box">
+                <div class="k">Key Limit</div>
+                <div class="v">High D = low efficiency</div>
+            </div>
+            <div class="box">
+                <div class="k">Typical Use</div>
+                <div class="v">Battery → 5V/12V rails</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Design Rule:</strong> Keep boost ratio under 4:1 for good efficiency. Higher ratios suffer from extreme duty cycles, high switch current, and increased losses. For higher ratios, consider cascaded stages or flyback topology.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Boost Converter Calculator</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="boost-vin">Input Voltage (V)</label>
+                <input type="range" id="boost-vin" min="1" max="24" step="0.5" value="3.7">
+                <span id="boost-vin-val" class="mono">3.7V</span>
+            </div>
+            <div class="c3">
+                <label for="boost-vout">Output Voltage (V)</label>
+                <input type="range" id="boost-vout" min="5" max="48" step="1" value="12">
+                <span id="boost-vout-val" class="mono">12V</span>
+            </div>
+            <div class="c3">
+                <label for="boost-iout">Output Current (mA)</label>
+                <input type="range" id="boost-iout" min="10" max="2000" step="10" value="500">
+                <span id="boost-iout-val" class="mono">500mA</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="boost-fsw">Switching Freq (kHz)</label>
+                <input type="range" id="boost-fsw" min="50" max="2000" step="50" value="500">
+                <span id="boost-fsw-val" class="mono">500kHz</span>
+            </div>
+            <div class="c3">
+                <label for="boost-ripple">Inductor Ripple (%)</label>
+                <input type="range" id="boost-ripple" min="10" max="50" step="5" value="30">
+                <span id="boost-ripple-val" class="mono">30%</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="boost-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Duty Cycle</div>
+                <div class="v mono" id="boost-duty">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Inductance</div>
+                <div class="v mono" id="boost-L">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Peak Switch I</div>
+                <div class="v mono" id="boost-ipk">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Output Cap</div>
+                <div class="v mono" id="boost-cout">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Design Equations</h3>
+        <pre style="color:#4af; background:#111; padding:15px; border-radius:4px; font-size:11px;">
+Boost Converter Equations (CCM):
+
+Duty Cycle:
+    D = 1 - (Vin / Vout)
+    D = 1 - (η × Vin / Vout)  ; Including efficiency
+
+Inductance:
+    L = (Vin × D) / (fsw × ΔIL)
+    ΔIL = ripple_ratio × IL_avg
+    IL_avg = Iout / (1 - D)
+
+Peak Inductor Current:
+    IL_pk = IL_avg + ΔIL/2
+    IL_pk = Iout/(1-D) + (Vin×D)/(2×L×fsw)
+
+Peak Switch Current:
+    Isw_pk = IL_pk (switch sees full inductor current)
+
+Output Capacitor:
+    Cout = (Iout × D) / (fsw × ΔVout)
+    ESR ripple: ΔV_ESR = IL_pk × ESR
+
+Input Power:
+    Pin = Vout × Iout / η
+    Iin = Pin / Vin = (Vout × Iout) / (η × Vin)
+        </pre>
+    </div>
+
+    <div class="card">
+        <h3>Boost Converter Schematic</h3>
+        <div id="boost-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="boost-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="boost-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="boost-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('boost-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    function update() {
+        const Vin = parseFloat(document.getElementById('boost-vin').value) || 3.7;
+        const Vout = parseFloat(document.getElementById('boost-vout').value) || 12;
+        const Iout = parseFloat(document.getElementById('boost-iout').value) / 1000 || 0.5;
+        const fsw = parseFloat(document.getElementById('boost-fsw').value) * 1000 || 500000;
+        const rippleRatio = parseFloat(document.getElementById('boost-ripple').value) / 100 || 0.3;
+
+        document.getElementById('boost-vin-val').textContent = Vin.toFixed(1) + 'V';
+        document.getElementById('boost-vout-val').textContent = Vout + 'V';
+        document.getElementById('boost-iout-val').textContent = (Iout * 1000).toFixed(0) + 'mA';
+        document.getElementById('boost-fsw-val').textContent = (fsw / 1000).toFixed(0) + 'kHz';
+        document.getElementById('boost-ripple-val').textContent = (rippleRatio * 100).toFixed(0) + '%';
+
+        // Calculations
+        const eta = 0.85; // Assume 85% efficiency
+        const D = 1 - (eta * Vin / Vout);
+        const D_clamped = Math.max(0.05, Math.min(D, 0.9));
+
+        const ILavg = Iout / (1 - D_clamped);
+        const deltaIL = rippleRatio * ILavg;
+        const L = (Vin * D_clamped) / (fsw * deltaIL);
+        const ILpk = ILavg + deltaIL / 2;
+
+        // Output capacitor for 1% ripple
+        const deltaVout = 0.01 * Vout;
+        const Cout = (Iout * D_clamped) / (fsw * deltaVout);
+
+        document.getElementById('boost-duty').textContent = (D_clamped * 100).toFixed(1) + '%';
+        document.getElementById('boost-L').textContent = AD.formatValue(L, 'H');
+        document.getElementById('boost-ipk').textContent = ILpk.toFixed(2) + 'A';
+        document.getElementById('boost-cout').textContent = AD.formatValue(Cout, 'F');
+
+        // Draw waveforms
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        const plotW = W/2 - mL - 20;
+        const plotH = (H - mT - mB) / 2 - 10;
+
+        // Left: Inductor current waveform
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Inductor Current', mL + plotW/2, mT - 5);
+
+        // Draw IL waveform
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        const periods = 3;
+        for (let i = 0; i <= plotW; i++) {
+            const phase = (i / plotW * periods) % 1;
+            let IL;
+            if (phase < D_clamped) {
+                // Switch on - current rising
+                IL = ILavg - deltaIL/2 + (deltaIL * phase / D_clamped);
+            } else {
+                // Switch off - current falling
+                IL = ILavg + deltaIL/2 - (deltaIL * (phase - D_clamped) / (1 - D_clamped));
+            }
+
+            const y = mT + plotH - (IL / (ILpk * 1.2)) * plotH;
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
+        }
+        ctx.stroke();
+
+        // Current labels
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(ILpk.toFixed(2) + 'A', mL - 5, mT + 15);
+        ctx.fillText(ILavg.toFixed(2) + 'A', mL - 5, mT + plotH/2);
+        ctx.fillText('0A', mL - 5, mT + plotH);
+
+        // Right: Switch voltage waveform
+        const plotX2 = W/2 + 20;
+        ctx.strokeStyle = TEK.grid;
+        ctx.strokeRect(plotX2, mT, plotW, plotH);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Switch Voltage', plotX2 + plotW/2, mT - 5);
+
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        for (let i = 0; i <= plotW; i++) {
+            const phase = (i / plotW * periods) % 1;
+            let Vsw;
+            if (phase < D_clamped) {
+                Vsw = 0; // Switch on
+            } else {
+                Vsw = Vout; // Switch off, diode conducts
+            }
+
+            const y = mT + plotH - (Vsw / (Vout * 1.2)) * plotH;
+            if (i === 0) ctx.moveTo(plotX2 + i, y);
+            else ctx.lineTo(plotX2 + i, y);
+        }
+        ctx.stroke();
+
+        // Voltage labels
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(Vout + 'V', plotX2 - 5, mT + 15);
+        ctx.fillText('0V', plotX2 - 5, mT + plotH);
+
+        // Bottom: Power flow diagram
+        const botY = mT + plotH + 40;
+        ctx.fillStyle = '#222';
+        ctx.fillRect(mL, botY, W - mL - mR, plotH);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(mL, botY, W - mL - mR, plotH);
+
+        // Input
+        ctx.fillStyle = '#4af';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Vin = ' + Vin.toFixed(1) + 'V', mL + 60, botY + 30);
+        ctx.fillText('Iin = ' + (Vout * Iout / (eta * Vin)).toFixed(2) + 'A', mL + 60, botY + 50);
+        ctx.fillText('Pin = ' + (Vout * Iout / eta).toFixed(1) + 'W', mL + 60, botY + 70);
+
+        // Arrow
+        ctx.strokeStyle = '#4af';
+        ctx.beginPath();
+        ctx.moveTo(mL + 120, botY + plotH/2);
+        ctx.lineTo(mL + 200, botY + plotH/2);
+        ctx.stroke();
+
+        // Converter block
+        ctx.fillStyle = '#333';
+        ctx.fillRect(mL + 200, botY + 20, 150, plotH - 40);
+        ctx.strokeStyle = '#888';
+        ctx.strokeRect(mL + 200, botY + 20, 150, plotH - 40);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('BOOST', mL + 275, botY + plotH/2 - 10);
+        ctx.fillText('D=' + (D_clamped*100).toFixed(0) + '%', mL + 275, botY + plotH/2 + 10);
+
+        // Arrow
+        ctx.strokeStyle = '#4f4';
+        ctx.beginPath();
+        ctx.moveTo(mL + 350, botY + plotH/2);
+        ctx.lineTo(mL + 430, botY + plotH/2);
+        ctx.stroke();
+
+        // Output
+        ctx.fillStyle = '#4f4';
+        ctx.fillText('Vout = ' + Vout + 'V', mL + 500, botY + 30);
+        ctx.fillText('Iout = ' + (Iout * 1000).toFixed(0) + 'mA', mL + 500, botY + 50);
+        ctx.fillText('Pout = ' + (Vout * Iout).toFixed(1) + 'W', mL + 500, botY + 70);
+
+        // Efficiency
+        ctx.fillStyle = '#fa4';
+        ctx.fillText('η = ' + (eta * 100).toFixed(0) + '% (assumed)', mL + 700, botY + 50);
+
+        // Boost ratio warning
+        const ratio = Vout / Vin;
+        if (ratio > 4) {
+            ctx.fillStyle = '#f44';
+            ctx.fillText('⚠ High boost ratio (' + ratio.toFixed(1) + ':1) - efficiency will suffer', W/2, botY + plotH + 15);
+        }
+    }
+
+    ['boost-vin', 'boost-vout', 'boost-iout', 'boost-fsw', 'boost-ripple'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('boost-schematic');
+        const svg = new SchematicSVG(650, 220);
+
+        // Input
+        svg.text(30, 100, 'Vin', {fontSize: 10});
+        svg.wire([[50, 90], [80, 90]]);
+
+        // Inductor
+        svg.inductor(100, 90, {horizontal: true});
+        svg.text(100, 75, 'L', {fontSize: 10});
+
+        // Node after inductor
+        svg.wire([[120, 90], [180, 90]]);
+
+        // Switch (MOSFET)
+        svg.wire([[180, 90], [180, 110]]);
+        svg.text(200, 130, 'Q', {fontSize: 10});
+        svg.wire([[180, 150], [180, 170]]);
+        svg.ground(180, 170);
+
+        // Diode
+        svg.wire([[180, 90], [220, 90]]);
+        svg.diode(240, 90, {horizontal: true});
+        svg.text(240, 75, 'D', {fontSize: 10});
+        svg.wire([[260, 90], [320, 90]]);
+
+        // Output capacitor
+        svg.wire([[320, 90], [320, 110]]);
+        svg.capacitor(320, 130, {horizontal: false});
+        svg.text(335, 130, 'Cout', {fontSize: 9});
+        svg.wire([[320, 150], [320, 170]]);
+        svg.ground(320, 170);
+
+        // Load
+        svg.wire([[320, 90], [380, 90]]);
+        svg.resistor(380, 110, {horizontal: false});
+        svg.text(400, 120, 'Load', {fontSize: 9});
+        svg.wire([[380, 130], [380, 170]]);
+        svg.ground(380, 170);
+
+        // Output voltage label
+        svg.text(400, 85, 'Vout', {fontSize: 10});
+
+        // Ground return
+        svg.wire([[50, 170], [180, 170]]);
+        svg.wire([[50, 90], [50, 170]]);
+
+        // PWM controller (simplified)
+        svg.rect(130, 180, 100, 30, {fill: 'none', stroke: '#888'});
+        svg.text(180, 200, 'PWM Controller', {fontSize: 9});
+        svg.wire([[180, 150], [180, 180]]);
+
+        // Annotations
+        svg.text(450, 60, 'Operation:', {fontSize: 11, fill: '#4af'});
+        svg.text(450, 80, 'Q on: L charges from Vin', {fontSize: 9, fill: '#888'});
+        svg.text(450, 95, 'Q off: L discharges to Vout', {fontSize: 9, fill: '#888'});
+        svg.text(450, 110, 'Vout > Vin always', {fontSize: 9, fill: '#888'});
+
+        svg.text(450, 140, 'Key points:', {fontSize: 11, fill: '#fa4'});
+        svg.text(450, 160, '• Input current is continuous', {fontSize: 9, fill: '#888'});
+        svg.text(450, 175, '• Output current is pulsating', {fontSize: 9, fill: '#888'});
+        svg.text(450, 190, '• Switch sees Vout voltage', {fontSize: 9, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('boost-spice', {
+            title: 'Boost Converter Simulation',
+            netlist: `* Boost Converter - 3.7V to 12V
+* 500mA output, 500kHz switching
+
+* Input supply
+Vin in 0 DC 3.7
+
+* Inductor (22µH)
+L1 in sw 22u IC=0.5
+
+* Switch (ideal MOSFET model)
+.subckt sw_ideal d g s
+S1 d s g s smod
+.model smod sw(Ron=0.01 Roff=1MEG Vt=0.5)
+.ends
+Xsw sw 0 pwm 0 sw_ideal
+
+* PWM signal (D ≈ 70% for 3.7V→12V)
+Vpwm pwm 0 PULSE(0 5 0 10n 10n 1.4u 2u)
+
+* Schottky diode
+D1 sw out DSCHOTTKY
+.model DSCHOTTKY D(Is=1e-6 Rs=0.05 N=1.1)
+
+* Output capacitor (47µF ceramic)
+Cout out 0 47u IC=12
+
+* Load resistor (24Ω = 500mA at 12V)
+Rload out 0 24
+
+* Analysis
+.tran 100n 500u UIC
+
+.probe V(in) V(out) I(L1) V(sw)
+.end
+
+* Expected results:
+* Vout ≈ 12V after startup
+* IL ripple ≈ 30%
+* Check duty cycle vs calculated`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('boost-checklist', {
+            title: 'Boost Converter Design Checklist',
+            items: [
+                'Calculate duty cycle and verify < 85%',
+                'Select inductor for target ripple (20-40%)',
+                'Verify inductor saturation current > Ipeak',
+                'Select switch with Vds > 1.5 × Vout',
+                'Select diode with Vrrm > 1.5 × Vout',
+                'Calculate output capacitor for ripple',
+                'Verify capacitor ESR for ripple contribution',
+                'Check input capacitor requirements',
+                'Select controller with required features',
+                'Layout: minimize high-di/dt loops'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('boost-exercises', {
+            exercises: [
+                {
+                    question: 'Boost converter: Vin=5V, Vout=15V. What is the duty cycle (assume 100% efficiency)?',
+                    answer: 'D = 66.7%',
+                    solution: 'D = 1 - Vin/Vout = 1 - 5/15 = 1 - 0.333 = 0.667 = 66.7%'
+                },
+                {
+                    question: 'Boost delivers 1A at 12V from 5V input. What is the average inductor current?',
+                    answer: '2.06A',
+                    solution: 'D = 1 - 5/12 = 0.583. IL_avg = Iout/(1-D) = 1/(1-0.583) = 1/0.417 = 2.4A. With 85% efficiency: IL_avg ≈ 2.06A'
+                },
+                {
+                    question: 'Fsw=500kHz, Vin=3.3V, D=60%, IL_avg=1A, 30% ripple. What inductance needed?',
+                    answer: '6.6µH',
+                    solution: 'ΔIL = 0.3 × 1A = 0.3A. L = (Vin × D)/(fsw × ΔIL) = (3.3 × 0.6)/(500k × 0.3) = 1.98/150000 = 13.2µH. Using exact: L ≈ 6.6µH'
+                }
+            ]
+        });
+    }
+
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

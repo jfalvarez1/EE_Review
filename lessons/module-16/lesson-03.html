@@ -1,0 +1,309 @@
+<!-- Module 16, Lesson 3: Supervisory & Reset Circuits -->
+<div class="lesson-content" data-module="16" data-lesson="3">
+
+    <div class="card">
+        <h2>Supervisory & Reset Circuits</h2>
+        <p>Voltage supervisors monitor power rails and generate reset signals during power-up, brownout, and power-down. They ensure microcontrollers and logic start in known states.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">POR</div>
+                <div class="v">Power-On Reset</div>
+            </div>
+            <div class="box">
+                <div class="k">Brownout</div>
+                <div class="v">Low voltage detection</div>
+            </div>
+            <div class="box">
+                <div class="k">Watchdog</div>
+                <div class="v">Software activity monitor</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> The reset threshold must be set above the minimum operating voltage of the monitored IC. Add hysteresis to prevent reset chatter near the threshold.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Reset Threshold & Hysteresis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="sup-vth">V<sub>TH</sub> (Reset Threshold)</label>
+                <input type="range" id="sup-vth" min="2" max="4.5" step="0.1" value="2.9">
+                <span id="sup-vth-val" class="mono">2.9V</span>
+            </div>
+            <div class="c3">
+                <label for="sup-hyst">Hysteresis (%)</label>
+                <input type="range" id="sup-hyst" min="0" max="10" step="0.5" value="3">
+                <span id="sup-hyst-val" class="mono">3%</span>
+            </div>
+            <div class="c3">
+                <label for="sup-delay">Reset Delay (ms)</label>
+                <input type="range" id="sup-delay" min="0" max="500" step="10" value="100">
+                <span id="sup-delay-val" class="mono">100ms</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="sup-canvas" width="980" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Upper Threshold</div>
+                <div class="v mono" id="sup-vhigh">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Lower Threshold</div>
+                <div class="v mono" id="sup-vlow">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Hysteresis Band</div>
+                <div class="v mono" id="sup-band">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Supervisor Selection Guide</h3>
+
+        <table class="table">
+            <tr>
+                <th>Parameter</th>
+                <th>Consideration</th>
+            </tr>
+            <tr>
+                <td>Threshold Accuracy</td>
+                <td>±1-2% typical, affects timing margin</td>
+            </tr>
+            <tr>
+                <td>Hysteresis</td>
+                <td>2-5% prevents chatter</td>
+            </tr>
+            <tr>
+                <td>Reset Delay</td>
+                <td>Allow oscillator startup, typically 50-200ms</td>
+            </tr>
+            <tr>
+                <td>Active Low/High</td>
+                <td>Match to MCU reset polarity</td>
+            </tr>
+            <tr>
+                <td>Manual Reset</td>
+                <td>MR pin for button input</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Common Mistake:</strong> Setting threshold too close to MCU minimum voltage leaves no margin for supply variation, temperature, or aging. Add 5-10% margin above datasheet minimum.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('sup-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const vth = parseFloat(document.getElementById('sup-vth').value);
+        const hyst = parseFloat(document.getElementById('sup-hyst').value);
+        const delay = parseFloat(document.getElementById('sup-delay').value);
+
+        document.getElementById('sup-vth-val').textContent = vth.toFixed(1) + 'V';
+        document.getElementById('sup-hyst-val').textContent = hyst + '%';
+        document.getElementById('sup-delay-val').textContent = delay + 'ms';
+
+        const vhigh = vth * (1 + hyst / 200);
+        const vlow = vth * (1 - hyst / 200);
+        const band = vhigh - vlow;
+
+        document.getElementById('sup-vhigh').textContent = vhigh.toFixed(3) + 'V';
+        document.getElementById('sup-vlow').textContent = vlow.toFixed(3) + 'V';
+        document.getElementById('sup-band').textContent = (band * 1000).toFixed(1) + 'mV';
+
+        plotSupervisor(vth, vhigh, vlow, delay);
+    }
+
+    function plotSupervisor(vth, vhigh, vlow, delay) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const totalTime = 500; // ms
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: totalTime,
+            yMin: 0,
+            yMax: 4,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 'ms',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 8
+        });
+
+        const N = 400;
+        const tData = [];
+        const vccData = [];
+        const resetData = [];
+
+        // Simulate VCC ramp up, stable, brownout, recover
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * totalTime;
+            tData.push(t);
+
+            let vcc;
+            if (t < 50) {
+                // Ramp up
+                vcc = 3.3 * (t / 50);
+            } else if (t < 200) {
+                // Stable
+                vcc = 3.3;
+            } else if (t < 250) {
+                // Brownout dip
+                vcc = 3.3 - 1.5 * Math.sin(Math.PI * (t - 200) / 50);
+            } else if (t < 350) {
+                // Stable again
+                vcc = 3.3;
+            } else {
+                // Power down
+                vcc = 3.3 * Math.exp(-(t - 350) / 50);
+            }
+            vccData.push(vcc);
+
+            // Reset logic with hysteresis
+            // Rising: release reset when VCC > vhigh for delay time
+            // Falling: assert reset when VCC < vlow
+            // Simplified: just show threshold behavior
+            let reset = (vcc > vhigh) ? 3.3 : 0;
+            if (vcc < vlow) reset = 0;
+            resetData.push(reset);
+        }
+
+        // Plot VCC
+        AD.plotData(ctx, axes, tData, vccData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2,
+            label: 'VCC'
+        });
+
+        // Plot reset (scaled to show on same axes)
+        const resetScaled = resetData.map(v => v * 0.3 + 0.2);
+        AD.plotData(ctx, axes, tData, resetScaled, {
+            color: 'rgba(52, 211, 153, 0.95)',
+            lineWidth: 2,
+            label: 'RESET'
+        });
+
+        // Draw threshold lines
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1;
+
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.7)';
+        const vhighPt = axes.toCanvas(0, vhigh);
+        const vlowPt = axes.toCanvas(0, vlow);
+
+        ctx.beginPath();
+        ctx.moveTo(axes.left, vhighPt.y);
+        ctx.lineTo(axes.left + axes.width, vhighPt.y);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(251, 113, 133, 0.7)';
+        ctx.beginPath();
+        ctx.moveTo(axes.left, vlowPt.y);
+        ctx.lineTo(axes.left + axes.width, vlowPt.y);
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('V_high', axes.left + axes.width + 3, vhighPt.y + 3);
+        ctx.fillStyle = 'rgba(251, 113, 133, 0.9)';
+        ctx.fillText('V_low', axes.left + axes.width + 3, vlowPt.y + 3);
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'VCC' },
+            { color: 'rgba(52, 211, 153, 0.95)', label: 'RESET (scaled)' }
+        ]);
+    }
+
+    ['sup-vth', 'sup-hyst', 'sup-delay'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Voltage Supervisor',
+        netlist: `* Simple Voltage Supervisor Model
+* With hysteresis and reset delay
+
+* VCC ramps up then has brownout
+VVCC vcc 0 PWL(0 0 50m 3.3 200m 3.3 225m 2.0 250m 3.3 350m 3.3 400m 0)
+
+* Comparator with hysteresis
+* Using behavioral source
+B_COMP comp 0 V={IF(V(vcc) > 2.93, 3.3, IF(V(vcc) < 2.87, 0, V(comp)))}
+
+* Reset delay RC filter
+R_DLY comp reset_raw 100k
+C_DLY reset_raw 0 1u
+
+* Output driver (Schmitt trigger)
+B_OUT reset 0 V={IF(V(reset_raw) > 1.5, 3.3, 0)}
+
+.TRAN 100u 500m
+
+.PROBE V(vcc) V(reset)
+.END
+
+* VTH = 2.9V, Hysteresis = ±1%
+* Reset delay ≈ R×C = 100ms`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm16l3',
+        items: [
+            'Know to set threshold above MCU minimum',
+            'Understand hysteresis prevents reset chatter',
+            'Size reset delay for oscillator startup',
+            'Check active-low vs active-high output',
+            'Consider manual reset input if needed'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'Q3-3',
+        type: 'numeric',
+        question: 'A supervisor has VTH = 2.93V with 3% hysteresis. What is the release threshold (rising edge)?',
+        hint: 'V_release = VTH × (1 + hysteresis/2)',
+        expected: 3.02,
+        tolerance: 0.02,
+        unit: 'V',
+        solution: 'V_release = 2.93V × (1 + 0.03/2) = 2.93V × 1.015 = 2.97V. Or if symmetric: 2.93 + (2.93 × 0.03)/2 = 2.93 + 0.044 = 2.97V',
+        explanation: 'The release threshold is higher than the nominal to provide noise immunity. The assert threshold would be 2.93 × 0.985 = 2.89V.'
+    });
+})();
+</script>

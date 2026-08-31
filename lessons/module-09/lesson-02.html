@@ -1,0 +1,271 @@
+<!-- Module 9, Lesson 2: Power vs Performance -->
+<div class="lesson-content" data-module="9" data-lesson="2">
+
+    <div class="card">
+        <h2>Power vs Performance Trade-offs</h2>
+        <p>Power consumption affects noise, speed, and thermal performance. Battery-powered designs require careful optimization while maintaining required specifications.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Slew Rate</div>
+                <div class="v mono">SR = I<sub>bias</sub> / C<sub>comp</sub></div>
+            </div>
+            <div class="box">
+                <div class="k">Noise Density</div>
+                <div class="v mono">e<sub>n</sub> ∝ 1/√(I<sub>bias</sub>)</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> For a given process, doubling the bias current doubles the slew rate but only reduces noise by √2 (1.4×). Power is the universal currency in analog design.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Power Budget Analysis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="pwr-vsupply">V<sub>supply</sub> (V)</label>
+                <input type="range" id="pwr-vsupply" min="1.8" max="15" step="0.1" value="3.3">
+                <span id="pwr-vsupply-val" class="mono">3.3V</span>
+            </div>
+            <div class="c3">
+                <label for="pwr-ibias">I<sub>bias</sub> (µA)</label>
+                <input type="range" id="pwr-ibias" min="1" max="1000" step="1" value="100">
+                <span id="pwr-ibias-val" class="mono">100µA</span>
+            </div>
+            <div class="c3">
+                <label for="pwr-stages">Number of Stages</label>
+                <input type="range" id="pwr-stages" min="1" max="10" step="1" value="4">
+                <span id="pwr-stages-val" class="mono">4</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="pwr-canvas" width="980" height="200"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Stage Power</div>
+                <div class="v mono" id="pwr-stage">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Total Power</div>
+                <div class="v mono" id="pwr-total">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Battery Life (100mAh)</div>
+                <div class="v mono" id="pwr-battery">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Relative Noise</div>
+                <div class="v mono" id="pwr-noise">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Low-Power Design Techniques</h3>
+
+        <table class="table">
+            <tr>
+                <th>Technique</th>
+                <th>Savings</th>
+                <th>Trade-off</th>
+            </tr>
+            <tr>
+                <td>Rail-to-rail supply</td>
+                <td>Max signal swing</td>
+                <td>Output stage complexity</td>
+            </tr>
+            <tr>
+                <td>Shutdown/sleep modes</td>
+                <td>90%+ when idle</td>
+                <td>Wake-up time, complexity</td>
+            </tr>
+            <tr>
+                <td>Duty cycling</td>
+                <td>Proportional to duty</td>
+                <td>Settling time on wake</td>
+            </tr>
+            <tr>
+                <td>Class AB output</td>
+                <td>vs Class A</td>
+                <td>Crossover distortion</td>
+            </tr>
+            <tr>
+                <td>Weak inversion</td>
+                <td>Lowest gm/I</td>
+                <td>Speed, matching</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Figure of Merit</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Op-Amp FoM</div>
+                <div class="v mono">FoM = GBW × C<sub>L</sub> / P</div>
+            </div>
+            <div class="box">
+                <div class="k">ADC FoM</div>
+                <div class="v mono">FoM = P / (2<sup>ENOB</sup> × f<sub>s</sub>)</div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>Process Limits:</strong> Each process node has fundamental limits on power efficiency. State-of-the-art designs push these boundaries but can't exceed them.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('pwr-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const vsupply = parseFloat(document.getElementById('pwr-vsupply').value);
+        const ibias = parseFloat(document.getElementById('pwr-ibias').value) * 1e-6;
+        const stages = parseInt(document.getElementById('pwr-stages').value);
+
+        document.getElementById('pwr-vsupply-val').textContent = vsupply + 'V';
+        document.getElementById('pwr-ibias-val').textContent = (ibias * 1e6) + 'µA';
+        document.getElementById('pwr-stages-val').textContent = stages;
+
+        const stagePower = vsupply * ibias;
+        const totalPower = stagePower * stages;
+
+        // Battery life (100mAh coin cell)
+        const batteryCapacity = 0.1; // Ah
+        const batteryLife = batteryCapacity / (totalPower / vsupply); // hours
+
+        // Relative noise (normalized to 100µA reference)
+        const refCurrent = 100e-6;
+        const relNoise = Math.sqrt(refCurrent / ibias);
+
+        document.getElementById('pwr-stage').textContent = AD.fmtUnit(stagePower, 'W');
+        document.getElementById('pwr-total').textContent = AD.fmtUnit(totalPower, 'W');
+        document.getElementById('pwr-battery').textContent = batteryLife.toFixed(0) + ' hours';
+        document.getElementById('pwr-noise').textContent = relNoise.toFixed(2) + '×';
+
+        drawPowerBudget(stagePower, stages, vsupply);
+    }
+
+    function drawPowerBudget(stagePower, stages, vsupply) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.fillStyle = 'var(--panel)';
+        ctx.fillRect(0, 0, w, h);
+
+        const barWidth = (w - 100) / stages;
+        const maxPower = 5e-3; // 5mW scale
+        const totalPower = stagePower * stages;
+
+        for (let i = 0; i < stages; i++) {
+            const x = 50 + i * barWidth;
+            const barHeight = (stagePower / maxPower) * (h - 60);
+
+            ctx.fillStyle = `hsl(${180 + i * 30}, 70%, 50%)`;
+            ctx.fillRect(x + 5, h - 30 - barHeight, barWidth - 10, barHeight);
+
+            ctx.fillStyle = 'white';
+            ctx.font = '11px ui-sans-serif';
+            ctx.fillText(`Stage ${i + 1}`, x + 10, h - 10);
+        }
+
+        // Total power indicator
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '14px ui-sans-serif';
+        ctx.fillText(`Total: ${AD.fmtUnit(totalPower, 'W')}`, w - 150, 30);
+    }
+
+    ['pwr-vsupply', 'pwr-ibias', 'pwr-stages'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Low Power Op-Amp Comparison',
+        netlist: `* Low power vs standard op-amp
+
+* Low power amp (10µA quiescent)
+.SUBCKT OPAMP_LP inp inn out gnd vdd
+* Simplified low-power model
+G1 gnd out inp inn 10u
+R1 out gnd 100Meg
+C1 out gnd 10p
+.ENDS
+
+* Standard amp (1mA quiescent)
+.SUBCKT OPAMP_STD inp inn out gnd vdd
+G1 gnd out inp inn 1m
+R1 out gnd 1Meg
+C1 out gnd 1p
+.ENDS
+
+X1 in fb1 out1 0 vcc OPAMP_LP
+X2 in fb2 out2 0 vcc OPAMP_STD
+
+R1 out1 fb1 10k
+R2 fb1 0 10k
+R3 out2 fb2 10k
+R4 fb2 0 10k
+
+VCC vcc 0 DC 3.3
+VIN in 0 PULSE(0 0.1 1u 100n 100n 100u 200u)
+
+.TRAN 1u 500u
+
+.PROBE V(out1) V(out2)
+.END
+
+* Note the settling time difference!`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm9l2',
+        items: [
+            'Know slew rate depends on bias current',
+            'Understand noise vs power relationship',
+            'Know low-power design techniques',
+            'Calculate battery life from power budget',
+            'Understand op-amp figure of merit'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'H1-2',
+        type: 'numeric',
+        question: 'A circuit draws 500µA from a 3.3V supply. What is the power consumption?',
+        hint: 'P = V × I',
+        expected: 1.65,
+        tolerance: 0.01,
+        unit: 'mW',
+        solution: 'P = 3.3V × 500µA = 1.65mW',
+        explanation: 'Power is voltage times current. For battery life, convert to energy (mWh).'
+    });
+})();
+</script>

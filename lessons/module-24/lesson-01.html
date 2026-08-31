@@ -1,0 +1,940 @@
+<lesson-content>
+<section class="card">
+    <h2>BLDC Motor Driver Design</h2>
+    <p>
+        Brushless DC (BLDC) motors are found in everything from drones and electric vehicles
+        to hard drives and industrial robots. Understanding the <strong>three-phase inverter bridge</strong>
+        and <strong>gate driver design</strong> is essential for power electronics work.
+    </p>
+
+    <div class="notice">
+        <strong>What You'll Learn:</strong>
+        <ul>
+            <li>Three-phase bridge topology and commutation</li>
+            <li>Bootstrap gate driver circuit operation</li>
+            <li>Dead-time control to prevent shoot-through</li>
+            <li>Current sensing for motor control</li>
+            <li>Practical component selection</li>
+        </ul>
+    </div>
+</section>
+
+<!-- Three-Phase Bridge Architecture -->
+<section class="card">
+    <h3>Three-Phase Inverter Bridge</h3>
+    <p>
+        A BLDC motor is driven by a <strong>six-switch inverter</strong> that creates a rotating
+        magnetic field by energizing the stator coils in sequence. Each phase (U, V, W) has a
+        high-side and low-side MOSFET.
+    </p>
+
+    <!-- SVG Diagram: Three-Phase Bridge -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 600 400" class="circuit-svg" style="max-width: 600px; background: var(--panel);">
+            <defs>
+                <marker id="arrow-bldc" viewBox="0 0 10 10" refX="9" refY="5"
+                        markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#6ee7ff"/>
+                </marker>
+            </defs>
+
+            <!-- VDC Bus -->
+            <line x1="50" y1="50" x2="550" y2="50" stroke="#ef4444" stroke-width="3"/>
+            <text x="30" y="55" fill="#e6edf3" font-size="14" font-weight="bold">V+</text>
+            <text x="560" y="55" fill="#e6edf3" font-size="12">(12-48V DC)</text>
+
+            <!-- GND Bus -->
+            <line x1="50" y1="350" x2="550" y2="350" stroke="#6ee7ff" stroke-width="3"/>
+            <text x="30" y="355" fill="#e6edf3" font-size="14" font-weight="bold">GND</text>
+
+            <!-- Phase U (Left) -->
+            <g id="phase-u">
+                <!-- High-Side MOSFET Q1 -->
+                <rect x="120" y="80" width="60" height="40" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="150" y="105" fill="#fbbf24" font-size="12" text-anchor="middle">Q1</text>
+                <text x="150" y="75" fill="#e6edf3" font-size="10" text-anchor="middle">HS</text>
+                <!-- Drain to V+ -->
+                <line x1="150" y1="80" x2="150" y2="50" stroke="#e6edf3" stroke-width="1.5"/>
+                <!-- Source to midpoint -->
+                <line x1="150" y1="120" x2="150" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+
+                <!-- Low-Side MOSFET Q2 -->
+                <rect x="120" y="230" width="60" height="40" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="150" y="255" fill="#fbbf24" font-size="12" text-anchor="middle">Q2</text>
+                <text x="150" y="285" fill="#e6edf3" font-size="10" text-anchor="middle">LS</text>
+                <!-- Drain from midpoint -->
+                <line x1="150" y1="230" x2="150" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+                <!-- Source to GND -->
+                <line x1="150" y1="270" x2="150" y2="350" stroke="#e6edf3" stroke-width="1.5"/>
+
+                <!-- Phase output point -->
+                <circle cx="150" cy="180" r="4" fill="#34d399"/>
+                <text x="150" y="200" fill="#34d399" font-size="12" text-anchor="middle" font-weight="bold">U</text>
+            </g>
+
+            <!-- Phase V (Center) -->
+            <g id="phase-v">
+                <rect x="270" y="80" width="60" height="40" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="300" y="105" fill="#fbbf24" font-size="12" text-anchor="middle">Q3</text>
+                <text x="300" y="75" fill="#e6edf3" font-size="10" text-anchor="middle">HS</text>
+                <line x1="300" y1="80" x2="300" y2="50" stroke="#e6edf3" stroke-width="1.5"/>
+                <line x1="300" y1="120" x2="300" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+
+                <rect x="270" y="230" width="60" height="40" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="300" y="255" fill="#fbbf24" font-size="12" text-anchor="middle">Q4</text>
+                <text x="300" y="285" fill="#e6edf3" font-size="10" text-anchor="middle">LS</text>
+                <line x1="300" y1="230" x2="300" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+                <line x1="300" y1="270" x2="300" y2="350" stroke="#e6edf3" stroke-width="1.5"/>
+
+                <circle cx="300" cy="180" r="4" fill="#34d399"/>
+                <text x="300" y="200" fill="#34d399" font-size="12" text-anchor="middle" font-weight="bold">V</text>
+            </g>
+
+            <!-- Phase W (Right) -->
+            <g id="phase-w">
+                <rect x="420" y="80" width="60" height="40" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="450" y="105" fill="#fbbf24" font-size="12" text-anchor="middle">Q5</text>
+                <text x="450" y="75" fill="#e6edf3" font-size="10" text-anchor="middle">HS</text>
+                <line x1="450" y1="80" x2="450" y2="50" stroke="#e6edf3" stroke-width="1.5"/>
+                <line x1="450" y1="120" x2="450" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+
+                <rect x="420" y="230" width="60" height="40" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                <text x="450" y="255" fill="#fbbf24" font-size="12" text-anchor="middle">Q6</text>
+                <text x="450" y="285" fill="#e6edf3" font-size="10" text-anchor="middle">LS</text>
+                <line x1="450" y1="230" x2="450" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+                <line x1="450" y1="270" x2="450" y2="350" stroke="#e6edf3" stroke-width="1.5"/>
+
+                <circle cx="450" cy="180" r="4" fill="#34d399"/>
+                <text x="450" y="200" fill="#34d399" font-size="12" text-anchor="middle" font-weight="bold">W</text>
+            </g>
+
+            <!-- Motor Symbol -->
+            <circle cx="300" cy="180" r="60" fill="none" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3"/>
+            <text x="300" y="145" fill="#a78bfa" font-size="11" text-anchor="middle">BLDC</text>
+            <text x="300" y="160" fill="#a78bfa" font-size="11" text-anchor="middle">MOTOR</text>
+
+            <!-- Motor connections -->
+            <line x1="150" y1="180" x2="240" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+            <line x1="360" y1="180" x2="450" y2="180" stroke="#e6edf3" stroke-width="1.5"/>
+
+            <!-- Current Sense Resistor -->
+            <rect x="280" y="310" width="40" height="15" fill="none" stroke="#fb7185" stroke-width="2"/>
+            <text x="300" y="335" fill="#fb7185" font-size="10" text-anchor="middle">R_sense</text>
+            <line x1="300" y1="310" x2="300" y2="290" stroke="#e6edf3" stroke-width="1"/>
+            <line x1="300" y1="325" x2="300" y2="350" stroke="#e6edf3" stroke-width="1"/>
+        </svg>
+    </div>
+
+    <h4>Commutation Sequence (Six-Step)</h4>
+    <p>
+        BLDC motors use <strong>trapezoidal commutation</strong> where only two phases conduct at a time.
+        The controller sequences through 6 states, each 60 electrical degrees apart:
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Step</th>
+                <th>High-Side ON</th>
+                <th>Low-Side ON</th>
+                <th>Current Flow</th>
+                <th>Hall Sensors</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>1</td><td>Q1 (U)</td><td>Q4 (V)</td><td>U → V</td><td>101</td></tr>
+            <tr><td>2</td><td>Q1 (U)</td><td>Q6 (W)</td><td>U → W</td><td>001</td></tr>
+            <tr><td>3</td><td>Q3 (V)</td><td>Q6 (W)</td><td>V → W</td><td>011</td></tr>
+            <tr><td>4</td><td>Q3 (V)</td><td>Q2 (U)</td><td>V → U</td><td>010</td></tr>
+            <tr><td>5</td><td>Q5 (W)</td><td>Q2 (U)</td><td>W → U</td><td>110</td></tr>
+            <tr><td>6</td><td>Q5 (W)</td><td>Q4 (V)</td><td>W → V</td><td>100</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- Bootstrap Gate Driver -->
+<section class="card">
+    <h3>Bootstrap Gate Driver Circuit</h3>
+    <p>
+        The high-side MOSFETs need a gate voltage <strong>10-12V above their source</strong>,
+        which floats with the motor phase. The <strong>bootstrap</strong> circuit charges a
+        capacitor when the low-side is ON, then uses that charge to drive the high-side gate.
+    </p>
+
+    <!-- SVG Diagram: Bootstrap Circuit -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 500 350" class="circuit-svg" style="max-width: 500px; background: var(--panel);">
+            <defs>
+                <marker id="arrow-boot" viewBox="0 0 10 10" refX="9" refY="5"
+                        markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#fbbf24"/>
+                </marker>
+            </defs>
+
+            <!-- VCC Rail (12V logic supply) -->
+            <line x1="50" y1="40" x2="200" y2="40" stroke="#ef4444" stroke-width="2"/>
+            <text x="30" y="45" fill="#e6edf3" font-size="12">VCC</text>
+            <text x="210" y="45" fill="#e6edf3" font-size="10">(12V)</text>
+
+            <!-- Bootstrap Diode -->
+            <polygon points="120,40 140,60 120,80" fill="none" stroke="#a78bfa" stroke-width="2"/>
+            <line x1="120" y1="60" x2="140" y2="60" stroke="#a78bfa" stroke-width="2"/>
+            <text x="155" y="65" fill="#a78bfa" font-size="10">D_boot</text>
+            <text x="155" y="78" fill="#a78bfa" font-size="9">(Fast recovery)</text>
+
+            <!-- Wire from VCC to diode -->
+            <line x1="120" y1="40" x2="120" y2="40" stroke="#e6edf3" stroke-width="1.5"/>
+            <line x1="120" y1="40" x2="120" y2="60" stroke="#e6edf3" stroke-width="1.5"/>
+
+            <!-- VB node (bootstrap voltage) -->
+            <line x1="140" y1="60" x2="200" y2="60" stroke="#e6edf3" stroke-width="1.5"/>
+            <circle cx="200" cy="60" r="3" fill="#34d399"/>
+            <text x="210" y="55" fill="#34d399" font-size="11" font-weight="bold">VB</text>
+
+            <!-- Bootstrap Capacitor -->
+            <line x1="200" y1="60" x2="200" y2="100" stroke="#e6edf3" stroke-width="1.5"/>
+            <line x1="185" y1="100" x2="215" y2="100" stroke="#6ee7ff" stroke-width="3"/>
+            <line x1="185" y1="110" x2="215" y2="110" stroke="#6ee7ff" stroke-width="3"/>
+            <text x="225" y="110" fill="#6ee7ff" font-size="10">C_boot</text>
+            <text x="225" y="122" fill="#6ee7ff" font-size="9">(0.1-10µF)</text>
+            <line x1="200" y1="110" x2="200" y2="150" stroke="#e6edf3" stroke-width="1.5"/>
+
+            <!-- VS node (phase output = HS source) -->
+            <circle cx="200" cy="150" r="3" fill="#fbbf24"/>
+            <text x="210" y="155" fill="#fbbf24" font-size="11" font-weight="bold">VS</text>
+            <text x="210" y="168" fill="#e6edf3" font-size="9">(Phase Out)</text>
+
+            <!-- Gate Driver IC -->
+            <rect x="280" y="80" width="100" height="120" fill="none" stroke="#34d399" stroke-width="2" rx="5"/>
+            <text x="330" y="100" fill="#34d399" font-size="11" text-anchor="middle" font-weight="bold">GATE</text>
+            <text x="330" y="115" fill="#34d399" font-size="11" text-anchor="middle" font-weight="bold">DRIVER</text>
+            <text x="330" y="130" fill="#34d399" font-size="9" text-anchor="middle">(IR2110)</text>
+
+            <!-- VB input to driver -->
+            <line x1="200" y1="60" x2="280" y2="60" stroke="#e6edf3" stroke-width="1.5"/>
+            <line x1="280" y1="60" x2="280" y2="90" stroke="#e6edf3" stroke-width="1.5"/>
+            <text x="270" y="95" fill="#e6edf3" font-size="9" text-anchor="end">VB</text>
+
+            <!-- VS input to driver -->
+            <line x1="200" y1="150" x2="280" y2="150" stroke="#e6edf3" stroke-width="1.5"/>
+            <text x="270" y="155" fill="#e6edf3" font-size="9" text-anchor="end">VS</text>
+
+            <!-- HO output (to high-side gate) -->
+            <line x1="380" y1="110" x2="430" y2="110" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrow-boot)"/>
+            <text x="390" y="105" fill="#fbbf24" font-size="10">HO</text>
+            <text x="440" y="115" fill="#e6edf3" font-size="9">To HS Gate</text>
+
+            <!-- LO output (to low-side gate) -->
+            <line x1="380" y1="170" x2="430" y2="170" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrow-boot)"/>
+            <text x="390" y="165" fill="#fbbf24" font-size="10">LO</text>
+            <text x="440" y="175" fill="#e6edf3" font-size="9">To LS Gate</text>
+
+            <!-- HIN/LIN inputs -->
+            <line x1="230" y1="110" x2="280" y2="110" stroke="#a78bfa" stroke-width="1.5"/>
+            <text x="245" y="107" fill="#a78bfa" font-size="9">HIN</text>
+            <line x1="230" y1="170" x2="280" y2="170" stroke="#a78bfa" stroke-width="1.5"/>
+            <text x="245" y="167" fill="#a78bfa" font-size="9">LIN</text>
+
+            <!-- From MCU -->
+            <text x="180" y="110" fill="#a78bfa" font-size="9">From</text>
+            <text x="180" y="122" fill="#a78bfa" font-size="9">MCU</text>
+            <text x="180" y="172" fill="#a78bfa" font-size="9">PWM</text>
+
+            <!-- Timing diagram annotation -->
+            <rect x="50" y="220" width="400" height="110" fill="none" stroke="#374151" stroke-width="1" rx="5"/>
+            <text x="250" y="240" fill="#e6edf3" font-size="11" text-anchor="middle" font-weight="bold">Bootstrap Charging Cycle</text>
+
+            <!-- Charging waveform -->
+            <text x="60" y="260" fill="#e6edf3" font-size="9">VS:</text>
+            <polyline points="100,265 150,265 150,285 250,285 250,265 350,265 350,285 400,285"
+                      fill="none" stroke="#fbbf24" stroke-width="1.5"/>
+            <text x="175" y="300" fill="#6ee7ff" font-size="9">LS ON</text>
+            <text x="175" y="310" fill="#6ee7ff" font-size="8">(C charges)</text>
+            <text x="300" y="260" fill="#ef4444" font-size="9">HS ON</text>
+            <text x="300" y="270" fill="#ef4444" font-size="8">(C provides VGS)</text>
+        </svg>
+    </div>
+
+    <div class="warn">
+        <strong>Bootstrap Limitations:</strong>
+        <ul>
+            <li><strong>Max duty cycle ~95%:</strong> Low-side must turn ON periodically to refresh C_boot</li>
+            <li><strong>Startup:</strong> Need initial LS pulse to charge bootstrap before HS can turn on</li>
+            <li><strong>Leakage:</strong> At very low frequencies, C_boot may discharge too much</li>
+        </ul>
+    </div>
+
+    <h4>Bootstrap Capacitor Sizing</h4>
+    <div class="controls">
+        <div class="c3">
+            <label>Gate Charge Qg (nC)</label>
+            <input type="text" id="boot-qg" value="50">
+        </div>
+        <div class="c3">
+            <label>Quiescent Current (mA)</label>
+            <input type="text" id="boot-iqbs" value="0.2">
+        </div>
+        <div class="c3">
+            <label>Leakage Current (µA)</label>
+            <input type="text" id="boot-ilk" value="50">
+        </div>
+        <div class="c3">
+            <label>Max HS ON Time (ms)</label>
+            <input type="text" id="boot-ton" value="10">
+        </div>
+    </div>
+    <div class="controls">
+        <div class="c3">
+            <label>Allowed Droop (V)</label>
+            <input type="text" id="boot-droop" value="0.5">
+        </div>
+        <div class="c3">
+            <label>Bootstrap Voltage (V)</label>
+            <input type="text" id="boot-vbs" value="12">
+        </div>
+        <div class="c6">
+            <button onclick="calcBootstrap()">Calculate C_boot</button>
+        </div>
+    </div>
+
+    <div id="boot-results" class="results">
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">Total Charge Required</span>
+                <span class="value" id="boot-qtotal">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Minimum C_boot</span>
+                <span class="value" id="boot-cmin">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Recommended C_boot</span>
+                <span class="value" id="boot-crec">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Safety Factor</span>
+                <span class="value" id="boot-sf">2×</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function calcBootstrap() {
+        const qg = parseFloat(document.getElementById('boot-qg').value) * 1e-9;
+        const iqbs = parseFloat(document.getElementById('boot-iqbs').value) * 1e-3;
+        const ilk = parseFloat(document.getElementById('boot-ilk').value) * 1e-6;
+        const ton = parseFloat(document.getElementById('boot-ton').value) * 1e-3;
+        const droop = parseFloat(document.getElementById('boot-droop').value);
+        const vbs = parseFloat(document.getElementById('boot-vbs').value);
+
+        // Total charge = Qg + (Iqbs + Ilk) × t_on
+        const qtotal = qg + (iqbs + ilk) * ton;
+
+        // C_boot_min = Q_total / V_droop
+        const cmin = qtotal / droop;
+        const crec = cmin * 2;  // 2x safety factor
+
+        document.getElementById('boot-qtotal').textContent = (qtotal * 1e9).toFixed(1) + ' nC';
+        document.getElementById('boot-cmin').textContent = AD.fmt(cmin, 2) + 'F';
+        document.getElementById('boot-crec').textContent = AD.fmt(crec, 2) + 'F';
+    }
+    </script>
+</section>
+
+<!-- Dead-Time Control -->
+<section class="card">
+    <h3>Dead-Time Control</h3>
+    <p>
+        <strong>Shoot-through</strong> occurs when both high-side and low-side MOSFETs conduct
+        simultaneously, creating a short from V+ to GND. This causes massive current spikes
+        that can destroy the MOSFETs instantly.
+    </p>
+
+    <!-- SVG: Dead-time waveform -->
+    <div class="diagram-container">
+        <svg viewBox="0 0 500 220" class="circuit-svg" style="max-width: 500px; background: var(--panel);">
+            <!-- Time axis -->
+            <line x1="50" y1="200" x2="480" y2="200" stroke="#6b7280" stroke-width="1"/>
+            <text x="490" y="205" fill="#e6edf3" font-size="10">t</text>
+
+            <!-- HS Gate Signal -->
+            <text x="30" y="60" fill="#ef4444" font-size="10">HS</text>
+            <polyline points="50,80 100,80 100,40 200,40 200,80 350,80 350,40 450,40 450,80 480,80"
+                      fill="none" stroke="#ef4444" stroke-width="2"/>
+
+            <!-- LS Gate Signal -->
+            <text x="30" y="140" fill="#6ee7ff" font-size="10">LS</text>
+            <polyline points="50,160 120,160 120,120 180,120 180,160 370,160 370,120 430,120 430,160 480,160"
+                      fill="none" stroke="#6ee7ff" stroke-width="2"/>
+
+            <!-- Dead-time markers -->
+            <rect x="100" y="35" width="20" height="130" fill="#fbbf24" fill-opacity="0.2"/>
+            <line x1="100" y1="170" x2="100" y2="185" stroke="#fbbf24" stroke-width="1"/>
+            <line x1="120" y1="170" x2="120" y2="185" stroke="#fbbf24" stroke-width="1"/>
+            <line x1="100" y1="180" x2="120" y2="180" stroke="#fbbf24" stroke-width="1"/>
+            <text x="110" y="195" fill="#fbbf24" font-size="9" text-anchor="middle">t_d</text>
+
+            <rect x="180" y="35" width="20" height="130" fill="#fbbf24" fill-opacity="0.2"/>
+            <line x1="180" y1="170" x2="180" y2="185" stroke="#fbbf24" stroke-width="1"/>
+            <line x1="200" y1="170" x2="200" y2="185" stroke="#fbbf24" stroke-width="1"/>
+            <line x1="180" y1="180" x2="200" y2="180" stroke="#fbbf24" stroke-width="1"/>
+            <text x="190" y="195" fill="#fbbf24" font-size="9" text-anchor="middle">t_d</text>
+
+            <!-- Annotations -->
+            <text x="150" y="25" fill="#e6edf3" font-size="10" text-anchor="middle">BOTH OFF</text>
+            <text x="280" y="100" fill="#34d399" font-size="10" text-anchor="middle">Safe region</text>
+        </svg>
+    </div>
+
+    <h4>Dead-Time Calculation</h4>
+    <p>
+        Dead-time must be longer than the MOSFET turn-off time but short enough to minimize
+        distortion and body diode conduction losses.
+    </p>
+
+    <div class="controls">
+        <div class="c3">
+            <label>Turn-off Delay t_d(off) (ns)</label>
+            <input type="text" id="dt-tdoff" value="40">
+        </div>
+        <div class="c3">
+            <label>Fall Time t_f (ns)</label>
+            <input type="text" id="dt-tf" value="20">
+        </div>
+        <div class="c3">
+            <label>Driver Prop Delay (ns)</label>
+            <input type="text" id="dt-tprop" value="100">
+        </div>
+        <div class="c3">
+            <label>Safety Margin (ns)</label>
+            <input type="text" id="dt-margin" value="50">
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="c6">
+            <button onclick="calcDeadTime()">Calculate Dead-Time</button>
+        </div>
+    </div>
+
+    <div id="dt-results" class="results">
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">Minimum Dead-Time</span>
+                <span class="value" id="dt-min">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Recommended Dead-Time</span>
+                <span class="value" id="dt-rec">—</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function calcDeadTime() {
+        const tdoff = parseFloat(document.getElementById('dt-tdoff').value);
+        const tf = parseFloat(document.getElementById('dt-tf').value);
+        const tprop = parseFloat(document.getElementById('dt-tprop').value);
+        const margin = parseFloat(document.getElementById('dt-margin').value);
+
+        // Dead-time > t_d(off) + t_f + propagation mismatch + margin
+        const dtMin = tdoff + tf + margin;
+        const dtRec = dtMin + tprop * 0.2;  // Add 20% of prop delay for mismatch
+
+        document.getElementById('dt-min').textContent = dtMin.toFixed(0) + ' ns';
+        document.getElementById('dt-rec').textContent = dtRec.toFixed(0) + ' ns';
+    }
+    </script>
+
+    <div class="notice">
+        <strong>Dead-Time Trade-offs:</strong>
+        <ul>
+            <li><strong>Too short:</strong> Risk of shoot-through → MOSFET destruction</li>
+            <li><strong>Too long:</strong> Body diode conduction → losses, voltage spikes, EMI</li>
+            <li><strong>Typical values:</strong> 100-500ns for 48V systems, 50-200ns for 12V</li>
+        </ul>
+    </div>
+</section>
+
+<!-- Current Sensing -->
+<section class="card">
+    <h3>Motor Current Sensing</h3>
+    <p>
+        Current sensing is essential for torque control, overcurrent protection, and sensorless
+        commutation (back-EMF zero-crossing detection).
+    </p>
+
+    <h4>Sensing Methods</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Method</th>
+                <th>Location</th>
+                <th>Pros</th>
+                <th>Cons</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>DC Bus Shunt</strong></td>
+                <td>Between V- and GND</td>
+                <td>Single resistor, simple, low-side sensing</td>
+                <td>Only sees total DC current, not phase currents</td>
+            </tr>
+            <tr>
+                <td><strong>Low-Side Shunts</strong></td>
+                <td>Each LS source to GND</td>
+                <td>Low-side sensing (easy), phase currents visible</td>
+                <td>Only valid when respective LS is ON, 3 resistors</td>
+            </tr>
+            <tr>
+                <td><strong>Inline Phase Shunts</strong></td>
+                <td>In series with each motor phase</td>
+                <td>Always valid, true phase currents</td>
+                <td>High-side sensing needed, 3 resistors, complex</td>
+            </tr>
+            <tr>
+                <td><strong>Hall Effect Sensor</strong></td>
+                <td>Around phase wire</td>
+                <td>Isolated, no insertion loss</td>
+                <td>Cost, bandwidth, offset drift</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h4>Low-Side Shunt Current Sensing</h4>
+    <div class="diagram-container">
+        <canvas id="ls-shunt-canvas" width="500" height="400" style="width:100%;max-width:500px;background:#0d1117;border-radius:8px;"></canvas>
+    </div>
+
+    <h4>Current Sense Amplifier Calculator</h4>
+    <div class="controls">
+        <div class="c3">
+            <label>Shunt Resistance (mΩ)</label>
+            <input type="text" id="cs-rshunt" value="10">
+        </div>
+        <div class="c3">
+            <label>Max Motor Current (A)</label>
+            <input type="text" id="cs-imax" value="30">
+        </div>
+        <div class="c3">
+            <label>ADC Reference (V)</label>
+            <input type="text" id="cs-vref" value="3.3">
+        </div>
+        <div class="c3">
+            <button onclick="calcCSA()">Calculate Gain</button>
+        </div>
+    </div>
+
+    <div id="csa-results" class="results">
+        <div class="result-grid">
+            <div class="result-item">
+                <span class="label">Max Shunt Voltage</span>
+                <span class="value" id="cs-vmax">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Required CSA Gain</span>
+                <span class="value" id="cs-gain">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Shunt Power @ Imax</span>
+                <span class="value" id="cs-power">—</span>
+            </div>
+            <div class="result-item">
+                <span class="label">Current Resolution @ 12-bit</span>
+                <span class="value" id="cs-res">—</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function calcCSA() {
+        const rshunt = parseFloat(document.getElementById('cs-rshunt').value) * 1e-3;
+        const imax = parseFloat(document.getElementById('cs-imax').value);
+        const vref = parseFloat(document.getElementById('cs-vref').value);
+
+        const vmax = imax * rshunt;
+        const gain = (vref * 0.9) / vmax;  // Use 90% of ADC range
+        const power = imax * imax * rshunt;
+        const resolution = imax / 4096;  // 12-bit ADC
+
+        document.getElementById('cs-vmax').textContent = (vmax * 1000).toFixed(1) + ' mV';
+        document.getElementById('cs-gain').textContent = gain.toFixed(1) + ' V/V';
+        document.getElementById('cs-power').textContent = power.toFixed(2) + ' W';
+        document.getElementById('cs-res').textContent = (resolution * 1000).toFixed(1) + ' mA/LSB';
+    }
+    </script>
+</section>
+
+<!-- Component Selection -->
+<section class="card">
+    <h3>Real Component Selection</h3>
+
+    <h4>Gate Drivers</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Part Number</th>
+                <th>Channels</th>
+                <th>VBS Max</th>
+                <th>Peak Current</th>
+                <th>Dead-Time</th>
+                <th>Package</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>IR2110</td><td>1 HS + 1 LS</td><td>500V</td><td>2A/2A</td><td>External</td><td>DIP-14</td></tr>
+            <tr><td>IR2301</td><td>1 HS + 1 LS</td><td>200V</td><td>0.25A</td><td>External</td><td>SO-8</td></tr>
+            <tr><td>DRV8301</td><td>6 (3-phase)</td><td>60V</td><td>1.7A</td><td>Programmable</td><td>QFN-56</td></tr>
+            <tr><td>DRV8323</td><td>6 (3-phase)</td><td>60V</td><td>1.5A</td><td>Programmable</td><td>QFN-48</td></tr>
+            <tr><td>FD6288</td><td>6 (3-phase)</td><td>250V</td><td>1.5A</td><td>Built-in</td><td>SSOP-20</td></tr>
+            <tr><td>MP6540</td><td>3-phase + FETs</td><td>30V</td><td>3A</td><td>Built-in</td><td>QFN-28</td></tr>
+        </tbody>
+    </table>
+
+    <h4>Power MOSFETs for Motor Driving</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Part Number</th>
+                <th>VDS</th>
+                <th>ID</th>
+                <th>RDS(on)</th>
+                <th>Qg</th>
+                <th>Package</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>IRLZ44N</td><td>55V</td><td>47A</td><td>22mΩ</td><td>48nC</td><td>TO-220</td></tr>
+            <tr><td>IRF3205</td><td>55V</td><td>110A</td><td>8mΩ</td><td>146nC</td><td>TO-220</td></tr>
+            <tr><td>CSD18540Q5B</td><td>60V</td><td>100A</td><td>4.2mΩ</td><td>35nC</td><td>SON 5×6</td></tr>
+            <tr><td>BSZ0909NS</td><td>30V</td><td>40A</td><td>6.5mΩ</td><td>12nC</td><td>TDSON-8</td></tr>
+            <tr><td>TPH1R306PL</td><td>60V</td><td>120A</td><td>1.9mΩ</td><td>90nC</td><td>TOLL</td></tr>
+        </tbody>
+    </table>
+
+    <h4>Integrated BLDC Driver ICs</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Part Number</th>
+                <th>Voltage</th>
+                <th>Current</th>
+                <th>Features</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>DRV8313</td><td>8-52V</td><td>2.5A/phase</td><td>3 half-bridges, fault protection</td></tr>
+            <tr><td>TB6612FNG</td><td>2.5-13.5V</td><td>1.2A avg</td><td>Dual H-bridge, low voltage</td></tr>
+            <tr><td>L6234</td><td>7-52V</td><td>4A peak</td><td>Three-phase, boot diodes internal</td></tr>
+            <tr><td>A4963</td><td>5.5-50V</td><td>Ext FETs</td><td>Sensorless, FOC capable</td></tr>
+            <tr><td>MP6540</td><td>4.5-28V</td><td>3A continuous</td><td>All-in-one with FETs</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<!-- SPICE Netlist -->
+<section class="card">
+    <h3>SPICE Simulation - Half-Bridge with Bootstrap</h3>
+
+    <div class="spice-netlist">
+        <h4>Bootstrap Gate Driver Simulation</h4>
+        <pre id="spice-bldc">* Half-Bridge with Bootstrap Gate Driver
+* Demonstrates bootstrap capacitor charging
+
+.param VDC=24 VLOGIC=12 FSWITCH=20k
+
+* DC Bus
+VDC vdc 0 DC {VDC}
+VLOGIC vlogic 0 DC {VLOGIC}
+
+* PWM input (50% duty cycle with dead-time)
+VPWM_H pwm_h 0 PULSE(0 {VLOGIC} 0 10n 10n 24u 50u)
+VPWM_L pwm_l 0 PULSE(0 {VLOGIC} 26u 10n 10n 24u 50u)
+
+* Bootstrap Circuit
+Dboot vlogic vb DFAST
+Cboot vb vs 1u IC={VLOGIC}
+.model DFAST D(IS=1n RS=0.5 CJO=10p TT=10n)
+
+* High-Side MOSFET
+MHS vdc vs pwm_h_gate NMOS_HS
+Rg_hs vb pwm_h_gate_in 10
+* Gate drive simplified (should use level shifter model)
+EHS pwm_h_gate_in vs VALUE={IF(V(pwm_h)>{VLOGIC}/2, V(vb,vs)-0.5, 0)}
+Rhs_gd pwm_h_gate_in pwm_h_gate 1
+
+* Low-Side MOSFET
+MLS vs 0 pwm_l_gate NMOS_LS
+Rg_ls vlogic pwm_l_gate_in 10
+ELS pwm_l_gate_in 0 VALUE={IF(V(pwm_l)>{VLOGIC}/2, {VLOGIC}-0.5, 0)}
+Rls_gd pwm_l_gate_in pwm_l_gate 1
+
+* Motor winding model (RL load)
+Lmotor vs vmotor_mid 100u
+Rmotor vmotor_mid 0 0.5
+
+* Freewheeling diodes (body diodes)
+Dhs_body vs vdc DBODY
+Dls_body 0 vs DBODY
+.model DBODY D(IS=100n RS=10m)
+
+* MOSFET Models (simplified)
+.model NMOS_HS NMOS(VTO=2 KP=100 RD=10m)
+.model NMOS_LS NMOS(VTO=2 KP=100 RD=10m)
+
+.tran 100n 200u 0 100n
+
+.control
+run
+plot V(vs) V(vb,vs) title 'Phase Output and Bootstrap Voltage'
+plot V(pwm_h_gate,vs) V(pwm_l_gate) title 'Gate Drive Signals'
+plot I(Lmotor) title 'Motor Current'
+.endc
+.end</pre>
+        <button onclick="AD.copyToClipboard(document.getElementById('spice-bldc').textContent)">Copy Netlist</button>
+    </div>
+</section>
+
+<!-- Verification Checklist -->
+<section class="card">
+    <h3>BLDC Driver Design Checklist</h3>
+    <div class="checklist" data-lesson="m24l1">
+        <label><input type="checkbox" data-k="1"><span>Verify MOSFET voltage rating > 1.5× bus voltage</span></label>
+        <label><input type="checkbox" data-k="2"><span>Calculate RDS(on) losses at max current</span></label>
+        <label><input type="checkbox" data-k="3"><span>Size bootstrap capacitor for max duty cycle</span></label>
+        <label><input type="checkbox" data-k="4"><span>Select fast-recovery bootstrap diode (trr < 100ns)</span></label>
+        <label><input type="checkbox" data-k="5"><span>Set dead-time > MOSFET turn-off time + margin</span></label>
+        <label><input type="checkbox" data-k="6"><span>Add gate resistors to control dV/dt</span></label>
+        <label><input type="checkbox" data-k="7"><span>Design current sensing with appropriate CSA gain</span></label>
+        <label><input type="checkbox" data-k="8"><span>Include bulk capacitors on DC bus (low ESR)</span></label>
+        <label><input type="checkbox" data-k="9"><span>Plan thermal management for power stage</span></label>
+        <label><input type="checkbox" data-k="10"><span>Add fault protection (OCP, OVP, UVLO)</span></label>
+    </div>
+</section>
+
+<!-- Exercises -->
+<section class="card">
+    <h3>Progressive Exercises</h3>
+
+    <div class="exercise-group">
+        <h4>Level 1: Fundamentals</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 1:</strong> A BLDC motor runs at 24V DC with 30A max phase current. If using MOSFETs with RDS(on) = 10mΩ, what is the conduction loss in each MOSFET (one HS + one LS conducting)?</p>
+            <input type="text" id="bldc-ex1" placeholder="Total conduction loss (W)">
+            <button onclick="checkBLDC(1, 18, 5)">Check</button>
+            <span id="bldc-ex1-fb" class="feedback"></span>
+            <div class="hint">P = I²R for each MOSFET, then sum for both conducting FETs</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 2:</strong> Calculate the bootstrap capacitor for: Qg = 40nC, Iqbs = 150µA, ton_max = 20ms, allowed droop = 0.3V.</p>
+            <input type="text" id="bldc-ex2" placeholder="C_boot minimum (µF)">
+            <button onclick="checkBLDC(2, 10.13, 5)">Check</button>
+            <span id="bldc-ex2-fb" class="feedback"></span>
+            <div class="hint">Q_total = Qg + Iqbs × ton, then C = Q/V</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 3:</strong> A gate driver has 120ns propagation delay and 10% matching spec. MOSFETs have td(off) = 45ns and tf = 25ns. What is the minimum dead-time?</p>
+            <input type="text" id="bldc-ex3" placeholder="Dead-time (ns)">
+            <button onclick="checkBLDC(3, 82, 10)">Check</button>
+            <span id="bldc-ex3-fb" class="feedback"></span>
+            <div class="hint">DT > td(off) + tf + prop_mismatch. Mismatch = 120ns × 10%</div>
+        </div>
+    </div>
+
+    <div class="exercise-group">
+        <h4>Level 2: Application</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 4:</strong> A shunt resistor of 5mΩ measures motor current. At 25A, the shunt voltage is amplified by a CSA with gain 50. What is the output voltage?</p>
+            <input type="text" id="bldc-ex4" placeholder="CSA output (V)">
+            <button onclick="checkBLDC(4, 6.25, 2)">Check</button>
+            <span id="bldc-ex4-fb" class="feedback"></span>
+            <div class="hint">Vshunt = I × R, Vout = Vshunt × Gain</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 5:</strong> A BLDC driver switches at 20kHz with 95% max duty cycle. What is the minimum low-side ON time per cycle to refresh bootstrap?</p>
+            <input type="text" id="bldc-ex5" placeholder="Min LS ON time (µs)">
+            <button onclick="checkBLDC(5, 2.5, 5)">Check</button>
+            <span id="bldc-ex5-fb" class="feedback"></span>
+            <div class="hint">Period = 1/f, LS ON time = (1 - D) × Period</div>
+        </div>
+    </div>
+
+    <div class="exercise-group">
+        <h4>Level 3: Design Analysis</h4>
+
+        <div class="exercise">
+            <p><strong>Exercise 6:</strong> A 48V/50A BLDC controller uses MOSFETs with Qg = 80nC. At 20kHz switching, what is the total gate drive power for all 6 MOSFETs (P = Qg × Vgs × f)?</p>
+            <input type="text" id="bldc-ex6" placeholder="Gate drive power (W)">
+            <button onclick="checkBLDC(6, 0.115, 10)">Check</button>
+            <span id="bldc-ex6-fb" class="feedback"></span>
+            <div class="hint">P = 6 × Qg × Vgs × f, assume Vgs = 12V</div>
+        </div>
+
+        <div class="exercise">
+            <p><strong>Exercise 7:</strong> Motor current sampling uses a 12-bit ADC with 3.3V reference. CSA gain is 20, shunt is 10mΩ. What is the current resolution (A per LSB)?</p>
+            <input type="text" id="bldc-ex7" placeholder="Resolution (mA/LSB)">
+            <button onclick="checkBLDC(7, 4.03, 3)">Check</button>
+            <span id="bldc-ex7-fb" class="feedback"></span>
+            <div class="hint">1 LSB = Vref/4096. Then I_lsb = V_lsb / (Gain × Rshunt)</div>
+        </div>
+    </div>
+
+    <script>
+    function checkBLDC(n, expected, tolerance) {
+        const ans = parseFloat(document.getElementById('bldc-ex' + n).value);
+        const fb = document.getElementById('bldc-ex' + n + '-fb');
+
+        if (isNaN(ans)) {
+            fb.textContent = 'Please enter a number';
+            fb.className = 'feedback incorrect';
+            return;
+        }
+
+        const error = Math.abs((ans - expected) / expected * 100);
+
+        if (error <= tolerance) {
+            fb.textContent = '✓ Correct!';
+            fb.className = 'feedback correct';
+        } else {
+            fb.textContent = '✗ Try again. Expected: ' + expected.toFixed(2);
+            fb.className = 'feedback incorrect';
+        }
+    }
+    </script>
+</section>
+
+<!-- References -->
+<section class="card">
+    <h3>Industry References</h3>
+    <ul>
+        <li><a href="https://www.diodes.com/assets/App-Note-Files/DN1156_Gate_Drivers_in_BLDC_motors.pdf" target="_blank">DN1156 - Gate Drivers in BLDC Motors (Diodes Inc)</a></li>
+        <li><a href="https://resources.altium.com/p/build-advanced-brushless-motor-controller" target="_blank">How to Make Advanced BLDC Motor Controllers (Altium)</a></li>
+        <li><a href="https://www.ti.com/lit/an/slua887a/slua887a.pdf" target="_blank">Bootstrap Circuitry Selection for Half-Bridge Configurations (TI)</a></li>
+        <li><strong>IR2110 Datasheet</strong> - Classic half-bridge gate driver</li>
+        <li><strong>DRV8323 Datasheet</strong> - Modern 3-phase smart gate driver</li>
+    </ul>
+</section>
+
+<script>
+// Low-Side Shunt Current Sensing Canvas
+(function() {
+    const canvas = document.getElementById('ls-shunt-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const cx = 250;
+
+    // Title
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Low-Side Shunt Current Sensing', cx, 25);
+
+    // Phase U Output label
+    ctx.font = '12px monospace';
+    ctx.fillStyle = TEK.ch4;
+    ctx.fillText('Phase U Output', cx, 55);
+
+    // Connection line from phase to MOSFET
+    ctx.strokeStyle = '#e6edf3';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, 65);
+    ctx.lineTo(cx, 90);
+    ctx.stroke();
+
+    // Low-Side MOSFET box
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 50, 90, 100, 60);
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('Q2 (LS)', cx, 115);
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('Low-Side MOSFET', cx, 135);
+
+    // Connection to shunt
+    ctx.strokeStyle = '#e6edf3';
+    ctx.beginPath();
+    ctx.moveTo(cx, 150);
+    ctx.lineTo(cx, 175);
+    ctx.stroke();
+
+    // Shunt Resistor box
+    ctx.strokeStyle = TEK.ch3;
+    ctx.strokeRect(cx - 50, 175, 100, 50);
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('R_sense', cx, 195);
+    ctx.font = '10px monospace';
+    ctx.fillText('(1-50mΩ)', cx, 212);
+
+    // Label "Shunt Resistor"
+    ctx.fillStyle = '#e6edf3';
+    ctx.textAlign = 'left';
+    ctx.fillText('Shunt Resistor', cx + 60, 200);
+
+    // Connection to GND
+    ctx.strokeStyle = '#e6edf3';
+    ctx.beginPath();
+    ctx.moveTo(cx, 225);
+    ctx.lineTo(cx, 255);
+    ctx.stroke();
+
+    // GND symbol
+    ctx.strokeStyle = TEK.ch2;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - 30, 255);
+    ctx.lineTo(cx + 30, 255);
+    ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 20, 262);
+    ctx.lineTo(cx + 20, 262);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, 269);
+    ctx.lineTo(cx + 10, 269);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('GND', cx, 290);
+
+    // Equations on the right side
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '11px monospace';
+    const eqX = 320;
+    ctx.fillText('Voltage across shunt:', eqX, 100);
+    ctx.fillStyle = TEK.ch1;
+    ctx.fillText('V_sense = I_motor × R_sense', eqX, 120);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('Typical values:', eqX, 155);
+    ctx.fillText('R_sense = 10mΩ', eqX, 175);
+    ctx.fillText('I_max = 30A', eqX, 195);
+    ctx.fillStyle = TEK.ch4;
+    ctx.fillText('V_sense_max = 0.3V', eqX, 215);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('Use CSA (Current Sense', eqX, 250);
+    ctx.fillText('Amplifier) with 20-100x', eqX, 268);
+    ctx.fillText('gain for 0-3.3V ADC', eqX, 286);
+})();
+</script>
+
+</lesson-content>

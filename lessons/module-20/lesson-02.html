@@ -1,0 +1,602 @@
+<!-- Module 20, Lesson 2: Automotive 12V System EMC -->
+<div class="lesson-content" data-module="20" data-lesson="2">
+
+    <div class="card">
+        <h2>Scenario: Automotive 12V System EMC</h2>
+        <p>Design a robust power input stage for automotive electronics that survives load dumps, cold crank, and EMC requirements.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Nominal</div>
+                <div class="v">13.5V (engine on)</div>
+            </div>
+            <div class="box">
+                <div class="k">Cold Crank</div>
+                <div class="v">Down to 4V</div>
+            </div>
+            <div class="box">
+                <div class="k">Load Dump</div>
+                <div class="v">Up to 40V+</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Challenge:</strong> ISO 7637-2 defines transients that can reach +100V or -150V for microseconds. Protection must clamp these while maintaining operation during the "normal" 4V-16V range.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Automotive Voltage Profile</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="auto-event">Transient Event</label>
+                <select id="auto-event">
+                    <option value="normal">Normal operation</option>
+                    <option value="crank">Cold crank (4V dip)</option>
+                    <option value="dump">Load dump (40V spike)</option>
+                    <option value="pulse2b">ISO 7637 Pulse 2b</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="auto-clamp">TVS Clamp (V)</label>
+                <input type="range" id="auto-clamp" min="18" max="36" step="1" value="24">
+                <span id="auto-clamp-val" class="mono">24V</span>
+            </div>
+            <div class="c3">
+                <label for="auto-reg">Regulator Type</label>
+                <select id="auto-reg">
+                    <option value="ldo">LDO (Vin ≥ Vout+1V)</option>
+                    <option value="buck">Buck (wide Vin)</option>
+                    <option value="buckboost">Buck-Boost (all Vin)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="auto-canvas" width="980" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Min Vin</div>
+                <div class="v mono" id="auto-vmin">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Max Vin</div>
+                <div class="v mono" id="auto-vmax">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Regulator Status</div>
+                <div class="v mono" id="auto-status">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Protection Network</h3>
+        <div class="diagram-container">
+            <canvas id="auto-protection-canvas" width="800" height="480" style="width:100%;max-width:800px;background:#0d1117;border-radius:8px;"></canvas>
+        </div>
+
+        <div class="warn">
+            <strong>ISO 7637-2 Test Pulses:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>Pulse 1: -150V, 2ms (disconnection of inductive loads)</li>
+                <li>Pulse 2a: +37V, 50µs (ignition off)</li>
+                <li>Pulse 2b: +10V, 0.2ms (ignition on)</li>
+                <li>Pulse 3a/b: ±150V, 100ns superimposed (switching)</li>
+                <li>Pulse 5: Load dump +87V to +123V for 40-400ms</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Cold Crank Considerations</h3>
+
+        <table class="table">
+            <tr>
+                <th>Issue</th>
+                <th>Impact</th>
+                <th>Solution</th>
+            </tr>
+            <tr>
+                <td>Voltage drops to 4V</td>
+                <td>LDO can't maintain 3.3V</td>
+                <td>Use buck-boost or pre-boost</td>
+            </tr>
+            <tr>
+                <td>Duration 100-500ms</td>
+                <td>MCU may reset</td>
+                <td>Holdup capacitor or battery backup</td>
+            </tr>
+            <tr>
+                <td>Repeated cycles</td>
+                <td>Stress on capacitors</td>
+                <td>Rate for ripple current</td>
+            </tr>
+            <tr>
+                <td>Low temp (-40°C)</td>
+                <td>Battery ESR increases</td>
+                <td>Design for worst case</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('auto-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const event = document.getElementById('auto-event').value || 'normal';
+        const clamp = parseFloat(document.getElementById('auto-clamp').value);
+        const reg = document.getElementById('auto-reg').value;
+
+        document.getElementById('auto-clamp-val').textContent = clamp + 'V';
+
+        let vmin = 13.5, vmax = 13.5;
+
+        if (event === 'normal') {
+            vmin = 12;
+            vmax = 14.5;
+        } else if (event === 'crank') {
+            vmin = 4;
+            vmax = 14.5;
+        } else if (event === 'dump') {
+            vmin = 12;
+            vmax = Math.min(40, clamp);
+        } else if (event === 'pulse2b') {
+            vmin = 10;
+            vmax = 23;
+        }
+
+        document.getElementById('auto-vmin').textContent = vmin.toFixed(1) + 'V';
+        document.getElementById('auto-vmax').textContent = vmax.toFixed(1) + 'V';
+
+        // Check if regulator can handle it
+        const statusEl = document.getElementById('auto-status');
+        let regOk = false;
+
+        if (reg === 'ldo') {
+            regOk = vmin >= 4.3; // Need 3.3V + 1V dropout
+        } else if (reg === 'buck') {
+            regOk = vmin >= 3.8 && vmax <= 40;
+        } else if (reg === 'buckboost') {
+            regOk = vmax <= 40;
+        }
+
+        if (regOk) {
+            statusEl.textContent = 'Can maintain output';
+            statusEl.style.color = 'var(--ok)';
+        } else {
+            statusEl.textContent = 'Output may drop out';
+            statusEl.style.color = 'var(--bad)';
+        }
+
+        plotAutomotive(event, clamp);
+    }
+
+    function plotAutomotive(event, clamp) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        let totalTime, events;
+
+        if (event === 'normal') {
+            totalTime = 100; // ms
+            events = [];
+        } else if (event === 'crank') {
+            totalTime = 500; // ms
+            events = [{ start: 50, duration: 300, voltage: 4 }];
+        } else if (event === 'dump') {
+            totalTime = 50; // ms
+            events = [{ start: 10, duration: 20, voltage: 65, clamp: clamp }];
+        } else if (event === 'pulse2b') {
+            totalTime = 5; // ms
+            events = [{ start: 1, duration: 0.5, voltage: 23 }];
+        }
+        if (!events) {
+            totalTime = 100;
+            events = [];
+        }
+
+        const yMax = event === 'dump' ? 70 : 20;
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: totalTime,
+            yMin: 0,
+            yMax: yMax,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 'ms',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 8
+        });
+
+        const N = 500;
+        const tData = [];
+        const vData = [];
+        const vClampedData = [];
+
+        const nominalV = 13.5;
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * totalTime;
+            tData.push(t);
+
+            let v = nominalV;
+
+            // Apply events
+            for (const evt of events) {
+                if (t >= evt.start && t < evt.start + evt.duration) {
+                    if (event === 'crank') {
+                        // Exponential dip and recovery
+                        const tEvt = t - evt.start;
+                        const dipTime = evt.duration * 0.3;
+                        if (tEvt < dipTime) {
+                            v = nominalV - (nominalV - evt.voltage) * (tEvt / dipTime);
+                        } else {
+                            v = evt.voltage + (nominalV - evt.voltage) * ((tEvt - dipTime) / (evt.duration - dipTime));
+                        }
+                    } else if (event === 'dump') {
+                        // Sharp spike with exponential decay
+                        const tEvt = t - evt.start;
+                        v = nominalV + (evt.voltage - nominalV) * Math.exp(-tEvt / (evt.duration * 0.3));
+                    } else {
+                        v = evt.voltage;
+                    }
+                }
+            }
+
+            vData.push(v);
+
+            // Clamped version (after TVS)
+            let vClamped = v;
+            if (v > clamp) {
+                vClamped = clamp + (v - clamp) * 0.1; // TVS has some dynamic impedance
+            }
+            vClampedData.push(vClamped);
+        }
+
+        // Plot unclamped (dashed)
+        if (event === 'dump') {
+            ctx.save();
+            ctx.setLineDash([5, 5]);
+            AD.plotData(ctx, axes, tData, vData, {
+                color: 'rgba(251, 113, 133, 0.5)',
+                lineWidth: 1
+            });
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+
+        // Plot clamped/actual voltage
+        AD.plotData(ctx, axes, tData, vClampedData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2
+        });
+
+        // Draw nominal range
+        ctx.save();
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.1)';
+        const pt12 = axes.toCanvas(0, 12);
+        const pt16 = axes.toCanvas(0, 16);
+        ctx.fillRect(axes.left, pt16.y, axes.width, pt12.y - pt16.y);
+
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
+        ctx.setLineDash([3, 3]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(axes.left, pt12.y);
+        ctx.lineTo(axes.left + axes.width, pt12.y);
+        ctx.moveTo(axes.left, pt16.y);
+        ctx.lineTo(axes.left + axes.width, pt16.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        const legendItems = [
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'Battery voltage (clamped)' },
+            { color: 'rgba(52, 211, 153, 0.5)', label: 'Normal operating range' }
+        ];
+        if (event === 'dump') {
+            legendItems.push({ color: 'rgba(251, 113, 133, 0.5)', label: 'Unclamped transient' });
+        }
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, legendItems);
+    }
+
+    ['auto-event', 'auto-clamp', 'auto-reg'].forEach(id => {
+        document.getElementById(id).addEventListener('change', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Automotive Input Protection',
+        netlist: `* Automotive Power Input Stage
+* Protection against load dump and reverse polarity
+
+* Battery with internal resistance
+VBATT batt_int 0 DC 13.5
+RBATT batt_int batt 0.05
+
+* Load dump transient (superimposed)
+VDUMP dump 0 EXP(0 50 10u 1u 10u 5m)
+VSUM batt vsum DC 0
+EDUMP vsum vin VALUE={V(batt) + V(dump)}
+
+* Reverse polarity protection (P-FET)
+* Simplified as series resistance when on
+RPFET vin prot 0.05
+
+* TVS diode (24V clamp)
+D_TVS prot 0 TVS24
+.MODEL TVS24 D (BV=24 IBV=1 RS=0.01)
+
+* Input filter
+L_FILT prot filt 10u
+R_DCR filt filt2 0.02
+C_IN filt2 0 100u
+
+* Regulator load
+RLOAD filt2 0 10
+
+.TRAN 0.1u 20m
+
+.PROBE V(vin) V(prot) V(filt2) I(D_TVS)
+.END
+
+* Watch TVS clamp the transient
+* Filter caps smooth the voltage`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm20l2',
+        items: [
+            'Select TVS for ISO 7637 load dump',
+            'Handle cold crank voltage dip',
+            'Include reverse polarity protection',
+            'Use AEC-Q components for automotive',
+            'Test at temperature extremes (-40 to +125°C)'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'SC2-1',
+        type: 'choice',
+        question: 'During cold crank, battery voltage drops to 6V for 200ms. You need to maintain 3.3V output. What regulator type is best?',
+        options: [
+            { id: 'a', text: 'LDO with 0.5V dropout', correct: false },
+            { id: 'b', text: 'Buck converter (step-down only)', correct: false },
+            { id: 'c', text: 'Buck-boost converter', correct: true },
+            { id: 'd', text: 'Boost converter', correct: false }
+        ],
+        solution: 'A buck-boost can regulate 3.3V from inputs below and above 3.3V.',
+        explanation: 'During crank, Vin=6V > Vout=3.3V, so buck works. But if Vin drops to 4V, you need boost. Buck-boost handles the full range from 4V to 16V.'
+    });
+})();
+
+// Auto Protection Canvas
+(function() {
+    const canvas = document.getElementById('auto-protection-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText('Automotive Power Input Protection Network', 30, 30);
+
+    // Battery symbol
+    ctx.strokeStyle = TEK.ch2;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(40, 120);
+    ctx.lineTo(40, 180);
+    ctx.moveTo(30, 130);
+    ctx.lineTo(50, 130);
+    ctx.moveTo(35, 170);
+    ctx.lineTo(45, 170);
+    ctx.stroke();
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('VBATT', 40, 200);
+    ctx.fillText('12V nom', 40, 215);
+
+    // Main power line
+    ctx.strokeStyle = TEK.ch3;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(50, 150);
+    ctx.lineTo(750, 150);
+    ctx.stroke();
+
+    // Component 1: Fuse
+    ctx.strokeStyle = TEK.ch2;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(80, 135, 50, 30);
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    ctx.fillText('FUSE', 105, 155);
+    ctx.fillText('10A', 105, 225);
+
+    // Component 2: Reverse polarity diode
+    ctx.beginPath();
+    ctx.moveTo(160, 150);
+    ctx.lineTo(160, 180);
+    ctx.stroke();
+    // Diode symbol
+    ctx.beginPath();
+    ctx.moveTo(150, 180);
+    ctx.lineTo(170, 180);
+    ctx.lineTo(160, 200);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(150, 200);
+    ctx.lineTo(170, 200);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(160, 200);
+    ctx.lineTo(160, 220);
+    ctx.stroke();
+    ctx.fillText('D1', 175, 195);
+    ctx.fillText('Reverse', 160, 250);
+    ctx.fillText('Polarity', 160, 262);
+
+    // Component 3: TVS Diode
+    ctx.beginPath();
+    ctx.moveTo(260, 150);
+    ctx.lineTo(260, 175);
+    ctx.stroke();
+    // TVS symbol (bidirectional)
+    ctx.beginPath();
+    ctx.moveTo(250, 175);
+    ctx.lineTo(270, 175);
+    ctx.lineTo(260, 195);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(250, 195);
+    ctx.lineTo(270, 195);
+    ctx.lineTo(260, 175);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(260, 195);
+    ctx.lineTo(260, 220);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch1;
+    ctx.fillText('TVS', 275, 190);
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('24V clamp', 260, 250);
+
+    // Component 4: LC Filter
+    // Inductor
+    ctx.strokeStyle = TEK.ch2;
+    ctx.beginPath();
+    ctx.moveTo(340, 150);
+    for (let i = 0; i < 4; i++) {
+        ctx.arc(355 + i * 15, 150, 7, Math.PI, 0, false);
+    }
+    ctx.lineTo(415, 150);
+    ctx.stroke();
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('L1 10µH', 375, 130);
+
+    // Capacitor
+    ctx.beginPath();
+    ctx.moveTo(430, 150);
+    ctx.lineTo(430, 170);
+    ctx.moveTo(420, 170);
+    ctx.lineTo(440, 170);
+    ctx.moveTo(420, 180);
+    ctx.lineTo(440, 180);
+    ctx.moveTo(430, 180);
+    ctx.lineTo(430, 220);
+    ctx.stroke();
+    ctx.fillText('C1', 450, 180);
+    ctx.fillText('100µF', 430, 250);
+
+    // Component 5: Bulk cap
+    ctx.beginPath();
+    ctx.moveTo(520, 150);
+    ctx.lineTo(520, 170);
+    ctx.moveTo(510, 170);
+    ctx.lineTo(530, 170);
+    ctx.moveTo(510, 180);
+    ctx.lineTo(530, 180);
+    ctx.moveTo(520, 180);
+    ctx.lineTo(520, 220);
+    ctx.stroke();
+    ctx.fillText('C2', 540, 180);
+    ctx.fillText('470µF', 520, 250);
+
+    // Regulator block
+    ctx.strokeStyle = TEK.ch4;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(600, 110, 120, 80);
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = '12px monospace';
+    ctx.fillText('Buck-Boost', 660, 140);
+    ctx.fillText('Regulator', 660, 158);
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#e6edf3';
+    ctx.fillText('3.3V out', 660, 178);
+
+    // Ground line
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(40, 280);
+    ctx.lineTo(720, 280);
+    ctx.stroke();
+
+    // Ground connections
+    [160, 260, 430, 520, 660].forEach(x => {
+        ctx.beginPath();
+        ctx.moveTo(x, 220);
+        ctx.lineTo(x, 280);
+        ctx.stroke();
+    });
+
+    // GND symbol
+    ctx.fillStyle = '#888';
+    ctx.fillText('GND', 380, 295);
+
+    // Voltage labels
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('VBATT', 100, 100);
+    ctx.fillText('VFILT', 470, 100);
+    ctx.fillText('VIN_REG', 580, 100);
+
+    // Protection explanation box
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(30, 320, 740, 130);
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Protection Sequence:', 50, 345);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    const steps = [
+        '1. Fuse: Protects against shorts, overcurrent',
+        '2. Reverse diode: Blocks negative voltage (or P-FET for low loss)',
+        '3. TVS: Clamps load dump transients to safe level (<40V)',
+        '4. LC Filter: Attenuates HF switching noise, EMI',
+        '5. Bulk caps: Provide energy during cold crank dips'
+    ];
+    steps.forEach((step, i) => {
+        ctx.fillText(step, 50, 370 + i * 18);
+    });
+})();
+</script>

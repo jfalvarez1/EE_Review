@@ -1,0 +1,521 @@
+<!-- Module 21, Lesson 2: MOSFET Deep Dive - Parasitics & Gate Drive -->
+<div class="lesson-content" data-module="21" data-lesson="2">
+
+    <div class="card">
+        <h2>MOSFET Parasitics & Gate Drive</h2>
+        <p>Real MOSFETs have significant parasitic capacitances that affect switching speed and losses. Understanding gate charge is essential for driver design.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">C<sub>GS</sub></div>
+                <div class="v">Gate-source, 100pF-10nF</div>
+            </div>
+            <div class="box">
+                <div class="k">C<sub>GD</sub></div>
+                <div class="v">Miller cap, nonlinear</div>
+            </div>
+            <div class="box">
+                <div class="k">C<sub>DS</sub></div>
+                <div class="v">Output capacitance</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> The Miller plateau in gate charging occurs because C<sub>GD</sub> must discharge as V<sub>DS</sub> falls. This plateau voltage equals V<sub>GS</sub> at the operating current, and its duration determines switching loss.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Gate Charge Analysis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="mos-qg">Total Q<sub>G</sub> (nC)</label>
+                <input type="range" id="mos-qg" min="5" max="200" step="5" value="50">
+                <span id="mos-qg-val" class="mono">50nC</span>
+            </div>
+            <div class="c3">
+                <label for="mos-vgs">V<sub>GS</sub> drive (V)</label>
+                <input type="range" id="mos-vgs" min="5" max="15" step="0.5" value="10">
+                <span id="mos-vgs-val" class="mono">10V</span>
+            </div>
+            <div class="c3">
+                <label for="mos-ig">Gate Current (A)</label>
+                <input type="range" id="mos-ig" min="0.1" max="5" step="0.1" value="1">
+                <span id="mos-ig-val" class="mono">1A</span>
+            </div>
+            <div class="c3">
+                <label for="mos-fsw">Switching Freq (kHz)</label>
+                <input type="range" id="mos-fsw" min="10" max="500" step="10" value="100">
+                <span id="mos-fsw-val" class="mono">100kHz</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="mos-canvas" width="980" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Turn-on Time</div>
+                <div class="v mono" id="mos-ton">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Gate Drive Power</div>
+                <div class="v mono" id="mos-pgd">—</div>
+            </div>
+            <div class="box">
+                <div class="k">C<sub>ISS</sub> Effective</div>
+                <div class="v mono" id="mos-ciss">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Parasitic Capacitances</h3>
+        <div class="diagram-container">
+            <canvas id="mosfet-cap-canvas" width="850" height="520" style="width:100%;max-width:850px;background:#0d1117;border-radius:8px;"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Gate Drive Requirements</h3>
+
+        <table class="table">
+            <tr>
+                <th>Parameter</th>
+                <th>Formula</th>
+                <th>Practical Notes</th>
+            </tr>
+            <tr>
+                <td>Turn-on time</td>
+                <td>t<sub>on</sub> ≈ Q<sub>G</sub> / I<sub>G</sub></td>
+                <td>Faster with higher gate current</td>
+            </tr>
+            <tr>
+                <td>Gate drive power</td>
+                <td>P<sub>GD</sub> = Q<sub>G</sub> × V<sub>GS</sub> × f<sub>sw</sub></td>
+                <td>Significant at high frequency</td>
+            </tr>
+            <tr>
+                <td>Gate resistor</td>
+                <td>R<sub>G</sub> = (V<sub>DRV</sub> - V<sub>plateau</sub>) / I<sub>G</sub></td>
+                <td>Controls dV/dt and EMI</td>
+            </tr>
+            <tr>
+                <td>Driver current</td>
+                <td>I<sub>peak</sub> = V<sub>DRV</sub> / R<sub>G</sub></td>
+                <td>Driver must source/sink this</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Miller Effect in Practice:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>During turn-on, gate voltage stalls at V<sub>plateau</sub></li>
+                <li>Insufficient gate drive current extends switching loss</li>
+                <li>During turn-off, VDS rise can couple back through CGD and turn device back on</li>
+                <li>Use low gate resistance and separate turn-on/turn-off paths</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('mos-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const qg = parseFloat(document.getElementById('mos-qg').value); // nC
+        const vgs = parseFloat(document.getElementById('mos-vgs').value);
+        const ig = parseFloat(document.getElementById('mos-ig').value);
+        const fsw = parseFloat(document.getElementById('mos-fsw').value);
+
+        document.getElementById('mos-qg-val').textContent = qg + 'nC';
+        document.getElementById('mos-vgs-val').textContent = vgs + 'V';
+        document.getElementById('mos-ig-val').textContent = ig + 'A';
+        document.getElementById('mos-fsw-val').textContent = fsw + 'kHz';
+
+        // Calculate switching time
+        const ton = qg / ig; // ns
+        document.getElementById('mos-ton').textContent = ton.toFixed(0) + 'ns';
+
+        // Gate drive power
+        const pgd = qg * 1e-9 * vgs * fsw * 1e3; // W
+        document.getElementById('mos-pgd').textContent = (pgd * 1000).toFixed(1) + 'mW';
+
+        // Effective CISS
+        const ciss = qg / vgs; // nF
+        document.getElementById('mos-ciss').textContent = (ciss * 1000).toFixed(0) + 'pF';
+
+        plotGateCharge(qg, vgs, ig);
+    }
+
+    function plotGateCharge(qg, vgsMax, ig) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Gate charge curve
+        const qgTotal = qg;
+        const qgs = qg * 0.25; // Charge to threshold
+        const qgd = qg * 0.35; // Miller charge
+        const vth = 3; // Threshold voltage
+        const vplateau = 5; // Plateau voltage
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: qgTotal * 1.2,
+            yMin: 0,
+            yMax: vgsMax * 1.2,
+            xLabel: 'Gate Charge',
+            yLabel: 'VGS',
+            xUnit: 'nC',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 8
+        });
+
+        // Generate gate charge curve
+        const N = 200;
+        const qData = [];
+        const vData = [];
+
+        for (let i = 0; i < N; i++) {
+            const q = (i / N) * qgTotal * 1.2;
+            qData.push(q);
+
+            let v;
+            if (q < qgs) {
+                // Pre-threshold region (charging CGS)
+                v = vth * (q / qgs);
+            } else if (q < qgs + qgd) {
+                // Miller plateau (charging CGD)
+                v = vplateau; // Flat plateau
+            } else {
+                // Post-plateau (charging CGS at higher voltage)
+                const qPost = q - qgs - qgd;
+                const qRemaining = qgTotal - qgs - qgd;
+                v = vplateau + (vgsMax - vplateau) * (qPost / qRemaining);
+            }
+
+            vData.push(Math.min(v, vgsMax));
+        }
+
+        AD.plotData(ctx, axes, qData, vData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2
+        });
+
+        // Mark key points
+        ctx.save();
+
+        // QGS marker
+        const qgsPt = axes.toCanvas(qgs, vth);
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(qgsPt.x, axes.top);
+        ctx.lineTo(qgsPt.x, axes.top + axes.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('QGS', qgsPt.x - 12, axes.top + axes.height - 5);
+
+        // QGD marker
+        const qgdPt = axes.toCanvas(qgs + qgd, vplateau);
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(qgdPt.x, axes.top);
+        ctx.lineTo(qgdPt.x, axes.top + axes.height);
+        ctx.stroke();
+
+        // Miller plateau line
+        ctx.beginPath();
+        ctx.moveTo(qgsPt.x, qgdPt.y);
+        ctx.lineTo(qgdPt.x, qgdPt.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+        ctx.fillText('Miller Plateau', (qgsPt.x + qgdPt.x) / 2 - 30, qgdPt.y - 8);
+        ctx.fillText('QGD', qgdPt.x - 12, axes.top + axes.height - 5);
+
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'VGS vs QG' }
+        ]);
+    }
+
+    ['mos-qg', 'mos-vgs', 'mos-ig', 'mos-fsw'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'MOSFET Gate Charge Simulation',
+        netlist: `* MOSFET Gate Charge and Switching Analysis
+
+* Power supply
+VDD drain 0 DC 48
+
+* Gate driver (constant current for Qg measurement)
+* IG gate 0 DC 1
+
+* Realistic gate driver with resistor
+VDRV drv 0 PULSE(0 10 0 10n 10n 1u 2u)
+RG drv gate 10
+
+* Load
+RLOAD drain vdd_load 10
+LLOAD vdd_load vdd 10n
+
+* N-channel MOSFET with parasitics
+M1 drain gate source source NMOS_SW W=10000u L=1u
+.MODEL NMOS_SW NMOS (VTO=3 KP=100 CGS=1n CGD=0.2n CBD=0.5n)
+
+* Source inductance (package)
+LSOURCE source 0 2n
+
+.TRAN 0.1n 3u
+
+.PROBE V(gate) V(drain) I(RLOAD)
+.END
+
+* Observe Miller plateau during turn-on
+* Note VDS falling during plateau
+* See effect of gate resistor on switching speed`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm21l2',
+        items: [
+            'Know CISS = CGS + CGD (input capacitance)',
+            'Understand Miller plateau and its cause',
+            'Calculate gate drive power: Qg × Vgs × fsw',
+            'Size gate resistor for desired turn-on time',
+            'Account for CGD variation with VDS'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'EX21-2',
+        type: 'numeric',
+        question: 'A MOSFET has Qg=45nC and is driven to 10V at 200kHz. What is the gate drive power?',
+        hint: 'Pgd = Qg × Vgs × fsw',
+        expected: 90,
+        tolerance: 0.05,
+        unit: 'mW',
+        solution: 'Pgd = 45nC × 10V × 200kHz = 45×10⁻⁹ × 10 × 200×10³ = 90mW',
+        explanation: 'This 90mW is dissipated in the gate driver and gate resistor. At higher frequencies or with larger MOSFETs, gate drive power becomes significant.'
+    });
+})();
+
+// MOSFET Parasitic Capacitances Canvas
+(function() {
+    const canvas = document.getElementById('mosfet-cap-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('MOSFET Parasitic Capacitances', 30, 30);
+
+    // MOSFET Symbol (large)
+    const mx = 200, my = 260;
+
+    // Gate
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(mx - 80, my);
+    ctx.lineTo(mx - 40, my);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('G', mx - 100, my + 5);
+
+    // Gate bar
+    ctx.strokeStyle = '#e6edf3';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(mx - 40, my - 40);
+    ctx.lineTo(mx - 40, my + 40);
+    ctx.stroke();
+
+    // Channel
+    ctx.beginPath();
+    ctx.moveTo(mx - 30, my - 35);
+    ctx.lineTo(mx - 30, my - 15);
+    ctx.moveTo(mx - 30, my - 5);
+    ctx.lineTo(mx - 30, my + 15);
+    ctx.moveTo(mx - 30, my + 25);
+    ctx.lineTo(mx - 30, my + 35);
+    ctx.stroke();
+
+    // Drain connection
+    ctx.strokeStyle = TEK.ch2;
+    ctx.beginPath();
+    ctx.moveTo(mx - 30, my - 25);
+    ctx.lineTo(mx + 20, my - 25);
+    ctx.lineTo(mx + 20, my - 80);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch2;
+    ctx.fillText('D', mx + 30, my - 70);
+
+    // Source connection
+    ctx.strokeStyle = TEK.ch4;
+    ctx.beginPath();
+    ctx.moveTo(mx - 30, my + 30);
+    ctx.lineTo(mx + 20, my + 30);
+    ctx.lineTo(mx + 20, my + 80);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch4;
+    ctx.fillText('S', mx + 30, my + 90);
+
+    // Arrow (N-channel)
+    ctx.strokeStyle = '#e6edf3';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(mx - 30, my);
+    ctx.lineTo(mx + 10, my);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(mx + 10, my);
+    ctx.lineTo(mx, my - 5);
+    ctx.lineTo(mx, my + 5);
+    ctx.closePath();
+    ctx.fillStyle = '#e6edf3';
+    ctx.fill();
+
+    // CGS Capacitor
+    ctx.strokeStyle = TEK.ch3;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(mx - 60, my + 20);
+    ctx.lineTo(mx - 60, my + 50);
+    ctx.lineTo(mx + 20, my + 50);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('CGS', mx - 75, my + 40);
+
+    // CGD Capacitor (Miller)
+    ctx.beginPath();
+    ctx.moveTo(mx - 60, my - 20);
+    ctx.lineTo(mx - 60, my - 50);
+    ctx.lineTo(mx + 20, my - 50);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch1;
+    ctx.fillText('CGD', mx - 75, my - 35);
+    ctx.fillStyle = '#fb7185';
+    ctx.font = '9px monospace';
+    ctx.fillText('(Miller)', mx - 78, my - 22);
+
+    // CDS Capacitor
+    ctx.strokeStyle = TEK.ch2;
+    ctx.beginPath();
+    ctx.moveTo(mx + 50, my - 25);
+    ctx.lineTo(mx + 80, my - 25);
+    ctx.lineTo(mx + 80, my + 30);
+    ctx.lineTo(mx + 50, my + 30);
+    ctx.stroke();
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('CDS', mx + 85, my + 5);
+
+    // Datasheet capacitances box
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(350, 60, 280, 160);
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Datasheet Parameters:', 370, 90);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '11px monospace';
+    const params = [
+        'CISS = CGS + CGD  (Input cap)',
+        'COSS = CDS + CGD  (Output cap)',
+        'CRSS = CGD        (Reverse transfer)',
+        '',
+        'CGD is nonlinear - varies with VDS!',
+        'High CGD at low VDS, low at high VDS'
+    ];
+    params.forEach((p, i) => {
+        ctx.fillText(p, 370, 115 + i * 18);
+    });
+
+    // Gate charge explanation
+    ctx.strokeRect(350, 240, 280, 200);
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('Gate Charge Regions:', 370, 270);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    const regions = [
+        '1. QGS1: Charge to threshold',
+        '   VGS rises, ID = 0',
+        '',
+        '2. QGD (Miller): Charge CGD',
+        '   VGS flat, VDS falls, ID rises',
+        '',
+        '3. QGS2: Charge above Miller',
+        '   VGS rises to drive level',
+        '',
+        'Total: QG = QGS + QGD'
+    ];
+    regions.forEach((r, i) => {
+        ctx.fillText(r, 370, 295 + i * 14);
+    });
+
+    // Miller effect note
+    ctx.strokeStyle = '#fb7185';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(30, 380, 280, 120);
+    ctx.fillStyle = '#fb7185';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('Miller Effect Warning:', 50, 405);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    const miller = [
+        'During switching, CGD is multiplied',
+        'by the voltage gain of the stage.',
+        '',
+        'Ceff = CGD × (1 + Av)',
+        '',
+        'This is why Miller plateau exists!'
+    ];
+    miller.forEach((m, i) => {
+        ctx.fillText(m, 50, 425 + i * 14);
+    });
+})();
+</script>

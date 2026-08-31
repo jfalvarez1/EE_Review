@@ -1,0 +1,585 @@
+<!-- Module 18, Lesson 6: Flyback Converters -->
+<div class="lesson-content" data-module="18" data-lesson="6">
+
+    <div class="card">
+        <h2>Flyback Converter Design</h2>
+        <p>Flyback converters provide isolation, multiple outputs, and wide input range. Learn transformer design, snubber circuits, and control strategies for this versatile topology.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Isolation</div>
+                <div class="v">Galvanic separation</div>
+            </div>
+            <div class="box">
+                <div class="k">Multi-output</div>
+                <div class="v">Multiple windings</div>
+            </div>
+            <div class="box">
+                <div class="k">Wide Vin</div>
+                <div class="v">85-265VAC universal</div>
+            </div>
+            <div class="box">
+                <div class="k">Power Range</div>
+                <div class="v">1W - 150W typical</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Concept:</strong> The flyback transformer is actually a coupled inductor. Energy is stored in the air gap during switch-on, then transferred to the output during switch-off. The air gap is critical!
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Flyback Design Calculator</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="fb-vin">Input Voltage (VDC)</label>
+                <input type="range" id="fb-vin" min="50" max="400" step="10" value="150">
+                <span id="fb-vin-val" class="mono">150V</span>
+            </div>
+            <div class="c3">
+                <label for="fb-vout">Output Voltage (V)</label>
+                <input type="range" id="fb-vout" min="3" max="48" step="1" value="12">
+                <span id="fb-vout-val" class="mono">12V</span>
+            </div>
+            <div class="c3">
+                <label for="fb-pout">Output Power (W)</label>
+                <input type="range" id="fb-pout" min="5" max="100" step="5" value="30">
+                <span id="fb-pout-val" class="mono">30W</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="fb-fsw">Switching Freq (kHz)</label>
+                <input type="range" id="fb-fsw" min="50" max="200" step="10" value="100">
+                <span id="fb-fsw-val" class="mono">100kHz</span>
+            </div>
+            <div class="c3">
+                <label for="fb-mode">Operating Mode</label>
+                <select id="fb-mode">
+                    <option value="ccm">CCM (Continuous)</option>
+                    <option value="dcm">DCM (Discontinuous)</option>
+                    <option value="bcm">BCM (Boundary)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="fb-canvas" width="980" height="340"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Turns Ratio</div>
+                <div class="v mono" id="fb-ratio">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Duty Cycle</div>
+                <div class="v mono" id="fb-duty">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Pri Inductance</div>
+                <div class="v mono" id="fb-lpri">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Peak Pri Current</div>
+                <div class="v mono" id="fb-ipk">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Flyback Design Equations</h3>
+        <pre style="color:#4af; background:#111; padding:15px; border-radius:4px; font-size:11px;">
+Turns Ratio:
+    n = Np/Ns = (Vin × D) / (Vout × (1-D))
+
+    For CCM with D_max = 0.45:
+    n = Vin_min × 0.45 / (Vout × 0.55)
+
+Duty Cycle (CCM):
+    D = (n × Vout) / (Vin + n × Vout)
+
+Primary Inductance (CCM):
+    Lpri = (Vin_min × D_max)² / (2 × fsw × Pout × K)
+    K = ripple factor (typ 0.4)
+
+Primary Peak Current:
+    Ip_pk = (Pout / (η × Vin)) × (1 + K/2) / D
+
+Switch Voltage Stress:
+    Vsw = Vin + n × (Vout + Vf) + Vspike
+    Vspike from leakage inductance!
+
+Output Diode Stress:
+    Vd = Vout + Vin/n
+
+Snubber Design:
+    Leakage energy: E = 0.5 × Llk × Ip²
+    Snubber cap: Cs > Llk × Ip² / Vclamp²
+    Snubber resistor: Rs = Vclamp² / (fsw × E)
+        </pre>
+    </div>
+
+    <div class="card">
+        <h3>Flyback Converter Schematic</h3>
+        <div id="fb-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="fb-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="fb-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="fb-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('fb-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
+
+    function update() {
+        const Vin = parseFloat(document.getElementById('fb-vin').value) || 150;
+        const Vout = parseFloat(document.getElementById('fb-vout').value) || 12;
+        const Pout = parseFloat(document.getElementById('fb-pout').value) || 30;
+        const fsw = parseFloat(document.getElementById('fb-fsw').value) * 1000 || 100000;
+        const mode = document.getElementById('fb-mode').value;
+
+        document.getElementById('fb-vin-val').textContent = Vin + 'V';
+        document.getElementById('fb-vout-val').textContent = Vout + 'V';
+        document.getElementById('fb-pout-val').textContent = Pout + 'W';
+        document.getElementById('fb-fsw-val').textContent = (fsw/1000).toFixed(0) + 'kHz';
+
+        const eta = 0.85;
+        const Vf = 0.5; // Diode forward drop
+        const Dmax = 0.45; // Max duty cycle
+
+        // Turns ratio for CCM
+        const n = (Vin * Dmax) / ((Vout + Vf) * (1 - Dmax));
+
+        // Actual duty cycle
+        const D = (n * (Vout + Vf)) / (Vin + n * (Vout + Vf));
+
+        // Primary inductance
+        const K = 0.4; // Ripple factor
+        const Lpri = (Vin * D) * (Vin * D) / (2 * fsw * Pout / eta * K);
+
+        // Primary peak current
+        const Iout = Pout / Vout;
+        const Ipri_avg = Pout / (eta * Vin * D);
+        const deltaIp = K * Ipri_avg;
+        const Ipri_pk = Ipri_avg + deltaIp / 2;
+
+        document.getElementById('fb-ratio').textContent = n.toFixed(1) + ':1';
+        document.getElementById('fb-duty').textContent = (D * 100).toFixed(1) + '%';
+        document.getElementById('fb-lpri').textContent = AD.formatValue(Lpri, 'H');
+        document.getElementById('fb-ipk').textContent = Ipri_pk.toFixed(2) + 'A';
+
+        // Draw waveforms
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        const plotW = (W - mL - mR - 40) / 2;
+        const plotH = 100;
+
+        // Primary current waveform
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(mL, mT, plotW, plotH);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Primary Current (Ip)', mL + plotW/2, mT - 5);
+
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        const periods = 2;
+        for (let i = 0; i <= plotW; i++) {
+            const phase = (i / plotW * periods) % 1;
+            let Ip;
+
+            if (mode === 'ccm') {
+                if (phase < D) {
+                    Ip = (Ipri_avg - deltaIp/2) + (deltaIp * phase / D);
+                } else {
+                    Ip = 0;
+                }
+            } else if (mode === 'dcm') {
+                if (phase < D) {
+                    Ip = Ipri_pk * phase / D;
+                } else if (phase < D + 0.3) {
+                    Ip = 0;
+                } else {
+                    Ip = 0;
+                }
+            } else { // BCM
+                if (phase < D) {
+                    Ip = Ipri_pk * phase / D;
+                } else {
+                    Ip = Ipri_pk * (1 - (phase - D) / (1 - D));
+                    if (Ip < 0) Ip = 0;
+                }
+            }
+
+            const y = mT + plotH - (Ip / (Ipri_pk * 1.2)) * plotH;
+            if (i === 0) ctx.moveTo(mL + i, y);
+            else ctx.lineTo(mL + i, y);
+        }
+        ctx.stroke();
+
+        // Labels
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(Ipri_pk.toFixed(1) + 'A', mL - 5, mT + 10);
+        ctx.fillText('0A', mL - 5, mT + plotH);
+
+        // Secondary current waveform
+        const plot2X = mL + plotW + 40;
+        ctx.strokeStyle = TEK.grid;
+        ctx.strokeRect(plot2X, mT, plotW, plotH);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Secondary Current (Is)', plot2X + plotW/2, mT - 5);
+
+        const Is_pk = Ipri_pk * n;
+
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        for (let i = 0; i <= plotW; i++) {
+            const phase = (i / plotW * periods) % 1;
+            let Is;
+
+            if (mode === 'ccm') {
+                if (phase < D) {
+                    Is = 0;
+                } else {
+                    const secPhase = (phase - D) / (1 - D);
+                    Is = Is_pk * (1 - secPhase * 0.4);
+                }
+            } else if (mode === 'dcm') {
+                if (phase < D) {
+                    Is = 0;
+                } else if (phase < D + 0.35) {
+                    Is = Is_pk * (1 - (phase - D) / 0.35);
+                } else {
+                    Is = 0;
+                }
+            } else { // BCM
+                if (phase < D) {
+                    Is = 0;
+                } else {
+                    Is = Is_pk * (1 - (phase - D) / (1 - D));
+                }
+            }
+
+            const y = mT + plotH - (Is / (Is_pk * 1.2)) * plotH;
+            if (i === 0) ctx.moveTo(plot2X + i, y);
+            else ctx.lineTo(plot2X + i, y);
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = '#888';
+        ctx.textAlign = 'right';
+        ctx.fillText(Is_pk.toFixed(1) + 'A', plot2X - 5, mT + 10);
+        ctx.fillText('0A', plot2X - 5, mT + plotH);
+
+        // Transformer diagram
+        const tfY = mT + plotH + 30;
+        ctx.fillStyle = '#222';
+        ctx.fillRect(mL, tfY, W - mL - mR, 140);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(mL, tfY, W - mL - mR, 140);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Flyback Transformer:', mL + 10, tfY + 20);
+
+        // Draw transformer symbol
+        const txX = mL + 100, txY = tfY + 70;
+
+        // Primary winding
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 5; i++) {
+            ctx.beginPath();
+            ctx.arc(txX + i * 12, txY, 8, Math.PI, 0);
+            ctx.stroke();
+        }
+        ctx.fillStyle = TEK.ch1;
+        ctx.font = '10px monospace';
+        ctx.fillText('Primary', txX - 30, txY + 30);
+        ctx.fillText('Np turns', txX - 30, txY + 45);
+
+        // Core
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(txX + 70, txY - 20);
+        ctx.lineTo(txX + 70, txY + 20);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(txX + 80, txY - 20);
+        ctx.lineTo(txX + 80, txY + 20);
+        ctx.stroke();
+
+        // Secondary winding
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.arc(txX + 95 + i * 12, txY, 8, 0, Math.PI);
+            ctx.stroke();
+        }
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('Secondary', txX + 140, txY + 30);
+        ctx.fillText('Ns turns', txX + 140, txY + 45);
+
+        // Air gap
+        ctx.fillStyle = '#fa4';
+        ctx.font = '9px monospace';
+        ctx.fillText('Air Gap', txX + 60, txY + 35);
+        ctx.fillText('(stores energy!)', txX + 50, txY + 48);
+
+        // Voltage stress info
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        const Vsw = Vin + n * (Vout + Vf) + 50; // +50V spike estimate
+        const Vdiode = Vout + Vin / n;
+
+        ctx.fillText('Component Stress:', txX + 250, tfY + 40);
+        ctx.fillStyle = '#888';
+        ctx.fillText('Switch: ' + Vsw.toFixed(0) + 'V (with spike)', txX + 250, tfY + 60);
+        ctx.fillText('Diode: ' + Vdiode.toFixed(0) + 'V', txX + 250, tfY + 75);
+        ctx.fillText('Turns ratio: ' + n.toFixed(1) + ':1', txX + 250, tfY + 90);
+
+        // Mode description
+        ctx.fillStyle = '#4f4';
+        ctx.font = '10px monospace';
+        const modeDesc = {
+            ccm: 'CCM: Current never reaches zero. Better for high power.',
+            dcm: 'DCM: Current returns to zero each cycle. Simpler control.',
+            bcm: 'BCM: Current just reaches zero. Transition mode.'
+        };
+        ctx.fillText(modeDesc[mode], txX + 250, tfY + 120);
+    }
+
+    ['fb-vin', 'fb-vout', 'fb-pout', 'fb-fsw', 'fb-mode'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', update);
+        el.addEventListener('change', update);
+    });
+
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('fb-schematic');
+        const svg = new SchematicSVG(700, 260);
+
+        svg.text(50, 25, 'Flyback Converter with Snubber:', {fontSize: 12, fill: '#4af'});
+
+        // Input
+        svg.text(30, 80, 'Vin', {fontSize: 10});
+        svg.wire([[50, 70], [100, 70]]);
+
+        // Primary winding (simplified as inductor)
+        svg.inductor(130, 70, {horizontal: true});
+        svg.text(130, 55, 'Lpri', {fontSize: 9});
+
+        // Transformer core indication
+        svg.wire([[155, 50], [155, 90]]);
+        svg.wire([[160, 50], [160, 90]]);
+
+        // Switch
+        svg.wire([[150, 70], [180, 70]]);
+        svg.wire([[180, 70], [180, 100]]);
+        svg.wire([[180, 140], [180, 170]]);
+        svg.text(195, 120, 'Q', {fontSize: 10});
+
+        // Snubber (RCD clamp)
+        svg.wire([[180, 70], [220, 70]]);
+        svg.wire([[220, 70], [220, 50]]);
+        svg.diode(220, 40, {horizontal: false});
+        svg.wire([[220, 20], [260, 20]]);
+        svg.capacitor(280, 20, {horizontal: true});
+        svg.wire([[300, 20], [340, 20]]);
+        svg.resistor(340, 40, {horizontal: false});
+        svg.wire([[340, 60], [340, 70]]);
+        svg.wire([[220, 70], [340, 70]]);
+        svg.text(280, 10, 'Snubber', {fontSize: 9, fill: '#fa4'});
+
+        // Secondary winding
+        svg.wire([[170, 70], [170, 50]]);
+        svg.wire([[170, 50], [250, 50]]);
+        svg.inductor(280, 50, {horizontal: true});
+        svg.text(280, 35, 'Lsec', {fontSize: 9});
+
+        // Isolation barrier
+        svg.text(195, 105, '||', {fontSize: 14, fill: '#888'});
+        svg.text(170, 145, 'Isolation', {fontSize: 8, fill: '#888'});
+
+        // Output diode
+        svg.wire([[300, 50], [340, 50]]);
+        svg.diode(360, 50, {horizontal: true});
+        svg.text(360, 35, 'D', {fontSize: 9});
+
+        // Output capacitor
+        svg.wire([[380, 50], [420, 50]]);
+        svg.wire([[420, 50], [420, 80]]);
+        svg.capacitor(420, 100, {horizontal: false});
+        svg.text(435, 100, 'Cout', {fontSize: 9});
+        svg.wire([[420, 120], [420, 150]]);
+
+        // Load
+        svg.wire([[420, 50], [480, 50]]);
+        svg.resistor(480, 80, {horizontal: false});
+        svg.text(500, 90, 'Load', {fontSize: 9});
+        svg.wire([[480, 100], [480, 150]]);
+
+        // Ground connections
+        svg.wire([[50, 170], [180, 170]]);
+        svg.wire([[50, 70], [50, 170]]);
+        svg.wire([[250, 150], [480, 150]]);
+        svg.wire([[250, 50], [250, 150]]);
+
+        // Output
+        svg.text(500, 45, 'Vout', {fontSize: 10});
+
+        // Feedback (optocoupler)
+        svg.rect(350, 130, 50, 40, {fill: 'none', stroke: '#888'});
+        svg.text(375, 155, 'Opto', {fontSize: 8});
+        svg.wire([[420, 90], [400, 130]]);
+        svg.wire([[350, 150], [180, 150]]);
+
+        // Annotations
+        svg.text(520, 100, 'Key points:', {fontSize: 10, fill: '#4af'});
+        svg.text(520, 120, '• Snubber absorbs leakage spike', {fontSize: 9, fill: '#888'});
+        svg.text(520, 135, '• Opto provides isolated feedback', {fontSize: 9, fill: '#888'});
+        svg.text(520, 150, '• Dot convention: opposite phase', {fontSize: 9, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // SPICE
+    function initSpice() {
+        new SpiceNetlistWidget('fb-spice', {
+            title: 'Flyback Converter Simulation',
+            netlist: `* Flyback Converter - 150VDC to 12V/2.5A
+* 100kHz switching, CCM operation
+
+* Input (rectified mains)
+Vin in 0 DC 150
+
+* Flyback transformer (coupled inductors)
+* Primary: 500µH, Secondary: 50µH (10:1)
+L1 in sw 500u
+L2 sec_a 0 50u
+K1 L1 L2 0.98  ; 2% leakage
+
+* Switch (MOSFET)
+.subckt sw_pwm d g s
+S1 d s g s swmod
+.model swmod sw(Ron=0.1 Roff=1MEG Vt=2.5)
+.ends
+Xsw sw 0 pwm 0 sw_pwm
+
+* PWM (D = 45%)
+Vpwm pwm 0 PULSE(0 10 0 50n 50n 4.5u 10u)
+
+* RCD Snubber
+Dsnub sw snub_cap DFAST
+Csnub snub_cap 0 10n IC=200
+Rsnub snub_cap sw 10k
+.model DFAST D(Is=1e-8 Rs=0.01)
+
+* Output diode (fast recovery)
+Dout sec_a out DFAST
+
+* Output filter
+Cout out 0 470u IC=12
+Rload out 0 4.8  ; 2.5A at 12V
+
+.tran 100n 500u UIC
+
+.probe V(sw) V(out) I(L1) I(L2)
+.end
+
+* Expected: Vout ≈ 12V
+* Switch voltage: ~300V peak with snubber
+* Watch for leakage inductance ringing`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('fb-checklist', {
+            title: 'Flyback Design Checklist',
+            items: [
+                'Define input voltage range (AC or DC)',
+                'Calculate turns ratio for target duty cycle',
+                'Size primary inductance for operating mode',
+                'Select core with adequate energy storage',
+                'Calculate and design air gap',
+                'Select switch with margin for leakage spike',
+                'Design snubber for leakage energy',
+                'Select output diode for voltage and speed',
+                'Size output capacitor for ripple and ESR',
+                'Design feedback with optocoupler isolation',
+                'Verify creepage/clearance for safety'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('fb-exercises', {
+            exercises: [
+                {
+                    question: 'Flyback: Vin=100V, Vout=5V, D=0.4. What turns ratio?',
+                    answer: 'n = 13.3:1',
+                    solution: 'n = (Vin × D) / (Vout × (1-D)) = (100 × 0.4) / (5 × 0.6) = 40/3 = 13.3:1'
+                },
+                {
+                    question: 'Why must flyback transformers have an air gap?',
+                    answer: 'To store energy',
+                    solution: 'Unlike a true transformer, a flyback transformer stores energy in its magnetic field during switch-on. The air gap increases reluctance, allowing more energy storage (E = 0.5×L×I²) without saturating the core.'
+                },
+                {
+                    question: 'Flyback switch sees 400V spike. Primary inductance 500µH, leakage 2%, Ipk=2A. What snubber capacitor to clamp at 400V?',
+                    answer: '~50nF',
+                    solution: 'Leakage L = 500µ × 0.02 = 10µH. Energy = 0.5 × 10µ × 2² = 20µJ. C = 2×E/V² = 2×20µ/400² = 250pF minimum. Add margin: ~50nF typical for low ripple on clamp.'
+                }
+            ]
+        });
+    }
+
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
+})();
+</script>

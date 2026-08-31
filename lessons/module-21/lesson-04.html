@@ -1,0 +1,524 @@
+<!-- Module 21, Lesson 4: Power Supply Noise & PSRR -->
+<div class="lesson-content" data-module="21" data-lesson="4">
+
+    <div class="card">
+        <h2>Power Supply Noise & PSRR</h2>
+        <p>Power supply rejection ratio (PSRR) determines how much supply noise appears at the output. Understanding PSRR variation with frequency is critical for sensitive analog circuits.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">PSRR</div>
+                <div class="v">20 log(ΔVs/ΔVout)</div>
+            </div>
+            <div class="box">
+                <div class="k">DC PSRR</div>
+                <div class="v">80-120 dB typical</div>
+            </div>
+            <div class="box">
+                <div class="k">HF PSRR</div>
+                <div class="v">20-40 dB at 1 MHz</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> PSRR degrades at high frequency. A 100dB PSRR at DC may be only 30dB at 100kHz. This means switching regulator noise at 500kHz passes through with minimal attenuation.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: PSRR and Noise Analysis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="psrr-dc">DC PSRR (dB)</label>
+                <input type="range" id="psrr-dc" min="60" max="120" step="5" value="90">
+                <span id="psrr-dc-val" class="mono">90dB</span>
+            </div>
+            <div class="c3">
+                <label for="psrr-pole">PSRR Pole (kHz)</label>
+                <input type="range" id="psrr-pole" min="1" max="100" step="1" value="10">
+                <span id="psrr-pole-val" class="mono">10kHz</span>
+            </div>
+            <div class="c3">
+                <label for="psrr-vnoise">Supply Noise (mVpp)</label>
+                <input type="range" id="psrr-vnoise" min="1" max="100" step="1" value="20">
+                <span id="psrr-vnoise-val" class="mono">20mV</span>
+            </div>
+            <div class="c3">
+                <label for="psrr-fnoise">Noise Freq (kHz)</label>
+                <input type="range" id="psrr-fnoise" min="1" max="1000" step="10" value="100">
+                <span id="psrr-fnoise-val" class="mono">100kHz</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="psrr-canvas" width="980" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">PSRR @ Noise Freq</div>
+                <div class="v mono" id="psrr-at-f">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Output Noise</div>
+                <div class="v mono" id="psrr-vout">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Attenuation Needed</div>
+                <div class="v mono" id="psrr-atten">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>PSRR Frequency Behavior</h3>
+        <div class="diagram-container">
+            <canvas id="psrr-freq-canvas" width="800" height="500" style="width:100%;max-width:800px;background:#0d1117;border-radius:8px;"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Impact on Signal Chain</h3>
+
+        <table class="table">
+            <tr>
+                <th>Application</th>
+                <th>Max Tolerable Noise</th>
+                <th>Required PSRR</th>
+            </tr>
+            <tr>
+                <td>16-bit ADC (5V ref)</td>
+                <td>76µV (1 LSB)</td>
+                <td>>48dB for 20mV ripple</td>
+            </tr>
+            <tr>
+                <td>Audio (90dB SNR)</td>
+                <td>32µV for 1Vrms</td>
+                <td>>56dB for 20mV ripple</td>
+            </tr>
+            <tr>
+                <td>RF LNA bias</td>
+                <td>~1mV</td>
+                <td>>26dB for 20mV ripple</td>
+            </tr>
+            <tr>
+                <td>Precision instrumentation</td>
+                <td><10µV</td>
+                <td>>66dB for 20mV ripple</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Switching Regulator Noise:</strong> Noise at the switching frequency (100kHz-2MHz) often appears as spurs in FFT. These are particularly problematic for RF and precision analog because they can alias into the signal band.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('psrr-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const psrrDc = parseFloat(document.getElementById('psrr-dc').value);
+        const pole = parseFloat(document.getElementById('psrr-pole').value) * 1e3;
+        const vnoise = parseFloat(document.getElementById('psrr-vnoise').value);
+        const fnoise = parseFloat(document.getElementById('psrr-fnoise').value) * 1e3;
+
+        document.getElementById('psrr-dc-val').textContent = psrrDc + 'dB';
+        document.getElementById('psrr-pole-val').textContent = (pole / 1e3).toFixed(0) + 'kHz';
+        document.getElementById('psrr-vnoise-val').textContent = vnoise + 'mV';
+        document.getElementById('psrr-fnoise-val').textContent = (fnoise / 1e3).toFixed(0) + 'kHz';
+
+        // PSRR at noise frequency (single pole rolloff)
+        const psrrAtF = psrrDc - 20 * Math.log10(Math.sqrt(1 + Math.pow(fnoise / pole, 2)));
+        document.getElementById('psrr-at-f').textContent = psrrAtF.toFixed(0) + 'dB';
+
+        // Output noise
+        const attenuation = Math.pow(10, psrrAtF / 20);
+        const vout = vnoise / attenuation * 1000; // µV
+        document.getElementById('psrr-vout').textContent = vout.toFixed(1) + 'µV';
+
+        // If we need <1LSB for 16-bit, what additional attenuation?
+        const targetNoise = 76; // µV for 16-bit, 5V
+        const additionalNeeded = vout > targetNoise ? 20 * Math.log10(vout / targetNoise) : 0;
+        const attenEl = document.getElementById('psrr-atten');
+        if (additionalNeeded > 0) {
+            attenEl.textContent = additionalNeeded.toFixed(0) + 'dB more';
+            attenEl.style.color = 'var(--warn)';
+        } else {
+            attenEl.textContent = 'Sufficient';
+            attenEl.style.color = 'var(--ok)';
+        }
+
+        plotPSRR(psrrDc, pole, fnoise);
+    }
+
+    function plotPSRR(psrrDc, pole, fnoise) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const fMin = 10;
+        const fMax = 10e6;
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: Math.log10(fMin),
+            xMax: Math.log10(fMax),
+            yMin: 0,
+            yMax: psrrDc * 1.2,
+            xLabel: 'Frequency',
+            yLabel: 'PSRR',
+            xUnit: 'Hz',
+            yUnit: 'dB',
+            xDivs: 8,
+            yDivs: 6
+        });
+
+        const N = 200;
+        const fData = [];
+        const psrrData = [];
+
+        for (let i = 0; i < N; i++) {
+            const logF = Math.log10(fMin) + (i / N) * (Math.log10(fMax) - Math.log10(fMin));
+            const f = Math.pow(10, logF);
+            fData.push(logF);
+
+            // PSRR with single pole rolloff
+            const psrr = psrrDc - 20 * Math.log10(Math.sqrt(1 + Math.pow(f / pole, 2)));
+            psrrData.push(Math.max(0, psrr));
+        }
+
+        AD.plotData(ctx, axes, fData, psrrData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2
+        });
+
+        // Mark operating frequency
+        ctx.save();
+        const psrrAtF = psrrDc - 20 * Math.log10(Math.sqrt(1 + Math.pow(fnoise / pole, 2)));
+        const opPt = axes.toCanvas(Math.log10(fnoise), psrrAtF);
+
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.95)';
+        ctx.beginPath();
+        ctx.arc(opPt.x, opPt.y, 8, 0, 2 * Math.PI);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(opPt.x, axes.top);
+        ctx.lineTo(opPt.x, axes.top + axes.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('Noise freq', opPt.x + 5, opPt.y - 10);
+        ctx.fillText(AD.fmtUnit(fnoise, 'Hz'), opPt.x + 5, opPt.y + 5);
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'PSRR vs frequency' }
+        ]);
+    }
+
+    ['psrr-dc', 'psrr-pole', 'psrr-vnoise', 'psrr-fnoise'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'PSRR Measurement Circuit',
+        netlist: `* PSRR Analysis of Op-Amp Circuit
+
+* Power supply with noise
+VCC vcc 0 DC 5 AC 1
+* AC source on supply for PSRR measurement
+
+* Decoupling (adjust to see effect)
+CDEC vcc gnd 10u
+
+* Op-amp model with PSRR
+.SUBCKT OPA_PSRR inp inn out vcc
+* Simplified model with PSRR effect
+EOUT mid gnd inp inn 1e5
+* PSRR models supply noise coupling
+EPSRR mid out vcc gnd {1/1e4}
+* PSRR = 80dB = 1e4
+.ENDS
+
+* Non-inverting buffer
+XU1 inp fb out vcc OPA_PSRR
+RF out fb 10k
+RI fb gnd 10k
+
+* Input grounded for PSRR test
+VIN inp gnd DC 0
+
+* Measure output vs supply
+.AC DEC 100 10 10MEG
+
+.PROBE VDB(out) VP(out)
+.END
+
+* PSRR = VDB(vcc) - VDB(out)
+* Look for degradation at high frequency`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm21l4',
+        items: [
+            'Check PSRR at switching regulator frequency',
+            'Add LDO post-regulation for sensitive circuits',
+            'Use ferrite + cap filtering for HF',
+            'Select high-PSRR op-amps for analog',
+            'Verify noise budget for ADC resolution'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'EX21-4',
+        type: 'numeric',
+        question: 'An op-amp has 80dB PSRR at DC with a 10kHz pole. What is the PSRR at 100kHz?',
+        hint: 'PSRR drops 20dB/decade above the pole',
+        expected: 60,
+        tolerance: 0.05,
+        unit: 'dB',
+        solution: 'PSRR(100kHz) = 80dB - 20×log₁₀(100kHz/10kHz) = 80 - 20 = 60dB',
+        explanation: 'At 100kHz (one decade above the pole), PSRR has dropped by 20dB. 30mV of supply noise would appear as 30µV at the output - problematic for precision applications.'
+    });
+})();
+
+// PSRR Frequency Behavior Canvas
+(function() {
+    const canvas = document.getElementById('psrr-freq-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('PSRR Frequency Behavior', 30, 30);
+
+    // Draw simplified Bode plot
+    const plotX = 80, plotY = 80;
+    const plotW = 350, plotH = 200;
+
+    // Axes
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(plotX, plotY);
+    ctx.lineTo(plotX, plotY + plotH);
+    ctx.lineTo(plotX + plotW, plotY + plotH);
+    ctx.stroke();
+
+    // Y-axis labels (PSRR in dB)
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'right';
+    const yLabels = ['100dB', '80dB', '60dB', '40dB', '20dB', '0dB'];
+    yLabels.forEach((label, i) => {
+        const y = plotY + i * (plotH / 5);
+        ctx.fillText(label, plotX - 5, y + 4);
+        ctx.strokeStyle = '#333';
+        ctx.beginPath();
+        ctx.moveTo(plotX, y);
+        ctx.lineTo(plotX + plotW, y);
+        ctx.stroke();
+    });
+
+    // X-axis labels (frequency)
+    ctx.textAlign = 'center';
+    const xLabels = ['10', '100', '1k', '10k', '100k', '1M'];
+    xLabels.forEach((label, i) => {
+        const x = plotX + i * (plotW / 5);
+        ctx.fillText(label, x, plotY + plotH + 15);
+    });
+    ctx.fillText('Frequency (Hz)', plotX + plotW/2, plotY + plotH + 35);
+
+    // Y-axis title
+    ctx.save();
+    ctx.translate(25, plotY + plotH/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.textAlign = 'center';
+    ctx.fillText('PSRR (dB)', 0, 0);
+    ctx.restore();
+
+    // PSRR curve
+    ctx.strokeStyle = TEK.ch2;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    // Flat at 80dB until pole
+    ctx.moveTo(plotX, plotY + 40);
+    ctx.lineTo(plotX + plotW * 0.5, plotY + 40);
+    // Roll off at 20dB/decade
+    ctx.lineTo(plotX + plotW * 0.7, plotY + 80);
+    ctx.lineTo(plotX + plotW * 0.9, plotY + 120);
+    ctx.lineTo(plotX + plotW, plotY + 160);
+    ctx.stroke();
+
+    // Pole annotation
+    ctx.strokeStyle = TEK.ch1;
+    ctx.setLineDash([3, 3]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(plotX + plotW * 0.5, plotY);
+    ctx.lineTo(plotX + plotW * 0.5, plotY + plotH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = TEK.ch1;
+    ctx.textAlign = 'center';
+    ctx.fillText('PSRR Pole', plotX + plotW * 0.5, plotY - 10);
+    ctx.font = '9px monospace';
+    ctx.fillText('(typically 1-10kHz)', plotX + plotW * 0.5, plotY + plotH + 50);
+
+    // Slope annotation
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = '10px monospace';
+    ctx.fillText('-20dB/dec', plotX + plotW * 0.75, plotY + 70);
+
+    // Problem zone - switching regulator frequency
+    ctx.fillStyle = 'rgba(251, 113, 133, 0.2)';
+    ctx.fillRect(plotX + plotW * 0.7, plotY, plotW * 0.25, plotH);
+    ctx.fillStyle = '#fb7185';
+    ctx.font = 'bold 9px monospace';
+    ctx.fillText('Switch Reg', plotX + plotW * 0.82, plotY + 20);
+    ctx.fillText('Frequency', plotX + plotW * 0.82, plotY + 32);
+
+    // Power supply filtering strategies box
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(470, 60, 300, 180);
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('PSRR Enhancement:', 490, 90);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    const strategies = [
+        '1. Add LDO post-regulator',
+        '   +40-60dB at all frequencies',
+        '',
+        '2. LC filter before sensitive IC',
+        '   fc = 1/(2π√LC)',
+        '',
+        '3. Ferrite bead + cap',
+        '   Good for >1MHz noise',
+        '',
+        '4. Use high-PSRR op-amps'
+    ];
+    strategies.forEach((s, i) => {
+        ctx.fillText(s, 490, 115 + i * 15);
+    });
+
+    // Noise budget example
+    ctx.strokeRect(470, 260, 300, 200);
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('Noise Budget Example:', 490, 290);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    const budget = [
+        'Supply ripple: 50mVpp @ 500kHz',
+        'Op-amp PSRR @ 500kHz: 40dB',
+        '',
+        'Output noise = 50mV / 100',
+        '             = 500µVpp',
+        '',
+        'For 16-bit ADC (76µV/LSB):',
+        'This is 6.5 LSB of noise!',
+        '',
+        'Solution: Add LDO or ferrite filter'
+    ];
+    budget.forEach((b, i) => {
+        ctx.fillText(b, 490, 315 + i * 17);
+    });
+
+    // Filter network diagram
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('Ferrite + Cap Filter:', 80, 330);
+
+    // Simple filter schematic
+    ctx.strokeStyle = '#e6edf3';
+    ctx.lineWidth = 2;
+    // Input
+    ctx.beginPath();
+    ctx.moveTo(80, 370);
+    ctx.lineTo(120, 370);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.fillText('Noisy', 85, 360);
+
+    // Ferrite bead (rectangle with X)
+    ctx.strokeRect(120, 360, 50, 20);
+    ctx.beginPath();
+    ctx.moveTo(125, 365);
+    ctx.lineTo(165, 375);
+    ctx.moveTo(125, 375);
+    ctx.lineTo(165, 365);
+    ctx.stroke();
+    ctx.fillText('FB', 140, 395);
+
+    // Output line
+    ctx.beginPath();
+    ctx.moveTo(170, 370);
+    ctx.lineTo(250, 370);
+    ctx.stroke();
+
+    // Capacitor to ground
+    ctx.beginPath();
+    ctx.moveTo(220, 370);
+    ctx.lineTo(220, 390);
+    ctx.moveTo(210, 390);
+    ctx.lineTo(230, 390);
+    ctx.moveTo(210, 400);
+    ctx.lineTo(230, 400);
+    ctx.moveTo(220, 400);
+    ctx.lineTo(220, 420);
+    ctx.stroke();
+    ctx.fillText('C', 235, 400);
+
+    // Ground symbol
+    ctx.beginPath();
+    ctx.moveTo(210, 420);
+    ctx.lineTo(230, 420);
+    ctx.moveTo(213, 425);
+    ctx.lineTo(227, 425);
+    ctx.moveTo(216, 430);
+    ctx.lineTo(224, 430);
+    ctx.stroke();
+
+    // Clean output
+    ctx.fillStyle = TEK.ch4;
+    ctx.fillText('Clean', 255, 360);
+    ctx.fillText('supply', 255, 375);
+})();
+</script>

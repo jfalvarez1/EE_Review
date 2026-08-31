@@ -1,0 +1,289 @@
+<!-- Module 16, Lesson 2: Load Switches & Discharge Control -->
+<div class="lesson-content" data-module="16" data-lesson="2">
+
+    <div class="card">
+        <h2>Load Switches & Discharge Control</h2>
+        <p>Load switches control power to subsystems while managing inrush current and output discharge. Quick Output Discharge (QOD) ensures defined power-off states.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Inrush Current</div>
+                <div class="v">Limited by slew rate control</div>
+            </div>
+            <div class="box">
+                <div class="k">QOD</div>
+                <div class="v">Quick Output Discharge</div>
+            </div>
+            <div class="box">
+                <div class="k">Reverse Blocking</div>
+                <div class="v">Prevents back-powering</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Without controlled discharge, output capacitors can keep a rail powered for seconds after turn-off. This prevents proper power cycling and can cause sequencing violations on restart.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Load Switch Timing</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="ls-cout">C<sub>out</sub> (µF)</label>
+                <input type="text" id="ls-cout" value="100">
+            </div>
+            <div class="c3">
+                <label for="ls-iload">Load Current (mA)</label>
+                <input type="text" id="ls-iload" value="100">
+            </div>
+            <div class="c3">
+                <label for="ls-rdis">Discharge R (Ω)</label>
+                <input type="text" id="ls-rdis" value="100">
+            </div>
+            <div class="c3">
+                <label for="ls-trise">Rise Time (ms)</label>
+                <input type="range" id="ls-trise" min="0.1" max="10" step="0.1" value="2">
+                <span id="ls-trise-val" class="mono">2ms</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="ls-canvas" width="980" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Inrush Current</div>
+                <div class="v mono" id="ls-inrush">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Discharge Time</div>
+                <div class="v mono" id="ls-tdis">—</div>
+            </div>
+            <div class="box">
+                <div class="k">QOD Power</div>
+                <div class="v mono" id="ls-pqod">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Load Switch Features</h3>
+
+        <table class="table">
+            <tr>
+                <th>Feature</th>
+                <th>Purpose</th>
+                <th>Typical ICs</th>
+            </tr>
+            <tr>
+                <td>Slew Rate Control</td>
+                <td>Limits inrush via CT pin</td>
+                <td>TPS22910, AP22653</td>
+            </tr>
+            <tr>
+                <td>QOD</td>
+                <td>Active discharge on disable</td>
+                <td>TPS22918, SLG59M1717</td>
+            </tr>
+            <tr>
+                <td>Reverse Blocking</td>
+                <td>Prevents VOUT > VIN</td>
+                <td>TPS22965</td>
+            </tr>
+            <tr>
+                <td>Current Limit</td>
+                <td>Protects against shorts</td>
+                <td>TPS259xx series</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('ls-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const cout = AD.parseValue(document.getElementById('ls-cout').value) * 1e-6 || 100e-6;
+        const iload = AD.parseValue(document.getElementById('ls-iload').value) * 1e-3 || 100e-3;
+        const rdis = AD.parseValue(document.getElementById('ls-rdis').value) || 100;
+        const trise = parseFloat(document.getElementById('ls-trise').value) * 1e-3;
+
+        document.getElementById('ls-trise-val').textContent = (trise * 1000).toFixed(1) + 'ms';
+
+        // Inrush current: I = C × dV/dt
+        const vout = 3.3;
+        const inrush = cout * vout / trise;
+
+        // Discharge time (to 10% of initial)
+        const tau = rdis * cout;
+        const tdis = 2.3 * tau; // ln(10) ≈ 2.3
+
+        // QOD power dissipation
+        const pqod = vout * vout / rdis;
+
+        document.getElementById('ls-inrush').textContent = AD.fmtUnit(inrush, 'A');
+        document.getElementById('ls-tdis').textContent = AD.fmtUnit(tdis, 's');
+        document.getElementById('ls-pqod').textContent = AD.fmtUnit(pqod, 'W');
+
+        plotLoadSwitch(trise, tau, vout);
+    }
+
+    function plotLoadSwitch(trise, tau, vout) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const totalTime = 3 * (trise + 3 * tau);
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: totalTime,
+            yMin: 0,
+            yMax: vout * 1.2,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 's',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 8
+        });
+
+        const N = 400;
+        const tData = [];
+        const voutData = [];
+
+        const tOn = 0;
+        const tOff = trise + 5 * tau;
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * totalTime;
+            tData.push(t);
+
+            let v = 0;
+            if (t < tOn) {
+                v = 0;
+            } else if (t < tOn + trise) {
+                // Linear ramp up
+                v = vout * (t - tOn) / trise;
+            } else if (t < tOff) {
+                // Steady state
+                v = vout;
+            } else {
+                // Exponential discharge
+                v = vout * Math.exp(-(t - tOff) / tau);
+            }
+            voutData.push(v);
+        }
+
+        AD.plotData(ctx, axes, tData, voutData, {
+            color: 'rgba(52, 211, 153, 0.95)',
+            lineWidth: 2,
+            label: 'Output voltage'
+        });
+
+        // Mark key regions
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.font = '10px ui-sans-serif';
+
+        const rampEnd = axes.toCanvas(trise, vout);
+        ctx.fillText('Controlled ramp', rampEnd.x - 60, rampEnd.y - 20);
+
+        const disStart = axes.toCanvas(tOff, vout);
+        ctx.fillText('QOD discharge', disStart.x + 10, disStart.y + 20);
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
+            { color: 'rgba(52, 211, 153, 0.95)', label: 'VOUT' }
+        ]);
+    }
+
+    ['ls-cout', 'ls-iload', 'ls-rdis', 'ls-trise'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Load Switch with QOD',
+        netlist: `* Load Switch with Slew Rate Control and QOD
+
+* Input supply
+VIN vin 0 DC 3.3
+
+* Enable signal (on at 1ms, off at 10ms)
+VEN en 0 PULSE(0 3.3 1m 10u 10u 9m 20m)
+
+* Simplified load switch model
+* PMOS with controlled gate drive
+M1 vin gate vout vout PMOS W=1000u L=0.5u
+.MODEL PMOS PMOS (VTO=-0.7 KP=50u)
+
+* Gate drive with slew rate control (CT capacitor)
+* When EN high, charge gate slowly
+* When EN low, discharge gate for QOD
+R_GATE en gate 10k
+C_T gate 0 100n
+
+* Load capacitor
+COUT vout 0 100u IC=0
+
+* Load resistor
+RLOAD vout 0 33
+
+* QOD discharge resistor (internal to switch)
+S_QOD vout 0 en 0 SMOD
+.MODEL SMOD SW(VT=1.5 RON=100)
+
+.TRAN 10u 30m UIC
+
+.PROBE V(vout) V(en) I(COUT)
+.END
+
+* Note: Real load switch ICs have more sophisticated
+* gate drive and QOD circuits`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm16l2',
+        items: [
+            'Understand inrush = C × dV/dt',
+            'Know CT pin controls slew rate',
+            'Calculate discharge time τ = R × C',
+            'Recognize QOD power trade-off',
+            'Know when reverse blocking is needed'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'Q2-2',
+        type: 'numeric',
+        question: 'A 100µF capacitor discharges through a 50Ω QOD resistor. How long to discharge to 10% of initial voltage?',
+        hint: 'Time to 10% = 2.3 × τ = 2.3 × R × C',
+        expected: 11.5,
+        tolerance: 0.1,
+        unit: 'ms',
+        solution: 'τ = 50Ω × 100µF = 5ms. t(10%) = 2.3 × 5ms = 11.5ms',
+        explanation: 'ln(10) ≈ 2.3, so it takes about 2.3 time constants to reach 10%. For 1%, use 4.6τ.'
+    });
+})();
+</script>

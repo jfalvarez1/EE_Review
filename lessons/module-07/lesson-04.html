@@ -1,0 +1,345 @@
+<!-- Module 7, Lesson 4: Class D Amplifiers -->
+<div class="lesson-content" data-module="7" data-lesson="4">
+
+    <div class="card">
+        <h2>Class D Amplifiers</h2>
+        <p>Class D amplifiers achieve >90% efficiency by switching the output stage fully on or off, then filtering the PWM signal. They dominate portable and high-power audio applications.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Efficiency</div>
+                <div class="v mono">85-95% (vs 25% Class A, 60% Class AB)</div>
+            </div>
+            <div class="box">
+                <div class="k">Switching Freq</div>
+                <div class="v mono">200kHz - 2MHz typical</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> Class D is essentially a 1-bit DAC + LC filter. The audio signal modulates the duty cycle of a high-frequency carrier. The LC filter averages the PWM to recover the audio.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: PWM Modulation</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="pwd-freq">Audio Freq (Hz)</label>
+                <input type="range" id="pwd-freq" min="100" max="5000" step="100" value="1000">
+                <span id="pwd-freq-val" class="mono">1000Hz</span>
+            </div>
+            <div class="c3">
+                <label for="pwd-fsw">Switching Freq (kHz)</label>
+                <input type="range" id="pwd-fsw" min="100" max="1000" step="50" value="400">
+                <span id="pwd-fsw-val" class="mono">400kHz</span>
+            </div>
+            <div class="c3">
+                <label for="pwd-mod">Modulation Depth (%)</label>
+                <input type="range" id="pwd-mod" min="10" max="90" step="5" value="50">
+                <span id="pwd-mod-val" class="mono">50%</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="pwd-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Oversampling Ratio</div>
+                <div class="v mono" id="pwd-osr">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Filter Corner</div>
+                <div class="v mono" id="pwd-fc">—</div>
+            </div>
+            <div class="box">
+                <div class="k">THD (ideal)</div>
+                <div class="v mono" id="pwd-thd">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Class D Topologies</h3>
+
+        <table class="table">
+            <tr>
+                <th>Topology</th>
+                <th>Description</th>
+                <th>Characteristics</th>
+            </tr>
+            <tr>
+                <td>Half-Bridge (AD mode)</td>
+                <td>Single output, ground-referenced</td>
+                <td>Simpler, needs bipolar supply</td>
+            </tr>
+            <tr>
+                <td>Full-Bridge (BD mode)</td>
+                <td>Differential output</td>
+                <td>2× voltage swing, single supply OK</td>
+            </tr>
+            <tr>
+                <td>Filterless</td>
+                <td>Uses speaker inductance as filter</td>
+                <td>EMI concerns, speaker-dependent</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>LC Output Filter Design</h3>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Filter Order</div>
+                <div class="v mono">2nd order LC (resonant)</div>
+            </div>
+            <div class="box">
+                <div class="k">Cutoff</div>
+                <div class="v mono">f<sub>c</sub> = 1/(2π√LC)</div>
+            </div>
+            <div class="box">
+                <div class="k">Typical f<sub>c</sub></div>
+                <div class="v mono">30-50kHz</div>
+            </div>
+            <div class="box">
+                <div class="k">Damping</div>
+                <div class="v mono">Speaker provides damping R</div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>Load Dependency:</strong> The LC filter's response depends on speaker impedance. Open-circuit output can ring or oscillate. Many Class D amps include a minimum load resistor.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>EMI Considerations</h3>
+        <p>High-frequency switching creates EMI that must be managed:</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Spread Spectrum</div>
+                <div class="v">Modulate switching freq to spread energy</div>
+            </div>
+            <div class="box">
+                <div class="k">Ferrite Beads</div>
+                <div class="v">Add on output lines to speaker</div>
+            </div>
+            <div class="box">
+                <div class="k">Shielding</div>
+                <div class="v">Keep filter close to IC, short traces</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('pwd-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const fAudio = parseFloat(document.getElementById('pwd-freq').value);
+        const fSw = parseFloat(document.getElementById('pwd-fsw').value) * 1000;
+        const modDepth = parseFloat(document.getElementById('pwd-mod').value) / 100;
+
+        document.getElementById('pwd-freq-val').textContent = fAudio + 'Hz';
+        document.getElementById('pwd-fsw-val').textContent = (fSw/1000) + 'kHz';
+        document.getElementById('pwd-mod-val').textContent = (modDepth * 100) + '%';
+
+        const osr = fSw / fAudio;
+        const fc = fSw / 10; // Typical filter at fsw/10
+
+        document.getElementById('pwd-osr').textContent = osr.toFixed(0) + '×';
+        document.getElementById('pwd-fc').textContent = (fc/1000).toFixed(1) + 'kHz';
+
+        // THD estimate (very rough)
+        const thdEst = 100 / osr;
+        document.getElementById('pwd-thd').textContent = '<' + thdEst.toFixed(2) + '%';
+
+        plotPWM(fAudio, fSw, modDepth);
+    }
+
+    function plotPWM(fAudio, fSw, modDepth) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        AD.drawGrid(ctx, w, h, 10, 10);
+
+        const N = 1000;
+        const tTotal = 3 / fAudio; // Show 3 audio cycles
+        const dt = tTotal / N;
+
+        const audio = [];
+        const pwm = [];
+        const filtered = [];
+
+        for (let i = 0; i < N; i++) {
+            const t = i * dt;
+
+            // Audio sine wave
+            const audioVal = modDepth * Math.sin(2 * Math.PI * fAudio * t);
+            audio.push(audioVal);
+
+            // PWM generation (duty cycle varies with audio)
+            const duty = 0.5 + audioVal * 0.5;
+            const swPhase = (t * fSw) % 1;
+            const pwmVal = swPhase < duty ? 1 : -1;
+            pwm.push(pwmVal);
+        }
+
+        // Simple LC filter approximation (moving average)
+        const filterLen = Math.floor(fSw / fAudio / 2);
+        for (let i = 0; i < N; i++) {
+            let sum = 0;
+            let count = 0;
+            for (let j = Math.max(0, i - filterLen); j <= i; j++) {
+                sum += pwm[j];
+                count++;
+            }
+            filtered.push(sum / count);
+        }
+
+        const h3 = h / 3;
+
+        // Plot audio (top)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        audio.forEach((v, i) => {
+            const x = (i / N) * w;
+            const y = h3 * 0.5 - v * h3 * 0.4;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.restore();
+
+        // Plot PWM (middle) - draw rectangles for visibility
+        ctx.save();
+        ctx.strokeStyle = 'rgba(110, 231, 255, 0.7)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        pwm.forEach((v, i) => {
+            const x = (i / N) * w;
+            const y = h3 * 1.5 - v * h3 * 0.35;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.restore();
+
+        // Plot filtered (bottom)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        filtered.forEach((v, i) => {
+            const x = (i / N) * w;
+            const y = h3 * 2.5 - v * h3 * 0.4;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.restore();
+
+        // Labels
+        ctx.save();
+        ctx.font = '12px ui-sans-serif';
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.fillText('Input Audio', 10, 20);
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.fillText('PWM Output', 10, h3 + 20);
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+        ctx.fillText('After LC Filter', 10, h3 * 2 + 20);
+        ctx.restore();
+    }
+
+    ['pwd-freq', 'pwd-fsw', 'pwd-mod'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Class D Half-Bridge',
+        netlist: `* Class D Amplifier (Simplified)
+* Half-bridge with LC filter
+
+.MODEL NMOS_SW NMOS (VTO=2 KP=100m RD=0.01)
+.MODEL PMOS_SW PMOS (VTO=-2 KP=50m RD=0.02)
+
+* Power supply
+VDD vdd 0 DC 12
+VSS vss 0 DC -12
+
+* Half-bridge switches
+M1 vdd gate_h sw 0 PMOS_SW W=1000u L=1u
+M2 sw gate_l vss 0 NMOS_SW W=1000u L=1u
+
+* PWM generation (audio modulates duty)
+* Using PULSE with variable duty for demo
+VGATE_H gate_h 0 PULSE(-12 12 0 10n 10n 1.1u 2.5u)
+VGATE_L gate_l 0 PULSE(12 -12 0 10n 10n 1.1u 2.5u)
+
+* LC output filter
+L1 sw filt 22u
+C1 filt 0 1u
+
+* Speaker load
+RSPK filt 0 8
+
+.TRAN 1n 1m
+
+.PROBE V(sw) V(filt) I(L1)
+.END
+
+* Note: Real Class D uses comparator with
+* triangle wave and audio input for PWM`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm7l4',
+        items: [
+            'Understand PWM modulation for audio',
+            'Know Class D efficiency advantages',
+            'Calculate LC filter cutoff frequency',
+            'Understand half-bridge vs full-bridge',
+            'Know EMI mitigation techniques'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'F1-4',
+        type: 'numeric',
+        question: 'A Class D amplifier switches at 400kHz. What LC filter values give fc = 40kHz? (L = 22µH)',
+        hint: 'fc = 1/(2π√LC), solve for C',
+        expected: 0.72,
+        tolerance: 0.1,
+        unit: 'µF',
+        solution: 'C = 1/(4π²×fc²×L) = 1/(4π²×(40kHz)²×22µH) = 0.72µF',
+        explanation: 'The LC filter cutoff should be above audio band (20kHz) but well below switching frequency for good attenuation.'
+    });
+})();
+</script>

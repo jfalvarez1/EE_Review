@@ -1,0 +1,302 @@
+<!-- Module 7, Lesson 3: Microphone Preamps -->
+<div class="lesson-content" data-module="7" data-lesson="3">
+
+    <div class="card">
+        <h2>Microphone Preamps</h2>
+        <p>Microphone signals are very low level (mV or less) and require high gain, low noise amplification. The preamp is often the most critical stage in the audio chain.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Dynamic Mic Level</div>
+                <div class="v mono">-60 to -40 dBV (1-10mV)</div>
+            </div>
+            <div class="box">
+                <div class="k">Condenser Mic Level</div>
+                <div class="v mono">-40 to -20 dBV (10-100mV)</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> At these low signal levels, the preamp's input-referred noise dominates. A 1nV/√Hz op-amp with 20kHz bandwidth has ~140nV total noise—significant compared to 1mV signals!
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Preamp Noise Analysis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="pre-gain">Gain (dB)</label>
+                <input type="range" id="pre-gain" min="20" max="60" step="1" value="40">
+                <span id="pre-gain-val" class="mono">40dB</span>
+            </div>
+            <div class="c3">
+                <label for="pre-en">e<sub>n</sub> (nV/√Hz)</label>
+                <input type="range" id="pre-en" min="0.5" max="10" step="0.1" value="1">
+                <span id="pre-en-val" class="mono">1.0</span>
+            </div>
+            <div class="c3">
+                <label for="pre-rsrc">R<sub>source</sub> (Ω)</label>
+                <input type="range" id="pre-rsrc" min="50" max="1000" step="50" value="150">
+                <span id="pre-rsrc-val" class="mono">150Ω</span>
+            </div>
+            <div class="c3">
+                <label for="pre-bw">Bandwidth (kHz)</label>
+                <input type="range" id="pre-bw" min="10" max="50" step="5" value="20">
+                <span id="pre-bw-val" class="mono">20kHz</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="pre-canvas" width="980" height="200"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Amp Noise</div>
+                <div class="v mono" id="pre-ampnoise">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Resistor Noise</div>
+                <div class="v mono" id="pre-rnoise">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Total Input Noise</div>
+                <div class="v mono" id="pre-total">—</div>
+            </div>
+            <div class="box">
+                <div class="k">EIN (dBu)</div>
+                <div class="v mono" id="pre-ein">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Phantom Power (48V)</h3>
+        <p>Condenser microphones require DC power for their internal preamp:</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Voltage</div>
+                <div class="v mono">48V DC (±4V tolerance)</div>
+            </div>
+            <div class="box">
+                <div class="k">Current</div>
+                <div class="v mono">2-10mA per mic</div>
+            </div>
+            <div class="box">
+                <div class="k">Feed Resistors</div>
+                <div class="v mono">6.8kΩ matched pair</div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>Balanced Input Required:</strong> Phantom power uses the balanced pair (pins 2 and 3) with equal DC on both. Ground (pin 1) carries return current. Dynamic mics ignore phantom if wiring is correct.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Balanced Input Topologies</h3>
+
+        <table class="table">
+            <tr>
+                <th>Topology</th>
+                <th>CMRR</th>
+                <th>Input Z</th>
+                <th>Notes</th>
+            </tr>
+            <tr>
+                <td>Transformer</td>
+                <td>60-80dB</td>
+                <td>Set by winding</td>
+                <td>True galvanic isolation, expensive</td>
+            </tr>
+            <tr>
+                <td>Instrumentation Amp</td>
+                <td>80-100dB</td>
+                <td>Very high</td>
+                <td>Variable gain, needs matched resistors</td>
+            </tr>
+            <tr>
+                <td>Differential Amp</td>
+                <td>60-80dB</td>
+                <td>R dependent</td>
+                <td>Simple, CMRR limited by matching</td>
+            </tr>
+            <tr>
+                <td>SSM2019/THAT1510</td>
+                <td>>80dB</td>
+                <td>>10kΩ</td>
+                <td>Integrated preamp ICs</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('pre-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const gainDb = parseFloat(document.getElementById('pre-gain').value);
+        const en = parseFloat(document.getElementById('pre-en').value) * 1e-9;
+        const rsrc = parseFloat(document.getElementById('pre-rsrc').value);
+        const bw = parseFloat(document.getElementById('pre-bw').value) * 1000;
+
+        document.getElementById('pre-gain-val').textContent = gainDb + 'dB';
+        document.getElementById('pre-en-val').textContent = (en * 1e9).toFixed(1);
+        document.getElementById('pre-rsrc-val').textContent = rsrc + 'Ω';
+        document.getElementById('pre-bw-val').textContent = (bw/1000) + 'kHz';
+
+        // Noise calculations
+        const k = 1.38e-23;
+        const T = 300; // Room temp
+
+        // Amplifier voltage noise (integrated over bandwidth)
+        const enTotal = en * Math.sqrt(bw);
+
+        // Resistor thermal noise
+        const erTotal = Math.sqrt(4 * k * T * rsrc * bw);
+
+        // Total input referred noise (RSS)
+        const eTotal = Math.sqrt(enTotal*enTotal + erTotal*erTotal);
+
+        // EIN in dBu (relative to 0.775V)
+        const einDbu = 20 * Math.log10(eTotal / 0.775);
+
+        document.getElementById('pre-ampnoise').textContent = (enTotal * 1e9).toFixed(1) + ' nV';
+        document.getElementById('pre-rnoise').textContent = (erTotal * 1e9).toFixed(1) + ' nV';
+        document.getElementById('pre-total').textContent = (eTotal * 1e9).toFixed(1) + ' nV';
+        document.getElementById('pre-ein').textContent = einDbu.toFixed(1) + ' dBu';
+
+        drawNoiseBars(enTotal, erTotal, eTotal);
+    }
+
+    function drawNoiseBars(enTotal, erTotal, eTotal) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.fillStyle = 'var(--panel)';
+        ctx.fillRect(0, 0, w, h);
+
+        const maxNoise = 500e-9; // 500nV scale
+        const barHeight = 35;
+        const barMaxWidth = w - 250;
+
+        // Amp noise
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.8)';
+        const ampWidth = (enTotal / maxNoise) * barMaxWidth;
+        ctx.fillRect(150, 30, ampWidth, barHeight);
+
+        // Resistor noise
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
+        const rWidth = (erTotal / maxNoise) * barMaxWidth;
+        ctx.fillRect(150, 80, rWidth, barHeight);
+
+        // Total noise
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.8)';
+        const totWidth = (eTotal / maxNoise) * barMaxWidth;
+        ctx.fillRect(150, 130, totWidth, barHeight);
+
+        // Labels
+        ctx.fillStyle = 'white';
+        ctx.font = '13px ui-sans-serif';
+        ctx.fillText('Amplifier:', 20, 52);
+        ctx.fillText('Resistor:', 20, 102);
+        ctx.fillText('Total (RSS):', 20, 152);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillText((enTotal * 1e9).toFixed(1) + ' nV', ampWidth + 160, 52);
+        ctx.fillText((erTotal * 1e9).toFixed(1) + ' nV', rWidth + 160, 102);
+        ctx.fillText((eTotal * 1e9).toFixed(1) + ' nV', totWidth + 160, 152);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText('Scale: 0 to 500nV', w - 140, 180);
+    }
+
+    ['pre-gain', 'pre-en', 'pre-rsrc', 'pre-bw'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Balanced Mic Preamp',
+        netlist: `* Balanced Microphone Preamp
+* InAmp topology with variable gain
+
+.include opamp.sub
+
+* Input buffers
+X1 inP 0 bufP 0 vcc vee OPAMP
+X2 inN 0 bufN 0 vcc vee OPAMP
+
+* Gain resistor between buffer outputs
+RGAIN bufP bufN 100  ; Adjust for gain
+
+* Difference stage
+R1 bufP diff_in 10k
+R2 bufN diff_neg 10k
+R3 diff_in 0 10k
+R4 diff_neg out 10k
+
+X3 diff_in diff_neg out 0 vcc vee OPAMP
+
+VCC vcc 0 DC 15
+VEE vee 0 DC -15
+
+* Balanced input (differential signal)
+VINP inP 0 SIN(0 1m 1k)
+VINN inN 0 SIN(0 -1m 1k)
+
+* Common mode noise (should be rejected)
+VCM inP 0 SIN(0 100m 60)
+VCM2 inN 0 SIN(0 100m 60)
+
+.TRAN 0.01m 50m
+
+.PROBE V(out) V(inP) V(inN)
+.END`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm7l3',
+        items: [
+            'Calculate total input noise from en and bandwidth',
+            'Know thermal noise: 4kTRB',
+            'Understand EIN (Equivalent Input Noise)',
+            'Know phantom power specs (48V, 6.8kΩ)',
+            'Understand balanced input topologies'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'F1-3',
+        type: 'numeric',
+        question: 'An op-amp has 1nV/√Hz noise. What is the total noise voltage over 20kHz bandwidth?',
+        hint: 'Total = en × √(bandwidth)',
+        expected: 141,
+        tolerance: 0.05,
+        unit: 'nV',
+        solution: 'Total = 1nV/√Hz × √(20,000Hz) = 1 × 141.4 = 141.4nV',
+        explanation: 'Noise spectral density integrates over bandwidth as √(BW) because noise power adds, and power is V².'
+    });
+})();
+</script>

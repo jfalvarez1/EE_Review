@@ -1,0 +1,738 @@
+<!-- Module 6, Lesson 2: Buck Converter -->
+<div class="lesson-content" data-module="6" data-lesson="2">
+
+    <div class="card">
+        <h2>Buck (Step-Down) Converter</h2>
+        <p>The buck converter efficiently steps down voltage using a switch, inductor, and capacitor. Unlike linear regulators, it can achieve >90% efficiency even with large voltage differentials.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Output Voltage</div>
+                <div class="v mono">V<sub>out</sub> = V<sub>in</sub> × D</div>
+            </div>
+            <div class="box">
+                <div class="k">Duty Cycle</div>
+                <div class="v mono">D = V<sub>out</sub>/V<sub>in</sub></div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> The buck converter works by storing energy in an inductor during switch-on and releasing it to the load during switch-off. The LC filter averages the switching waveform.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Buck Converter Design</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="buck-vin">V<sub>in</sub> (V)</label>
+                <input type="range" id="buck-vin" min="5" max="48" step="1" value="12">
+                <span id="buck-vin-val" class="mono">12V</span>
+            </div>
+            <div class="c3">
+                <label for="buck-vout">V<sub>out</sub> (V)</label>
+                <input type="range" id="buck-vout" min="1" max="24" step="0.1" value="5">
+                <span id="buck-vout-val" class="mono">5.0V</span>
+            </div>
+            <div class="c3">
+                <label for="buck-iout">I<sub>out</sub> (A)</label>
+                <input type="range" id="buck-iout" min="0.1" max="5" step="0.1" value="1">
+                <span id="buck-iout-val" class="mono">1.0A</span>
+            </div>
+            <div class="c3">
+                <label for="buck-fsw">f<sub>sw</sub> (kHz)</label>
+                <input type="range" id="buck-fsw" min="50" max="2000" step="50" value="500">
+                <span id="buck-fsw-val" class="mono">500kHz</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="buck-canvas" width="980" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Duty Cycle</div>
+                <div class="v mono" id="buck-duty">—</div>
+            </div>
+            <div class="box">
+                <div class="k">L<sub>min</sub> (CCM)</div>
+                <div class="v mono" id="buck-lmin">—</div>
+            </div>
+            <div class="box">
+                <div class="k">ΔI<sub>L</sub> (ripple)</div>
+                <div class="v mono" id="buck-dil">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Efficiency (est)</div>
+                <div class="v mono" id="buck-eff">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Buck Converter Topology</h3>
+        <p>The synchronous buck uses two MOSFETs: high-side (HS) connects input to switch node, low-side (LS) provides freewheeling path:</p>
+
+        <div id="buck-schematic" style="margin: 20px auto; max-width: 620px;"></div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Switch Node (SW)</div>
+                <div class="v">Swings between Vin and GND</div>
+            </div>
+            <div class="box">
+                <div class="k">Inductor</div>
+                <div class="v">Stores energy, averages SW voltage</div>
+            </div>
+            <div class="box">
+                <div class="k">Output Cap</div>
+                <div class="v">Filters ripple, provides transient energy</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Continuous vs Discontinuous Mode</h3>
+
+        <table class="table">
+            <tr>
+                <th>Parameter</th>
+                <th>CCM (Continuous)</th>
+                <th>DCM (Discontinuous)</th>
+            </tr>
+            <tr>
+                <td>Inductor current</td>
+                <td>Never reaches zero</td>
+                <td>Reaches zero each cycle</td>
+            </tr>
+            <tr>
+                <td>Vout/Vin</td>
+                <td>= D (duty cycle)</td>
+                <td>Complex function of L, f, load</td>
+            </tr>
+            <tr>
+                <td>Control loop</td>
+                <td>Simpler, predictable</td>
+                <td>Load-dependent transfer function</td>
+            </tr>
+            <tr>
+                <td>Efficiency</td>
+                <td>Higher at full load</td>
+                <td>Can be higher at light load</td>
+            </tr>
+        </table>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Critical Inductance</div>
+                <div class="v mono">L<sub>crit</sub> = V<sub>out</sub>(1−D)/(2×I<sub>out</sub>×f<sub>sw</sub>)</div>
+            </div>
+        </div>
+
+        <h4>CCM vs DCM Inductor Current Waveforms</h4>
+        <div class="canvas-wrap" style="max-width: 600px; margin: 15px auto;">
+            <canvas id="ccm-dcm-canvas" width="580" height="200"></canvas>
+        </div>
+        <p style="text-align: center; font-size: 13px; opacity: 0.7;">Left: CCM (IL never reaches zero) | Right: DCM (IL reaches zero each cycle)</p>
+    </div>
+
+    <div class="card">
+        <h3>Component Selection</h3>
+
+        <table class="table">
+            <tr>
+                <th>Component</th>
+                <th>Key Parameters</th>
+                <th>Selection Criteria</th>
+            </tr>
+            <tr>
+                <td>Inductor</td>
+                <td>L, I<sub>sat</sub>, DCR</td>
+                <td>I<sub>sat</sub> > I<sub>pk</sub>, low DCR for efficiency</td>
+            </tr>
+            <tr>
+                <td>Output Cap</td>
+                <td>C, ESR</td>
+                <td>Low ESR for ripple, adequate C for transient</td>
+            </tr>
+            <tr>
+                <td>High-Side FET</td>
+                <td>R<sub>DS(on)</sub>, Q<sub>g</sub></td>
+                <td>Balance conduction vs switching loss</td>
+            </tr>
+            <tr>
+                <td>Low-Side FET/Diode</td>
+                <td>V<sub>F</sub> or R<sub>DS(on)</sub></td>
+                <td>Sync FET for high efficiency</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('buck-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const vin = parseFloat(document.getElementById('buck-vin').value);
+        const vout = parseFloat(document.getElementById('buck-vout').value);
+        const iout = parseFloat(document.getElementById('buck-iout').value);
+        const fsw = parseFloat(document.getElementById('buck-fsw').value) * 1000;
+
+        document.getElementById('buck-vin-val').textContent = vin + 'V';
+        document.getElementById('buck-vout-val').textContent = vout.toFixed(1) + 'V';
+        document.getElementById('buck-iout-val').textContent = iout.toFixed(1) + 'A';
+        document.getElementById('buck-fsw-val').textContent = (fsw/1000).toFixed(0) + 'kHz';
+
+        // Clamp vout to vin
+        const voutActual = Math.min(vout, vin * 0.95);
+        const D = voutActual / vin;
+
+        // Critical inductance for CCM
+        const Lcrit = voutActual * (1 - D) / (2 * iout * fsw);
+
+        // Use 2x critical for design margin
+        const L = Lcrit * 2;
+
+        // Inductor ripple current
+        const deltaIL = voutActual * (1 - D) / (L * fsw);
+
+        // Estimated efficiency (simplified)
+        const eff = 100 * (0.95 - 0.02 * (vin - voutActual) / vin);
+
+        document.getElementById('buck-duty').textContent = (D * 100).toFixed(1) + '%';
+        document.getElementById('buck-lmin').textContent = AD.fmtUnit(Lcrit, 'H');
+        document.getElementById('buck-dil').textContent = AD.fmtUnit(deltaIL, 'A') + ' pk-pk';
+        document.getElementById('buck-eff').textContent = eff.toFixed(1) + '%';
+
+        plotWaveforms(D, iout, deltaIL, vin, voutActual, fsw);
+    }
+
+    function plotWaveforms(D, iout, deltaIL, vin, vout, fsw) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        const N = 500;
+        const cycles = 3;
+
+        // Switch node voltage (VSW)
+        const vsw = [];
+        // Inductor current
+        const iL = [];
+
+        for (let i = 0; i < N; i++) {
+            const phase = (i / N * cycles) % 1;
+
+            // VSW
+            vsw.push(phase < D ? vin : 0);
+
+            // IL (triangular)
+            const iBase = iout - deltaIL/2;
+            if (phase < D) {
+                iL.push(iBase + (phase / D) * deltaIL);
+            } else {
+                iL.push(iBase + deltaIL - ((phase - D) / (1 - D)) * deltaIL);
+            }
+        }
+
+        // Plot VSW (top half)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        vsw.forEach((v, i) => {
+            const x = (i / N) * w;
+            const y = h * 0.05 + (1 - v / vin) * h * 0.35;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.restore();
+
+        // Plot IL (bottom half)
+        const iMax = iout + deltaIL;
+        const iMin = Math.max(0, iout - deltaIL);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        iL.forEach((i, idx) => {
+            const x = (idx / N) * w;
+            const y = h * 0.55 + (1 - (i - iMin) / (iMax - iMin + 0.1)) * h * 0.4;
+            if (idx === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.restore();
+
+        // Labels
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '12px ui-sans-serif';
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.fillText('VSW (0 to Vin)', 10, 25);
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.fillText('IL (inductor current)', 10, h * 0.55 + 20);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText(`D = ${(D*100).toFixed(0)}%  |  3 switching cycles shown`, w - 250, 25);
+        ctx.restore();
+    }
+
+    ['buck-vin', 'buck-vout', 'buck-iout', 'buck-fsw'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    // Buck Converter Schematic
+    (function() {
+        const container = document.getElementById('buck-schematic');
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '600');
+        svg.setAttribute('height', '260');
+        svg.setAttribute('viewBox', '0 0 600 260');
+        svg.innerHTML = `
+            <style>
+                .wire { stroke: rgba(110, 231, 255, 0.9); stroke-width: 2; fill: none; }
+                .comp { stroke: rgba(110, 231, 255, 0.9); stroke-width: 2; fill: none; }
+                .lbl { fill: rgba(255,255,255,0.85); font: 12px ui-sans-serif; }
+                .sig { fill: rgba(52,211,153,0.9); font: 11px ui-sans-serif; }
+                .pmos { fill: rgba(251,146,60,0.15); stroke: rgba(251,146,60,0.9); stroke-width: 2; }
+                .nmos { fill: rgba(110,231,255,0.1); stroke: rgba(110,231,255,0.9); stroke-width: 2; }
+                .gnd { stroke: rgba(110, 231, 255, 0.9); stroke-width: 2; }
+            </style>
+
+            <!-- Vin -->
+            <text x="40" y="35" class="lbl">Vin</text>
+            <line x1="60" y1="30" x2="100" y2="30" class="wire"/>
+
+            <!-- Input capacitor -->
+            <line x1="100" y1="30" x2="100" y2="50" class="wire"/>
+            <line x1="90" y1="50" x2="110" y2="50" class="comp"/>
+            <line x1="90" y1="58" x2="110" y2="58" class="comp"/>
+            <line x1="100" y1="58" x2="100" y2="80" class="wire"/>
+            <text x="115" y="58" class="lbl" style="font-size:10px;">Cin</text>
+
+            <!-- Input ground -->
+            <line x1="85" y1="80" x2="115" y2="80" class="gnd"/>
+
+            <!-- Main Vin rail -->
+            <line x1="100" y1="30" x2="200" y2="30" class="wire"/>
+
+            <!-- High-Side MOSFET (HS) -->
+            <rect x="180" y="40" width="40" height="50" class="nmos" rx="3"/>
+            <text x="185" y="60" class="lbl" style="font-size:10px;">HS</text>
+            <text x="183" y="75" class="lbl" style="font-size:9px;">NMOS</text>
+            <line x1="200" y1="30" x2="200" y2="40" class="wire"/>
+            <line x1="200" y1="90" x2="200" y2="120" class="wire"/>
+
+            <!-- Gate driver HS -->
+            <line x1="180" y1="65" x2="150" y2="65" class="wire" style="stroke:rgba(251,146,60,0.7);"/>
+            <text x="130" y="60" class="lbl" style="font-size:10px;">GH</text>
+
+            <!-- Switch node -->
+            <circle cx="200" cy="120" r="4" fill="rgba(52,211,153,0.9)"/>
+            <text x="210" y="115" class="sig">SW</text>
+
+            <!-- Low-Side MOSFET (LS) -->
+            <rect x="180" y="130" width="40" height="50" class="nmos" rx="3"/>
+            <text x="188" y="150" class="lbl" style="font-size:10px;">LS</text>
+            <text x="183" y="165" class="lbl" style="font-size:9px;">NMOS</text>
+            <line x1="200" y1="120" x2="200" y2="130" class="wire"/>
+            <line x1="200" y1="180" x2="200" y2="210" class="wire"/>
+
+            <!-- Gate driver LS -->
+            <line x1="180" y1="155" x2="150" y2="155" class="wire" style="stroke:rgba(251,146,60,0.7);"/>
+            <text x="130" y="150" class="lbl" style="font-size:10px;">GL</text>
+
+            <!-- Ground for LS -->
+            <line x1="185" y1="210" x2="215" y2="210" class="gnd"/>
+            <line x1="190" y1="215" x2="210" y2="215" class="gnd"/>
+            <line x1="195" y1="220" x2="205" y2="220" class="gnd"/>
+
+            <!-- Inductor from SW to Vout -->
+            <line x1="200" y1="120" x2="270" y2="120" class="wire"/>
+
+            <!-- Inductor symbol (coil) -->
+            <path d="M 270 120
+                     Q 285 105, 300 120
+                     Q 315 135, 330 120
+                     Q 345 105, 360 120
+                     Q 375 135, 390 120"
+                  class="comp" fill="none"/>
+            <text x="315" y="100" class="lbl">L</text>
+
+            <!-- Vout node -->
+            <line x1="390" y1="120" x2="500" y2="120" class="wire"/>
+            <circle cx="450" cy="120" r="4" fill="rgba(52,211,153,0.9)"/>
+            <text x="510" y="125" class="lbl">Vout</text>
+
+            <!-- Output capacitor -->
+            <line x1="450" y1="120" x2="450" y2="150" class="wire"/>
+            <line x1="440" y1="150" x2="460" y2="150" class="comp"/>
+            <line x1="440" y1="158" x2="460" y2="158" class="comp"/>
+            <line x1="450" y1="158" x2="450" y2="190" class="wire"/>
+            <text x="465" y="158" class="lbl" style="font-size:10px;">Cout</text>
+
+            <!-- Output ground -->
+            <line x1="435" y1="190" x2="465" y2="190" class="gnd"/>
+            <line x1="440" y1="195" x2="460" y2="195" class="gnd"/>
+            <line x1="445" y1="200" x2="455" y2="200" class="gnd"/>
+
+            <!-- Load -->
+            <line x1="500" y1="120" x2="500" y2="140" class="wire"/>
+            <rect x="485" y="140" width="30" height="50" class="comp"/>
+            <text x="492" y="170" class="lbl" style="font-size:10px;">Load</text>
+            <line x1="500" y1="190" x2="500" y2="210" class="wire"/>
+            <line x1="485" y1="210" x2="515" y2="210" class="gnd"/>
+
+            <!-- Feedback arrow -->
+            <line x1="450" y1="130" x2="450" y2="230" class="wire" style="stroke:rgba(52,211,153,0.5);stroke-dasharray:4,4;"/>
+            <line x1="450" y1="230" x2="80" y2="230" class="wire" style="stroke:rgba(52,211,153,0.5);stroke-dasharray:4,4;"/>
+            <polygon points="80,230 90,225 90,235" fill="rgba(52,211,153,0.5)"/>
+            <text x="230" y="245" class="sig" style="font-size:10px;">Feedback to Controller</text>
+
+            <!-- Controller block -->
+            <rect x="20" y="130" width="70" height="50" rx="5" style="fill:rgba(110,231,255,0.1);stroke:rgba(110,231,255,0.6);"/>
+            <text x="30" y="155" class="lbl" style="font-size:10px;">PWM</text>
+            <text x="25" y="170" class="lbl" style="font-size:10px;">Controller</text>
+
+            <!-- Annotations -->
+            <text x="25" y="250" class="lbl" style="font-size:10px;opacity:0.7;">Vout = Vin × D</text>
+        `;
+        container.appendChild(svg);
+    })();
+
+    // CCM vs DCM waveform comparison
+    (function() {
+        const canvas = document.getElementById('ccm-dcm-canvas');
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+
+        ctx.fillStyle = 'var(--panel)';
+        ctx.fillRect(0, 0, w, h);
+
+        const margin = 30;
+        const plotW = (w - 3 * margin) / 2;
+        const plotH = h - 2 * margin;
+
+        // Draw both plots
+        function drawILWaveform(offsetX, isCCM) {
+            const x0 = offsetX;
+            const y0 = margin;
+
+            // Grid
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = y0 + (i / 4) * plotH;
+                ctx.beginPath();
+                ctx.moveTo(x0, y);
+                ctx.lineTo(x0 + plotW, y);
+                ctx.stroke();
+            }
+
+            // Zero line
+            const zeroY = isCCM ? y0 + plotH * 0.85 : y0 + plotH * 0.9;
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.beginPath();
+            ctx.moveTo(x0, zeroY);
+            ctx.lineTo(x0 + plotW, zeroY);
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.font = '10px ui-sans-serif';
+            ctx.fillText('0', x0 - 12, zeroY + 3);
+            ctx.fillText('IL', x0 - 15, y0 + plotH * 0.4);
+
+            // Waveform
+            ctx.strokeStyle = 'rgba(52, 211, 153, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const D = 0.4; // Duty cycle
+            const cycles = 3;
+
+            for (let i = 0; i <= 200; i++) {
+                const t = i / 200;
+                const phase = (t * cycles) % 1;
+
+                let iNorm;
+                if (isCCM) {
+                    // CCM: IL oscillates around Iavg, never reaches zero
+                    const iAvg = 0.5;
+                    const ripple = 0.3;
+                    if (phase < D) {
+                        iNorm = iAvg - ripple/2 + (phase / D) * ripple;
+                    } else {
+                        iNorm = iAvg + ripple/2 - ((phase - D) / (1 - D)) * ripple;
+                    }
+                } else {
+                    // DCM: IL reaches zero, then stays zero until next cycle
+                    const ipk = 0.7;
+                    const D2 = 0.35; // Time to discharge to zero
+                    if (phase < D) {
+                        iNorm = (phase / D) * ipk;
+                    } else if (phase < D + D2) {
+                        iNorm = ipk - ((phase - D) / D2) * ipk;
+                    } else {
+                        iNorm = 0;
+                    }
+                }
+
+                const x = x0 + t * plotW;
+                const y = zeroY - iNorm * plotH * 0.7;
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Title
+            ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
+            ctx.font = '12px ui-sans-serif';
+            ctx.fillText(isCCM ? 'CCM (Continuous)' : 'DCM (Discontinuous)', x0 + plotW/2 - 50, y0 - 10);
+
+            // DCM zero region annotation
+            if (!isCCM) {
+                ctx.fillStyle = 'rgba(251, 146, 60, 0.2)';
+                const startX = x0 + (D + 0.35) / cycles * plotW;
+                const endX = x0 + (1) / cycles * plotW;
+                ctx.fillRect(startX, zeroY - 5, endX - startX, 10);
+                ctx.fillStyle = 'rgba(251, 146, 60, 0.7)';
+                ctx.font = '9px ui-sans-serif';
+                ctx.fillText('IL=0', startX + 5, zeroY - 10);
+            }
+        }
+
+        // Draw CCM on left
+        drawILWaveform(margin, true);
+        // Draw DCM on right
+        drawILWaveform(margin * 2 + plotW, false);
+    })();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Synchronous Buck Converter',
+        netlist: `* Synchronous Buck Converter
+* 12V to 5V, 1A, 500kHz
+
+.MODEL NMOS_SW NMOS (VTO=2 KP=100m RD=0.01)
+
+* High-side switch
+M1 vin gate_h sw 0 NMOS_SW W=1000u L=1u
+* Low-side switch
+M2 sw gate_l 0 0 NMOS_SW W=1000u L=1u
+
+* Gate drives (complementary with dead-time)
+VGATE_H gate_h 0 PULSE(0 12 0 10n 10n 833n 2u)
+VGATE_L gate_l 0 PULSE(12 0 0 10n 10n 833n 2u)
+
+VIN vin 0 DC 12
+
+* LC filter
+L1 sw vout 10u IC=1
+COUT vout 0 100u IC=5
+
+* Load
+RLOAD vout 0 5
+
+.TRAN 10n 100u UIC
+
+.PROBE V(sw) V(vout) I(L1)
+.END
+
+* Expected: Vout ≈ 5V (D = 42%)
+* IL ripple visible on inductor current`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm6l2',
+        items: [
+            'Know Vout = Vin × D for ideal buck in CCM',
+            'Calculate duty cycle D = Vout/Vin',
+            'Understand CCM (IL never zero) vs DCM (IL reaches zero)',
+            'Calculate minimum inductance: Lcrit = Vout(1-D)/(2×Iout×fsw)',
+            'Calculate inductor ripple current: ΔIL = Vout(1-D)/(L×fsw)',
+            'Know switching losses vs conduction losses trade-off',
+            'Understand dead-time requirement for synchronous buck',
+            'Select inductor with Isat > Ipeak and low DCR',
+            'Know output capacitor ESR affects ripple voltage',
+            'Understand minimum on-time limits at high Vin/Vout ratios'
+        ]
+    });
+
+    // Progressive Exercises - Buck Converter (Level 1-4)
+    const container = document.getElementById('exercise-container');
+    container.innerHTML = `
+        <h4>Buck Converter Problems</h4>
+        <p style="color:var(--text);opacity:0.7;margin-bottom:15px;">
+            Build from basic duty cycle to complete converter design.
+        </p>
+    `;
+
+    const exercises = [
+        // Level 1: Basic duty cycle
+        {
+            id: 'M6-2-L1a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 1</span> A buck converter has Vin = 12V and needs Vout = 5V. What duty cycle is required?',
+            hint: 'D = Vout / Vin',
+            expected: 41.7,
+            tolerance: 0.5,
+            unit: '%',
+            solution: 'D = 5V / 12V = 0.417 = 41.7%',
+            explanation: 'The buck converter duty cycle equals the voltage conversion ratio.'
+        },
+        {
+            id: 'M6-2-L1b',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 1</span> A buck converter has Vin = 24V and D = 50%. What is Vout?',
+            hint: 'Vout = Vin × D',
+            expected: 12,
+            tolerance: 0.1,
+            unit: 'V',
+            solution: 'Vout = 24V × 0.50 = 12V',
+            explanation: 'In a buck, output voltage is always less than input (step-down).'
+        },
+        // Level 2: Inductor and ripple
+        {
+            id: 'M6-2-L2a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 2</span> Calculate the minimum inductance (Lcrit) for CCM: Vout = 5V, Iout = 1A, fsw = 500kHz, D = 42%.',
+            hint: 'Lcrit = Vout × (1-D) / (2 × Iout × fsw)',
+            expected: 2.9,
+            tolerance: 0.2,
+            unit: 'µH',
+            solution: 'Lcrit = 5V × (1-0.42) / (2 × 1A × 500kHz) = 5 × 0.58 / 1,000,000 = 2.9µH',
+            explanation: 'Using L > Lcrit ensures continuous conduction mode (CCM).'
+        },
+        {
+            id: 'M6-2-L2b',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 2</span> With L = 10µH, Vout = 5V, D = 42%, fsw = 500kHz, what is the peak-to-peak inductor ripple current?',
+            hint: 'ΔIL = Vout × (1-D) / (L × fsw)',
+            expected: 0.58,
+            tolerance: 0.05,
+            unit: 'A',
+            solution: 'ΔIL = 5V × 0.58 / (10µH × 500kHz) = 2.9 / 5 = 0.58A',
+            explanation: 'Lower ripple means lower RMS losses but larger inductor needed.'
+        },
+        // Level 3: Efficiency and losses
+        {
+            id: 'M6-2-L3a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 3</span> A buck has Vin = 12V, Vout = 5V, Iout = 2A. High-side FET has RDS(on) = 50mΩ. Calculate conduction loss during on-time.',
+            hint: 'Ploss = I² × RDS(on) × D. D = 5/12.',
+            expected: 83,
+            tolerance: 5,
+            unit: 'mW',
+            solution: 'D = 5/12 = 0.417. P = 2² × 0.05Ω × 0.417 = 83mW',
+            explanation: 'Conduction loss scales with I² and duty cycle.'
+        },
+        {
+            id: 'M6-2-L3b',
+            type: 'choice',
+            question: '<span class="difficulty">Level 3</span> At light load, what becomes the dominant loss mechanism in a synchronous buck?',
+            choices: [
+                { text: 'Conduction losses (I²R)', correct: false },
+                { text: 'Switching losses (gate charge, overlap)', correct: true },
+                { text: 'Inductor core losses', correct: false },
+                { text: 'Quiescent current of controller', correct: false }
+            ],
+            solution: 'At light load, I²R losses are small but switching losses stay constant, dominating efficiency.',
+            explanation: 'This is why many converters reduce fsw at light load (pulse-skipping, PFM mode).'
+        },
+        // Level 3: Operating mode
+        {
+            id: 'M6-2-L3c',
+            type: 'choice',
+            question: '<span class="difficulty">Level 3</span> Your buck shows unstable Vout at light load. The inductor current reaches zero each cycle. What mode is it in?',
+            choices: [
+                { text: 'CCM - Continuous Conduction Mode', correct: false },
+                { text: 'DCM - Discontinuous Conduction Mode', correct: true },
+                { text: 'Forced PWM mode', correct: false },
+                { text: 'Pulse-skipping mode', correct: false }
+            ],
+            solution: 'When IL reaches zero each cycle, the converter is in DCM where Vout depends on load.',
+            explanation: 'DCM complicates control. Increase L or use forced-PWM mode for stable operation.'
+        },
+        // Level 4: Complete design
+        {
+            id: 'M6-2-L4a',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 4</span> Design: Vin = 24V, Vout = 3.3V, Iout = 3A, fsw = 300kHz. Calculate the minimum L for CCM with 30% ripple margin.',
+            hint: 'First calculate Lcrit, then multiply by 1.3 for margin.',
+            expected: 12.9,
+            tolerance: 0.5,
+            unit: 'µH',
+            solution: 'D = 3.3/24 = 0.1375. Lcrit = 3.3 × 0.8625 / (2 × 3 × 300k) = 1.58µH. With 30% margin: Lcrit × 1.3 = 2.06µH. Wait, let me recalculate: Lcrit = Vout(1-D)/(2×Iout×fsw) = 3.3×0.8625/(2×3×300000) = 2.845/(1,800,000) = 1.58µH. For 30% current ripple: L = Vout(1-D)/(ΔI×fsw) = 3.3×0.8625/(0.3×3×300k) = 2.845/270,000 = 10.5µH. Standard: 10µH.',
+            explanation: 'Practical designs use L >> Lcrit for acceptable ripple (typically 20-40% of Iout).'
+        },
+        {
+            id: 'M6-2-L4b',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 4</span> With L = 10µH from above, what is the peak inductor current (Ipk)?',
+            hint: 'Ipk = Iout + ΔIL/2. First calculate ΔIL.',
+            expected: 3.47,
+            tolerance: 0.1,
+            unit: 'A',
+            solution: 'ΔIL = Vout(1-D)/(L×fsw) = 3.3×0.8625/(10µ×300k) = 2.845/3 = 0.95A. Ipk = 3A + 0.95/2 = 3.47A',
+            explanation: 'Select inductor with Isat > Ipk (with margin for transients).'
+        },
+        {
+            id: 'M6-2-L4c',
+            type: 'choice',
+            question: '<span class="difficulty">Level 4</span> Your 24V→3.3V buck has D = 14%. The controller has 100ns minimum on-time. At fsw = 1MHz, will this work?',
+            choices: [
+                { text: 'Yes, 14% duty cycle is achievable', correct: false },
+                { text: 'No, minimum on-time limits the duty cycle', correct: true },
+                { text: 'Yes, but only in DCM', correct: false },
+                { text: 'Need to measure to know', correct: false }
+            ],
+            solution: 'At 1MHz, period = 1µs. 14% = 140ns on-time. With 100ns min, this works. But if fsw = 2MHz (500ns period), 14% = 70ns < 100ns minimum!',
+            explanation: 'High Vin/Vout ratios with fast switching hit minimum on-time limits. Reduce fsw or use 2-phase.'
+        },
+        {
+            id: 'M6-2-L4d',
+            type: 'numeric',
+            question: '<span class="difficulty">Level 4</span> Calculate approximate efficiency: Pin = Vin × Iin = 24V × 0.5A = 12W. Pout = 3.3V × 3A = 9.9W. What is efficiency?',
+            hint: 'η = Pout / Pin × 100%',
+            expected: 82.5,
+            tolerance: 1,
+            unit: '%',
+            solution: 'η = 9.9W / 12W × 100% = 82.5%',
+            explanation: 'Real bucks achieve 85-95% efficiency. Losses include switching, conduction, gate drive, and inductor.'
+        }
+    ];
+
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-m6l2-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-m6l2-${i}`, ex);
+    });
+})();
+</script>

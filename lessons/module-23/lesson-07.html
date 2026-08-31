@@ -1,0 +1,1088 @@
+<!-- Module 23, Lesson 7: LED Driver Design -->
+<div class="lesson-content" data-module="23" data-lesson="7">
+
+    <div class="card">
+        <h2>LED Driver Design</h2>
+        <p>LEDs require constant current drive for consistent brightness and long life. This lesson covers LED driver topologies from simple linear regulators to high-efficiency switch-mode drivers for automotive, display, and general lighting applications.</p>
+
+        <div class="notice">
+            <strong>Industry Reference:</strong> Based on <a href="https://www.ti.com/lit/an/snva557/snva557.pdf" target="_blank">TI LED Driver Design Guide</a>, <a href="https://www.analog.com/en/resources/technical-articles/driving-leds-with-boost-converters.html" target="_blank">Analog Devices LED Driver Fundamentals</a>, and <a href="https://www.diodes.com/assets/Evaluation-Notes/AN1028.pdf" target="_blank">Diodes Inc. Application Notes</a>.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>LED Driver Topologies</h3>
+
+        <canvas id="led-topology-canvas" width="980" height="520" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Buck ICs</div>
+                <div class="v">LM3414, TPS92515, AL8860</div>
+            </div>
+            <div class="box">
+                <div class="k">Boost ICs</div>
+                <div class="v">LT3755, TPS61169, MAX16832</div>
+            </div>
+            <div class="box">
+                <div class="k">Buck-Boost ICs</div>
+                <div class="v">LT3756, TPS92692, LM3423</div>
+            </div>
+            <div class="box">
+                <div class="k">Linear ICs</div>
+                <div class="v">CAT4101, BCR421, TLC5917</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 1: LED Characteristics</h3>
+
+        <p>LEDs are current-driven devices with an exponential V-I relationship:</p>
+
+        <table class="table">
+            <tr>
+                <th>LED Type</th>
+                <th>Forward Voltage</th>
+                <th>Typical Current</th>
+                <th>Luminous Efficacy</th>
+            </tr>
+            <tr>
+                <td>Red (AlGaInP)</td>
+                <td>1.8 - 2.2V</td>
+                <td>20mA - 1A</td>
+                <td>50-100 lm/W</td>
+            </tr>
+            <tr>
+                <td>Green (InGaN)</td>
+                <td>2.9 - 3.5V</td>
+                <td>20mA - 1A</td>
+                <td>100-150 lm/W</td>
+            </tr>
+            <tr>
+                <td>Blue (InGaN)</td>
+                <td>2.8 - 3.4V</td>
+                <td>20mA - 1A</td>
+                <td>30-50 lm/W</td>
+            </tr>
+            <tr>
+                <td>White (Blue + Phosphor)</td>
+                <td>2.9 - 3.6V</td>
+                <td>20mA - 3A</td>
+                <td>150-200+ lm/W</td>
+            </tr>
+            <tr>
+                <td>High-Power (Cree, Lumileds)</td>
+                <td>2.7 - 3.5V</td>
+                <td>350mA - 3A</td>
+                <td>150-200 lm/W</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Temperature Coefficient:</strong> LED V<sub>F</sub> decreases ~2-4mV/°C. This means constant voltage drive causes thermal runaway! Always use constant current drive.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 2: Current Regulation</h3>
+
+        <div class="subsection">
+            <h4>Interactive: LED Current Regulator Calculator</h4>
+
+            <div class="controls">
+                <div class="c3">
+                    <label for="led-vin">Input Voltage (V)</label>
+                    <input type="range" id="led-vin" min="3" max="48" step="0.5" value="12">
+                    <span id="led-vin-val" class="mono">12V</span>
+                </div>
+                <div class="c3">
+                    <label for="led-vf">LED V<sub>F</sub> per LED (V)</label>
+                    <input type="range" id="led-vf" min="1.8" max="3.6" step="0.1" value="3.2">
+                    <span id="led-vf-val" class="mono">3.2V</span>
+                </div>
+                <div class="c3">
+                    <label for="led-num">Number of LEDs in Series</label>
+                    <input type="range" id="led-num" min="1" max="12" step="1" value="3">
+                    <span id="led-num-val" class="mono">3</span>
+                </div>
+                <div class="c3">
+                    <label for="led-if">LED Current (mA)</label>
+                    <input type="range" id="led-if" min="10" max="1000" step="10" value="350">
+                    <span id="led-if-val" class="mono">350mA</span>
+                </div>
+                <div class="c3">
+                    <label for="led-eff">Driver Efficiency (%)</label>
+                    <input type="range" id="led-eff" min="70" max="98" step="1" value="90">
+                    <span id="led-eff-val" class="mono">90%</span>
+                </div>
+            </div>
+
+            <div class="kv">
+                <div class="box">
+                    <div class="k">Total LED Voltage</div>
+                    <div class="v mono" id="led-vled">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Recommended Topology</div>
+                    <div class="v mono" id="led-topology">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">LED Power</div>
+                    <div class="v mono" id="led-pled">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Input Power</div>
+                    <div class="v mono" id="led-pin">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Sense Resistor (100mV)</div>
+                    <div class="v mono" id="led-rsense">--</div>
+                </div>
+                <div class="box">
+                    <div class="k">Sense Resistor Power</div>
+                    <div class="v mono" id="led-prsense">--</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="subsection">
+            <h4>Current Sensing Methods</h4>
+
+            <canvas id="current-sense-canvas" width="700" height="380" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 3: Dimming Methods</h3>
+
+        <table class="table">
+            <tr>
+                <th>Method</th>
+                <th>Range</th>
+                <th>Color Shift</th>
+                <th>EMI</th>
+                <th>Use Case</th>
+            </tr>
+            <tr>
+                <td>PWM Dimming</td>
+                <td>1000:1 or better</td>
+                <td>None (constant I<sub>F</sub>)</td>
+                <td>Can cause issues at low frequency</td>
+                <td>Display backlights, general</td>
+            </tr>
+            <tr>
+                <td>Analog (DC) Dimming</td>
+                <td>~10:1</td>
+                <td>Yes (chromaticity shifts)</td>
+                <td>Low</td>
+                <td>Simple, cost-sensitive</td>
+            </tr>
+            <tr>
+                <td>Hybrid</td>
+                <td>1000:1+</td>
+                <td>Minimal</td>
+                <td>Medium</td>
+                <td>High-end displays</td>
+            </tr>
+        </table>
+
+        <div class="info">
+            <strong>PWM Frequency Selection:</strong>
+            <ul>
+                <li><strong>&lt;100Hz:</strong> Visible flicker (unacceptable)</li>
+                <li><strong>100-400Hz:</strong> Minimal flicker, some video artifacts</li>
+                <li><strong>1-2kHz:</strong> Good for most applications</li>
+                <li><strong>&gt;20kHz:</strong> Above audible range, no flicker concerns</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Section 4: Automotive LED Driver</h3>
+
+        <p>Automotive applications require robust protection against load dump (up to 40V), reverse polarity, and wide temperature range:</p>
+
+        <canvas id="automotive-led-canvas" width="780" height="500" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+// ==================== LED TOPOLOGY CANVAS ====================
+(function() {
+    const canvas = document.getElementById('led-topology-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    // Background
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('LED DRIVER TOPOLOGY SELECTION', W/2, 28);
+
+    ctx.font = '12px monospace';
+    ctx.fillStyle = TEK.ch1;
+    ctx.fillText('INPUT VOLTAGE vs LED STRING VOLTAGE DETERMINES TOPOLOGY', W/2, 52);
+
+    // Draw three main topologies
+    const topY = 80;
+    const boxW = 280;
+    const boxH = 170;
+    const gap = 30;
+    const startX = (W - (3 * boxW + 2 * gap)) / 2;
+
+    const topologies = [
+        { name: 'BUCK', condition: 'VLED < VIN', example: '12V → 3V LED\n(car → 1 LED)', color: TEK.ch2 },
+        { name: 'BUCK-BOOST\nor SEPIC', condition: 'VLED ≈ VIN', example: '5V → 3-7V LED\n(battery app)', color: TEK.ch3 },
+        { name: 'BOOST', condition: 'VLED > VIN', example: '3.3V → 12V LED\n(white LED string)', color: TEK.ch4 }
+    ];
+
+    topologies.forEach((topo, i) => {
+        const x = startX + i * (boxW + gap);
+        const y = topY;
+
+        // Box background
+        ctx.fillStyle = '#1a2332';
+        AD.roundRect(ctx, x, y, boxW, boxH, 8, { fill: '#1a2332', stroke: topo.color, lineWidth: 2 });
+
+        // Condition header
+        ctx.fillStyle = topo.color;
+        ctx.font = 'bold 13px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(topo.condition, x + boxW/2, y + 25);
+
+        // Topology name
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 15px monospace';
+        const lines = topo.name.split('\n');
+        lines.forEach((line, li) => {
+            ctx.fillText(line, x + boxW/2, y + 55 + li * 18);
+        });
+
+        // Simple circuit representation
+        const circY = y + 95;
+        ctx.strokeStyle = topo.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + 40, circY);
+        ctx.lineTo(x + 80, circY);
+        ctx.stroke();
+
+        // Switch symbol
+        ctx.beginPath();
+        ctx.moveTo(x + 80, circY);
+        ctx.lineTo(x + 100, circY - 15);
+        ctx.stroke();
+
+        // Inductor symbol (zigzag)
+        ctx.beginPath();
+        ctx.moveTo(x + 105, circY);
+        for (let j = 0; j < 4; j++) {
+            ctx.lineTo(x + 115 + j * 12, circY - 8);
+            ctx.lineTo(x + 121 + j * 12, circY + 8);
+        }
+        ctx.lineTo(x + 160, circY);
+        ctx.stroke();
+
+        // LED symbol
+        const ledX = x + 175;
+        ctx.beginPath();
+        ctx.moveTo(x + 160, circY);
+        ctx.lineTo(ledX, circY);
+        ctx.stroke();
+
+        // LED triangle
+        ctx.beginPath();
+        ctx.moveTo(ledX, circY - 10);
+        ctx.lineTo(ledX, circY + 10);
+        ctx.lineTo(ledX + 15, circY);
+        ctx.closePath();
+        ctx.fillStyle = topo.color;
+        ctx.fill();
+        ctx.stroke();
+
+        // LED bar
+        ctx.beginPath();
+        ctx.moveTo(ledX + 18, circY - 10);
+        ctx.lineTo(ledX + 18, circY + 10);
+        ctx.stroke();
+
+        // Ground
+        ctx.beginPath();
+        ctx.moveTo(ledX + 18, circY);
+        ctx.lineTo(ledX + 35, circY);
+        ctx.lineTo(ledX + 35, circY + 15);
+        ctx.stroke();
+        // Ground symbol
+        for (let g = 0; g < 3; g++) {
+            const gw = 12 - g * 4;
+            ctx.beginPath();
+            ctx.moveTo(ledX + 35 - gw/2, circY + 18 + g * 4);
+            ctx.lineTo(ledX + 35 + gw/2, circY + 18 + g * 4);
+            ctx.stroke();
+        }
+
+        // VIN label
+        ctx.fillStyle = '#aaa';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('VIN', x + 42, circY - 8);
+
+        // Example
+        ctx.fillStyle = '#888';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        const exLines = topo.example.split('\n');
+        exLines.forEach((line, li) => {
+            ctx.fillText(line, x + boxW/2, y + boxH - 25 + li * 14);
+        });
+    });
+
+    // Special topologies section
+    const specY = topY + boxH + 40;
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SPECIAL TOPOLOGIES', W/2, specY);
+
+    const specTopologies = [
+        { name: 'LINEAR REGULATOR', desc: 'VIN → [Rset] → LED', pros: 'Simple, low cost', cons: 'Low efficiency', color: '#6b7280' },
+        { name: 'CHARGE PUMP', desc: 'VIN → [2x Doubler] → LED', pros: 'No inductor', cons: 'Low power only', color: '#8b5cf6' },
+        { name: 'FLYBACK (Isolated)', desc: 'VIN → [Transformer] → LED', pros: 'Safety isolation', cons: 'High power lighting', color: '#f59e0b' }
+    ];
+
+    const specBoxW = 290;
+    const specBoxH = 130;
+    const specStartX = (W - (3 * specBoxW + 2 * 20)) / 2;
+
+    specTopologies.forEach((topo, i) => {
+        const x = specStartX + i * (specBoxW + 20);
+        const y = specY + 20;
+
+        AD.roundRect(ctx, x, y, specBoxW, specBoxH, 6, { fill: '#141922', stroke: topo.color, lineWidth: 1.5 });
+
+        // Name
+        ctx.fillStyle = topo.color;
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(topo.name, x + specBoxW/2, y + 22);
+
+        // Description
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '11px monospace';
+        ctx.fillText(topo.desc, x + specBoxW/2, y + 48);
+
+        // Pros/Cons
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = '10px monospace';
+        ctx.fillText('✓ ' + topo.pros, x + specBoxW/2, y + 78);
+
+        ctx.fillStyle = '#f87171';
+        ctx.fillText('• ' + topo.cons, x + specBoxW/2, y + 98);
+    });
+
+})();
+
+// ==================== CURRENT SENSING CANVAS ====================
+(function() {
+    const canvas = document.getElementById('current-sense-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('LOW-SIDE CURRENT SENSING (Most Common)', W/2, 25);
+
+    // Main circuit layout
+    const startX = 80, startY = 60;
+
+    // VIN rail
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(startX + 400, startY);
+    ctx.stroke();
+
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('VIN', startX - 30, startY + 4);
+
+    // Switch
+    const swX = startX + 80, swY = startY + 50;
+    ctx.strokeStyle = TEK.ch2;
+    ctx.beginPath();
+    ctx.moveTo(swX, startY);
+    ctx.lineTo(swX, swY - 20);
+    ctx.stroke();
+
+    // Switch symbol (open contact)
+    ctx.beginPath();
+    ctx.arc(swX, swY - 20, 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(swX, swY - 16);
+    ctx.lineTo(swX + 15, swY - 30);
+    ctx.stroke();
+
+    AD.roundRect(ctx, swX - 25, swY, 50, 25, 4, { fill: '#1a2332', stroke: TEK.ch2, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Switch', swX, swY + 16);
+
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('← PWM controlled', swX + 35, swY + 12);
+
+    // Inductor
+    const indX = swX, indY = swY + 55;
+    ctx.strokeStyle = TEK.ch3;
+    ctx.beginPath();
+    ctx.moveTo(indX, swY + 25);
+    ctx.lineTo(indX, indY);
+    ctx.stroke();
+
+    AD.roundRect(ctx, indX - 25, indY, 50, 25, 4, { fill: '#1a2332', stroke: TEK.ch3, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Inductor', indX, indY + 16);
+
+    // Junction after inductor
+    const juncX = indX, juncY = indY + 50;
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(indX, indY + 25);
+    ctx.lineTo(indX, juncY);
+    ctx.stroke();
+
+    // Junction dot
+    ctx.beginPath();
+    ctx.arc(juncX, juncY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = TEK.ch1;
+    ctx.fill();
+
+    // LED string branch (to right)
+    const ledStartX = juncX + 100;
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(juncX, juncY);
+    ctx.lineTo(ledStartX, juncY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.fillText('LED+', ledStartX - 40, juncY - 8);
+
+    // Draw 3 LEDs in series
+    const ledColors = [TEK.ch1, TEK.ch1, TEK.ch1];
+    for (let i = 0; i < 3; i++) {
+        const lx = ledStartX + i * 70;
+        // LED triangle
+        ctx.fillStyle = '#f59e0b';
+        ctx.strokeStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.moveTo(lx, juncY - 8);
+        ctx.lineTo(lx, juncY + 8);
+        ctx.lineTo(lx + 15, juncY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // LED bar
+        ctx.beginPath();
+        ctx.moveTo(lx + 17, juncY - 8);
+        ctx.lineTo(lx + 17, juncY + 8);
+        ctx.stroke();
+
+        // Connecting wire
+        if (i < 2) {
+            ctx.strokeStyle = TEK.ch1;
+            ctx.beginPath();
+            ctx.moveTo(lx + 17, juncY);
+            ctx.lineTo(lx + 70, juncY);
+            ctx.stroke();
+        }
+
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('LED' + (i + 1), lx + 8, juncY + 22);
+    }
+
+    // LED string continues down
+    const ledEndX = ledStartX + 2 * 70 + 17;
+    const ledEndY = juncY + 80;
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(ledEndX, juncY);
+    ctx.lineTo(ledEndX + 40, juncY);
+    ctx.lineTo(ledEndX + 40, ledEndY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('LED- (Cathode)', ledEndX + 50, ledEndY - 30);
+
+    // Freewheeling diode (below junction)
+    const diodeY = juncY + 40;
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(juncX, juncY);
+    ctx.lineTo(juncX, diodeY);
+    ctx.stroke();
+
+    // Diode symbol
+    ctx.beginPath();
+    ctx.moveTo(juncX - 10, diodeY);
+    ctx.lineTo(juncX + 10, diodeY);
+    ctx.lineTo(juncX, diodeY + 15);
+    ctx.closePath();
+    ctx.fillStyle = '#6b7280';
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(juncX - 10, diodeY + 15);
+    ctx.lineTo(juncX + 10, diodeY + 15);
+    ctx.stroke();
+
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('← Freewheeling diode', juncX + 20, diodeY + 8);
+
+    // Ground under diode
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(juncX, diodeY + 15);
+    ctx.lineTo(juncX, diodeY + 35);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('GND', juncX, diodeY + 50);
+
+    // Rsense
+    const rsX = ledEndX + 40, rsY = ledEndY + 20;
+    AD.roundRect(ctx, rsX - 20, rsY, 40, 30, 3, { fill: '#2a3a52', stroke: TEK.ch5, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Rsense', rsX, rsY + 19);
+
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(rsX, ledEndY);
+    ctx.lineTo(rsX, rsY);
+    ctx.stroke();
+
+    // Ground under Rsense
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(rsX, rsY + 30);
+    ctx.lineTo(rsX, rsY + 50);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('GND', rsX, rsY + 65);
+
+    // FB line
+    const fbY = ledEndY + 15;
+    ctx.strokeStyle = TEK.ch3;
+    ctx.setLineDash([5, 3]);
+    ctx.beginPath();
+    ctx.moveTo(20, fbY);
+    ctx.lineTo(rsX - 25, fbY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = TEK.ch3;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('FB ←', 55, fbY + 4);
+
+    // Notes box
+    AD.roundRect(ctx, 30, H - 100, 280, 80, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('To comparator:', 45, H - 80);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText('When V_sense = V_ref,', 45, H - 62);
+    ctx.fillText('current is at setpoint', 45, H - 48);
+    ctx.fillStyle = TEK.ch4;
+    ctx.fillText('Typical V_sense = 100-200mV', 45, H - 30);
+
+})();
+
+// ==================== AUTOMOTIVE LED CANVAS ====================
+(function() {
+    const canvas = document.getElementById('automotive-led-canvas');
+    if (!canvas || typeof AD === 'undefined') return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const TEK = AD.TEK_COLORS;
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 15px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('AUTOMOTIVE LED DRIVER (Tail Light)', W/2, 25);
+
+    // VBAT input at top
+    const vbatX = 100, vbatY = 55;
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('VBAT (9-16V, 40V transient)', vbatX, vbatY);
+
+    // Vertical line down from VBAT
+    ctx.strokeStyle = TEK.ch1;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(vbatX + 30, vbatY + 10);
+    ctx.lineTo(vbatX + 30, vbatY + 35);
+    ctx.stroke();
+
+    // TVS Diode
+    AD.roundRect(ctx, vbatX + 5, vbatY + 35, 50, 25, 3, { fill: '#2a2a4a', stroke: '#8b5cf6', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('TVS', vbatX + 30, vbatY + 51);
+
+    ctx.fillStyle = '#888';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('← Transient suppression (SMBJ24CA)', vbatX + 60, vbatY + 51);
+
+    // Line to reverse polarity
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(vbatX + 30, vbatY + 60);
+    ctx.lineTo(vbatX + 30, vbatY + 80);
+    ctx.stroke();
+
+    // Reverse polarity protection
+    AD.roundRect(ctx, vbatX - 30, vbatY + 80, 120, 22, 3, { fill: '#2a3a2a', stroke: TEK.ch4, lineWidth: 1 });
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Reverse polarity protection', vbatX + 30, vbatY + 94);
+
+    // Main IC box
+    const icX = 60, icY = vbatY + 120, icW = 550, icH = 190;
+    AD.roundRect(ctx, icX, icY, icW, icH, 8, { fill: '#1a2332', stroke: TEK.ch2, lineWidth: 2 });
+
+    // IC Title
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BUCK LED DRIVER IC', icX + icW/2, icY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '11px monospace';
+    ctx.fillText('(TPS92515, LM3409)', icX + icW/2, icY + 38);
+
+    // Internal LDO path
+    ctx.strokeStyle = TEK.ch3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(icX + 30, icY + 55);
+    ctx.lineTo(icX + 80, icY + 55);
+    ctx.stroke();
+    AD.drawArrow(ctx, icX + 80, icY + 55, icX + 130, icY + 55, { color: TEK.ch3, headSize: 6 });
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('VIN', icX + 35, icY + 52);
+
+    AD.roundRect(ctx, icX + 135, icY + 45, 80, 22, 3, { fill: '#1f2937', stroke: TEK.ch3, lineWidth: 1 });
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Internal LDO', icX + 175, icY + 59);
+
+    AD.drawArrow(ctx, icX + 220, icY + 55, icX + 270, icY + 55, { color: TEK.ch3, headSize: 6 });
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Logic Supply', icX + 275, icY + 59);
+
+    // PWM Controller block
+    const pwmX = icX + 80, pwmY = icY + 80;
+    AD.roundRect(ctx, pwmX, pwmY, 120, 45, 4, { fill: '#2a2a4a', stroke: '#a78bfa', lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('PWM Controller', pwmX + 60, pwmY + 22);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '9px monospace';
+    ctx.fillText('with OVP/UVP', pwmX + 60, pwmY + 36);
+
+    // Gate Driver block
+    const gateX = pwmX + 160, gateY = pwmY;
+    AD.roundRect(ctx, gateX, gateY, 100, 45, 4, { fill: '#2a4a4a', stroke: TEK.ch2, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Gate Driver', gateX + 50, gateY + 28);
+
+    // Connect PWM to Gate Driver
+    ctx.strokeStyle = '#a78bfa';
+    ctx.beginPath();
+    ctx.moveTo(pwmX + 120, pwmY + 22);
+    ctx.lineTo(gateX, gateY + 22);
+    ctx.stroke();
+
+    // SW output from Gate Driver
+    AD.drawArrow(ctx, gateX + 100, gateY + 22, gateX + 150, gateY + 22, { color: TEK.ch2, headSize: 8 });
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText('SW (FET)', gateX + 155, gateY + 26);
+
+    // Control pins (left side)
+    const pinY = icY + 145;
+    const pins = [
+        { name: 'DIM', desc: 'PWM Input (100Hz - 1kHz)', dir: 'in' },
+        { name: 'IADJ', desc: 'Analog current adjust', dir: 'in' },
+        { name: 'FAULT', desc: 'Open LED / short detection', dir: 'out' }
+    ];
+
+    pins.forEach((pin, i) => {
+        const py = pinY + i * 22;
+        ctx.fillStyle = pin.dir === 'in' ? TEK.ch3 : TEK.ch5;
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(pin.name, icX + 30, py);
+
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.fillText((pin.dir === 'in' ? '← ' : '→ ') + pin.desc, icX + 80, py);
+    });
+
+    // External circuit below IC
+    const extY = icY + icH + 20;
+
+    // SW node from IC
+    ctx.strokeStyle = TEK.ch2;
+    ctx.lineWidth = 2;
+    const swNodeX = icX + 420;
+    ctx.beginPath();
+    ctx.moveTo(swNodeX, icY + icH);
+    ctx.lineTo(swNodeX, extY);
+    ctx.stroke();
+
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SW', swNodeX, icY + icH + 12);
+
+    // Inductor
+    AD.roundRect(ctx, swNodeX + 20, extY - 12, 60, 24, 3, { fill: '#2a3a52', stroke: TEK.ch3, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('L 47µH', swNodeX + 50, extY + 4);
+
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(swNodeX, extY);
+    ctx.lineTo(swNodeX + 20, extY);
+    ctx.stroke();
+
+    // Junction after inductor
+    const juncX2 = swNodeX + 100;
+    ctx.beginPath();
+    ctx.moveTo(swNodeX + 80, extY);
+    ctx.lineTo(juncX2, extY);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(juncX2, extY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = TEK.ch1;
+    ctx.fill();
+
+    // LED+ and LED string
+    ctx.strokeStyle = TEK.ch1;
+    AD.drawArrow(ctx, juncX2, extY, juncX2 + 40, extY, { color: TEK.ch1, headSize: 6 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('LED+', juncX2 + 45, extY + 4);
+
+    // LED string box
+    AD.roundRect(ctx, juncX2 + 75, extY - 12, 100, 24, 3, { fill: '#3a2a2a', stroke: '#f59e0b', lineWidth: 1.5 });
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('LEDs in series', juncX2 + 125, extY + 4);
+
+    // LED string continues down
+    const ledEndX2 = juncX2 + 175;
+    ctx.strokeStyle = TEK.ch1;
+    ctx.beginPath();
+    ctx.moveTo(ledEndX2, extY);
+    ctx.lineTo(ledEndX2 + 30, extY);
+    ctx.lineTo(ledEndX2 + 30, extY + 60);
+    ctx.stroke();
+
+    // Diode below junction
+    const diodeY2 = extY + 35;
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(juncX2, extY);
+    ctx.lineTo(juncX2, diodeY2 - 10);
+    ctx.stroke();
+
+    // Diode symbol
+    AD.roundRect(ctx, juncX2 - 12, diodeY2 - 10, 24, 20, 2, { fill: '#2a2a3a', stroke: '#6b7280', lineWidth: 1 });
+    ctx.fillStyle = '#888';
+    ctx.font = '8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('D', juncX2, diodeY2 + 4);
+
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(juncX2, diodeY2 + 10);
+    ctx.lineTo(juncX2, diodeY2 + 25);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('GND', juncX2, diodeY2 + 38);
+
+    // Rsense and ISNS
+    const rsX2 = ledEndX2 + 30, rsY2 = extY + 65;
+    AD.roundRect(ctx, rsX2 - 20, rsY2, 40, 25, 3, { fill: '#2a3a52', stroke: TEK.ch5, lineWidth: 1.5 });
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Rsense', rsX2, rsY2 + 16);
+
+    // Ground under Rsense
+    ctx.strokeStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.moveTo(rsX2, rsY2 + 25);
+    ctx.lineTo(rsX2, rsY2 + 40);
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px monospace';
+    ctx.fillText('GND', rsX2, rsY2 + 52);
+
+    // ISNS feedback line
+    ctx.strokeStyle = TEK.ch5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(icX + 30, rsY2 + 10);
+    ctx.lineTo(rsX2 - 25, rsY2 + 10);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('ISNS ←', icX + 5, rsY2 + 14);
+
+    // Protection features box
+    const protX = 30, protY = H - 110;
+    AD.roundRect(ctx, protX, protY, 280, 100, 6, { fill: '#1a1a2e', stroke: '#374151', lineWidth: 1 });
+
+    ctx.fillStyle = TEK.ch5;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Protection features:', protX + 15, protY + 20);
+
+    const features = [
+        '• Input OVP: Shuts down above 42V',
+        '• Thermal shutdown: 150°C',
+        '• LED open/short detection',
+        '• Soft-start: Limits inrush'
+    ];
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    features.forEach((f, i) => {
+        ctx.fillText(f, protX + 20, protY + 40 + i * 16);
+    });
+
+})();
+
+(function() {
+    // LED Driver Calculator
+    function updateLED() {
+        const vin = parseFloat(document.getElementById('led-vin').value);
+        const vf = parseFloat(document.getElementById('led-vf').value);
+        const num = parseInt(document.getElementById('led-num').value);
+        const iF = parseFloat(document.getElementById('led-if').value) / 1000; // A
+        const eff = parseFloat(document.getElementById('led-eff').value) / 100;
+
+        document.getElementById('led-vin-val').textContent = vin + 'V';
+        document.getElementById('led-vf-val').textContent = vf.toFixed(1) + 'V';
+        document.getElementById('led-num-val').textContent = num;
+        document.getElementById('led-if-val').textContent = (iF * 1000).toFixed(0) + 'mA';
+        document.getElementById('led-eff-val').textContent = (eff * 100).toFixed(0) + '%';
+
+        const vled = vf * num;
+        const pled = vled * iF;
+        const pin = pled / eff;
+
+        // Topology selection
+        let topology;
+        const ratio = vled / vin;
+        if (ratio < 0.8) {
+            topology = 'Buck';
+        } else if (ratio > 1.2) {
+            topology = 'Boost';
+        } else {
+            topology = 'Buck-Boost';
+        }
+
+        // Sense resistor for 100mV
+        const rsense = 0.1 / iF;
+        const prsense = iF * iF * rsense * 1000; // mW
+
+        document.getElementById('led-vled').textContent = vled.toFixed(1) + 'V';
+        document.getElementById('led-topology').textContent = topology;
+        document.getElementById('led-pled').textContent = (pled * 1000).toFixed(0) + 'mW';
+        document.getElementById('led-pin').textContent = (pin * 1000).toFixed(0) + 'mW';
+        document.getElementById('led-rsense').textContent = rsense.toFixed(2) + 'Ω';
+        document.getElementById('led-prsense').textContent = prsense.toFixed(1) + 'mW';
+    }
+
+    ['led-vin', 'led-vf', 'led-num', 'led-if', 'led-eff'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateLED);
+    });
+    updateLED();
+
+    // SPICE netlist
+    if (typeof SpiceNetlistWidget !== 'undefined') {
+        new SpiceNetlistWidget('spice-container', {
+            title: 'Buck LED Driver',
+            netlist: `* Buck LED Driver - Constant Current
+.param VIN=12 ILED=0.35 VLED=9.6 L=47u
+
+* Input
+VIN vin 0 DC {VIN}
+
+* Simplified buck with current mode control
+* (Behavioral model)
+Vctrl ctrl 0 DC 0.5  ; Duty cycle control
+S1 vin sw ctrl 0 SMOD
+.model SMOD VSWITCH (RON=0.1 ROFF=1MEG VON=0.6 VOFF=0.4)
+
+* Output filter
+L1 sw led_a {L} IC=0
+D1 0 sw DSCHOTTKY
+.model DSCHOTTKY D (IS=1u RS=0.1 N=1.5)
+
+* LED string (3 LEDs in series)
+DLED1 led_a led_b LEDMODEL
+DLED2 led_b led_c LEDMODEL
+DLED3 led_c led_cathode LEDMODEL
+.model LEDMODEL D (IS=1e-20 N=2 RS=0.5)
+
+* Current sense resistor
+Rsense led_cathode 0 0.286  ; 0.1V / 0.35A
+
+.tran 1u 1m
+.probe V(sw) V(led_a) I(L1)
+.end`
+        });
+    }
+
+    // Checklist
+    if (typeof ChecklistWidget !== 'undefined') {
+        new ChecklistWidget('checklist-container', {
+            lessonKey: 'm23l7',
+            items: [
+                'Understand why LEDs need constant current drive',
+                'Select appropriate topology based on VIN vs VLED',
+                'Calculate sense resistor for target current',
+                'Know difference between PWM and analog dimming',
+                'Understand automotive LED driver requirements'
+            ]
+        });
+    }
+
+    // Exercises
+    const container = document.getElementById('exercise-container');
+    if (typeof ExerciseWidget !== 'undefined') {
+        const exercises = [
+            {
+                id: 'M23-7-L1',
+                type: 'numeric',
+                question: 'Calculate the sense resistor for 500mA LED current with 100mV sense voltage.',
+                hint: 'R = V/I',
+                expected: 0.2,
+                tolerance: 0.01,
+                unit: 'Ω'
+            },
+            {
+                id: 'M23-7-L2',
+                type: 'choice',
+                question: 'You have 12V input and need to drive 4 white LEDs (3.2V each) in series. What topology?',
+                choices: [
+                    { text: 'Buck (step-down)', correct: false },
+                    { text: 'Boost (step-up)', correct: true },
+                    { text: 'Linear regulator', correct: false },
+                    { text: 'Charge pump', correct: false }
+                ],
+                solution: '4 LEDs × 3.2V = 12.8V > 12V input, so boost is needed.'
+            },
+            {
+                id: 'M23-7-L3',
+                type: 'choice',
+                question: 'Why does analog dimming cause color shift in white LEDs?',
+                choices: [
+                    { text: 'The phosphor changes color at different temperatures', correct: false },
+                    { text: 'Blue and red chips have different current-efficacy curves', correct: true },
+                    { text: 'The driver introduces harmonic distortion', correct: false },
+                    { text: 'The sense resistor changes value', correct: false }
+                ]
+            }
+        ];
+        exercises.forEach((ex, i) => {
+            const div = document.createElement('div');
+            div.id = `ex-m23l7-${i}`;
+            container.appendChild(div);
+            new ExerciseWidget(`ex-m23l7-${i}`, ex);
+        });
+    }
+})();
+</script>

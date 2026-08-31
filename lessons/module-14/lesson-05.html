@@ -1,0 +1,601 @@
+<!-- Module 14, Lesson 5: Sample and Hold Circuits -->
+<div class="lesson-content" data-module="14" data-lesson="5">
+
+    <div class="card">
+        <h2>Sample and Hold Circuits</h2>
+        <p>Sample and Hold (S/H) circuits capture an analog voltage at a precise moment and hold it steady for processing. They're essential for ADC interfaces where the input must remain stable during conversion.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Acquisition Time</div>
+                <div class="v">Time to capture input to accuracy</div>
+            </div>
+            <div class="box">
+                <div class="k">Hold Droop</div>
+                <div class="v">Voltage decay during hold</div>
+            </div>
+            <div class="box">
+                <div class="k">Aperture Jitter</div>
+                <div class="v">Timing uncertainty at sample</div>
+            </div>
+            <div class="box">
+                <div class="k">Feedthrough</div>
+                <div class="v">Input coupling during hold</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> The fundamental trade-off is capacitor size: large C means low droop but slow acquisition; small C gives fast acquisition but high droop. Aperture jitter becomes critical at high frequencies—1ns jitter at 1MHz causes 0.6% error.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: S/H Performance Analysis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="sh-cap">Hold Capacitor (F)</label>
+                <input type="text" id="sh-cap" value="100p">
+            </div>
+            <div class="c3">
+                <label for="sh-ron">Switch R<sub>ON</sub> (Ω)</label>
+                <input type="text" id="sh-ron" value="100">
+            </div>
+            <div class="c3">
+                <label for="sh-ib">Buffer I<sub>B</sub> (A)</label>
+                <input type="text" id="sh-ib" value="1p">
+            </div>
+            <div class="c3">
+                <label for="sh-thold">Hold Time (s)</label>
+                <input type="text" id="sh-thold" value="10u">
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="sh-canvas" width="980" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Acquisition Time</div>
+                <div class="v mono" id="sh-tacq">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Droop Rate</div>
+                <div class="v mono" id="sh-droop">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Total Droop</div>
+                <div class="v mono" id="sh-totaldroop">—</div>
+            </div>
+            <div class="box">
+                <div class="k">12-bit Accuracy</div>
+                <div class="v mono" id="sh-accuracy">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Sample and Hold Circuit</h3>
+        <div id="sh-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>Error Sources</h3>
+
+        <table class="table">
+            <tr>
+                <th>Error</th>
+                <th>Cause</th>
+                <th>Mitigation</th>
+            </tr>
+            <tr>
+                <td>Acquisition Time</td>
+                <td>R<sub>ON</sub> × C time constant</td>
+                <td>Lower R<sub>ON</sub>, smaller C</td>
+            </tr>
+            <tr>
+                <td>Hold Droop</td>
+                <td>Buffer input bias current</td>
+                <td>FET-input buffer, larger C</td>
+            </tr>
+            <tr>
+                <td>Aperture Jitter</td>
+                <td>Clock timing uncertainty</td>
+                <td>Low-jitter clock, sample at zero-crossing</td>
+            </tr>
+            <tr>
+                <td>Charge Injection</td>
+                <td>Switch capacitance dumps charge</td>
+                <td>Bottom-plate sampling, cancellation</td>
+            </tr>
+            <tr>
+                <td>Feedthrough</td>
+                <td>Switch parasitic capacitance</td>
+                <td>Lower C<sub>off</sub>, guard ring</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Charge Injection:</strong> When the switch opens, charge stored on its parasitic capacitance injects onto the hold capacitor, causing a voltage step. This is proportional to C<sub>switch</sub>/C<sub>hold</sub>—use large C<sub>hold</sub> or cancellation techniques.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Aperture Jitter Error</h3>
+        <canvas id="aperture-jitter-canvas" width="900" height="300"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('sh-canvas');
+    const ctx = canvas.getContext('2d');
+    const TEK = AD.TEK_COLORS;
+
+    function update() {
+        const cap = AD.parseValue(document.getElementById('sh-cap').value) || 100e-12;
+        const ron = AD.parseValue(document.getElementById('sh-ron').value) || 100;
+        const ib = AD.parseValue(document.getElementById('sh-ib').value) || 1e-12;
+        const thold = AD.parseValue(document.getElementById('sh-thold').value) || 10e-6;
+
+        // Acquisition time (to 0.01% = 9 time constants)
+        const tacq = 9 * ron * cap;
+
+        // Droop rate (V/s)
+        const droopRate = ib / cap;
+
+        // Total droop during hold
+        const totalDroop = droopRate * thold;
+
+        // 12-bit accuracy check (LSB at 3.3V = 0.8mV)
+        const lsb12 = 3.3 / 4096;
+        const accuracy = totalDroop < lsb12 ? 'OK' : 'Excessive droop';
+        const accuracyColor = totalDroop < lsb12 ? 'var(--ok)' : 'var(--bad)';
+
+        document.getElementById('sh-tacq').textContent = AD.fmtUnit(tacq, 's');
+        document.getElementById('sh-droop').textContent = AD.fmtUnit(droopRate, 'V/s');
+        document.getElementById('sh-totaldroop').textContent = AD.fmtUnit(totalDroop, 'V');
+        document.getElementById('sh-accuracy').textContent = accuracy;
+        document.getElementById('sh-accuracy').style.color = accuracyColor;
+
+        plotSHWaveform(cap, ron, ib, thold, tacq);
+    }
+
+    function plotSHWaveform(cap, ron, ib, thold, tacq) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Time scale: acquisition + hold + acquisition
+        const tMax = tacq * 3 + thold * 1.5;
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: 0,
+            xMax: tMax * 1e6,
+            yMin: 0,
+            yMax: 3.5,
+            xLabel: 'Time',
+            yLabel: 'Voltage',
+            xUnit: 'µs',
+            yUnit: 'V',
+            xDivs: 10,
+            yDivs: 7
+        });
+
+        const N = 400;
+        const tData = [], vIn = [], vOut = [];
+        const tau = ron * cap;
+        const droopRate = ib / cap;
+
+        // Timeline:
+        // 0 to tacq*2: sample mode, tracking input
+        // tacq*2 to tacq*2+thold: hold mode
+        // tacq*2+thold to end: sample again
+
+        const t1 = tacq * 2;
+        const t2 = t1 + thold;
+
+        for (let i = 0; i < N; i++) {
+            const t = (i / N) * tMax;
+            tData.push(t * 1e6);
+
+            // Input: step from 1V to 2.5V at t=tacq
+            let vin = t < tacq ? 1.0 : 2.5;
+
+            // Output: follows input in sample, droops in hold
+            let vout;
+            if (t < t1) {
+                // Sample mode - tracking with RC delay
+                if (t < tacq) {
+                    vout = 1.0;
+                } else {
+                    const tInTrack = t - tacq;
+                    vout = 1.0 + 1.5 * (1 - Math.exp(-tInTrack / tau));
+                }
+            } else if (t < t2) {
+                // Hold mode - drooping
+                const vHeld = 1.0 + 1.5 * (1 - Math.exp(-(t1 - tacq) / tau));
+                const tInHold = t - t1;
+                vout = vHeld - droopRate * tInHold;
+            } else {
+                // Back to sample mode
+                const vAtEndHold = 1.0 + 1.5 * (1 - Math.exp(-(t1 - tacq) / tau)) - droopRate * thold;
+                const tInTrack = t - t2;
+                vout = vAtEndHold + (2.5 - vAtEndHold) * (1 - Math.exp(-tInTrack / tau));
+            }
+
+            vIn.push(vin);
+            vOut.push(vout);
+        }
+
+        // Plot input (cyan)
+        AD.plotData(ctx, axes, tData, vIn, {
+            color: TEK.ch1,
+            lineWidth: 2
+        });
+
+        // Plot output (yellow)
+        AD.plotData(ctx, axes, tData, vOut, {
+            color: TEK.ch2,
+            lineWidth: 2
+        });
+
+        // Mark sample and hold regions
+        ctx.save();
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.1)';
+        const x1 = axes.toCanvas(0, 0).x;
+        const x2 = axes.toCanvas(t1 * 1e6, 0).x;
+        const x3 = axes.toCanvas(t2 * 1e6, 0).x;
+        ctx.fillRect(x1, axes.top, x2 - x1, axes.height);
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.1)';
+        ctx.fillRect(x2, axes.top, x3 - x2, axes.height);
+
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.8)';
+        ctx.fillText('SAMPLE', x1 + 10, axes.top + 15);
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.8)';
+        ctx.fillText('HOLD', x2 + 10, axes.top + 15);
+        ctx.restore();
+
+        // Legend
+        ctx.save();
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('● Input', axes.left + axes.width - 150, axes.top + 20);
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillText('● Output (S/H)', axes.left + axes.width - 80, axes.top + 20);
+        ctx.restore();
+    }
+
+    // Event listeners
+    ['sh-cap', 'sh-ron', 'sh-ib', 'sh-thold'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    // ==================== APERTURE JITTER CANVAS ====================
+    (function() {
+        const canvas = document.getElementById('aperture-jitter-canvas');
+        if (!canvas || typeof AD === 'undefined') return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const TEK = AD.TEK_COLORS;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        // Title
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 12px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Effect of Aperture Jitter on Sinusoidal Input', 20, 25);
+
+        // Left side: equations
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('For sine wave: V(t) = A × sin(2πft)', 30, 55);
+        ctx.fillText('Rate of change: dV/dt = 2πfA × cos(2πft)', 30, 75);
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('Maximum dV/dt = 2πfA (at zero crossing)', 30, 95);
+
+        // Voltage error box
+        ctx.fillStyle = 'rgba(30,41,59,0.8)';
+        ctx.strokeStyle = TEK.ch2;
+        ctx.lineWidth = 2;
+        AD.roundRect(ctx, 30, 110, 380, 70, 6);
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = TEK.ch2;
+        ctx.font = 'bold 11px ui-sans-serif';
+        ctx.fillText('Voltage error from timing jitter tj:', 50, 130);
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '12px ui-monospace, monospace';
+        ctx.fillText('ΔV = (dV/dt)max × tj = 2πf × A × tj', 50, 155);
+
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillText('Relative error: ΔV/A = 2πf × tj', 50, 175);
+
+        // Example box
+        ctx.fillStyle = 'rgba(30,41,59,0.8)';
+        ctx.strokeStyle = TEK.ch3;
+        AD.roundRect(ctx, 30, 195, 380, 55, 6);
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = TEK.ch3;
+        ctx.font = 'bold 10px ui-sans-serif';
+        ctx.fillText('Example: f = 1MHz, tj = 1ns', 50, 215);
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('ΔV/A = 2π × 1MHz × 1ns = 0.628%', 50, 233);
+        ctx.fillText('This is ~7 bits of accuracy (0.5%)', 50, 248);
+
+        // Right side: Max jitter requirements
+        ctx.fillStyle = 'rgba(30,41,59,0.8)';
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        AD.roundRect(ctx, 450, 50, 420, 120, 8);
+        ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 11px ui-sans-serif';
+        ctx.fillText('For N-bit ADC, maximum allowable jitter:', 470, 75);
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '13px ui-monospace, monospace';
+        ctx.fillText('tj(max) = 1 / (2^(N+1) × π × f)', 470, 105);
+
+        ctx.font = '11px ui-sans-serif';
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('12-bit at 1MHz:', 470, 135);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('tj < 39ps', 590, 135);
+
+        ctx.fillStyle = TEK.ch5;
+        ctx.fillText('16-bit at 1MHz:', 470, 155);
+        ctx.fillStyle = '#e6edf3';
+        ctx.fillText('tj < 2.4ps', 590, 155);
+
+        // Visual: sine wave with jitter
+        const waveX = 450;
+        const waveY = 200;
+        const waveW = 400;
+        const waveH = 80;
+
+        // Draw sine wave
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < waveW; i++) {
+            const x = waveX + i;
+            const y = waveY + Math.sin(i / waveW * 4 * Math.PI) * (waveH/2);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Mark zero crossing with jitter
+        const crossX = waveX + waveW/4;
+        ctx.strokeStyle = TEK.ch2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(crossX - 10, waveY - 50);
+        ctx.lineTo(crossX - 10, waveY + 50);
+        ctx.moveTo(crossX + 10, waveY - 50);
+        ctx.lineTo(crossX + 10, waveY + 50);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Jitter arrow
+        ctx.strokeStyle = TEK.ch5;
+        ctx.lineWidth = 1.5;
+        AD.drawArrow(ctx, crossX - 10, waveY - 35, crossX + 10, waveY - 35, { headSize: 5 });
+        ctx.fillStyle = TEK.ch5;
+        ctx.font = '9px ui-sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('tj (jitter)', crossX, waveY - 45);
+
+        // ΔV annotation
+        const dvY1 = waveY + Math.sin((waveW/4 - 10) / waveW * 4 * Math.PI) * (waveH/2);
+        const dvY2 = waveY + Math.sin((waveW/4 + 10) / waveW * 4 * Math.PI) * (waveH/2);
+
+        ctx.strokeStyle = TEK.ch3;
+        AD.drawArrow(ctx, crossX + 30, dvY1, crossX + 30, dvY2, { headSize: 5 });
+        ctx.fillStyle = TEK.ch3;
+        ctx.fillText('ΔV', crossX + 45, waveY);
+
+        ctx.fillStyle = '#9fb0c0';
+        ctx.font = '9px ui-sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Max slope at zero crossing', crossX, waveY + 60);
+    })();
+
+    // S/H schematic
+    (function() {
+        const container = document.getElementById('sh-schematic');
+        if (!container) return;
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '550');
+        svg.setAttribute('height', '180');
+        svg.setAttribute('viewBox', '0 0 550 180');
+        svg.innerHTML = `
+            <style>
+                .wire { stroke: #e6edf3; stroke-width: 1.5; fill: none; }
+                .comp { stroke: #6ee7ff; stroke-width: 1.5; fill: none; }
+                .cap { stroke: #6ee7ff; stroke-width: 2; fill: none; }
+                .lbl { fill: #e6edf3; font: 11px ui-sans-serif; }
+                .lblsm { fill: #9fb0c0; font: 9px ui-sans-serif; }
+            </style>
+
+            <!-- Input -->
+            <text x="20" y="75" class="lbl">V<tspan baseline-shift="sub" font-size="8">in</tspan></text>
+            <line x1="50" y1="70" x2="100" y2="70" class="wire"/>
+
+            <!-- Input buffer -->
+            <polygon points="100,50 150,70 100,90" class="comp" fill="rgba(30,41,59,0.8)"/>
+            <text x="108" y="75" class="lblsm">1×</text>
+
+            <!-- Switch -->
+            <line x1="150" y1="70" x2="180" y2="70" class="wire"/>
+            <circle cx="180" cy="70" r="4" class="comp"/>
+            <line x1="184" y1="70" x2="220" y2="55" class="comp" stroke-width="2"/>
+            <circle cx="220" cy="70" r="4" class="comp"/>
+            <line x1="224" y1="70" x2="260" y2="70" class="wire"/>
+            <text x="185" y="45" class="lblsm">S/H</text>
+
+            <!-- Sample point -->
+            <circle cx="260" cy="70" r="3" fill="#6ee7ff"/>
+
+            <!-- Hold capacitor -->
+            <line x1="260" y1="70" x2="260" y2="90" class="wire"/>
+            <line x1="245" y1="90" x2="275" y2="90" class="cap"/>
+            <line x1="245" y1="100" x2="275" y2="100" class="cap"/>
+            <line x1="260" y1="100" x2="260" y2="130" class="wire"/>
+            <text x="280" y="100" class="lblsm">C<tspan baseline-shift="sub" font-size="7">hold</tspan></text>
+
+            <!-- Ground -->
+            <line x1="250" y1="130" x2="270" y2="130" class="wire"/>
+            <line x1="253" y1="135" x2="267" y2="135" class="wire"/>
+            <line x1="256" y1="140" x2="264" y2="140" class="wire"/>
+
+            <!-- Output buffer -->
+            <line x1="260" y1="70" x2="310" y2="70" class="wire"/>
+            <polygon points="310,50 360,70 310,90" class="comp" fill="rgba(30,41,59,0.8)"/>
+            <text x="318" y="75" class="lblsm">1×</text>
+
+            <!-- Output -->
+            <line x1="360" y1="70" x2="420" y2="70" class="wire"/>
+            <text x="430" y="75" class="lbl">V<tspan baseline-shift="sub" font-size="8">out</tspan></text>
+
+            <!-- Clock input -->
+            <line x1="200" y1="25" x2="200" y2="40" class="wire"/>
+            <text x="185" y="20" class="lblsm">CLK</text>
+
+            <!-- Annotations -->
+            <text x="50" y="160" class="lblsm">Acquisition: t<tspan baseline-shift="sub" font-size="7">acq</tspan> ≈ 9 × R<tspan baseline-shift="sub" font-size="7">ON</tspan> × C</text>
+            <text x="280" y="160" class="lblsm">Droop: dV/dt = I<tspan baseline-shift="sub" font-size="7">bias</tspan> / C</text>
+        `;
+        container.appendChild(svg);
+    })();
+
+    // SPICE Netlist
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Sample and Hold Circuit',
+        netlist: `* Sample and Hold with CMOS Switch
+* Demonstrates acquisition and droop
+
+.SUBCKT SH IN OUT CLK VCC GND
+* CMOS transmission gate
+M1 IN net1 OUT VCC PMOS W=10u L=0.5u
+M2 IN CLK OUT GND NMOS W=10u L=0.5u
+EINV net1 GND VALUE={VCC-V(CLK)}
+
+* Hold capacitor
+CHOLD OUT GND 100p
+
+* Output buffer (unity gain)
+EBUF OUTBUF GND OUT GND 1
+ROUT OUTBUF OUT 10
+.ENDS
+
+* Input signal
+VIN input 0 PWL(0 1 5u 1 5.1u 2.5 50u 2.5)
+
+* Sample/Hold control
+VCLK clk 0 PULSE(5 0 0 10n 10n 10u 25u)
+
+* Supply
+VCC vcc 0 DC 5
+
+* S/H instance
+X1 input output clk vcc 0 SH
+
+.TRAN 100n 50u
+
+.PROBE V(input) V(output) V(clk)
+.END
+
+* Observe acquisition time and hold droop`
+    });
+
+    // Checklist
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm14l5',
+        items: [
+            'Calculate acquisition time: tacq ≈ 9 × RON × C',
+            'Calculate droop rate: dV/dt = Ibias / C',
+            'Verify droop < 0.5 LSB during conversion',
+            'Consider charge injection error',
+            'Check aperture jitter requirements',
+            'Use FET-input buffer to minimize Ibias',
+            'Bottom-plate sampling reduces charge injection',
+            'Match switch capacitances for cancellation'
+        ]
+    });
+
+    // Exercises
+    const exercises = [
+        {
+            id: 'M14L5-1',
+            type: 'numeric',
+            question: 'A S/H has a 50Ω switch and 200pF hold capacitor. What is the acquisition time to 0.01% accuracy (9 time constants)?',
+            hint: 'tacq = 9 × R × C',
+            expected: 90,
+            tolerance: 0.05,
+            unit: 'ns',
+            solution: 'tacq = 9 × 50Ω × 200pF = 90ns',
+            explanation: '9 time constants give 0.012% settling, adequate for 12-bit accuracy.'
+        },
+        {
+            id: 'M14L5-2',
+            type: 'numeric',
+            question: 'A buffer has 10pA bias current. With a 100pF hold capacitor and 20µs hold time, what is the total droop in mV?',
+            hint: 'Droop = (Ibias / C) × t',
+            expected: 2,
+            tolerance: 0.05,
+            unit: 'mV',
+            solution: 'Droop = (10pA / 100pF) × 20µs = 0.1V/s × 20µs = 2mV',
+            explanation: 'This is ~2.5 LSB for a 12-bit ADC with 3.3V range—may need larger capacitor.'
+        },
+        {
+            id: 'M14L5-3',
+            type: 'choice',
+            question: 'What is charge injection in a S/H circuit?',
+            choices: [
+                { text: 'Current through the switch resistance', correct: false, explanation: 'This is the normal charging current, not charge injection.' },
+                { text: 'Charge dumped onto Chold when switch opens', correct: true, explanation: 'Correct! The switch\'s parasitic capacitance releases charge when it turns off, causing a voltage step.' },
+                { text: 'Leakage current during hold', correct: false, explanation: 'This is droop, not charge injection.' },
+                { text: 'Input capacitance of the buffer', correct: false, explanation: 'This affects bandwidth but isn\'t charge injection.' }
+            ]
+        }
+    ];
+
+    const container = document.getElementById('exercise-container');
+    exercises.forEach((ex, i) => {
+        const div = document.createElement('div');
+        div.id = `exercise-${i}`;
+        div.style.marginBottom = '15px';
+        container.appendChild(div);
+        new ExerciseWidget(`exercise-${i}`, ex);
+    });
+})();
+</script>

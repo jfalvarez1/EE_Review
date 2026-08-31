@@ -1,0 +1,304 @@
+<!-- Module 8, Lesson 4: Delta-Sigma Conversion -->
+<div class="lesson-content" data-module="8" data-lesson="4">
+
+    <div class="card">
+        <h2>Delta-Sigma (ΣΔ) Conversion</h2>
+        <p>Delta-Sigma converters trade speed for resolution through oversampling and noise shaping. They achieve 16-24 bit resolution with simple analog circuitry, dominating audio and precision measurement.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">OSR (Oversampling Ratio)</div>
+                <div class="v mono">OSR = f<sub>s</sub> / (2 × f<sub>BW</sub>)</div>
+            </div>
+            <div class="box">
+                <div class="k">Resolution Improvement</div>
+                <div class="v mono">+1.5 bits per octave OSR (1st order)</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Insight:</strong> The magic is noise shaping—the modulator pushes quantization noise to high frequencies where it's filtered out. Higher order modulators push more noise out-of-band for more bits.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Oversampling Benefits</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="sd-osr">OSR</label>
+                <input type="range" id="sd-osr" min="4" max="256" step="1" value="64">
+                <span id="sd-osr-val" class="mono">64×</span>
+            </div>
+            <div class="c3">
+                <label for="sd-order">Modulator Order</label>
+                <input type="range" id="sd-order" min="1" max="4" step="1" value="2">
+                <span id="sd-order-val" class="mono">2nd</span>
+            </div>
+            <div class="c3">
+                <label for="sd-bw">Bandwidth (kHz)</label>
+                <input type="range" id="sd-bw" min="1" max="100" step="1" value="20">
+                <span id="sd-bw-val" class="mono">20kHz</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="sd-canvas" width="980" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Sample Rate</div>
+                <div class="v mono" id="sd-fs">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Resolution Gain</div>
+                <div class="v mono" id="sd-resgain">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Effective Bits</div>
+                <div class="v mono" id="sd-enob">—</div>
+            </div>
+            <div class="box">
+                <div class="k">SNR</div>
+                <div class="v mono" id="sd-snr">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>ΣΔ Modulator Operation</h3>
+
+        <table class="table">
+            <tr>
+                <th>Order</th>
+                <th>Bits Gained per OSR×2</th>
+                <th>Stability</th>
+                <th>SNR Improvement</th>
+            </tr>
+            <tr>
+                <td>1st Order</td>
+                <td>1.5 bits</td>
+                <td>Always stable</td>
+                <td>9 dB/octave</td>
+            </tr>
+            <tr>
+                <td>2nd Order</td>
+                <td>2.5 bits</td>
+                <td>Stable</td>
+                <td>15 dB/octave</td>
+            </tr>
+            <tr>
+                <td>3rd Order</td>
+                <td>3.5 bits</td>
+                <td>Conditional</td>
+                <td>21 dB/octave</td>
+            </tr>
+            <tr>
+                <td>4th+ Order</td>
+                <td>4.5+ bits</td>
+                <td>Requires care</td>
+                <td>27+ dB/octave</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Digital Decimation Filter</h3>
+        <p>The modulator output is a high-rate 1-bit stream that must be filtered and decimated:</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Sinc Filter</div>
+                <div class="v">Simple moving average, multiple stages</div>
+            </div>
+            <div class="box">
+                <div class="k">FIR Filter</div>
+                <div class="v">Better stopband, more complex</div>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>Latency:</strong> ΣΔ converters have significant latency due to the decimation filter. This matters for closed-loop control—consider SAR ADCs when latency is critical.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Verification Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('sd-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const osr = parseInt(document.getElementById('sd-osr').value);
+        const order = parseInt(document.getElementById('sd-order').value);
+        const bw = parseFloat(document.getElementById('sd-bw').value) * 1000;
+
+        document.getElementById('sd-osr-val').textContent = osr + '×';
+        document.getElementById('sd-order-val').textContent = order + (order === 1 ? 'st' : order === 2 ? 'nd' : order === 3 ? 'rd' : 'th');
+        document.getElementById('sd-bw-val').textContent = (bw/1000) + 'kHz';
+
+        const fs = 2 * bw * osr;
+
+        // Resolution gain formula: (order + 0.5) × log2(OSR) bits
+        const resGain = (order + 0.5) * Math.log2(osr);
+
+        // Effective bits (assuming 1-bit quantizer baseline)
+        const enob = 1 + resGain - 2; // Subtract overhead
+
+        // SNR
+        const snr = 6.02 * enob + 1.76;
+
+        document.getElementById('sd-fs').textContent = AD.fmtUnit(fs, 'Hz');
+        document.getElementById('sd-resgain').textContent = '+' + resGain.toFixed(1) + ' bits';
+        document.getElementById('sd-enob').textContent = Math.max(1, enob).toFixed(1) + ' bits';
+        document.getElementById('sd-snr').textContent = Math.max(0, snr).toFixed(1) + ' dB';
+
+        plotNoiseShaping(osr, order, bw);
+    }
+
+    function plotNoiseShaping(osr, order, bw) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        const fs = 2 * bw * osr;
+        const N = 500;
+
+        // Noise spectral density
+        const noise = [];
+        const freqs = [];
+
+        for (let i = 0; i < N; i++) {
+            const f = (i / N) * fs / 2;
+            freqs.push(f);
+
+            // Noise shaping: |1 - z^-1|^order at normalized frequency
+            const fNorm = f / fs;
+            const noiseTF = Math.pow(2 * Math.sin(Math.PI * fNorm), order);
+            const noisePsd = noiseTF;
+
+            noise.push(20 * Math.log10(Math.max(1e-6, noisePsd)));
+        }
+
+        const maxNoise = Math.max(...noise) + 10;
+        const minNoise = -80;
+
+        // Shade signal band
+        const xBw = (bw / (fs/2)) * w;
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.1)';
+        ctx.fillRect(0, 0, xBw, h);
+
+        // Plot noise
+        ctx.save();
+        ctx.strokeStyle = 'rgba(251, 113, 133, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        noise.forEach((n, i) => {
+            const x = (i / N) * w;
+            const y = h * 0.1 + ((maxNoise - n) / (maxNoise - minNoise)) * h * 0.8;
+            const yClamp = Math.max(h * 0.1, Math.min(h * 0.9, y));
+            if (i === 0) ctx.moveTo(x, yClamp);
+            else ctx.lineTo(x, yClamp);
+        });
+        ctx.stroke();
+        ctx.restore();
+
+        // Labels
+        ctx.save();
+        ctx.font = '12px ui-sans-serif';
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.7)';
+        ctx.fillText('Signal Band', 10, h - 10);
+        ctx.fillStyle = 'rgba(251, 113, 133, 0.9)';
+        ctx.fillText('Shaped Quantization Noise', w - 200, 25);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText(`Order ${order} modulator  |  OSR = ${osr}×`, 10, 25);
+        ctx.restore();
+    }
+
+    ['sd-osr', 'sd-order', 'sd-bw'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: '1st Order Delta-Sigma Modulator',
+        netlist: `* 1st Order Delta-Sigma Modulator
+* Conceptual - uses ideal elements
+
+.include opamp.sub
+
+* Input signal
+VIN in 0 DC 0.5
+
+* Integrator
+X1 sum fb int 0 vcc vee OPAMP
+RINT sum int 10k
+CINT int 0 1n
+
+* Comparator (1-bit quantizer)
+X2 int 0 comp 0 vcc vee OPAMP
+
+* 1-bit DAC (feedback)
+EDAC fb 0 comp 0 0.5
+
+* Summing junction
+RSUM1 in sum 10k
+RSUM2 fb sum 10k
+
+VCC vcc 0 DC 2.5
+VEE vee 0 DC -2.5
+
+* Clock (not shown - assume synchronous)
+
+.TRAN 0.1u 1m
+
+.PROBE V(in) V(int) V(comp)
+.END
+
+* Output is 1-bit stream at high rate
+* Needs digital decimation filter`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm8l4',
+        items: [
+            'Understand oversampling ratio',
+            'Know noise shaping concept',
+            'Calculate resolution gain vs OSR',
+            'Understand modulator order trade-offs',
+            'Know decimation filter purpose'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'G1-4',
+        type: 'numeric',
+        question: 'A 2nd-order ΣΔ modulator uses OSR = 128. How many bits of resolution are gained over Nyquist sampling?',
+        hint: 'Bits gained = (order + 0.5) × log2(OSR)',
+        expected: 17.5,
+        tolerance: 0.05,
+        unit: 'bits',
+        solution: 'Bits = (2 + 0.5) × log2(128) = 2.5 × 7 = 17.5 bits',
+        explanation: 'Higher order modulators gain more bits per octave of oversampling because they push more noise to high frequencies.'
+    });
+})();
+</script>

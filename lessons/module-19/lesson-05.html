@@ -1,0 +1,726 @@
+<!-- Module 19, Lesson 5: Fuel Gauge Algorithms -->
+<div class="lesson-content" data-module="19" data-lesson="5">
+
+    <div class="card">
+        <h2>Fuel Gauge Algorithms</h2>
+        <p>Accurate state-of-charge (SOC) estimation is essential for battery-powered devices. Learn voltage-based, coulomb counting, and advanced fuel gauge algorithms used in modern BMS systems.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Voltage-Based</div>
+                <div class="v">Simple, less accurate</div>
+            </div>
+            <div class="box">
+                <div class="k">Coulomb Counting</div>
+                <div class="v">Integrates current</div>
+            </div>
+            <div class="box">
+                <div class="k">Impedance Track</div>
+                <div class="v">Models battery aging</div>
+            </div>
+            <div class="box">
+                <div class="k">Model-Based</div>
+                <div class="v">Kalman filter, ML</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Challenge:</strong> Battery capacity changes with temperature, age, and load current. A good fuel gauge must account for all these factors to provide accurate remaining runtime estimates.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: SOC Estimation Methods</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="fg-method">Estimation Method</label>
+                <select id="fg-method">
+                    <option value="voltage">Voltage-Based (OCV)</option>
+                    <option value="coulomb">Coulomb Counting</option>
+                    <option value="combined">Combined Method</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="fg-current">Load Current (A)</label>
+                <input type="range" id="fg-current" min="0.1" max="5" step="0.1" value="1">
+                <span id="fg-current-val" class="mono">1.0A</span>
+            </div>
+            <div class="c3">
+                <label for="fg-temp">Temperature (°C)</label>
+                <input type="range" id="fg-temp" min="-20" max="60" step="5" value="25">
+                <span id="fg-temp-val" class="mono">25°C</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="fg-canvas" width="980" height="340"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Voltage SOC</div>
+                <div class="v mono" id="fg-vsoc">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Coulomb SOC</div>
+                <div class="v mono" id="fg-csoc">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Actual SOC</div>
+                <div class="v mono" id="fg-actual">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Error</div>
+                <div class="v mono" id="fg-error">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Algorithm Comparison</h3>
+
+        <table class="table">
+            <tr>
+                <th>Method</th>
+                <th>Accuracy</th>
+                <th>Drift</th>
+                <th>Complexity</th>
+                <th>Best Use</th>
+            </tr>
+            <tr>
+                <td>Voltage (OCV)</td>
+                <td>±10-15%</td>
+                <td>None</td>
+                <td>Low</td>
+                <td>Standby, light loads</td>
+            </tr>
+            <tr>
+                <td>Coulomb Counting</td>
+                <td>±2-5%</td>
+                <td>Accumulates</td>
+                <td>Medium</td>
+                <td>Known capacity</td>
+            </tr>
+            <tr>
+                <td>Impedance Track</td>
+                <td>±1-3%</td>
+                <td>Self-correcting</td>
+                <td>High</td>
+                <td>Aging batteries</td>
+            </tr>
+            <tr>
+                <td>Extended Kalman</td>
+                <td>±1-2%</td>
+                <td>Minimal</td>
+                <td>Very High</td>
+                <td>Critical applications</td>
+            </tr>
+            <tr>
+                <td>ML/Neural Net</td>
+                <td>±1%</td>
+                <td>Minimal</td>
+                <td>Extreme</td>
+                <td>Research, EVs</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Algorithm Details</h3>
+        <canvas id="fg-algorithms-canvas" width="900" height="500" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;margin:0 auto;"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Fuel Gauge Block Diagram</h3>
+        <div id="fg-schematic"></div>
+    </div>
+
+    <div class="card">
+        <h3>Implementation Code</h3>
+        <div id="fg-spice"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="fg-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="fg-exercises"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('fg-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 60;
+
+    // Li-ion OCV curve (voltage vs SOC)
+    function ocvFromSoc(soc) {
+        // Typical Li-ion curve (3.0V empty, 4.2V full)
+        if (soc <= 0) return 3.0;
+        if (soc >= 100) return 4.2;
+        // Polynomial approximation
+        const x = soc / 100;
+        return 3.0 + 1.2 * (0.2 * x + 0.8 * Math.pow(x, 0.5));
+    }
+
+    function socFromOcv(voltage) {
+        // Inverse lookup (simplified)
+        if (voltage <= 3.0) return 0;
+        if (voltage >= 4.2) return 100;
+        // Binary search would be better, but linear approximation works
+        for (let soc = 0; soc <= 100; soc++) {
+            if (ocvFromSoc(soc) >= voltage) return soc;
+        }
+        return 100;
+    }
+
+    // Simulation state
+    let simTime = 0;
+    let coulombAh = 3.0; // Ah remaining (3Ah battery)
+    let actualSoc = 100;
+    const Qmax = 3.0; // 3Ah capacity
+
+    function update() {
+        const method = document.getElementById('fg-method').value;
+        const current = parseFloat(document.getElementById('fg-current').value) || 1;
+        const temp = parseFloat(document.getElementById('fg-temp').value) || 25;
+
+        document.getElementById('fg-current-val').textContent = current.toFixed(1) + 'A';
+        document.getElementById('fg-temp-val').textContent = temp + '°C';
+
+        // Temperature derating
+        const tempFactor = 1 - 0.01 * Math.abs(25 - temp);
+        const effectiveQmax = Qmax * tempFactor;
+
+        // Actual SOC (simulation)
+        actualSoc = (coulombAh / effectiveQmax) * 100;
+        actualSoc = Math.max(0, Math.min(100, actualSoc));
+
+        // Battery terminal voltage (OCV - IR drop)
+        const R_internal = 0.05 + 0.02 * (1 - actualSoc / 100); // Increases at low SOC
+        const Vocv = ocvFromSoc(actualSoc);
+        const Vterm = Vocv - current * R_internal;
+
+        // SOC estimates by different methods
+        const socVoltage = socFromOcv(Vterm); // Voltage-based (uses terminal, not OCV!)
+        const socCoulomb = (coulombAh / Qmax) * 100; // Coulomb counting (ignores temp)
+
+        let socEstimate;
+        if (method === 'voltage') {
+            socEstimate = socVoltage;
+        } else if (method === 'coulomb') {
+            socEstimate = socCoulomb;
+        } else {
+            // Combined: weight based on current
+            const alpha = Math.exp(-current); // Low current → trust voltage
+            socEstimate = alpha * socVoltage + (1 - alpha) * socCoulomb;
+        }
+
+        const error = socEstimate - actualSoc;
+
+        document.getElementById('fg-vsoc').textContent = socVoltage.toFixed(1) + '%';
+        document.getElementById('fg-csoc').textContent = socCoulomb.toFixed(1) + '%';
+        document.getElementById('fg-actual').textContent = actualSoc.toFixed(1) + '%';
+        document.getElementById('fg-error').textContent = (error > 0 ? '+' : '') + error.toFixed(1) + '%';
+
+        // Draw visualization
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        // Left: OCV curve
+        const plotW = 350, plotH = 220;
+        const plotX = mL, plotY = mT;
+
+        ctx.strokeStyle = TEK.grid;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(plotX, plotY, plotW, plotH);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('OCV vs SOC Curve', plotX + plotW/2, plotY - 8);
+
+        // Draw OCV curve
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        for (let soc = 0; soc <= 100; soc++) {
+            const v = ocvFromSoc(soc);
+            const x = plotX + (soc / 100) * plotW;
+            const y = plotY + plotH - ((v - 3.0) / 1.4) * plotH;
+
+            if (soc === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Mark actual point
+        const actualX = plotX + (actualSoc / 100) * plotW;
+        const actualY = plotY + plotH - ((Vocv - 3.0) / 1.4) * plotH;
+
+        ctx.fillStyle = '#4f4';
+        ctx.beginPath();
+        ctx.arc(actualX, actualY, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mark terminal voltage point (shows error source)
+        const termY = plotY + plotH - ((Vterm - 3.0) / 1.4) * plotH;
+        ctx.fillStyle = '#f44';
+        ctx.beginPath();
+        ctx.arc(actualX, termY, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // IR drop indicator
+        ctx.strokeStyle = '#f44';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(actualX, actualY);
+        ctx.lineTo(actualX, termY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#f44';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('IR drop: ' + (Vocv - Vterm).toFixed(2) + 'V', actualX + 10, (actualY + termY) / 2);
+
+        // Axis labels
+        ctx.fillStyle = '#888';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+
+        for (let soc = 0; soc <= 100; soc += 25) {
+            const x = plotX + (soc / 100) * plotW;
+            ctx.fillText(soc + '%', x, plotY + plotH + 15);
+        }
+        ctx.fillText('SOC', plotX + plotW/2, plotY + plotH + 35);
+
+        ctx.textAlign = 'right';
+        for (let v = 3.0; v <= 4.2; v += 0.4) {
+            const y = plotY + plotH - ((v - 3.0) / 1.4) * plotH;
+            ctx.fillText(v.toFixed(1) + 'V', plotX - 5, y + 4);
+        }
+
+        // Right: SOC comparison bar chart
+        const barX = 500, barY = mT;
+        const barW = 80, barH = 200;
+
+        ctx.fillStyle = '#222';
+        ctx.fillRect(barX, barY, 400, plotH);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(barX, barY, 400, plotH);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('SOC Estimates Comparison', barX + 200, barY - 8);
+
+        // Draw bars
+        const bars = [
+            {label: 'Actual', value: actualSoc, color: '#4f4'},
+            {label: 'Voltage', value: socVoltage, color: TEK.ch1},
+            {label: 'Coulomb', value: socCoulomb, color: TEK.ch2},
+            {label: 'Combined', value: socEstimate, color: TEK.ch3}
+        ];
+
+        bars.forEach((bar, idx) => {
+            const x = barX + 30 + idx * 95;
+            const h = (bar.value / 100) * (barH - 20);
+
+            ctx.fillStyle = '#444';
+            ctx.fillRect(x, barY + 20, barW, barH - 20);
+
+            ctx.fillStyle = bar.color;
+            ctx.fillRect(x, barY + barH - h, barW, h);
+
+            ctx.fillStyle = '#fff';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(bar.label, x + barW/2, barY + barH + 15);
+            ctx.fillText(bar.value.toFixed(1) + '%', x + barW/2, barY + barH - h - 5);
+        });
+
+        // Legend
+        ctx.fillStyle = '#4f4';
+        ctx.fillText('● OCV', barX + 50, barY + barH + 45);
+        ctx.fillStyle = '#f44';
+        ctx.fillText('● Vterm', barX + 150, barY + barH + 45);
+
+        // Status message
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+
+        let message;
+        if (method === 'voltage') {
+            message = 'Voltage method: IR drop causes ' + Math.abs(socVoltage - actualSoc).toFixed(0) + '% underestimate under load';
+        } else if (method === 'coulomb') {
+            if (temp !== 25) {
+                message = 'Coulomb counting: Temperature affects capacity, ' + Math.abs(socCoulomb - actualSoc).toFixed(0) + '% error';
+            } else {
+                message = 'Coulomb counting: Accurate when Qmax is known and temperature = 25°C';
+            }
+        } else {
+            message = 'Combined: Blends methods, error = ' + Math.abs(error).toFixed(1) + '%';
+        }
+        ctx.fillText(message, mL, H - 15);
+    }
+
+    ['fg-method', 'fg-current', 'fg-temp'].forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', update);
+        el.addEventListener('change', update);
+    });
+
+    // Block diagram
+    function drawSchematic() {
+        const container = document.getElementById('fg-schematic');
+        const svg = new SchematicSVG(700, 200);
+
+        svg.text(50, 25, 'Fuel Gauge IC Block Diagram:', {fontSize: 12, fill: '#4af'});
+
+        // Battery
+        svg.rect(30, 60, 60, 80, {fill: 'none', stroke: '#888'});
+        svg.text(60, 100, 'Battery', {fontSize: 9});
+
+        // Current sense
+        svg.wire([[90, 80], [140, 80]]);
+        svg.resistor(160, 80, {horizontal: true});
+        svg.text(160, 65, 'Rsense', {fontSize: 9});
+        svg.wire([[180, 80], [220, 80]]);
+
+        // Fuel gauge IC
+        svg.rect(220, 50, 200, 120, {fill: 'none', stroke: '#888'});
+        svg.text(320, 70, 'Fuel Gauge IC', {fontSize: 11});
+
+        // Internal blocks
+        svg.rect(235, 85, 60, 30, {fill: 'none', stroke: '#666'});
+        svg.text(265, 105, 'ADC', {fontSize: 9});
+
+        svg.rect(235, 125, 60, 30, {fill: 'none', stroke: '#666'});
+        svg.text(265, 145, 'Temp', {fontSize: 9});
+
+        svg.rect(310, 85, 90, 30, {fill: 'none', stroke: '#666'});
+        svg.text(355, 105, 'Algorithm', {fontSize: 9});
+
+        svg.rect(310, 125, 90, 30, {fill: 'none', stroke: '#666'});
+        svg.text(355, 145, 'Registers', {fontSize: 9});
+
+        // Connections
+        svg.wire([[220, 80], [235, 100]]);
+        svg.wire([[295, 100], [310, 100]]);
+        svg.wire([[355, 115], [355, 125]]);
+
+        // I2C output
+        svg.wire([[420, 100], [480, 100]]);
+        svg.wire([[420, 130], [480, 130]]);
+        svg.text(500, 100, 'SCL', {fontSize: 9});
+        svg.text(500, 130, 'SDA', {fontSize: 9});
+        svg.text(500, 155, 'To MCU', {fontSize: 9, fill: '#888'});
+
+        // Temp sensor connection
+        svg.wire([[90, 140], [235, 140]]);
+        svg.text(120, 155, 'NTC', {fontSize: 9});
+
+        // Ground
+        svg.wire([[90, 140], [90, 160]]);
+        svg.ground(90, 160);
+
+        container.innerHTML = svg.render();
+    }
+
+    // Code example
+    function initSpice() {
+        new SpiceNetlistWidget('fg-spice', {
+            title: 'Coulomb Counting Algorithm (Pseudocode)',
+            netlist: `* Coulomb Counting Fuel Gauge Implementation
+
+// Configuration
+#define RSENSE      0.010    // 10mΩ sense resistor
+#define QMAX_mAh    3000     // 3Ah capacity
+#define ADC_RATE_Hz 10       // 10 samples/sec
+
+// State variables
+float soc_percent = 100.0;   // Start fully charged
+float coulombs_remaining;    // In mAh
+
+// Initialize
+void fuel_gauge_init() {
+    coulombs_remaining = QMAX_mAh;
+    soc_percent = 100.0;
+}
+
+// Called every ADC sample
+void fuel_gauge_update(float v_sense) {
+    // Calculate current (mA)
+    float current_mA = (v_sense / RSENSE) * 1000;
+
+    // Integrate (mAh per sample)
+    float delta_mAh = current_mA / (3600 * ADC_RATE_Hz);
+
+    // Update remaining capacity
+    // Positive current = discharge
+    coulombs_remaining -= delta_mAh;
+
+    // Clamp to valid range
+    if (coulombs_remaining < 0) coulombs_remaining = 0;
+    if (coulombs_remaining > QMAX_mAh)
+        coulombs_remaining = QMAX_mAh;
+
+    // Calculate SOC percentage
+    soc_percent = (coulombs_remaining / QMAX_mAh) * 100;
+}
+
+// Sync to OCV when at rest
+void fuel_gauge_sync_ocv(float v_battery) {
+    if (is_at_rest()) {  // No load for > 30 minutes
+        float soc_from_ocv = ocv_to_soc(v_battery);
+
+        // Blend with coulomb counting
+        soc_percent = 0.8*soc_from_ocv + 0.2*soc_percent;
+        coulombs_remaining = (soc_percent/100) * QMAX_mAh;
+    }
+}
+
+// Compensate for temperature
+float get_effective_capacity(float temp_C) {
+    // Capacity reduces at low temp
+    float factor = 1.0 - 0.01 * abs(25 - temp_C);
+    return QMAX_mAh * factor;
+}`
+        });
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('fg-checklist', {
+            title: 'Fuel Gauge Design Checklist',
+            items: [
+                'Select appropriate algorithm for accuracy needs',
+                'Size current sense resistor for resolution',
+                'Characterize battery OCV curve',
+                'Implement temperature compensation',
+                'Calibrate at full charge (100% sync)',
+                'Calibrate at empty (0% sync)',
+                'Handle edge cases (long rest, high current)',
+                'Test accuracy over charge/discharge cycles',
+                'Verify aging compensation if needed',
+                'Implement remaining runtime calculation'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('fg-exercises', {
+            exercises: [
+                {
+                    question: '3Ah battery, 500mA load, SOC=50%. How long until empty?',
+                    answer: '3 hours',
+                    solution: 'Remaining = 3Ah × 50% = 1.5Ah. Time = 1.5Ah / 0.5A = 3 hours.'
+                },
+                {
+                    question: 'Coulomb counter shows 80% but voltage shows 60%. Which is likely correct after 2A discharge for 1 hour?',
+                    answer: 'Coulomb (voltage wrong due to IR drop)',
+                    solution: 'Under 2A load, IR drop can be 100-200mV, making voltage appear lower. Coulomb counting is more accurate under load. OCV method only works at rest.'
+                },
+                {
+                    question: 'Battery capacity at -10°C is 80% of 25°C. SOC reads 50% at 25°C calibration. True SOC at -10°C?',
+                    answer: '~40%',
+                    solution: 'At -10°C, available capacity is 80% of rated. If measured as 50% of 25°C capacity, actual usable = 50% × 0.8 = 40% of -10°C capacity. Temperature compensation needed!'
+                }
+            ]
+        });
+    }
+
+    update();
+    drawSchematic();
+    initSpice();
+    initChecklist();
+    initExercises();
+
+    // Algorithm Details Canvas
+    (function() {
+        const canvas = document.getElementById('fg-algorithms-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, W, H);
+
+        const colW = 210, colGap = 15;
+        const startX = 20, startY = 20;
+
+        function drawAlgorithmBox(x, y, w, h, title, formula, issues, color) {
+            // Box background
+            ctx.fillStyle = '#1a2332';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            AD.roundRect(ctx, x, y, w, h, 6, { fill: '#1a2332', stroke: color, lineWidth: 2 });
+
+            // Title
+            ctx.fillStyle = color;
+            ctx.font = 'bold 12px ui-sans-serif, system-ui, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(title, x + 10, y + 20);
+
+            // Formula
+            ctx.fillStyle = '#4af';
+            ctx.font = '10px monospace';
+            let yPos = y + 40;
+            formula.forEach(line => {
+                ctx.fillText(line, x + 10, yPos);
+                yPos += 14;
+            });
+
+            // Issues header
+            if (issues.length > 0) {
+                yPos += 8;
+                ctx.fillStyle = '#888';
+                ctx.font = '9px ui-sans-serif';
+                ctx.fillText('Issues:', x + 10, yPos);
+                yPos += 12;
+
+                // Issue items with tree-style bullets
+                ctx.fillStyle = '#ccc';
+                ctx.font = '9px ui-sans-serif';
+                issues.forEach((issue, i) => {
+                    const bullet = i === issues.length - 1 ? '└' : '├';
+                    ctx.fillStyle = '#666';
+                    ctx.fillText(bullet + '─', x + 12, yPos);
+                    ctx.fillStyle = '#ccc';
+                    ctx.fillText(issue, x + 28, yPos);
+                    yPos += 13;
+                });
+            }
+        }
+
+        // Column 1: Voltage-Based
+        drawAlgorithmBox(startX, startY, colW, 130,
+            'Voltage-Based (OCV)',
+            ['SOC = f(Vocv)', '(from lookup table)'],
+            ['Must be at rest (no load)', 'IR drop masks true OCV', 'Flat curve mid-range'],
+            TEK.ch1
+        );
+
+        // Column 2: Coulomb Counting
+        drawAlgorithmBox(startX + colW + colGap, startY, colW, 150,
+            'Coulomb Counting',
+            ['SOC(t) = SOC(0) +', '  (1/Qmax) × ∫I(t)dt', '', 'SOC += (I×Δt)/Qmax'],
+            ['Needs accurate sensing', 'Drift from offset', 'Qmax changes w/ age'],
+            TEK.ch2
+        );
+
+        // Column 3: Combined
+        drawAlgorithmBox(startX + 2*(colW + colGap), startY, colW, 150,
+            'Combined (Adaptive)',
+            ['SOC = α×SOC_v +', '  (1-α)×SOC_coulomb', '', 'α depends on:'],
+            ['Load current level', 'Rest time duration', 'Voltage stability'],
+            TEK.ch3
+        );
+
+        // Column 4: Temperature Comp
+        drawAlgorithmBox(startX + 3*(colW + colGap), startY, colW, 130,
+            'Temperature Comp',
+            ['Qmax(T) = Qmax(25°C) ×', '  [1 - 0.01×(25-T)]', '', 'Low temp → less capacity'],
+            ['Must adjust SOC calc'],
+            TEK.ch5 || '#FF6600'
+        );
+
+        // Bottom section: Impedance Tracking (wider box)
+        const bottomY = 190;
+        AD.roundRect(ctx, startX, bottomY, W - 40, 130, 6, { fill: '#1a2332', stroke: TEK.ch4, lineWidth: 2 });
+
+        ctx.fillStyle = TEK.ch4;
+        ctx.font = 'bold 12px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Impedance Tracking (Advanced)', startX + 15, bottomY + 25);
+
+        // Draw as flow diagram
+        const boxW = 180, boxH = 50;
+        const boxes = [
+            { x: 40, label: 'Measure\nInternal R' },
+            { x: 250, label: 'R increases\nwith age/low SOC' },
+            { x: 460, label: 'Update Qmax\nbased on impedance' },
+            { x: 670, label: 'Self-corrects\nover cycles' }
+        ];
+
+        boxes.forEach((box, i) => {
+            const bx = box.x, by = bottomY + 50;
+            ctx.fillStyle = '#0d1a0d';
+            ctx.strokeStyle = TEK.ch4;
+            ctx.lineWidth = 1;
+            AD.roundRect(ctx, bx, by, boxW, boxH, 4, { fill: '#0d1a0d', stroke: TEK.ch4, lineWidth: 1 });
+
+            ctx.fillStyle = '#fff';
+            ctx.font = '10px ui-sans-serif';
+            ctx.textAlign = 'center';
+            const lines = box.label.split('\n');
+            lines.forEach((line, j) => {
+                ctx.fillText(line, bx + boxW/2, by + 22 + j * 14);
+            });
+
+            // Arrow to next box
+            if (i < boxes.length - 1) {
+                const nextX = boxes[i + 1].x;
+                ctx.strokeStyle = TEK.ch4;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(bx + boxW + 5, by + boxH/2);
+                ctx.lineTo(nextX - 5, by + boxH/2);
+                ctx.stroke();
+                // Arrowhead
+                ctx.beginPath();
+                ctx.moveTo(nextX - 5, by + boxH/2);
+                ctx.lineTo(nextX - 12, by + boxH/2 - 5);
+                ctx.lineTo(nextX - 12, by + boxH/2 + 5);
+                ctx.closePath();
+                ctx.fillStyle = TEK.ch4;
+                ctx.fill();
+            }
+        });
+
+        // Summary section at bottom
+        const summaryY = 340;
+        AD.roundRect(ctx, startX, summaryY, W - 40, 140, 6, { fill: '#141922', stroke: '#374151', lineWidth: 1 });
+
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px ui-sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('Algorithm Selection Guide:', startX + 15, summaryY + 22);
+
+        const guideItems = [
+            { method: 'Voltage-Based', use: 'Standby, light loads, initial calibration', accuracy: '±10-15%', color: TEK.ch1 },
+            { method: 'Coulomb Counting', use: 'Known capacity, active use', accuracy: '±2-5%', color: TEK.ch2 },
+            { method: 'Combined', use: 'General purpose, best balance', accuracy: '±2-3%', color: TEK.ch3 },
+            { method: 'Impedance Track', use: 'Aging batteries, long-term accuracy', accuracy: '±1-2%', color: TEK.ch4 }
+        ];
+
+        let gy = summaryY + 45;
+        guideItems.forEach(item => {
+            ctx.fillStyle = item.color;
+            ctx.font = 'bold 10px ui-sans-serif';
+            ctx.fillText(item.method + ':', startX + 20, gy);
+
+            ctx.fillStyle = '#ccc';
+            ctx.font = '10px ui-sans-serif';
+            ctx.fillText(item.use, startX + 150, gy);
+
+            ctx.fillStyle = '#888';
+            ctx.fillText('(' + item.accuracy + ')', startX + 520, gy);
+            gy += 22;
+        });
+    })();
+})();
+</script>

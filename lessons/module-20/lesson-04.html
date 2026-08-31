@@ -1,0 +1,490 @@
+<!-- Module 20, Lesson 4: Audio DAC Output Stage -->
+<div class="lesson-content" data-module="20" data-lesson="4">
+
+    <div class="card">
+        <h2>Scenario: Audio DAC Output Stage</h2>
+        <p>Design the analog output stage for a high-fidelity audio DAC. Balance between low distortion, low noise, and ability to drive headphones or line outputs.</p>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Dynamic Range</div>
+                <div class="v">>100dB (16-bit)</div>
+            </div>
+            <div class="box">
+                <div class="k">THD+N</div>
+                <div class="v"><0.01%</div>
+            </div>
+            <div class="box">
+                <div class="k">Output</div>
+                <div class="v">2Vrms into 32-600Ω</div>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Key Challenge:</strong> The DAC outputs a low-level current that must be converted to voltage, filtered, amplified, and buffered. Each stage can add noise and distortion if not designed carefully.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Interactive: Output Stage Analysis</h3>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="dac-vout">V<sub>out</sub> (Vrms)</label>
+                <input type="range" id="dac-vout" min="0.5" max="4" step="0.1" value="2">
+                <span id="dac-vout-val" class="mono">2Vrms</span>
+            </div>
+            <div class="c3">
+                <label for="dac-rload">Load (Ω)</label>
+                <select id="dac-rload">
+                    <option value="32">32Ω (IEMs)</option>
+                    <option value="100">100Ω (headphones)</option>
+                    <option value="300" selected>300Ω (high-Z headphones)</option>
+                    <option value="10000">10kΩ (line out)</option>
+                </select>
+            </div>
+            <div class="c3">
+                <label for="dac-noise">Op-amp Noise (nV/√Hz)</label>
+                <input type="range" id="dac-noise" min="1" max="20" step="1" value="5">
+                <span id="dac-noise-val" class="mono">5nV/√Hz</span>
+            </div>
+            <div class="c3">
+                <label for="dac-gain">Gain (V/V)</label>
+                <input type="range" id="dac-gain" min="1" max="10" step="0.5" value="2">
+                <span id="dac-gain-val" class="mono">2×</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="dac-canvas" width="980" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box">
+                <div class="k">Output Power</div>
+                <div class="v mono" id="dac-power">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Output Current</div>
+                <div class="v mono" id="dac-iout">—</div>
+            </div>
+            <div class="box">
+                <div class="k">Noise Floor</div>
+                <div class="v mono" id="dac-floor">—</div>
+            </div>
+            <div class="box">
+                <div class="k">SNR</div>
+                <div class="v mono" id="dac-snr">—</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Signal Chain Architecture</h3>
+        <div class="diagram-container">
+            <canvas id="audio-dac-chain-canvas" width="900" height="380" style="width:100%;max-width:900px;background:#0d1117;border-radius:8px;"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Op-Amp Selection Criteria</h3>
+
+        <table class="table">
+            <tr>
+                <th>Parameter</th>
+                <th>Requirement</th>
+                <th>Why</th>
+            </tr>
+            <tr>
+                <td>Voltage noise</td>
+                <td><5 nV/√Hz</td>
+                <td>Sets noise floor</td>
+            </tr>
+            <tr>
+                <td>THD</td>
+                <td><0.001% @ 1kHz</td>
+                <td>Audible distortion</td>
+            </tr>
+            <tr>
+                <td>GBW</td>
+                <td>>10 MHz</td>
+                <td>Bandwidth with gain</td>
+            </tr>
+            <tr>
+                <td>Slew rate</td>
+                <td>>10 V/µs</td>
+                <td>No slew limiting at 20kHz</td>
+            </tr>
+            <tr>
+                <td>Output current</td>
+                <td>>50 mA</td>
+                <td>Drive low-Z loads</td>
+            </tr>
+            <tr>
+                <td>PSRR</td>
+                <td>>80 dB</td>
+                <td>Reject supply noise</td>
+            </tr>
+        </table>
+
+        <div class="warn">
+            <strong>Headphone Considerations:</strong>
+            <ul style="margin: 10px 0 0 20px;">
+                <li>32Ω headphones @ 2Vrms need 62mA peak current</li>
+                <li>Op-amp must remain linear at this current</li>
+                <li>Consider dedicated headphone amp IC or discrete buffer</li>
+                <li>DC servo or coupling cap to block offset</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>SPICE Netlist</h3>
+        <div id="spice-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="checklist-container"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercise</h3>
+        <div id="exercise-container"></div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('dac-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function update() {
+        const vout = parseFloat(document.getElementById('dac-vout').value);
+        const rload = parseFloat(document.getElementById('dac-rload').value);
+        const noise = parseFloat(document.getElementById('dac-noise').value);
+        const gain = parseFloat(document.getElementById('dac-gain').value);
+
+        document.getElementById('dac-vout-val').textContent = vout.toFixed(1) + 'Vrms';
+        document.getElementById('dac-noise-val').textContent = noise + 'nV/√Hz';
+        document.getElementById('dac-gain-val').textContent = gain + '×';
+
+        // Output power
+        const power = (vout * vout) / rload * 1000; // mW
+        document.getElementById('dac-power').textContent = power.toFixed(1) + 'mW';
+
+        // Peak output current
+        const ipeak = vout * Math.sqrt(2) / rload * 1000; // mA
+        document.getElementById('dac-iout').textContent = ipeak.toFixed(1) + 'mA peak';
+
+        // Noise floor (audio bandwidth 20Hz-20kHz)
+        const bw = 20000;
+        const vnoise = noise * 1e-9 * Math.sqrt(bw) * gain * 1e6; // µVrms
+        document.getElementById('dac-floor').textContent = vnoise.toFixed(1) + 'µVrms';
+
+        // SNR
+        const snr = 20 * Math.log10(vout / (vnoise * 1e-6));
+        const snrEl = document.getElementById('dac-snr');
+        snrEl.textContent = snr.toFixed(0) + 'dB';
+        snrEl.style.color = snr > 110 ? 'var(--ok)' : snr > 96 ? 'var(--warn)' : 'var(--bad)';
+
+        plotFrequencyResponse(gain, rload);
+    }
+
+    function plotFrequencyResponse(gain, rload) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const fMin = 10;
+        const fMax = 100000;
+
+        const axes = AD.drawAxes(ctx, w, h, {
+            xMin: Math.log10(fMin),
+            xMax: Math.log10(fMax),
+            yMin: -6,
+            yMax: 6,
+            xLabel: 'Frequency',
+            yLabel: 'Gain Error',
+            xUnit: 'Hz',
+            yUnit: 'dB',
+            xDivs: 8,
+            yDivs: 6
+        });
+
+        const N = 200;
+        const fData = [];
+        const gainData = [];
+        const threeDbData = [];
+
+        // Simulate frequency response with output loading
+        // Assume GBW = 10MHz, Rout = 10Ω before buffer
+        const gbw = 10e6;
+        const rout = 10;
+
+        for (let i = 0; i < N; i++) {
+            const logF = Math.log10(fMin) + (i / N) * (Math.log10(fMax) - Math.log10(fMin));
+            const f = Math.pow(10, logF);
+            fData.push(logF);
+
+            // Open loop gain available
+            const aol = gbw / f;
+
+            // Closed loop gain with feedback
+            const beta = 1 / gain;
+            const acl = aol / (1 + aol * beta);
+
+            // Gain error in dB relative to DC gain
+            const gainDb = 20 * Math.log10(acl / gain);
+            gainData.push(Math.max(-6, gainDb));
+
+            // -3dB line
+            threeDbData.push(-3);
+        }
+
+        // Plot -3dB reference
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        AD.plotData(ctx, axes, fData, threeDbData, {
+            color: 'rgba(251, 191, 36, 0.5)',
+            lineWidth: 1
+        });
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        // Plot frequency response
+        AD.plotData(ctx, axes, fData, gainData, {
+            color: 'rgba(110, 231, 255, 0.95)',
+            lineWidth: 2
+        });
+
+        // Mark audio band
+        ctx.save();
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.1)';
+        const f20 = axes.toCanvas(Math.log10(20), 0);
+        const f20k = axes.toCanvas(Math.log10(20000), 0);
+        ctx.fillRect(f20.x, axes.top, f20k.x - f20.x, axes.height);
+
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.5)';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(f20.x, axes.top);
+        ctx.lineTo(f20.x, axes.top + axes.height);
+        ctx.moveTo(f20k.x, axes.top);
+        ctx.lineTo(f20k.x, axes.top + axes.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.8)';
+        ctx.font = '10px ui-sans-serif';
+        ctx.fillText('Audio Band', (f20.x + f20k.x) / 2 - 25, axes.top + 15);
+        ctx.restore();
+
+        AD.drawLegend(ctx, axes.left + 10, axes.top + 30, [
+            { color: 'rgba(110, 231, 255, 0.95)', label: 'Frequency response' },
+            { color: 'rgba(251, 191, 36, 0.5)', label: '-3dB reference' }
+        ]);
+    }
+
+    ['dac-vout', 'dac-rload', 'dac-noise', 'dac-gain'].forEach(id => {
+        document.getElementById(id).addEventListener('input', update);
+    });
+
+    update();
+
+    new SpiceNetlistWidget('spice-container', {
+        title: 'Headphone Amplifier Output Stage',
+        netlist: `* Audio DAC Output / Headphone Amp
+* Low distortion, high current output
+
+* Op-amp model (simplified, audio-grade)
+.SUBCKT AUDIO_OPA inp inn out vcc vee
+EOUT out 0 VALUE={1000*(V(inp)-V(inn))}
+ROUT out out_int 10
+COUT out_int 0 5p
+* Current limit ±100mA
+BLIM out_int out_lim I=LIMIT(V(out_int)/0.01, -0.1, 0.1)
+.ENDS
+
+* Power supplies
+VCC vcc 0 DC 12
+VEE vee 0 DC -12
+
+* Input signal (1kHz, 1Vpk)
+VIN inp 0 SIN(0 1 1k)
+
+* Non-inverting amplifier (G = 1 + 10k/5k = 3)
+XAMP inp fb out vcc vee AUDIO_OPA
+R1 out fb 10k
+R2 fb 0 5k
+
+* DC blocking cap
+COUT out hp_in 220u
+
+* Headphone load
+RLOAD hp_in 0 32
+
+.TRAN 0.01m 5m
+
+.PROBE V(inp) V(out) V(hp_in) I(RLOAD)
+.END
+
+* Check for clipping into 32Ω load
+* Verify no crossover distortion`
+    });
+
+    new ChecklistWidget('checklist-container', {
+        lessonKey: 'm20l4',
+        items: [
+            'Select low-noise op-amps (<5nV/√Hz)',
+            'Verify current drive for lowest load',
+            'Include DC blocking or servo',
+            'Layout for minimal crosstalk',
+            'Use star grounding for analog section'
+        ]
+    });
+
+    new ExerciseWidget('exercise-container', {
+        id: 'SC4-1',
+        type: 'numeric',
+        question: 'A headphone amp must deliver 100mW into 32Ω. What peak voltage swing is required?',
+        hint: 'P = Vrms²/R, Vpeak = Vrms × √2',
+        expected: 2.53,
+        tolerance: 0.05,
+        unit: 'V',
+        solution: 'Vrms = √(P×R) = √(0.1×32) = 1.79V. Vpeak = 1.79 × √2 = 2.53V',
+        explanation: 'With ±2.53V swing, the op-amp needs at least ±4V rails (headroom for output stage). Peak current is 2.53V/32Ω = 79mA.'
+    });
+})();
+
+// Audio DAC Signal Chain Canvas
+(function() {
+    const canvas = document.getElementById('audio-dac-chain-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const TEK = { ch1: '#FFFF00', ch2: '#00FFFF', ch3: '#FF66FF', ch4: '#00FF00' };
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Audio DAC Output Signal Chain', 30, 30);
+
+    // Helper to draw rounded rect
+    function roundRect(x, y, w, h, r, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, r);
+        ctx.stroke();
+    }
+
+    // Signal chain blocks
+    const blocks = [
+        { x: 30, y: 100, w: 100, h: 60, label: 'Digital\nSource', sublabel: 'I2S/USB', color: TEK.ch3 },
+        { x: 160, y: 100, w: 100, h: 60, label: 'DAC IC', sublabel: 'Current out', color: TEK.ch2 },
+        { x: 290, y: 100, w: 100, h: 60, label: 'I/V Stage', sublabel: 'TIA', color: TEK.ch2 },
+        { x: 420, y: 100, w: 100, h: 60, label: 'LP Filter', sublabel: 'Anti-image', color: TEK.ch2 },
+        { x: 550, y: 100, w: 100, h: 60, label: 'Gain/Buffer', sublabel: 'G=2', color: TEK.ch2 },
+        { x: 680, y: 100, w: 100, h: 60, label: 'DC Block', sublabel: 'C=220µF', color: TEK.ch2 },
+        { x: 810, y: 100, w: 70, h: 60, label: 'Output', sublabel: '', color: TEK.ch4 }
+    ];
+
+    blocks.forEach(b => {
+        roundRect(b.x, b.y, b.w, b.h, 6, b.color);
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        const lines = b.label.split('\n');
+        lines.forEach((line, i) => {
+            ctx.fillText(line, b.x + b.w/2, b.y + 22 + i * 14);
+        });
+        if (b.sublabel) {
+            ctx.fillStyle = '#888';
+            ctx.font = '9px monospace';
+            ctx.fillText(b.sublabel, b.x + b.w/2, b.y + b.h - 8);
+        }
+    });
+
+    // Arrows between blocks
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < blocks.length - 1; i++) {
+        const x1 = blocks[i].x + blocks[i].w;
+        const x2 = blocks[i+1].x;
+        const y = blocks[i].y + blocks[i].h/2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2 - 5, y);
+        ctx.stroke();
+        // Arrow head
+        ctx.beginPath();
+        ctx.moveTo(x2 - 5, y);
+        ctx.lineTo(x2 - 12, y - 4);
+        ctx.lineTo(x2 - 12, y + 4);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // Signal levels
+    ctx.fillStyle = TEK.ch1;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    const levels = ['Digital', '±1mA', '±1V', '±1V', '±2V', '±2V', '2Vrms'];
+    const levelX = [80, 210, 340, 470, 600, 730, 845];
+    levels.forEach((lvl, i) => {
+        ctx.fillText(lvl, levelX[i], 180);
+    });
+
+    // I/V Stage detail
+    ctx.strokeStyle = '#374151';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(280, 210, 150, 150);
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('I/V Conversion:', 290, 235);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    ctx.fillText('Vout = Iout × Rfb', 290, 260);
+    ctx.fillText('Rfb = 1kΩ → 1mA = 1V', 290, 280);
+    ctx.fillText('Low noise op-amp', 290, 300);
+    ctx.fillText('e.g., OPA1612', 290, 320);
+
+    // Filter detail
+    ctx.strokeRect(450, 210, 150, 150);
+    ctx.fillStyle = TEK.ch2;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('Anti-Image Filter:', 460, 235);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    ctx.fillText('Removes images at', 460, 260);
+    ctx.fillText('multiples of Fs', 460, 280);
+    ctx.fillText('2nd order Butterworth', 460, 300);
+    ctx.fillText('fc = 50kHz typical', 460, 320);
+
+    // Key specs box
+    ctx.strokeRect(620, 210, 170, 150);
+    ctx.fillStyle = TEK.ch4;
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('Target Specs:', 630, 235);
+
+    ctx.fillStyle = '#e6edf3';
+    ctx.font = '10px monospace';
+    const specs = [
+        'THD+N < 0.001%',
+        'SNR > 110dB',
+        'Noise < 2µVrms',
+        'Output Z < 1Ω',
+        'BW: 20Hz-20kHz'
+    ];
+    specs.forEach((spec, i) => {
+        ctx.fillText(spec, 630, 260 + i * 20);
+    });
+})();
+</script>
