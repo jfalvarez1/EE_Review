@@ -142,9 +142,38 @@ const AD = (() => {
         return num * mult;
     }
 
+    /**
+     * Read a numeric input by element id.
+     *
+     * Lesson calculators overwhelmingly do `AD.num('x').toFixed(2)`, so any
+     * NaN escaping this function surfaces to the reader as a literal "NaN"
+     * in the results panel. Two guards prevent that:
+     *
+     *   1. A blank or unparseable field falls back to the value the lesson
+     *      shipped with (the HTML `value` attribute), then to `min`. Clearing
+     *      a box therefore shows the default result rather than NaN.
+     *   2. The result is clamped to the field's declared min/max. Typing a
+     *      negative resistance no longer produces an infinite gain, and a
+     *      slider dragged to an endpoint stays inside the modelled range.
+     *
+     * Both are deliberate: this is a study guide, so a plausible in-range
+     * number teaches more than an error string. Callers that genuinely need
+     * to detect an empty field should read `.value` themselves.
+     */
     function num(id) {
         const el = document.getElementById(id);
-        return parseNumValue(el ? el.value : '');
+        if (!el) return NaN;
+
+        let v = parseNumValue(el.value);
+        if (!isFinite(v)) v = parseNumValue(el.defaultValue);
+        if (!isFinite(v)) v = parseNumValue(el.getAttribute('min'));
+        if (!isFinite(v)) return NaN;
+
+        const lo = parseNumValue(el.getAttribute('min'));
+        const hi = parseNumValue(el.getAttribute('max'));
+        if (isFinite(lo) && v < lo) v = lo;
+        if (isFinite(hi) && v > hi) v = hi;
+        return v;
     }
 
     function clamp(x, a, b) {

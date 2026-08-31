@@ -1,6 +1,9 @@
 /**
  * Curriculum Data - Analog Design Refresher Course
- * 21 Modules, 68+ Lessons, ~100 Exercises, 5 Scenarios
+ * 25 Modules, 336 Lessons.
+ * Counts are derived at runtime from this array (CURRICULUM.totalModules /
+ * CURRICULUM.totalLessons) - keep one entry here per lessons/module-NN/lesson-NN.html
+ * file or the lesson will exist on disk but never appear in the sidebar.
  */
 
 const CURRICULUM = {
@@ -562,6 +565,66 @@ const CURRICULUM = {
                     title: 'CMOS Inverter Fundamentals',
                     description: 'VTC, noise margins, and dynamic power',
                     topics: ['VTC shape', 'Switching point', 'Dynamic energy', 'Short-circuit current']
+                },
+                {
+                    id: 11,
+                    title: 'MOSFET Gate Drivers',
+                    description: 'Driving gate charge fast enough to keep switching loss down',
+                    topics: ['Gate charge (Qg) curve', 'Driver topologies', 'Gate resistor selection', 'Ringing and shoot-through']
+                },
+                {
+                    id: 12,
+                    title: 'Body Diode and Synchronous Rectification',
+                    description: 'Intrinsic diode behavior and replacing diodes with FETs',
+                    topics: ['Body diode structure', 'Reverse recovery', 'Sync rect loss savings', 'Dead-time conduction']
+                },
+                {
+                    id: 13,
+                    title: 'MOSFET Safe Operating Area',
+                    description: 'SOA limits and why linear-mode operation is dangerous',
+                    topics: ['SOA diagram regions', 'Thermal vs Rds(on) limits', 'Spirito effect', 'Hot-swap sizing']
+                },
+                {
+                    id: 14,
+                    title: 'MOSFET Selection for Power Applications',
+                    description: 'Picking a part from the datasheet numbers that matter',
+                    topics: ['Key selection parameters', 'Rds(on) vs Qg trade-off', 'Conduction + switching loss', 'Package choice']
+                },
+                {
+                    id: 15,
+                    title: 'Wide Bandgap Semiconductors (GaN and SiC)',
+                    description: 'What GaN and SiC change versus silicon',
+                    topics: ['2DEG / HEMT structure', 'GaN device types', 'Gate voltage limits', 'SiC advantages']
+                },
+                {
+                    id: 16,
+                    title: 'MOSFET Paralleling Techniques',
+                    description: 'Sharing current between devices, statically and dynamically',
+                    topics: ['Static sharing via Rds(on)', 'Dynamic mismatch', 'Kelvin source connection', 'Per-device gate resistors']
+                },
+                {
+                    id: 17,
+                    title: 'Avalanche Energy and MOSFET Ruggedness',
+                    description: 'Surviving inductive turn-off without a freewheel path',
+                    topics: ['Avalanche breakdown', 'E = 1/2 L I^2', 'EAS vs EAR ratings', 'Unclamped inductive switching']
+                },
+                {
+                    id: 18,
+                    title: 'Current Sensing Techniques with MOSFETs',
+                    description: 'Sense resistors versus Rds(on) sensing',
+                    topics: ['Sense resistor sizing', 'Burden voltage', 'Rds(on) tempco error', 'High-side vs low-side']
+                },
+                {
+                    id: 19,
+                    title: 'Thermal Management for Power MOSFETs',
+                    description: 'Thermal resistance networks and PCB heat spreading',
+                    topics: ['Rth thermal-electrical analogy', 'Rtheta-JA vs JC', 'Copper pour and vias', 'Heatsink selection']
+                },
+                {
+                    id: 20,
+                    title: 'Industry MOSFET Selection Guide',
+                    description: 'A repeatable process for choosing a switch',
+                    topics: ['Figure of merit (Rds(on) x Qg)', 'Current derating', 'Logic level vs standard gate', '48 V system considerations']
                 }
             ]
         },
@@ -1159,6 +1222,42 @@ const CURRICULUM = {
                     title: 'ESD Protection & Input Clamping',
                     description: 'Internal diodes, series resistors, TVS',
                     topics: ['Clamp current limit', 'Series R sizing', 'ESD rating', 'Layout']
+                },
+                {
+                    id: 5,
+                    title: 'Input Protection Circuits',
+                    description: 'Clamping overvoltage and transients at a digital input',
+                    topics: ['Series R + clamp diodes', 'Bidirectional Zener clamp', 'RC filter + clamp', 'Clamp current budget']
+                },
+                {
+                    id: 6,
+                    title: 'Schmitt Trigger Inputs',
+                    description: 'Hysteresis for slow and noisy edges',
+                    topics: ['VT+ / VT- thresholds', 'Hysteresis transfer curve', 'Cleaning slow signals', 'RC relaxation oscillator']
+                },
+                {
+                    id: 7,
+                    title: 'Bus Buffers and Drivers',
+                    description: 'Fan-out, direction control, and bus contention',
+                    topics: ['When a buffer is needed', 'Common buffer families', '74HC245 transceiver', 'Fan-out calculation']
+                },
+                {
+                    id: 8,
+                    title: 'Signal Termination',
+                    description: 'When a trace becomes a transmission line',
+                    topics: ['tr < 2 x tpd rule', 'Series vs parallel vs AC termination', 'Reflections and ringing', 'Impedance matching']
+                },
+                {
+                    id: 9,
+                    title: 'Debouncing Techniques',
+                    description: 'Getting one clean edge out of a mechanical switch',
+                    topics: ['Bounce duration', 'RC + Schmitt debounce', 'Software sampling', 'SR latch debounce']
+                },
+                {
+                    id: 10,
+                    title: 'Optocouplers and Isolation',
+                    description: 'Galvanic isolation for digital signals',
+                    topics: ['Why isolate', 'LED + phototransistor structure', 'CTR and drive current', 'Speed limits and alternatives']
                 }
             ]
         },
@@ -2148,6 +2247,98 @@ const CURRICULUM = {
                     topics: ['Precision amplifier', 'High-speed buffer', 'Transimpedance amplifier', 'Power supply compensator']
                 }
             ]
+        },
+        // ========== MODULE 26: Power Systems & the Grid (ERCOT / AEP) ==========
+        {
+            id: 26,
+            title: 'Power Systems & the Grid (ERCOT / AEP)',
+            description: 'Undergraduate power systems plus the operating reality of the Texas grid and a large US utility',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'Three-Phase Power and the Per-Unit System',
+                    description: 'The language every other power-systems number is quoted in',
+                    topics: ['S = sqrt(3) V_LL I_L', 'Zbase = kV^2/MVA', 'Base changing', 'Fault duty in MVA']
+                },
+                {
+                    id: 2,
+                    title: 'Transmission Lines, SIL and Loadability',
+                    description: 'Short/medium/long models, surge impedance loading, the St. Clair curve',
+                    topics: ['ABCD parameters', 'SIL = kV^2/Zc', 'Ferranti effect', 'Thermal vs voltage vs stability limits']
+                },
+                {
+                    id: 3,
+                    title: 'Power Transformers, Impedance and Fault Duty',
+                    description: 'Why %Z sets the fault current for everything downstream',
+                    topics: ['Z_ohm = %Z x kV^2/MVA', 'Vector groups and the 30 degree shift', 'Inrush and 2nd harmonic', 'Loss of life']
+                },
+                {
+                    id: 4,
+                    title: 'Symmetrical Components and Fault Analysis',
+                    description: 'Decomposing unbalanced faults into three solvable networks',
+                    topics: ['Fortescue transform', 'Sequence network connections', 'SLG vs 3-phase magnitude', 'Inverter fault contribution']
+                },
+                {
+                    id: 5,
+                    title: 'Power Flow and the Power-Angle Equation',
+                    description: 'P by angle, Q by magnitude, and the stability limit at 90 degrees',
+                    topics: ['P = (V1 V2/X) sin(delta)', 'Newton-Raphson and bus types', 'Reactive control devices', 'TPL-001 voltage envelopes']
+                },
+                {
+                    id: 6,
+                    title: 'Generators, Inertia and the Swing Equation',
+                    description: 'Why frequency falls at the rate it does, and what inertia has to do with it',
+                    topics: ['H in seconds', 'RoCoF = f0 dP / 2H', 'Equal-area criterion', 'Critical clearing time']
+                },
+                {
+                    id: 7,
+                    title: 'Overcurrent Protection and Coordination',
+                    description: 'ANSI 50/51, inverse curves, and the coordination time interval',
+                    topics: ['IEEE C37.112 curves', 'Pickup and time dial', 'CTI 0.25-0.40 s', 'Cold-load pickup']
+                },
+                {
+                    id: 8,
+                    title: 'Distance, Differential and Breaker-Failure Protection',
+                    description: 'Transmission protection that does not depend on source strength',
+                    topics: ['Zone 1/2/3 reach', 'POTT vs DCB', 'Percentage restraint', '50BF timing']
+                },
+                {
+                    id: 9,
+                    title: 'Substation Engineering',
+                    description: 'Bus layouts, breakers, instrument transformers, grounding and BIL',
+                    topics: ['Ring bus and breaker-and-a-half', 'CT class C800', 'IEEE 80 step and touch', 'Insulation coordination']
+                },
+                {
+                    id: 10,
+                    title: 'Distribution Engineering and Reliability',
+                    description: 'Feeders, regulation on the 120 V base, and SAIDI/SAIFI',
+                    topics: ['Radial vs loop vs network', 'LTC bandwidth and time delay', 'Fuse saving vs blowing', 'IEEE 1366 indices']
+                },
+                {
+                    id: 11,
+                    title: 'ERCOT: An Islanded Grid and Its Market',
+                    description: 'DC ties, nodal pricing, ORDC and connect-and-manage interconnection',
+                    topics: ['Why not FERC-jurisdictional', 'LMP = energy + congestion + loss', 'ELCC vs nameplate', 'Interconnection queue']
+                },
+                {
+                    id: 12,
+                    title: 'ERCOT Operations and Winter Storm Uri',
+                    description: 'Reserves, EEA escalation, UFLS, and the February 2021 timeline',
+                    topics: ['EEA1/2/3 triggers', 'UFLS at 59.3/58.9/58.5 Hz', 'The 4m23s / 9-minute margin', 'Gas-electric feedback loop']
+                },
+                {
+                    id: 13,
+                    title: 'AEP: 765 kV and the Texas TDU Model',
+                    description: 'A utility across three RTOs, and what a wires-only company is',
+                    topics: ['Circuit-miles by voltage class', 'Why 765 kV', 'Seven operating companies', 'TDU / REP / ERCOT split']
+                },
+                {
+                    id: 14,
+                    title: 'Field Safety and Practice',
+                    description: 'Approach distances, arc flash, clearances and what goes wrong',
+                    topics: ['OSHA 1910.269 MAD table', 'NFPA 70E PPE categories', 'Bracket grounding', 'Induced voltage and backfeed']
+                }
+            ]
         }
     ],
 
@@ -2357,8 +2548,112 @@ const Navigation = {
 // ===== ROUTER =====
 const Router = {
     init() {
+        this.installTimerScope();
         window.addEventListener('hashchange', () => this.handleRoute());
         this.handleRoute();
+    },
+
+    /**
+     * Lesson scripts start animation loops - setInterval redraws, rAF loops,
+     * chained setTimeouts. Nothing in a lesson ever tears them down, because
+     * each lesson was written as though it owned the whole page. Once the
+     * reader navigates on, those callbacks keep firing against a DOM that no
+     * longer contains their canvas or their inputs, producing an endless
+     * stream of "Cannot read properties of null" errors and burning CPU for
+     * the rest of the session.
+     *
+     * Tag every timer with the navigation generation that created it, then
+     * cancel the stale ones on the next lesson load.
+     */
+    installTimerScope() {
+        if (this._timerScopeInstalled) return;
+        this._timerScopeInstalled = true;
+
+        const realSetInterval = window.setInterval;
+        const realSetTimeout = window.setTimeout;
+        const realRAF = window.requestAnimationFrame;
+        const realClearInterval = window.clearInterval;
+        const realClearTimeout = window.clearTimeout;
+        const realCancelRAF = window.cancelAnimationFrame;
+
+        let tracked = [];
+
+        const track = (kind, id) => {
+            tracked.push({ kind: kind, id: id, gen: Router.navGeneration });
+            return id;
+        };
+
+        window.setInterval = function () {
+            return track('interval', realSetInterval.apply(window, arguments));
+        };
+        window.setTimeout = function () {
+            return track('timeout', realSetTimeout.apply(window, arguments));
+        };
+        window.requestAnimationFrame = function () {
+            return track('raf', realRAF.apply(window, arguments));
+        };
+
+        this.clearStaleTimers = function () {
+            const gen = Router.navGeneration;
+            const keep = [];
+            for (const t of tracked) {
+                if (t.gen === gen) { keep.push(t); continue; }
+                try {
+                    if (t.kind === 'interval') realClearInterval(t.id);
+                    else if (t.kind === 'timeout') realClearTimeout(t.id);
+                    else realCancelRAF(t.id);
+                } catch (e) { /* already fired or cancelled */ }
+            }
+            tracked = keep;
+        };
+
+        this.trackedTimerCount = function () { return tracked.length; };
+    },
+
+    /**
+     * Wrap a lesson's inline script so its top-level declarations are local.
+     *
+     * Every lesson script is injected into the one shared global scope. Many
+     * of them open with `const canvas = ...; const ctx = ...; const W = ...`,
+     * so navigating from one such lesson to another throws
+     *     SyntaxError: Identifier 'canvas' has already been declared
+     * at parse time, and the entire second lesson's script never runs. That
+     * is why some lessons render only when they are the first one opened.
+     *
+     * Wrapping in a function expression gives each lesson its own scope. The
+     * catch is that markup calls handlers through inline on*= attributes,
+     * which resolve against `window` - so any top-level function is
+     * re-published there afterwards, preserving that contract.
+     */
+    scopeLessonScript(code) {
+        if (!code || !code.trim()) return code;
+
+        const names = new Set();
+        const patterns = [
+            /^[ \t]*(?:async[ \t]+)?function[ \t]+([A-Za-z_$][\w$]*)/gm,
+            /^[ \t]*(?:const|let|var)[ \t]+([A-Za-z_$][\w$]*)[ \t]*=[ \t]*(?:async[ \t]*)?(?:function\b|\([^)]*\)[ \t]*=>)/gm
+        ];
+        for (const rx of patterns) {
+            let m;
+            while ((m = rx.exec(code)) !== null) names.add(m[1]);
+        }
+
+        const publish = Array.from(names)
+            .map(n => `try { window[${JSON.stringify(n)}] = ${n}; } catch (e) {}`)
+            .join('\n');
+
+        return '(function () {\n' + code + '\n' + publish + '\n})();';
+    },
+
+    // Reduce a script src to a comparable key: lesson files reference the
+    // shared assets as '../../assets/x.js' while index.html uses 'assets/x.js'.
+    normalizeScriptSrc(src) {
+        if (!src) return '';
+        return String(src)
+            .split('?')[0]
+            .replace(/^(?:\.\.\/)+/, '')
+            .replace(/^\.\//, '')
+            .replace(/^\//, '');
     },
 
     handleRoute() {
@@ -2390,7 +2685,14 @@ const Router = {
         document.getElementById('breadcrumb').innerHTML = '';
     },
 
+    // Incremented on every lesson load. Deferred work captures the value and
+    // bails out if it no longer matches, so a handler queued for one lesson
+    // never runs against the next lesson's DOM.
+    navGeneration: 0,
+
     loadLesson(moduleId, lessonId) {
+        this.navGeneration++;
+        if (this.clearStaleTimers) this.clearStaleTimers();
         const module = CURRICULUM.getModule(moduleId);
         const lesson = CURRICULUM.getLesson(moduleId, lessonId);
 
@@ -2467,17 +2769,90 @@ const Router = {
 
                 content.innerHTML = lessonHtml;
 
-                // Execute any scripts in the loaded content
+                // Execute any scripts in the loaded content.
+                //
+                // Lessons are fragments injected into this page, but several were
+                // authored as standalone documents and still carry their own
+                // <script src> tags for the shared assets. Re-running those files
+                // redeclares their top-level bindings (const AD, class BaseWidget,
+                // const SchematicLib), which throws
+                //     SyntaxError: Identifier 'AD' has already been declared
+                // and aborts the rest of that tag - silently breaking the lesson's
+                // widgets. Skip any external script this page has already loaded.
+                // Seeded from the page's own scripts, and from every external
+                // script any earlier lesson already injected. The second half
+                // matters for CDN libraries: nine lessons carry their own
+                // MathJax tag, and MathJax v3 throws when a second copy loads
+                // over the first. Because it is cross-origin the browser
+                // reports only an opaque "Script error.", which is why this
+                // was invisible until every lesson was swept.
+                Router.injectedScriptSrc = Router.injectedScriptSrc || new Set();
+                const loadedSrc = new Set(Router.injectedScriptSrc);
+                Array.prototype.forEach.call(
+                    document.querySelectorAll('head script[src], body > script[src]'),
+                    s => loadedSrc.add(Router.normalizeScriptSrc(s.getAttribute('src')))
+                );
+
+                // Lessons authored as standalone pages defer their setup to
+                //     document.addEventListener('DOMContentLoaded', ...)
+                // or window 'load'. Both events fired long before this fragment
+                // was injected, so those handlers would never run and the
+                // lesson's canvases would stay blank. While the lesson's scripts
+                // execute, redirect such registrations to run on the next tick -
+                // by which point the lesson markup is already in the DOM, which
+                // is the condition those handlers were actually waiting for.
+                const realDocAdd = document.addEventListener;
+                const realWinAdd = window.addEventListener;
+                const gen = Router.navGeneration;
+                const runSoon = fn => setTimeout(() => {
+                    // The reader navigated on before this fired; the elements
+                    // this handler expects are gone.
+                    if (Router.navGeneration !== gen) return;
+                    try {
+                        fn.call(document, new Event('DOMContentLoaded'));
+                    } catch (err) {
+                        console.error('Lesson init failed:', err);
+                    }
+                }, 0);
+
+                document.addEventListener = function (type, fn, opts) {
+                    if (type === 'DOMContentLoaded' && typeof fn === 'function') {
+                        return runSoon(fn);
+                    }
+                    return realDocAdd.call(document, type, fn, opts);
+                };
+                window.addEventListener = function (type, fn, opts) {
+                    if ((type === 'load' || type === 'DOMContentLoaded') && typeof fn === 'function') {
+                        return runSoon(fn);
+                    }
+                    return realWinAdd.call(window, type, fn, opts);
+                };
+
                 const scripts = content.querySelectorAll('script');
                 scripts.forEach(oldScript => {
+                    const rawSrc = oldScript.getAttribute('src');
+                    if (rawSrc) {
+                        const key = Router.normalizeScriptSrc(rawSrc);
+                        if (loadedSrc.has(key)) {
+                            oldScript.parentNode.removeChild(oldScript);
+                            return;
+                        }
+                        loadedSrc.add(key);
+                        Router.injectedScriptSrc.add(key);
+                    }
                     const newScript = document.createElement('script');
                     if (oldScript.src) {
                         newScript.src = oldScript.src;
                     } else {
-                        newScript.textContent = oldScript.textContent;
+                        newScript.textContent = Router.scopeLessonScript(oldScript.textContent);
                     }
                     oldScript.parentNode.replaceChild(newScript, oldScript);
                 });
+
+                setTimeout(() => {
+                    document.addEventListener = realDocAdd;
+                    window.addEventListener = realWinAdd;
+                }, 0);
 
                 // Normalize manual SVG schematics (supply rails, etc.)
                 if (window.SchematicNormalizer) {
