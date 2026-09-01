@@ -36,6 +36,25 @@ can rebuild in the simulator without translating anything.
 
 ## Running it
 
+Three ways, in order of how little you want to install.
+
+| | What you do | Needs |
+|---|---|---|
+| **Online** | Open the [Pages site](https://jfalvarez1.github.io/EE_Review/) | a browser |
+| **Offline, one file** | Download `EE_Review.html` from [Releases](https://github.com/jfalvarez1/EE_Review/releases) and double-click it | a browser |
+| **From a clone** | `launch.bat` / `./launch.sh` | Python |
+
+The **one-file offline edition** is the whole course — all 368 lessons, every interactive,
+all the maths — inside a single 13 MB HTML file. No server, no Python, no internet, no
+install. It runs from a USB stick, and it will keep working for as long as browsers do.
+That is deliberate: a reference you cannot open when the network is down is not much of a
+reference. Build it yourself with `node tools/build-standalone.js`.
+
+Use the **clone** if you intend to edit lessons — that is the only one of the three that
+picks up your changes on reload.
+
+### From a clone
+
 **Windows:** double-click `launch.bat`.
 **macOS / Linux:** `./launch.sh`.
 
@@ -168,11 +187,22 @@ assets/
   exercises.js           108 exercises across 8 sets and 4 difficulty levels
   widgets.js             Oscilloscope, calculator and exercise widgets
   styles.css             The whole stylesheet
-lessons/module-NN/       359 lesson fragments, one HTML file each
-tools/                   serve.py — the local web server the launchers use
+lessons/module-NN/       368 lesson fragments, one HTML file each
+tools/
+  serve.py               The local web server the launchers use
+  build-standalone.js    Bundles everything into one offline HTML file
+  validate-path.js       Every syllabus reference resolves to a real lesson
+  check-markup.js        Lesson markup is balanced
+  check-lesson-js.js     Every inline script parses
+  check-diagram-nets.js  Every schematic pin is on a net
+  check-bias.js          Every drawn BJT stage has a usable operating point
 docs/                    Troubleshooting notes and README images
-split_pdfs/              Reference PDFs (see Licensing note below)
 ```
+
+The checkers all exit non-zero on a finding, so they gate the Pages deploy and the
+release build. They are not decoration: `check-bias.js` found two amplifier circuits
+that demanded more voltage than their supply had, and `check-markup.js` found three
+broken tags the browser had been silently hiding.
 
 ### How a lesson loads
 

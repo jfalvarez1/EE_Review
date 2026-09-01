@@ -1,0 +1,64 @@
+# Publish the course to GitHub Pages.
+#
+# The site is already a static folder with no build step and no absolute paths,
+# so this uploads the repository as-is. It works from a project subpath
+# (user.github.io/EE_Review/) without changes, which is why nothing here
+# rewrites URLs.
+#
+# Excluded from the upload: the internal _audit notes, the local PDF working
+# directory, and the generated dist/ file (that ships on Releases instead, so
+# every Pages deploy does not carry a 13 MB blob).
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify the course before publishing
+        run: |
+          node tools/validate-path.js
+          node tools/check-markup.js
+          node tools/check-lesson-js.js
+          node tools/check-diagram-nets.js
+          node tools/check-bias.js
+
+      - name: Stage the public files
+        run: |
+          mkdir -p _site
+          cp -r index.html components.html assets lessons docs _site/
+          # A .nojekyll file stops GitHub trying to process the site with
+          # Jekyll, which would otherwise ignore any file or folder whose name
+          # begins with an underscore.
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

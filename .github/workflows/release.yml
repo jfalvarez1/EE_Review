@@ -1,0 +1,88 @@
+# Build the single-file offline edition and attach it to a Release.
+#
+# dist/EE_Review.html is ~13 MB and changes whenever any lesson changes, so it
+# is deliberately NOT committed - a binary that size in git history would
+# outgrow the entire source within a few dozen edits. It is built on demand
+# here and attached to the Release, which is where a reader downloads one file
+# and is done.
+#
+# Trigger by pushing a tag:   git tag v1.0 && git push origin v1.0
+# or run it by hand from the Actions tab.
+
+name: Build offline edition
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify the course
+        run: |
+          node tools/validate-path.js
+          node tools/check-markup.js
+          node tools/check-lesson-js.js
+          node tools/check-diagram-nets.js
+          node tools/check-bias.js
+
+      - name: Fetch MathJax for offline maths
+        run: |
+          mkdir -p assets/vendor
+          # The SVG build, not the CHTML one: CHTML fetches woff fonts at render
+          # time, which is useless in a file with no network. The SVG build
+          # carries its glyph outlines as path data.
+          curl -sSfL -o assets/vendor/mathjax-tex-mml-svg.js \
+            https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-svg.js
+          if grep -q "woff" assets/vendor/mathjax-tex-mml-svg.js; then
+            echo "Downloaded MathJax references font files - wrong build."
+            exit 1
+          fi
+
+      - name: Build
+        run: node tools/build-standalone.js
+
+      - name: Check the result is self-contained
+        run: |
+          node -e "
+            const fs = require('fs');
+            const h = fs.readFileSync('dist/EE_Review.html', 'utf8');
+            const bad = h.match(/(?:src|href)=[\"'](https?:)?\/\//g) || [];
+            const external = bad.filter(m => !/^href=[\"']https?:\/\/github\.com/.test(m));
+            if (external.length) {
+              console.error('Not self-contained, found:', [...new Set(external)].slice(0, 5));
+              process.exit(1);
+            }
+            const n = Object.keys(JSON.parse(
+              h.slice(h.indexOf('EMBEDDED_LESSONS = ') + 19,
+                      h.indexOf(';</scr' + 'ipt>', h.indexOf('EMBEDDED_LESSONS'))))).length;
+            console.log('self-contained, ' + n + ' lessons, ' +
+                        (Buffer.byteLength(h) / 1048576).toFixed(1) + ' MB');
+            if (n < 300) { console.error('too few lessons embedded'); process.exit(1); }
+          "
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/EE_Review.html
+          body: |
+            **Offline edition — one file, no install.**
+
+            Download `EE_Review.html` and double-click it. No server, no Python,
+            no internet. Every lesson, every interactive and all the maths are
+            inside that one file; it works from a USB stick and it will keep
+            working as long as browsers do.
+
+            The online version is at the Pages URL for this repository.
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EE_Review-offline
+          path: dist/EE_Review.html
