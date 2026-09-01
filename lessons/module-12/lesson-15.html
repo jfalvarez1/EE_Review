@@ -126,9 +126,45 @@
         </div>
     </div>
 
-    <div class="card">
-        <h3>SPICE Netlist</h3>
-        <div id="spice-container"></div>
+        <div class="card">
+        <h3>Build it in Circuit Toy</h3>
+        <p>The interactives above are models with the physics written into them.
+        To put this circuit in front of a real solver, build it in
+        <a href="https://github.com/jfalvarez1/circuit_toy" target="_blank" rel="noopener">Circuit Toy</a>
+        from the table below. Node names are just labels &mdash; anything
+        sharing a name is one wire.</p>
+
+        <p><strong>Complete Sensor Amplifier</strong></p>
+
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">VSENS</td><td>Voltage source</td><td>0&nbsp;V DC, sine 25&nbsp;mV amplitude at 10&nbsp;Hz</td><td>from <span class="mono">inp</span> to <span class="mono">inn</span></td></tr>
+                    <tr><td class="mono">RIN1</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">inp</span> and <span class="mono">in1_f</span></td></tr>
+                    <tr><td class="mono">CIN1</td><td>Capacitor</td><td>10&nbsp;nF</td><td>between <span class="mono">in1_f</span> and ground</td></tr>
+                    <tr><td class="mono">RIN2</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">inn</span> and <span class="mono">in2_f</span></td></tr>
+                    <tr><td class="mono">CIN2</td><td>Capacitor</td><td>10&nbsp;nF</td><td>between <span class="mono">in2_f</span> and ground</td></tr>
+                    <tr><td class="mono">XINA</td><td>Block (INA128)</td><td><span class="mono">INA128</span></td><td>pins <span class="mono">in1_f</span>, <span class="mono">in2_f</span>, <span class="mono">ina_out</span>, ground, <span class="mono">rg1</span>, <span class="mono">rg2</span>, <span class="mono">vcc</span>, <span class="mono">vee</span></td></tr>
+                    <tr><td class="mono">RG</td><td>Resistor</td><td>5.55&nbsp;k&Omega;</td><td>between <span class="mono">rg1</span> and <span class="mono">rg2</span></td></tr>
+                    <tr><td class="mono">EGAIN2</td><td>Controlled source</td><td>8.2</td><td>output <span class="mono">out2</span> to ground, sensing <span class="mono">ina_out</span> to ground</td></tr>
+                    <tr><td class="mono">RAF</td><td>Resistor</td><td>64&nbsp;k&Omega;</td><td>between <span class="mono">out2</span> and <span class="mono">filt1</span></td></tr>
+                    <tr><td class="mono">RBF</td><td>Resistor</td><td>64&nbsp;k&Omega;</td><td>between <span class="mono">filt1</span> and <span class="mono">filt2</span></td></tr>
+                    <tr><td class="mono">CAF</td><td>Capacitor</td><td>100&nbsp;nF</td><td>between <span class="mono">filt1</span> and ground</td></tr>
+                    <tr><td class="mono">CBF</td><td>Capacitor</td><td>100&nbsp;nF</td><td>between <span class="mono">filt2</span> and <span class="mono">adc_in</span></td></tr>
+                    <tr><td class="mono">EBUF</td><td>Controlled source</td><td>1</td><td>output <span class="mono">adc_in</span> to ground, sensing <span class="mono">filt2</span> to ground</td></tr>
+                    <tr><td class="mono">VCC</td><td>Voltage source</td><td>5&nbsp;V DC</td><td>from <span class="mono">vcc</span> to ground</td></tr>
+                    <tr><td class="mono">VEE</td><td>Voltage source</td><td>-5&nbsp;V DC</td><td>from <span class="mono">vee</span> to ground</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p><strong>What to run:</strong> an <strong>AC sweep</strong> from 100&nbsp;mHz to 10&nbsp;kHz; then a <strong>transient run</strong> of 500&nbsp;ms in steps of 1&nbsp;ms.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(adc_in)</span>, <span class="mono">V(ina_out)</span>, <span class="mono">V(inp,inn)</span>.</p>
+
+        <p>Then change one thing at a time and predict the result before you run
+        it. A simulator is only worth the time if you are checking an answer you
+        already have &mdash; otherwise it is a very slow way of being surprised.</p>
     </div>
 
     <div class="card">
@@ -270,56 +306,7 @@
 
     update();
 
-    new SpiceNetlistWidget('spice-container', {
-        title: 'Complete Sensor Amplifier',
-        netlist: `* Precision Sensor Amplifier
-* INA (G=10) + 2nd stage (G=8.2)
-
-* Sensor signal (Wheatstone bridge)
-VSENS inp inn DC 0 AC 25m SIN(0 25m 10)
-* 50mV differential, 10Hz signal
-
-* EMI input filter
-RIN1 inp in1_f 1k
-CIN1 in1_f gnd 10n
-RIN2 inn in2_f 1k
-CIN2 in2_f gnd 10n
-
-* Instrumentation Amp model (INA128)
-.SUBCKT INA128 inp inn out ref rg1 rg2 vcc vee
-* Simplified model with gain set by RG
-EGAIN out ref VALUE={10*(V(inp)-V(inn))}
-.ENDS
-
-* INA stage (G = 1 + 50k/RG = 10 → RG = 5.55k)
-XINA in1_f in2_f ina_out gnd rg1 rg2 vcc vee INA128
-RG rg1 rg2 5.55k
-
-* Second stage non-inverting (G = 8.2)
-* Using OPA2277 (low noise)
-EGAIN2 out2 gnd ina_out gnd 8.2
-
-* Anti-alias filter (2nd order, 25Hz)
-* Sallen-Key topology
-RAF out2 filt1 64k
-RBF filt1 filt2 64k
-CAF filt1 gnd 100n
-CBF filt2 adc_in 100n
-EBUF adc_in gnd filt2 gnd 1
-
-* Power
-VCC vcc gnd DC 5
-VEE vee gnd DC -5
-
-.AC DEC 100 0.1 10k
-.TRAN 1m 500m
-
-.PROBE V(adc_in) V(ina_out) V(inp,inn)
-.END
-
-* Verify: 25mV in → 2.048V out (half scale)
-* Check frequency response and noise`
-    });
+    
 
     new ChecklistWidget('checklist-container', {
         lessonKey: 'm21l5',

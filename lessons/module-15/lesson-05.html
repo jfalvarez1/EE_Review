@@ -136,9 +136,45 @@
         <div id="fg-schematic"></div>
     </div>
 
-    <div class="card">
-        <h3>Implementation Code</h3>
-        <div id="fg-spice"></div>
+        <div class="card">
+        <h3>Build it in Circuit Toy</h3>
+        <p>The interactives above are models with the physics written into them.
+        To put this circuit in front of a real solver, build it in
+        <a href="https://github.com/jfalvarez1/circuit_toy" target="_blank" rel="noopener">Circuit Toy</a>
+        from the table below. Node names are just labels &mdash; anything
+        sharing a name is one wire.</p>
+
+        <p><strong>Coulomb Counting Algorithm (Pseudocode)</strong></p>
+
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">float</td><td>Controlled source</td><td>Start fully charged</td><td>output <span class="mono">soc_percent</span> to <span class="mono">=</span>, sensing <span class="mono">100.0;</span> to <span class="mono">//</span></td></tr>
+                    <tr><td class="mono">float</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">coulombs_remaining;</span> to <span class="mono">//</span>, sensing <span class="mono">In</span> to <span class="mono">mAh</span></td></tr>
+                    <tr><td class="mono">void</td><td>Voltage source</td><td>&mdash;</td><td>from <span class="mono">fuel_gauge_init()</span> to <span class="mono">{</span></td></tr>
+                    <tr><td class="mono">coulombs_remaining</td><td>Capacitor</td><td></td><td>between <span class="mono">=</span> and <span class="mono">QMAX_mAh;</span></td></tr>
+                    <tr><td class="mono">void</td><td>Voltage source</td><td>&mdash;</td><td>from <span class="mono">fuel_gauge_update(float</span> to <span class="mono">v_sense)</span></td></tr>
+                    <tr><td class="mono">float</td><td>Controlled source</td><td>RSENSE) * 1000;</td><td>output <span class="mono">current_mA</span> to <span class="mono">=</span>, sensing <span class="mono">(v_sense</span> to <span class="mono">/</span></td></tr>
+                    <tr><td class="mono">float</td><td>Controlled source</td><td>(3600 * ADC_RATE_Hz);</td><td>output <span class="mono">delta_mAh</span> to <span class="mono">=</span>, sensing <span class="mono">current_mA</span> to <span class="mono">/</span></td></tr>
+                    <tr><td class="mono">coulombs_remaining</td><td>Capacitor</td><td></td><td>between <span class="mono">-=</span> and <span class="mono">delta_mAh;</span></td></tr>
+                    <tr><td class="mono">if</td><td>Current source</td><td>0&nbsp;A</td><td>from <span class="mono">(coulombs_remaining</span> to <span class="mono"><</span></td></tr>
+                    <tr><td class="mono">if</td><td>Current source</td><td>&mdash;</td><td>from <span class="mono">(coulombs_remaining</span> to <span class="mono">></span></td></tr>
+                    <tr><td class="mono">coulombs_remaining</td><td>Capacitor</td><td></td><td>between <span class="mono">=</span> and <span class="mono">QMAX_mAh;</span></td></tr>
+                    <tr><td class="mono">void</td><td>Voltage source</td><td>&mdash;</td><td>from <span class="mono">fuel_gauge_sync_ocv(float</span> to <span class="mono">v_battery)</span></td></tr>
+                    <tr><td class="mono">if</td><td>Current source</td><td>&mdash;</td><td>from <span class="mono">(is_at_rest())</span> to <span class="mono">{</span></td></tr>
+                    <tr><td class="mono">float</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">soc_from_ocv</span> to <span class="mono">=</span>, sensing <span class="mono">ocv_to_soc(v_battery);</span> to <span class="mono">undefined</span></td></tr>
+                    <tr><td class="mono">coulombs_remaining</td><td>Capacitor</td><td></td><td>between <span class="mono">=</span> and <span class="mono">(soc_percent/100)</span></td></tr>
+                    <tr><td class="mono">float</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">get_effective_capacity(float</span> to <span class="mono">temp_C)</span>, sensing <span class="mono">{</span> to <span class="mono">undefined</span></td></tr>
+                    <tr><td class="mono">float</td><td>Controlled source</td><td>0.01 * abs(25 - temp_C);</td><td>output <span class="mono">factor</span> to <span class="mono">=</span>, sensing <span class="mono">1.0</span> to <span class="mono">-</span></td></tr>
+                    <tr><td class="mono">return</td><td>Resistor</td><td></td><td>between <span class="mono">QMAX_mAh</span> and <span class="mono">*</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p>Then change one thing at a time and predict the result before you run
+        it. A simulator is only worth the time if you are checking an answer you
+        already have &mdash; otherwise it is a very slow way of being surprised.</p>
     </div>
 
     <div class="card">
@@ -440,67 +476,6 @@
     }
 
     // Code example
-    function initSpice() {
-        new SpiceNetlistWidget('fg-spice', {
-            title: 'Coulomb Counting Algorithm (Pseudocode)',
-            netlist: `* Coulomb Counting Fuel Gauge Implementation
-
-// Configuration
-#define RSENSE      0.010    // 10mΩ sense resistor
-#define QMAX_mAh    3000     // 3Ah capacity
-#define ADC_RATE_Hz 10       // 10 samples/sec
-
-// State variables
-float soc_percent = 100.0;   // Start fully charged
-float coulombs_remaining;    // In mAh
-
-// Initialize
-void fuel_gauge_init() {
-    coulombs_remaining = QMAX_mAh;
-    soc_percent = 100.0;
-}
-
-// Called every ADC sample
-void fuel_gauge_update(float v_sense) {
-    // Calculate current (mA)
-    float current_mA = (v_sense / RSENSE) * 1000;
-
-    // Integrate (mAh per sample)
-    float delta_mAh = current_mA / (3600 * ADC_RATE_Hz);
-
-    // Update remaining capacity
-    // Positive current = discharge
-    coulombs_remaining -= delta_mAh;
-
-    // Clamp to valid range
-    if (coulombs_remaining < 0) coulombs_remaining = 0;
-    if (coulombs_remaining > QMAX_mAh)
-        coulombs_remaining = QMAX_mAh;
-
-    // Calculate SOC percentage
-    soc_percent = (coulombs_remaining / QMAX_mAh) * 100;
-}
-
-// Sync to OCV when at rest
-void fuel_gauge_sync_ocv(float v_battery) {
-    if (is_at_rest()) {  // No load for > 30 minutes
-        float soc_from_ocv = ocv_to_soc(v_battery);
-
-        // Blend with coulomb counting
-        soc_percent = 0.8*soc_from_ocv + 0.2*soc_percent;
-        coulombs_remaining = (soc_percent/100) * QMAX_mAh;
-    }
-}
-
-// Compensate for temperature
-float get_effective_capacity(float temp_C) {
-    // Capacity reduces at low temp
-    float factor = 1.0 - 0.01 * abs(25 - temp_C);
-    return QMAX_mAh * factor;
-}`
-        });
-    }
-
     // Checklist
     function initChecklist() {
         new ChecklistWidget('fg-checklist', {
@@ -545,7 +520,6 @@ float get_effective_capacity(float temp_C) {
 
     update();
     drawSchematic();
-    initSpice();
     initChecklist();
     initExercises();
 

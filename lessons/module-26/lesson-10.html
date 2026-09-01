@@ -166,11 +166,34 @@
                 <div id="pfc-psu-schematic"></div>
             </div>
 
-            <!-- SPICE Netlist -->
-            <div class="card">
-                <h3>SPICE Netlist: Boost PFC Stage</h3>
-                <div id="pfc-spice"></div>
-            </div>
+                <div class="card">
+        <h3>Build it in Circuit Toy</h3>
+        <p>The interactives above are models with the physics written into them.
+        To put this circuit in front of a real solver, build it in
+        <a href="https://github.com/jfalvarez1/circuit_toy" target="_blank" rel="noopener">Circuit Toy</a>
+        from the table below. Node names are just labels &mdash; anything
+        sharing a name is one wire.</p>
+
+        <p><strong>Boost PFC Stage - Average Model for Control Design</strong></p>
+
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">XPFC</td><td>Block (BOOST_PFC)</td><td><span class="mono">BOOST_PFC</span></td><td>pins <span class="mono">AC_RECT</span>, <span class="mono">BUS</span>, ground, <span class="mono">CTRL</span></td></tr>
+                    <tr><td class="mono">XCTRL</td><td>Block (PFC_CTRL)</td><td><span class="mono">PFC_CTRL</span></td><td>pins <span class="mono">AC_RECT</span>, <span class="mono">BUS</span>, <span class="mono">IMON</span>, <span class="mono">DUTY</span>, ground</td></tr>
+                    <tr><td class="mono">XLLC</td><td>Block (LLC)</td><td><span class="mono">LLC</span></td><td>pins <span class="mono">BUS</span>, <span class="mono">OUT</span>, ground, <span class="mono">FCTRL</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p><strong>What to run:</strong> a <strong>transient run</strong> of 100&nbsp;ms in steps of 1&nbsp;&micro;s.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(BUS)</span>, <span class="mono">V(OUT)</span>, <span class="mono">I(LPFC)</span>.</p>
+
+        <p>Then change one thing at a time and predict the result before you run
+        it. A simulator is only worth the time if you are checking an answer you
+        already have &mdash; otherwise it is a very slow way of being surprised.</p>
+    </div>
 
             <!-- Design Checklist -->
             <div class="card">
@@ -1378,91 +1401,8 @@
             container.appendChild(svg.svg);
         })();
 
-        // ========== SPICE Netlist ==========
         (function() {
-            const spice = new SpiceNetlistWidget('pfc-spice');
-            spice.setNetlist(`* Boost PFC Stage - Average Model for Control Design
-* 300W, 85-265VAC input, 400V output
 
-.SUBCKT BOOST_PFC VIN_RECT VBUS GND CTRL
-* Averaged boost converter model
-
-* Input rectified voltage (full-wave)
-VIN_AC VIN_AC_NODE GND SIN(0 170 60)  ; 120Vrms
-BRECT VIN_RECT GND V=ABS(V(VIN_AC_NODE))
-
-* PFC boost inductor (averaged)
-LPFC VIN_RECT SW_NODE 400u IC=0
-
-* Switch node with duty cycle control
-* D = 1 - Vin/Vout (for PFC)
-BDUTY DUTY GND V=1-V(VIN_RECT)/V(VBUS)
-ESW SW_NODE GND VALUE={V(VIN_RECT)+V(DUTY)*(V(VBUS)-V(VIN_RECT))}
-
-* Boost diode (averaged current)
-GDIODE VBUS GND VALUE={I(LPFC)*(1-V(DUTY))}
-
-* Bus capacitor
-CBUS VBUS GND 330u IC=400
-
-* Load resistor (300W @ 400V = 533 ohms)
-RLOAD VBUS GND 533
-
-.ENDS BOOST_PFC
-
-* PFC Controller - Simplified Average Current Mode
-.SUBCKT PFC_CTRL VIN VBUS IOUT DUTY GND
-
-* Voltage error amplifier
-* Reference = 400V, slow bandwidth (15Hz)
-VREF VREF_NODE GND 2.5  ; Represents 400V
-RDIV1 VBUS VSEN 1MEG
-RDIV2 VSEN GND 6.25k  ; 400V -> 2.5V
-
-* Voltage loop compensator (Type II)
-EVEA VEA_OUT GND VALUE={10*(V(VREF_NODE)-V(VSEN))}
-RVEA VEA_OUT VEA_INT 100k
-CVEA VEA_INT GND 100n
-
-* Multiplier: I_ref = Vea * |Vin| / Vin_rms^2
-BMULT IREF GND V=V(VEA_INT)*ABS(V(VIN))/(120*120)
-
-* Current error amplifier (fast, 8kHz BW)
-ECEA CEA_OUT GND VALUE={5*(V(IREF)-V(IOUT))}
-
-* PWM comparator (simplified)
-BPWM DUTY GND V=LIMIT(V(CEA_OUT)/5,0.05,0.95)
-
-.ENDS PFC_CTRL
-
-* LLC Resonant Converter (FHA model)
-.SUBCKT LLC VIN VOUT GND FREQ
-* First Harmonic Approximation model
-
-* Resonant tank
-LR N1 N2 50u
-CR N2 N3 22n
-LM N3 GND 300u
-
-* Input half-bridge (FHA voltage source)
-VHB N1 GND AC 1 SIN(0 {2*V(VIN)/3.14159} 135k)
-
-* Transformer and rectifier (simplified)
-* n = 16, output reflects to 24V
-ERECT VOUT GND VALUE={ABS(V(N3))*16*0.9}
-COUT VOUT GND 1000u
-RLOAD VOUT GND 1.92  ; 24V @ 12.5A
-
-.ENDS LLC
-
-* Top-level simulation
-XPFC AC_RECT BUS GND CTRL BOOST_PFC
-XCTRL AC_RECT BUS IMON DUTY GND PFC_CTRL
-XLLC BUS OUT GND FCTRL LLC
-
-.TRAN 1u 100m 0 10u UIC
-.PROBE V(BUS) V(OUT) I(LPFC)
-.END`);
         })();
 
         // ========== Checklist ==========

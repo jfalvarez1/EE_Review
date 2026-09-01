@@ -136,9 +136,44 @@
         </table>
     </div>
 
-    <div class="card">
-        <h3>SPICE Netlist</h3>
-        <div id="ecg-spice"></div>
+        <div class="card">
+        <h3>Build it in Circuit Toy</h3>
+        <p>The interactives above are models with the physics written into them.
+        To put this circuit in front of a real solver, build it in
+        <a href="https://github.com/jfalvarez1/circuit_toy" target="_blank" rel="noopener">Circuit Toy</a>
+        from the table below. Node names are just labels &mdash; anything
+        sharing a name is one wire.</p>
+
+        <p><strong>ECG Instrumentation Amplifier</strong></p>
+
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">Vecg+</td><td>Voltage source</td><td>sine 500&nbsp;&micro;V amplitude at 1&nbsp;Hz</td><td>from <span class="mono">inp</span> to ground</td></tr>
+                    <tr><td class="mono">Vecg-</td><td>Voltage source</td><td>sine -500&nbsp;&micro;V amplitude at 1&nbsp;Hz</td><td>from <span class="mono">inn</span> to ground</td></tr>
+                    <tr><td class="mono">Vcm</td><td>Voltage source</td><td>sine 1&nbsp;V amplitude at 60&nbsp;Hz</td><td>from <span class="mono">cm</span> to ground</td></tr>
+                    <tr><td class="mono">E_add_p</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">inp_cm</span> to <span class="mono">inp</span>, sensing <span class="mono">cm</span> to <span class="mono">1</span></td></tr>
+                    <tr><td class="mono">E_add_n</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">inn_cm</span> to <span class="mono">inn</span>, sensing <span class="mono">cm</span> to <span class="mono">1</span></td></tr>
+                    <tr><td class="mono">Rp</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">inp_cm</span> and <span class="mono">inap</span></td></tr>
+                    <tr><td class="mono">Rn</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">inn_cm</span> and <span class="mono">inan</span></td></tr>
+                    <tr><td class="mono">X1</td><td>Block (INA1)</td><td><span class="mono">INA1</span></td><td>pins <span class="mono">inap</span>, <span class="mono">inan</span>, ground, <span class="mono">out1</span></td></tr>
+                    <tr><td class="mono">Chp</td><td>Capacitor</td><td>3.20&nbsp;&micro;F</td><td>between <span class="mono">out1</span> and <span class="mono">hp1</span></td></tr>
+                    <tr><td class="mono">Rhp</td><td>Resistor</td><td>1&nbsp;M&Omega;</td><td>between <span class="mono">hp1</span> and ground</td></tr>
+                    <tr><td class="mono">Egain</td><td>Controlled source</td><td>100</td><td>output <span class="mono">out2</span> to ground, sensing <span class="mono">hp1</span> to ground</td></tr>
+                    <tr><td class="mono">Rlp</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">out2</span> and <span class="mono">out</span></td></tr>
+                    <tr><td class="mono">Clp</td><td>Capacitor</td><td>106&nbsp;nF</td><td>between <span class="mono">out</span> and ground</td></tr>
+                    <tr><td class="mono">Erld</td><td>Controlled source</td><td>0 inan 0 0 -0.5 -0.5</td><td>output <span class="mono">rld</span> to ground, sensing <span class="mono">POLY(2)</span> to <span class="mono">inap</span></td></tr>
+                    <tr><td class="mono">Rrld_out</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">rld</span> and <span class="mono">rl_electrode</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p><strong>What to run:</strong> a <strong>transient run</strong> of 100&nbsp;ms in steps of 10&nbsp;&micro;s; then an <strong>AC sweep</strong> from 10&nbsp;mHz to 1&nbsp;kHz.</p>
+
+        <p>Then change one thing at a time and predict the result before you run
+        it. A simulator is only worth the time if you are checking an answer you
+        already have &mdash; otherwise it is a very slow way of being surprised.</p>
     </div>
 
     <div class="card">
@@ -348,60 +383,6 @@
         container.innerHTML = svg.render();
     }
 
-    // SPICE
-    function initSpice() {
-        new SpiceNetlistWidget('ecg-spice', {
-            title: 'ECG Instrumentation Amplifier',
-            netlist: `* ECG Front-End Amplifier
-* INA + Right-Leg Drive
-
-* ECG signal source (1mV differential + 1V common-mode 60Hz)
-Vecg+ inp 0 SIN(0 0.5m 1) AC 0.5m
-Vecg- inn 0 SIN(0 -0.5m 1) AC 0.5m
-Vcm cm 0 SIN(0 1 60)
-E_add_p inp_cm inp cm 1
-E_add_n inn_cm inn cm 1
-
-* Protection resistors
-Rp inp_cm inap 10k
-Rn inn_cm inan 10k
-
-* Instrumentation amplifier (simplified model)
-* INA129: CMRR > 100dB, noise < 10nV/rtHz
-.subckt INA in_p in_n ref out gain
-Rin_p in_p 0 1G
-Rin_n in_n 0 1G
-Ediff out ref POLY(2) in_p ref in_n ref 0 1 -1
-.ends
-
-X1 inap inan 0 out1 INA1
-
-* First stage gain = 10
-.subckt INA1 inp inn ref out
-Ediff out ref inp inn 10
-.ends
-
-* High-pass filter (0.05Hz)
-Chp out1 hp1 3.2u
-Rhp hp1 0 1MEG
-
-* Second stage gain = 100
-Egain out2 0 hp1 0 100
-
-* Low-pass filter (150Hz)
-Rlp out2 out 10k
-Clp out 0 106n
-
-* Right-leg drive (inverted common-mode)
-Erld rld 0 POLY(2) inap 0 inan 0 0 -0.5 -0.5
-Rrld_out rld rl_electrode 10k
-
-.tran 10u 100m
-.ac dec 100 0.01 1k
-.end`
-        });
-    }
-
     // Checklist
     function initChecklist() {
         new ChecklistWidget('ecg-checklist', {
@@ -444,7 +425,6 @@ Rrld_out rld rl_electrode 10k
 
     update();
     drawSchematic();
-    initSpice();
     initChecklist();
     initExercises();
 })();

@@ -174,9 +174,36 @@ Hysteresis:
         <div id="prot-schematic"></div>
     </div>
 
-    <div class="card">
-        <h3>SPICE Netlist</h3>
-        <div id="prot-spice"></div>
+        <div class="card">
+        <h3>Build it in Circuit Toy</h3>
+        <p>The interactives above are models with the physics written into them.
+        To put this circuit in front of a real solver, build it in
+        <a href="https://github.com/jfalvarez1/circuit_toy" target="_blank" rel="noopener">Circuit Toy</a>
+        from the table below. Node names are just labels &mdash; anything
+        sharing a name is one wire.</p>
+
+        <p><strong>Protection Circuit Simulation</strong></p>
+
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">Vcell</td><td>Voltage source</td><td>3.70&nbsp;V DC</td><td>from <span class="mono">cell_pos</span> to <span class="mono">cell_neg</span></td></tr>
+                    <tr><td class="mono">Xprot</td><td>Block (prot_ic)</td><td><span class="mono">prot_ic</span></td><td>pins <span class="mono">cell_pos</span>, <span class="mono">cell_neg</span>, <span class="mono">do</span>, <span class="mono">co</span>, <span class="mono">cs</span></td></tr>
+                    <tr><td class="mono">Mdsg</td><td>Transistor (MOSFET)</td><td><span class="mono">PMOS</span></td><td>drain <span class="mono">p_pos</span>, gate <span class="mono">gate_d</span>, source <span class="mono">cell_pos</span></td></tr>
+                    <tr><td class="mono">Mchg</td><td>Transistor (MOSFET)</td><td><span class="mono">PMOS</span></td><td>drain <span class="mono">p_pos</span>, gate <span class="mono">gate_c</span>, source <span class="mono">p_mid</span></td></tr>
+                    <tr><td class="mono">Rsense</td><td>Resistor</td><td>20&nbsp;m&Omega;</td><td>between <span class="mono">p_mid</span> and <span class="mono">cs</span></td></tr>
+                    <tr><td class="mono">Rload</td><td>Resistor</td><td>1&nbsp;&Omega;</td><td>between <span class="mono">p_pos</span> and <span class="mono">p_neg</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p><strong>What to run:</strong> a <strong>transient run</strong> of 100&nbsp;ms in steps of 1&nbsp;ms; then a <strong>DC sweep</strong> of <span class="mono">Vcell</span> from 2&nbsp; to 4.50&nbsp;.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(cell_pos)</span>, <span class="mono">V(do)</span>, <span class="mono">V(co)</span>, <span class="mono">I(Rload)</span>.</p>
+
+        <p>Then change one thing at a time and predict the result before you run
+        it. A simulator is only worth the time if you are checking an answer you
+        already have &mdash; otherwise it is a very slow way of being surprised.</p>
     </div>
 
     <div class="card">
@@ -558,66 +585,6 @@ Hysteresis:
         container.innerHTML = svg.render();
     }
 
-    // SPICE
-    function initSpice() {
-        new SpiceNetlistWidget('prot-spice', {
-            title: 'Protection Circuit Simulation',
-            netlist: `* Battery Protection Circuit
-* Single-cell Li-ion with OVP, UVP, OCP
-
-* Cell model
-Vcell cell_pos cell_neg DC 3.7
-
-* Protection IC (behavioral model)
-.subckt prot_ic vcc vss do co cs
-* OVP comparator (trip at 4.25V)
-Bovp ovp_int 0 V=V(vcc,vss)>4.25 ? 0 : 5
-Rovp ovp_int ovp 1k
-Covp ovp 0 100n
-
-* UVP comparator (trip at 2.8V)
-Buvp uvp_int 0 V=V(vcc,vss)<2.8 ? 0 : 5
-Ruvp uvp_int uvp 1k
-Cuvp uvp 0 100n
-
-* OCP comparator (trip at 100mV = 5A with 20mΩ)
-Bocp ocp_int 0 V=V(cs)>0.1 ? 0 : 5
-Rocp ocp_int ocp 1k
-Cocp ocp 0 10n  ; Fast for short circuit
-
-* Gate drives
-Bdo do 0 V=V(uvp)>2.5 & V(ocp)>2.5 ? 5 : 0
-Bco co 0 V=V(ovp)>2.5 ? 5 : 0
-.ends
-
-Xprot cell_pos cell_neg do co cs prot_ic
-
-* Discharge FET
-Mdsg p_pos gate_d cell_pos cell_pos PMOS
-Smdo gate_d cell_pos do cell_neg SMOD
-.model PMOS PMOS(Vto=-2 Kp=50)
-
-* Charge FET (body diode allows discharge)
-Mchg p_pos gate_c p_mid p_mid PMOS
-Smco gate_c p_mid co cell_neg SMOD
-
-* Current sense
-Rsense p_mid cs 0.02  ; 20mΩ
-.wire cs p_neg
-
-* Load
-Rload p_pos p_neg 1  ; 3.7A at 3.7V
-
-.model SMOD SW(Ron=1 Roff=1MEG Vt=2.5)
-
-.tran 1m 100m
-.dc Vcell 2 4.5 0.1
-
-.probe V(cell_pos) V(do) V(co) I(Rload)
-.end`
-        });
-    }
-
     // Checklist
     function initChecklist() {
         new ChecklistWidget('prot-checklist', {
@@ -662,7 +629,6 @@ Rload p_pos p_neg 1  ; 3.7A at 3.7V
 
     update();
     drawSchematic();
-    initSpice();
     initChecklist();
     initExercises();
 })();
