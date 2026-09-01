@@ -62,7 +62,8 @@ C.modules.forEach(m => {
             problems: (s.match(/class="problem"/g) || []).length,
             labs: (s.match(/class="lab"/g) || []).length,
             buildTable: (s.match(/Build it in Circuit Toy/g) || []).length,
-            tables: (s.match(/<table\b/gi) || []).length
+            tables: (s.match(/<table\b/gi) || []).length,
+            checkpoints: (s.match(/class="checkpoint"/g) || []).length
         };
 
         // One point per feature present, weighted by how much it signals depth.
@@ -77,6 +78,7 @@ C.modules.forEach(m => {
         if (f.derivations) score += 2;
         if (f.problems >= 4) score += 2;
         if (f.labs) score += 2;
+        if (f.checkpoints) score += 2;
         if (f.tables >= 2) score += 1;
 
         rows.push({ mod: m.id, les: l.id, title: l.title, rel: rel, score: score, f: f });
@@ -86,7 +88,7 @@ C.modules.forEach(m => {
 const pool = modArg ? rows.filter(r => r.mod === modArg) : rows;
 pool.sort((a, b) => a.score - b.score || a.f.words - b.f.words);
 
-const MAX = 16;
+const MAX = 18;
 console.log(pool.length + ' lessons scored out of ' + MAX + '\n');
 
 const buckets = { '0-3 skeletal': 0, '4-6 thin': 0, '7-9 solid': 0, '10-12 deep': 0, '13+ full': 0 };
@@ -104,7 +106,7 @@ Object.entries(buckets).forEach(([k, v]) => {
 
 const show = ALL ? pool : pool.slice(0, 25);
 console.log('\n' + (ALL ? 'ALL LESSONS' : 'THINNEST ' + show.length) + ', worst first\n');
-console.log('  sc  words  cv ct sch math der prb lab   lesson');
+console.log('  sc  words  cv ct sch math der prb lab  cp   lesson');
 show.forEach(r => {
     const f = r.f;
     console.log(
@@ -117,6 +119,7 @@ show.forEach(r => {
         String(f.derivations).padStart(4) +
         String(f.problems).padStart(4) +
         String(f.labs).padStart(4) +
+        String(f.checkpoints).padStart(4) +
         '   ' + r.mod + '-' + r.les + '  ' + r.title.slice(0, 44));
 });
 

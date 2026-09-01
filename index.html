@@ -105,6 +105,7 @@
     <script src="assets/component-models.js"></script>
     <script src="assets/schematic-svg.js"></script>
     <script src="assets/schematic-normalize.js"></script>
+    <script src="assets/checkpoints.js"></script>
     <!-- MathJax, configured and loaded ONCE for the whole app.
          Lessons used to carry their own <script> tag for it, which meant it
          re-registered itself on every lesson that had one and threw on the
@@ -196,10 +197,68 @@
             host.innerHTML = html;
         }
 
-        // Mobile menu toggle
-        document.getElementById('menu-toggle').addEventListener('click', () => {
-            document.getElementById('sidebar').classList.toggle('open');
-        });
+        /* ------------------------------------------------------------------
+         * The mobile navigation drawer.
+         *
+         * Opening it was the only behaviour that existed, so on a phone it
+         * stayed open over the lesson you had just chosen and had to be
+         * dismissed with the same small button you opened it with. A drawer
+         * has to close on every way out of it, not one:
+         *
+         *   - choosing anything inside it (that is what you opened it for)
+         *   - tapping the page behind it
+         *   - Escape
+         *   - any navigation at all, including the search box and back/forward
+         *
+         * All of it is inert on desktop, where the sidebar is always visible
+         * and the `open` class means nothing.
+         * ------------------------------------------------------------------ */
+        (function () {
+            const sidebar = document.getElementById('sidebar');
+            const toggle = document.getElementById('menu-toggle');
+            const isMobile = () => window.matchMedia('(max-width: 980px)').matches;
+
+            // A backdrop, so it is obvious the drawer is modal and so there is
+            // something unambiguous to tap. Created here rather than in the
+            // markup because it only exists to serve this behaviour.
+            const backdrop = document.createElement('div');
+            backdrop.className = 'sidebar-backdrop';
+            backdrop.hidden = true;
+            document.body.appendChild(backdrop);
+
+            function setOpen(open) {
+                sidebar.classList.toggle('open', open);
+                backdrop.hidden = !open;
+                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+                // Stop the page behind the drawer scrolling under a swipe.
+                document.body.classList.toggle('drawer-open', open && isMobile());
+            }
+
+            const close = () => { if (sidebar.classList.contains('open')) setOpen(false); };
+
+            toggle.setAttribute('aria-controls', 'sidebar');
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.addEventListener('click', () => setOpen(!sidebar.classList.contains('open')));
+
+            backdrop.addEventListener('click', close);
+
+            // Anything clicked inside the drawer that navigates should close it.
+            // Delegated, because the lesson list is rebuilt as modules expand.
+            sidebar.addEventListener('click', e => {
+                if (!isMobile()) return;
+                const a = e.target.closest('a[href]');
+                if (a) { close(); return; }
+                // Module headers expand a list in place - those must NOT close it.
+            });
+
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+            // Catches the search box, in-lesson links, and browser back/forward.
+            window.addEventListener('hashchange', close);
+
+            // Returning to a wide window leaves no half-open drawer behind.
+            window.addEventListener('resize', () => { if (!isMobile()) setOpen(false); });
+        }());
 
         // Mark complete button
         document.getElementById('mark-complete').addEventListener('click', () => {

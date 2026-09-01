@@ -117,6 +117,7 @@ assetBytes += inlineStylesheet('assets/styles.css');
     'assets/component-models.js',
     'assets/schematic-svg.js',
     'assets/schematic-normalize.js',
+    'assets/checkpoints.js',
     'assets/learning-path.js',
     'assets/curriculum.js',
     'assets/exercises.js'

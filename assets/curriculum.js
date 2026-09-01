@@ -2983,6 +2983,9 @@ const Router = {
                 }
 
                 // Add navigation buttons
+                // The path thread goes FIRST: what this rests on, before the
+                // reader starts reading what rests on it.
+                lessonHtml = this.renderPathThread(module, lesson) + lessonHtml;
                 lessonHtml += this.renderLessonNav(module, lesson);
 
                 content.innerHTML = lessonHtml;
@@ -3078,6 +3081,10 @@ const Router = {
                 // every lesson arrives later, by XHR.
                 Router.typesetMath(content);
 
+                // Wire up any inline checkpoints. Markup-driven, so a lesson
+                // only writes HTML and never has to construct a widget.
+                if (window.Checkpoints) window.Checkpoints.scan(content);
+
                 // Normalize manual SVG schematics (supply rails, etc.)
                 if (window.SchematicNormalizer) {
                     window.SchematicNormalizer.run(content);
@@ -3108,6 +3115,52 @@ const Router = {
                 </div>
             ` + this.renderLessonNav(module, lesson);
         }
+    },
+
+    /**
+     * The incremental thread, made visible.
+     *
+     * A course is only cumulative if the reader can see what a lesson rests on
+     * and what it pays for later. The syllabus already knows both - it is an
+     * ordered spine - so this reads them straight out of it rather than asking
+     * 368 lessons to declare their own prerequisites, which would rot the first
+     * time anything moved.
+     *
+     * Returns '' for a lesson that is not on the path; those are reference
+     * material rather than steps, and inventing a prerequisite for them would
+     * be a lie.
+     */
+    renderPathThread(module, lesson) {
+        if (!window.LEARNING_PATH) return '';
+        const steps = LEARNING_PATH.steps();
+        const i = steps.findIndex(s => s.ref && s.ref[0] === module.id && s.ref[1] === lesson.id);
+        if (i === -1) return '';
+
+        const here = steps[i];
+        const prev = i > 0 ? steps[i - 1] : null;
+        const next = i < steps.length - 1 ? steps[i + 1] : null;
+        const link = s => s.ref
+            ? `<a href="#module-${s.ref[0]}/lesson-${s.ref[1]}">${s.title}</a>`
+            : `<span class="thread-todo">${s.title}</span>`;
+
+        let html = '<div class="path-thread">';
+        html += `<div class="thread-where">Step ${here.position} of ${LEARNING_PATH.total()}` +
+                ` &middot; <a href="#path">${here.stageTitle}</a></div>`;
+        html += '<div class="thread-rows">';
+        if (prev) {
+            html += `<div class="thread-row"><span class="thread-label">Rests on</span>` +
+                    `<span class="thread-body">${link(prev)}</span></div>`;
+        }
+        if (here.earns) {
+            html += `<div class="thread-row is-here"><span class="thread-label">You get</span>` +
+                    `<span class="thread-body">${here.earns}</span></div>`;
+        }
+        if (next) {
+            html += `<div class="thread-row"><span class="thread-label">Leads to</span>` +
+                    `<span class="thread-body">${link(next)}</span></div>`;
+        }
+        html += '</div></div>';
+        return html;
     },
 
     renderLessonNav(module, lesson) {
