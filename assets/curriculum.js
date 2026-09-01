@@ -52,54 +52,60 @@ const CURRICULUM = {
                 },
                 {
                     id: 7,
+                    title: 'Reading an Op-Amp Datasheet',
+                    description: 'Every error term located on a real datasheet, and assembled into one number',
+                    topics: ['Typ is not a specification; a blank max is a refusal to guarantee', 'Test conditions are part of the number', 'Ib doubles every 10 degC on FET inputs', 'CMRR and PSRR fall 20 dB/decade above the first pole', 'The error budget: worst case vs RSS', 'The rail-to-rail input handover step', 'Absolute maximum is survival, not operation']
+                },
+                {
+                    id: 8,
                     title: 'Op-Amp Stability and Compensation',
                     description: 'Phase margin, dominant pole, and compensation',
                     topics: ['Loop gain analysis', 'Phase margin requirements', 'Compensation techniques', 'Capacitive loads']
                 },
                 {
-                    id: 8,
+                    id: 9,
                     title: 'Op-Amp Input Bias Current Compensation',
                     description: 'Matching resistors and compensation techniques',
                     topics: ['Bias current effects', 'Matching technique', 'FET vs BJT inputs', 'Error analysis']
                 },
                 {
-                    id: 9,
+                    id: 10,
                     title: 'Op-Amp Output Stage and Current Drive',
                     description: 'Output current capability and drive limitations',
                     topics: ['Output swing limits', 'Current limiting', 'Short-circuit protection', 'Boosting output current']
                 },
                 {
-                    id: 10,
+                    id: 11,
                     title: 'Fully Differential Amplifiers',
                     description: 'Differential I/O for ADC drivers and noise rejection',
                     topics: ['FDA architecture', 'Common-mode output', 'ADC driver design', 'Noise advantages']
                 },
                 {
-                    id: 11,
+                    id: 12,
                     title: 'Precision Rectifiers',
                     description: 'Ideal diode function with op-amps',
                     topics: ['Half-wave rectifier', 'Full-wave rectifier', 'Absolute value circuit', 'Recovery time']
                 },
                 {
-                    id: 12,
+                    id: 13,
                     title: 'Voltage References with Op-Amps',
                     description: 'Building stable voltage references',
                     topics: ['Reference buffering', 'Precision dividers', 'Temperature compensation', 'Noise filtering']
                 },
                 {
-                    id: 13,
+                    id: 14,
                     title: 'Composite Amplifiers',
                     description: 'Combining op-amps for improved performance',
                     topics: ['Gain × bandwidth extension', 'Precision composites', 'High-speed composites', 'Stability concerns']
                 },
                 {
-                    id: 14,
+                    id: 15,
                     title: 'Current Feedback Amplifiers (CFAs)',
                     description: 'Transimpedance-based amplifiers for high speed',
                     topics: ['CFA architecture', 'Gain-independent bandwidth', 'Feedback resistor selection', 'When to use CFAs']
                 },
                 {
-                    id: 15,
+                    id: 16,
                     title: 'Industry Op-Amp Selection Guide',
                     description: 'Choosing the right op-amp for your application',
                     topics: ['General purpose', 'Precision', 'High-speed', 'Low-power']
@@ -510,18 +516,24 @@ const CURRICULUM = {
                 },
                 {
                     id: 36,
+                    title: 'Choosing a Transistor from a Datasheet',
+                    description: 'Picking a part rather than recognising one - worked through until the answer is "use a MOSFET"',
+                    topics: ['Beta: 3:1 guaranteed, a hump over current, +0.5%/degC', 'Design for beta-min AND for beta = infinity', 'BVCEO binds; BVEBO is the one that gets violated', 'Forced beta, and why datasheets use 10', 'Tj = Ta + Pd*RthJA, and why the front-page PD is a fiction', 'SOA and second breakdown in linear mode']
+                },
+                {
+                    id: 37,
                     title: 'Industry BJT Selection Guide',
                     description: 'Choosing the right BJT for your application',
                     topics: ['2N3904/2N3906', 'BC547/BC557', 'Power transistors', 'RF transistors']
                 },
                 {
-                    id: 37,
+                    id: 38,
                     title: 'BJT Design Case Studies',
                     description: 'Real-world designs analyzed step by step',
                     topics: ['20V 5ns amplifier', 'Audio power amp', 'Precision current source', 'RF LNA design']
                 },
                 {
-                    id: 38,
+                    id: 39,
                     title: 'Design: A Current Mirror from a Datasheet',
                     description: 'An error budget against a real spec, and choosing the part that meets it',
                     topics: ['VBE mismatch = dVBE/VT', 'Matched pairs: 2N3904 vs BC847BS vs MAT12', 'Emitter degeneration: money or headroom', 'Early effect and the cascode fix']

@@ -115,7 +115,7 @@ const LEARNING_PATH = (() => {
                          '— the skill that makes the next step intuitive rather than ' +
                          'numerical. Sketch errors of 3.01, 0.97 and 0.04 dB, and why a pole a ' +
                          'decade past crossover still costs 5.7 degrees of margin.' },
-                { ref: [1, 7], title: 'Stability and compensation',
+                { ref: [1, 8], title: 'Stability and compensation',
                   earns: 'What you pay for loop gain: phase margin, and the ringing you get ' +
                          'when you spend it all.' }
             ]
@@ -136,10 +136,11 @@ const LEARNING_PATH = (() => {
                   earns: 'The supply is an input too.' },
                 { ref: [2, 4], title: 'Noise analysis',
                   earns: 'The floor you cannot design below, and where it comes from.' },
-                { ref: null, status: 'todo', title: 'Reading an op-amp datasheet',
+                { ref: [1, 7], title: 'Reading an op-amp datasheet',
                   earns: 'Every error above, located on a real datasheet: where the number ' +
                          'hides, its test conditions, and which typical-only specs must never ' +
-                         'be designed against.' }
+                         'be designed against. Then all of them assembled into one number, ' +
+                         'worst-case and RSS.' }
             ]
         },
         {
@@ -317,14 +318,16 @@ const LEARNING_PATH = (() => {
             blurb: 'Not "how does this work" but "which one do I buy, and will it still meet ' +
                    'spec at 70 °C with the part I actually receive".',
             steps: [
-                { ref: null, status: 'todo', title: 'Choosing a transistor from a datasheet',
-                  earns: 'Which parameters are guaranteed, which are typical-only, how much ' +
-                         'beta really varies, and how to pick a part rather than recognise one.' },
-                { ref: [5, 38], title: 'Design: a current mirror from a datasheet',
+                { ref: [5, 36], title: 'Choosing a transistor from a datasheet',
+                  earns: 'Which parameters are guaranteed and which are typical-only, how much ' +
+                         'beta really varies, forced beta, and the thermal arithmetic — worked ' +
+                         'through a real selection until the answer turns out to be "use a ' +
+                         'MOSFET", which is the useful kind of answer.' },
+                { ref: [5, 37], title: 'Industry BJT selection guide',
+                  earns: 'The reference list, useful once you know what the columns mean.' },
+                { ref: [5, 39], title: 'Design: a current mirror from a datasheet',
                   earns: 'An error budget against a real spec, and choosing between a $0.15 ' +
-                         'dual and an $8 matched pair.' },
-                { ref: [5, 36], title: 'Industry BJT selection guide',
-                  earns: 'The reference list, useful once you know what the columns mean.' }
+                         'dual and an $8 matched pair.' }
             ]
         },
         {
