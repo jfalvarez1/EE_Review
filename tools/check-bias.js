@@ -117,13 +117,44 @@ function analyse(rows) {
         return bt && ((bt[0] === a && bt[1] === b) || (bt[0] === b && bt[1] === a));
     });
 
+    /**
+     * Total DC resistance from `start` to `goal` along a chain of resistors.
+     *
+     * The emitter is often SPLIT - RE1 unbypassed to set the AC degeneration,
+     * RE2 bypassed below it to set a stable DC bias - so insisting on a single
+     * resistor straight to ground skipped exactly the stages most likely to be
+     * mis-biased. Capacitors in parallel are irrelevant here: this is DC.
+     */
+    function seriesTo(start, goal) {
+        let node = start, total = 0;
+        const used = new Set();
+        for (let hop = 0; hop < 6; hop++) {
+            if (node === goal) return total;
+            const next = res.find(r => {
+                if (used.has(r)) return false;
+                const bt = between(r.conn);
+                return bt && (bt[0] === node || bt[1] === node);
+            });
+            if (!next) return null;
+            used.add(next);
+            const v = ohms(next.value);
+            if (v === null || !isFinite(v) || v < 0) return null;
+            const bt = between(next.conn);
+            total += v;
+            node = (bt[0] === node) ? bt[1] : bt[0];
+        }
+        return null;
+    }
+
     const R1 = find(vccNode, base), R2 = find(base, 'ground');
-    const RC = find(vccNode, col), RE = find(emit, 'ground');
-    if (!R1 || !R2 || !RC || !RE) return null;
+    if (!R1 || !R2) return null;
+
+    const rc = seriesTo(col, vccNode);
+    const re = seriesTo(emit, 'ground');
+    if (rc === null || re === null || re === 0) return null;
 
     const r1 = ohms(R1.value), r2 = ohms(R2.value);
-    const rc = ohms(RC.value), re = ohms(RE.value);
-    if ([r1, r2, rc, re].some(x => x === null || !isFinite(x) || x <= 0)) return null;
+    if ([r1, r2].some(x => x === null || !isFinite(x) || x <= 0)) return null;
 
     const vb = vcc * r2 / (r1 + r2);
     const ve = vb - VBE;
