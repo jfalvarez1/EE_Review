@@ -275,15 +275,49 @@
             ctx.fillText('Time (ms)', W/2 - 30, H - 5);
             ctx.fillText('Amplitude', 10, margin.top + 10);
 
-            // Draw continuous signal
-            const tMax = 2;  // ms
+            /* ---------------------------------------------------------------
+             * The window used to be a hardcoded 2 ms drawn with 200 points,
+             * and both halves of that were wrong at the top of the slider.
+             *
+             * At 60 kHz, 2 ms is 120 cycles. Drawn with 200 points that is
+             * 1.7 points per cycle - so the "continuous signal" was itself
+             * being sampled below Nyquist by the renderer, and the cyan trace
+             * you saw was a rendering alias rather than the signal. A figure
+             * that accidentally demonstrates aliasing while trying to explain
+             * it is worse than no figure.
+             *
+             * What this picture is actually for is the moment the yellow dots
+             * stop tracing the fast wave and start tracing a slower one. So
+             * the window is set from the ALIAS frequency - the frequency the
+             * samples reconstruct - and shows a few cycles of that. The fast
+             * signal is then dense on purpose, which is the honest picture,
+             * and it is drawn with enough points to be true.
+             * ------------------------------------------------------------- */
+
+            // The frequency the samples actually reconstruct. Folding about
+            // the sample rate: everything lands in 0..fs/2.
+            const falias = Math.abs(fsig - fs * Math.round(fsig / fs));
+            const aliased = fsig > fnyq;
+
+            // Three cycles of whatever the dots are going to trace out. The
+            // floor stops the window running away to infinity when fsig is an
+            // exact multiple of fs and the alias is DC.
+            let span = 3 / Math.max(falias, fs / 200);
+            span = Math.min(span, 40 / fsig);      // never a solid block
+            span = Math.max(span, 8 / fs);         // always countable dots
+            const tMaxMs = span * 1000;
+
+            // Enough points that the CONTINUOUS trace is continuous: forty per
+            // cycle of the signal being drawn, not a fixed 200 for the canvas.
+            const NPTS = Math.min(6000, Math.max(400, Math.ceil(fsig * span * 40)));
+
             ctx.strokeStyle = TEK.cyan;
             ctx.lineWidth = 2;
             ctx.beginPath();
-            for (let i = 0; i <= 200; i++) {
-                const t = (i / 200) * tMax / 1000;  // seconds
+            for (let i = 0; i <= NPTS; i++) {
+                const t = (i / NPTS) * span;
                 const amp = Math.sin(2 * Math.PI * fsig * t);
-                const x = margin.left + (i / 200) * plotW;
+                const x = margin.left + (i / NPTS) * plotW;
                 const y = H/2 - amp * (plotH / 2.5);
 
                 if (i === 0) ctx.moveTo(x, y);
@@ -291,15 +325,39 @@
             }
             ctx.stroke();
 
+            // The wave the samples reconstruct. This is the payoff of the
+            // whole widget and it was never drawn: without it the yellow dots
+            // are just dots, and the reader has to take the alias on trust.
+            if (aliased) {
+                // Sampling cannot preserve the sign of the folded frequency,
+                // so the reconstruction may be time-reversed. Fit the phase
+                // to the samples rather than assuming it.
+                const rev = Math.sin(2 * Math.PI * fsig * (1 / fs)) < 0 ? -1 : 1;
+                ctx.strokeStyle = TEK.red;
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 4]);
+                ctx.beginPath();
+                for (let i = 0; i <= 600; i++) {
+                    const t = (i / 600) * span;
+                    const amp = rev * Math.sin(2 * Math.PI * falias * t);
+                    const x = margin.left + (i / 600) * plotW;
+                    const y = H/2 - amp * (plotH / 2.5);
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
             // Draw sample points
             const ts = 1 / fs;  // sample period in seconds
-            const numSamples = Math.floor(tMax / 1000 / ts);
+            const numSamples = Math.floor(span / ts);
 
             ctx.fillStyle = TEK.yellow;
             for (let n = 0; n <= numSamples; n++) {
                 const t = n * ts;
                 const amp = Math.sin(2 * Math.PI * fsig * t);
-                const x = margin.left + (t / (tMax / 1000)) * plotW;
+                const x = margin.left + (t / span) * plotW;
                 const y = H/2 - amp * (plotH / 2.5);
 
                 ctx.beginPath();
@@ -315,22 +373,28 @@
                 ctx.stroke();
             }
 
-            // Mark Nyquist frequency
-            ctx.strokeStyle = TEK.green;
-            ctx.setLineDash([5, 5]);
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(margin.left, margin.top);
-            ctx.lineTo(margin.left, H - margin.bottom);
-            ctx.stroke();
-            ctx.setLineDash([]);
+            // Legend, which the plot did not have. The old code drew a green
+            // dashed "Nyquist" line from the top to the bottom of the plot at
+            // margin.left - exactly on top of the y-axis, conveying nothing.
+            ctx.font = '11px monospace';
+            ctx.fillStyle = TEK.cyan;
+            ctx.fillText('signal ' + (fsig / 1000).toFixed(0) + ' kHz',
+                         margin.left + 8, margin.top + 12);
+            ctx.fillStyle = TEK.yellow;
+            ctx.fillText('samples at ' + (fs / 1000).toFixed(1) + ' kHz',
+                         margin.left + 8, margin.top + 26);
+            if (aliased) {
+                ctx.fillStyle = TEK.red;
+                ctx.fillText('what you get back: ' + (falias / 1000).toFixed(1) + ' kHz',
+                             margin.left + 8, margin.top + 40);
+            }
 
-            // Time markers
+            // Time markers, following the window rather than a fixed 0-2 ms.
             ctx.fillStyle = '#888';
             ctx.font = '10px monospace';
-            for (let t = 0; t <= 2; t += 0.5) {
-                const x = margin.left + (t / 2) * plotW;
-                ctx.fillText(t.toFixed(1), x - 10, H - margin.bottom + 15);
+            for (let k = 0; k <= 4; k++) {
+                const x = margin.left + (k / 4) * plotW;
+                ctx.fillText((tMaxMs * k / 4).toFixed(2), x - 12, H - margin.bottom + 15);
             }
 
             // Update display

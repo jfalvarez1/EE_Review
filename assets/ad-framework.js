@@ -97,7 +97,27 @@ const AD = (() => {
         ideal: 'rgba(255, 255, 255, 0.3)',  // Ideal/expected waveforms
         grid: 'rgba(255, 255, 255, 0.08)',  // Grid lines
         gridBright: 'rgba(255, 255, 255, 0.25)',  // Center crosshairs
-        text: 'rgba(255, 255, 255, 0.8)'    // Text labels
+        text: 'rgba(255, 255, 255, 0.8)',   // Text labels
+
+        // Colour names, because that is what nineteen lessons across modules
+        // 3, 5 and 12 actually ask for - TEK.yellow, TEK.red, TEK.green,
+        // TEK.cyan - and none of them existed. Reading a missing key gives
+        // undefined, and assigning undefined to ctx.strokeStyle is a SILENT
+        // no-op: canvas keeps whatever colour was set last. So those plots
+        // were not drawing in the wrong colour, they were drawing every trace
+        // in the same colour, and a two-trace plot became one indistinct
+        // shape. Nothing threw and nothing logged, which is why it survived.
+        //
+        // Defined as aliases rather than new values so a lesson mixing
+        // TEK.ch1 with TEK.yellow still gets one consistent palette.
+        yellow: '#FFD700',                  // = ch1
+        cyan: '#00BFFF',                    // = ch2
+        magenta: '#FF69B4',                 // = ch3
+        green: '#32CD32',                   // = ch4
+        red: '#FF6B6B',                     // = ref
+        orange: '#FF8C00',                  // = math
+        white: 'rgba(255, 255, 255, 0.8)',  // = text
+        bg: '#0d1117'                       // the canvas ground drawGrid fills
     };
 
     // Array of channel colors for multi-trace plots

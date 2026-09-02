@@ -42,6 +42,8 @@ const GATING = [
      'no NEW circuit drawn on a canvas, where it cannot be verified'],
     ['check-css.js',
      'the phone layout rules a later stylesheet rule can silently undo'],
+    ['check-palette.js',
+     'a colour key that does not exist: undefined on strokeStyle is a silent no-op'],
     ['validate-path.js',
      'every syllabus step resolves to a lesson that exists on disk']
 ];

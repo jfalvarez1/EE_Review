@@ -524,9 +524,16 @@
         document.getElementById('int-gain').textContent = gain.toFixed(2);
 
         // Generate waveforms
-        const N = 500;
-        const periods = 3;
-        const dt = periods / (freq * N);
+        const N = 1200;
+        // Fixed at 3 periods, the window shrank as fast as the period and the
+        // frequency cancelled out - the slider changed its label and nothing
+        // else, even though the whole point here is that the triangle shrinks
+        // as 1/f. See AD.cyclesForFreq.
+        const win = AD.timeWindowFor(freq, N, {
+            fMin: 100, fMax: 10000, minCycles: 2, maxCycles: 8
+        });
+        const periods = win.cycles;
+        const dt = win.dt;
 
         // Square wave input
         const input = AD.genSquare({ N, dt, f: freq, amp: vin, off: 0, duty: 0.5 });
@@ -558,26 +565,22 @@
         // Draw
         const w = intCanvas.width;
         const h = intCanvas.height;
-        AD.drawGrid(intCtx, w, h, 10, 8);
-
         const maxV = Math.max(vin, Math.abs(voutPk)) * 1.2;
         const vPerDiv = maxV / 4;
 
-        AD.plotWave(intCtx, w, h, input, vPerDiv, 0, periods / (freq * 10), {
-            color: 'rgba(110, 231, 255, 0.8)',
-            label: 'Vin (square)'
+        // One call, both traces: plotWave() clears the canvas on entry, so
+        // the second call was erasing the first and only the output was ever
+        // visible. The status line went the same way - written at y=18, on
+        // top of the V/div header plotWave draws at y=18 - so it goes in
+        // `label`, which is rendered on the line below.
+        AD.plotMultiWave(intCtx, w, h, [
+            { samples: input,         name: 'Vin (square)',   color: 'rgba(110, 231, 255, 0.8)' },
+            { samples: outputClipped, name: 'Vout (triangle)',
+              color: isClipping ? 'rgba(251, 113, 133, 0.9)' : 'rgba(52, 211, 153, 0.9)' }
+        ], vPerDiv, 0, periods / (freq * 10), {
+            label: `τ = ${AD.fmtUnit(tau, 's')}  |  fc = ${AD.fmtUnit(fc, 'Hz')}  |  ` +
+                   `Gain = ${gain.toFixed(2)}  |  ${periods} cycles`
         });
-
-        AD.plotWave(intCtx, w, h, outputClipped, vPerDiv, 0, periods / (freq * 10), {
-            color: isClipping ? 'rgba(251, 113, 133, 0.9)' : 'rgba(52, 211, 153, 0.9)',
-            label: 'Vout (triangle)'
-        });
-
-        intCtx.save();
-        intCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        intCtx.font = '12px ui-sans-serif, system-ui, sans-serif';
-        intCtx.fillText(`τ = ${AD.fmtUnit(tau, 's')}  |  fc = ${AD.fmtUnit(fc, 'Hz')}  |  Gain = ${gain.toFixed(2)}`, 10, 18);
-        intCtx.restore();
 
         updateBode(r, c);
     }
@@ -599,9 +602,13 @@
         document.getElementById('diff-phase').textContent = '+90° (leading)';
 
         // Generate waveforms
-        const N = 500;
-        const periods = 3;
-        const dt = periods / (freq * N);
+        const N = 1200;
+        // Same fixed-window bug as the integrator above.
+        const win = AD.timeWindowFor(freq, N, {
+            fMin: 100, fMax: 10000, minCycles: 2, maxCycles: 8
+        });
+        const periods = win.cycles;
+        const dt = win.dt;
 
         // Triangle wave input
         const input = Array.from({length: N}, (_, i) => {
@@ -636,26 +643,21 @@
         // Draw
         const w = diffCanvas.width;
         const h = diffCanvas.height;
-        AD.drawGrid(diffCtx, w, h, 10, 8);
 
         const maxV = Math.max(1, Math.abs(voutPk)) * 1.2;
         const vPerDiv = maxV / 4;
 
-        AD.plotWave(diffCtx, w, h, input, vPerDiv, 0, periods / (freq * 10), {
-            color: 'rgba(110, 231, 255, 0.8)',
-            label: 'Vin (triangle)'
+        // Both traces in one call, and the status line below the header
+        // rather than on top of it - see the integrator above.
+        AD.plotMultiWave(diffCtx, w, h, [
+            { samples: input,         name: 'Vin (triangle)', color: 'rgba(110, 231, 255, 0.8)' },
+            { samples: outputClipped, name: 'Vout (square)',
+              color: addNoise ? 'rgba(251, 113, 133, 0.9)' : 'rgba(52, 211, 153, 0.9)' }
+        ], vPerDiv, 0, periods / (freq * 10), {
+            label: `τ = ${AD.fmtUnit(tau, 's')}  |  Gain = ${gain.toFixed(2)}  |  ` +
+                   `${periods} cycles` +
+                   (addNoise ? '  |  Note noise amplification!' : '')
         });
-
-        AD.plotWave(diffCtx, w, h, outputClipped, vPerDiv, 0, periods / (freq * 10), {
-            color: addNoise ? 'rgba(251, 113, 133, 0.9)' : 'rgba(52, 211, 153, 0.9)',
-            label: 'Vout (square)'
-        });
-
-        diffCtx.save();
-        diffCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        diffCtx.font = '12px ui-sans-serif, system-ui, sans-serif';
-        diffCtx.fillText(`τ = ${AD.fmtUnit(tau, 's')}  |  Gain = ${gain.toFixed(2)}${addNoise ? '  |  Note noise amplification!' : ''}`, 10, 18);
-        diffCtx.restore();
     }
 
     function updateBode(r, c) {

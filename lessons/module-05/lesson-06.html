@@ -468,9 +468,15 @@
         if (!vcc) return;
 
         // Generate waveforms
-        const N = 500;
-        const periods = 3;
-        const dt = periods / (freq * N);
+        const N = 1200;
+        // The window was periods/(freq*N) with periods fixed at 3, which
+        // shrinks exactly as fast as the period and cancels the frequency
+        // out - the slider moved and the trace did not. See AD.cyclesForFreq.
+        const win = AD.timeWindowFor(freq, N, {
+            fMin: 100, fMax: 100000, minCycles: 2, maxCycles: 10
+        });
+        const periods = win.cycles;
+        const dt = win.dt;
 
         const vin = AD.genSine({ N, dt, f: freq, amp: vinAmplitude, off: 0 });
 
@@ -493,22 +499,19 @@
         // Draw
         const w = canvas.width;
         const h = canvas.height;
-        AD.drawGrid(ctx, w, h, 10, 8);
-
         // Scale for display
         const maxV = Math.max(vinAmplitude * 1.2, voutPeak * 1.1, 0.1);
         const vPerDiv = maxV / 4;
 
-        // Plot input (cyan)
-        AD.plotWave(ctx, w, h, vin, vPerDiv, 0, periods / (freq * 10), {
-            color: 'rgba(110, 231, 255, 0.9)',
-            label: 'Vin'
-        });
-
-        // Plot output (green or red if clipping)
-        AD.plotWave(ctx, w, h, vout, vPerDiv, 0, periods / (freq * 10), {
-            color: isClipping ? 'rgba(251, 113, 133, 0.9)' : 'rgba(52, 211, 153, 0.9)',
-            label: 'Vout'
+        // One call, both traces. plotWave() clears the canvas on entry, so
+        // calling it once per trace meant the output erased the input and the
+        // cyan Vin the legend promised was never actually drawn.
+        AD.plotMultiWave(ctx, w, h, [
+            { samples: vin,  name: 'Vin',  color: 'rgba(110, 231, 255, 0.9)' },
+            { samples: vout, name: 'Vout',
+              color: isClipping ? 'rgba(251, 113, 133, 0.9)' : 'rgba(52, 211, 153, 0.9)' }
+        ], vPerDiv, 0, periods / (freq * 10), {
+            label: periods + ' cycles' + (win.atCap ? ' (max)' : '')
         });
 
         // Update status

@@ -714,11 +714,17 @@
         const w = srCanvas.width;
         const h = srCanvas.height;
 
-        AD.drawGrid(srCtx, w, h, 10, 8);
-
-        const N = 500;
-        const periods = 3;
-        const dt = periods / (freq * N);
+        const N = 1600;
+        // Fixed at 3 periods the window tracked 1/f exactly, so the frequency
+        // slider could not change the picture - in a widget whose entire
+        // subject is what happens to the waveform as frequency rises. Few
+        // cycles, kept wide, because a slew-limited edge is only visible when
+        // there is room to see it bend. See AD.cyclesForFreq.
+        const win = AD.timeWindowFor(freq, N, {
+            fMin: 1000, fMax: 500000, minCycles: 2, maxCycles: 6
+        });
+        const periods = win.cycles;
+        const dt = win.dt;
 
         // Generate ideal input
         let input;
@@ -734,23 +740,20 @@
         // Plot
         const vPerDiv = vpk * 1.2 / 4;
 
-        AD.plotWave(srCtx, w, h, input, vPerDiv, 0, periods / (freq * 10), {
-            color: 'rgba(110, 231, 255, 0.7)',
-            label: 'Input'
-        });
-
         const isSlewing = input.some((v, i) => Math.abs(output[i] - v) > 0.01 * vpk);
-        AD.plotWave(srCtx, w, h, output, vPerDiv, 0, periods / (freq * 10), {
-            color: isSlewing ? 'rgba(251, 113, 133, 0.9)' : 'rgba(52, 211, 153, 0.9)',
-            label: 'Output'
-        });
 
-        // Labels
-        srCtx.save();
-        srCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        srCtx.font = '12px ui-sans-serif, system-ui, sans-serif';
-        srCtx.fillText(`SR = ${(sr/1e6).toFixed(1)} V/µs  |  Vpk = ${vpk}V  |  f = ${(freq/1000).toFixed(0)}kHz`, 10, 18);
-        srCtx.restore();
+        // Both traces in ONE call. plotWave() clears the canvas on entry, so
+        // the output was erasing the input - in the one widget where the
+        // whole lesson is the gap between the two. Only the slew-limited
+        // trace was ever on screen, with nothing to compare it against.
+        AD.plotMultiWave(srCtx, w, h, [
+            { samples: input,  name: 'Input',  color: 'rgba(110, 231, 255, 0.7)' },
+            { samples: output, name: 'Output',
+              color: isSlewing ? 'rgba(251, 113, 133, 0.9)' : 'rgba(52, 211, 153, 0.9)' }
+        ], vPerDiv, 0, periods / (freq * 10), {
+            label: `SR = ${(sr/1e6).toFixed(1)} V/µs  |  Vpk = ${vpk}V  |  ` +
+                   `f = ${(freq/1000).toFixed(0)}kHz  |  ${periods} cycles`
+        });
     }
 
     // Bind events
