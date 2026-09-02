@@ -355,43 +355,139 @@
         ctx.textAlign = 'center';
         ctx.fillText('Same ' + AD.fmt(mw, 0) + ' MW over ' + mi + ' miles', W / 2, 20);
 
-        // Draw a corridor: n towers side by side, each an H-frame silhouette.
-        function corridor(cx, cy, n, colour, kv, towerW, towerH) {
-            const total = n * towerW;
-            let x = cx - total / 2 + towerW / 2;
-            for (let i = 0; i < n; i++) {
-                ctx.strokeStyle = colour;
-                ctx.lineWidth = 2;
-                // two legs
-                ctx.beginPath();
-                ctx.moveTo(x - towerW * 0.22, cy);
-                ctx.lineTo(x - towerW * 0.16, cy - towerH);
-                ctx.moveTo(x + towerW * 0.22, cy);
-                ctx.lineTo(x + towerW * 0.16, cy - towerH);
-                ctx.stroke();
-                // crossarms
-                ctx.beginPath();
-                ctx.moveTo(x - towerW * 0.34, cy - towerH * 0.92);
-                ctx.lineTo(x + towerW * 0.34, cy - towerH * 0.92);
-                ctx.moveTo(x - towerW * 0.28, cy - towerH * 0.62);
-                ctx.lineTo(x + towerW * 0.28, cy - towerH * 0.62);
-                ctx.stroke();
-                // conductors
-                ctx.fillStyle = colour;
-                [-0.30, 0, 0.30].forEach(f => {
-                    ctx.beginPath();
-                    ctx.arc(x + towerW * f, cy - towerH * 0.92, 2.6, 0, Math.PI * 2);
-                    ctx.fill();
-                });
-                x += towerW;
+        /* -------------------------------------------------------------------
+         * STRUCTURES ARE NOT THE SAME SHAPE AT EVERY VOLTAGE.
+         *
+         * This drawing used to be one H-frame silhouette scaled up and down,
+         * with a single conductor dot per phase whatever the voltage. Both
+         * halves of that are wrong, and the second is the one that matters.
+         *
+         *   765 kV  Single circuit, phases spread HORIZONTALLY on one very wide
+         *           crossarm, carried on a lattice tower or a guyed-V. Each
+         *           phase is a SIX-conductor bundle. Two shield wires.
+         *   345 kV  Usually double circuit, phases stacked VERTICALLY three per
+         *           side on a narrower lattice or steel pole. Each phase is a
+         *           two-conductor bundle. One shield wire.
+         *
+         * Bundling is not decoration. A single conductor at 765 kV would have a
+         * surface gradient far past the corona threshold; splitting the phase
+         * into six subconductors on an 18-inch circle raises the effective
+         * radius, drops the gradient below it, and lowers the series reactance
+         * on the way. It is the reason EHV is possible at all, so a drawing
+         * that shows one wire per phase is teaching the wrong thing.
+         * ----------------------------------------------------------------- */
+
+        // One phase: a bundle of `n` subconductors on a small circle.
+        function bundle(x, y, n, colour) {
+            ctx.fillStyle = colour;
+            if (n === 1) {
+                ctx.beginPath(); ctx.arc(x, y, 2.4, 0, Math.PI * 2); ctx.fill();
+                return;
             }
-            // ground line
+            const r = n >= 6 ? 5 : 3.4;
+            for (let k = 0; k < n; k++) {
+                // Start at the top so a 2-bundle reads as vertical, which is
+                // how a twin bundle actually hangs.
+                const a = -Math.PI / 2 + (2 * Math.PI * k) / n;
+                ctx.beginPath();
+                ctx.arc(x + r * Math.cos(a), y + r * Math.sin(a), 1.7, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function shieldWire(x, y, colour) {
+            ctx.strokeStyle = 'rgba(230,237,243,0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.stroke();
+        }
+
+        /** A 765 kV single-circuit lattice: wide horizontal arm, 6-bundles. */
+        function tower765(x, cy, h, colour) {
+            const armY = cy - h * 0.86;
+            const halfArm = 34;
+            ctx.strokeStyle = colour;
+            ctx.lineWidth = 2;
+            // tapering lattice body, wide at the base
+            ctx.beginPath();
+            ctx.moveTo(x - 15, cy); ctx.lineTo(x - 5, armY);
+            ctx.moveTo(x + 15, cy); ctx.lineTo(x + 5, armY);
+            ctx.stroke();
+            // cross bracing, which is what makes it read as lattice
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            for (let f = 0.15; f < 0.95; f += 0.2) {
+                const yA = cy - h * 0.86 * f, yB = cy - h * 0.86 * (f + 0.2);
+                const wA = 15 - 10 * f, wB = 15 - 10 * (f + 0.2);
+                ctx.moveTo(x - wA, yA); ctx.lineTo(x + wB, yB);
+                ctx.moveTo(x + wA, yA); ctx.lineTo(x - wB, yB);
+            }
+            ctx.stroke();
+            // the single wide crossarm
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x - halfArm, armY); ctx.lineTo(x + halfArm, armY);
+            ctx.stroke();
+            // mast above the arm, carrying two shield wires
+            ctx.beginPath();
+            ctx.moveTo(x, armY); ctx.lineTo(x, armY - 14);
+            ctx.moveTo(x - 12, armY - 10); ctx.lineTo(x + 12, armY - 10);
+            ctx.stroke();
+            shieldWire(x - 12, armY - 10);
+            shieldWire(x + 12, armY - 10);
+            // three phases, horizontal, six subconductors each
+            [-halfArm + 6, 0, halfArm - 6].forEach(dx => {
+                ctx.strokeStyle = colour; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(x + dx, armY); ctx.lineTo(x + dx, armY + 12); ctx.stroke();
+                bundle(x + dx, armY + 16, 6, colour);
+            });
+        }
+
+        /** A 345 kV double-circuit tower: phases stacked, twin bundles. */
+        function tower345(x, cy, h, colour) {
+            const top = cy - h;
+            ctx.strokeStyle = colour;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x - 9, cy); ctx.lineTo(x - 3, top);
+            ctx.moveTo(x + 9, cy); ctx.lineTo(x + 3, top);
+            ctx.stroke();
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            for (let f = 0.1; f < 0.95; f += 0.22) {
+                const yA = cy - h * f, yB = cy - h * (f + 0.22);
+                const wA = 9 - 6 * f, wB = 9 - 6 * (f + 0.22);
+                ctx.moveTo(x - wA, yA); ctx.lineTo(x + wB, yB);
+                ctx.moveTo(x + wA, yA); ctx.lineTo(x - wB, yB);
+            }
+            ctx.stroke();
+            // three crossarms, a phase on each side of each: two circuits
+            ctx.lineWidth = 2;
+            [0.78, 0.58, 0.38].forEach(f => {
+                const y = cy - h * f, arm = 15;
+                ctx.beginPath();
+                ctx.moveTo(x - arm, y); ctx.lineTo(x + arm, y);
+                ctx.stroke();
+                bundle(x - arm + 2, y + 6, 2, colour);
+                bundle(x + arm - 2, y + 6, 2, colour);
+            });
+            // one shield wire at the peak
+            ctx.beginPath();
+            ctx.moveTo(x, top); ctx.lineTo(x, top - 8);
+            ctx.stroke();
+            shieldWire(x, top - 8);
+        }
+
+        function corridor(cx, cy, n, colour, kv, pitch, towerH, draw, note) {
+            const total = n * pitch;
+            let x = cx - total / 2 + pitch / 2;
+            for (let i = 0; i < n; i++) { draw(x, cy, towerH, colour); x += pitch; }
+
             ctx.strokeStyle = 'rgba(230,237,243,0.35)';
             ctx.lineWidth = 1.2;
             ctx.beginPath();
             ctx.moveTo(cx - total / 2 - 16, cy); ctx.lineTo(cx + total / 2 + 16, cy);
             ctx.stroke();
-            // ROW bracket
+
             ctx.strokeStyle = colour;
             ctx.setLineDash([4, 3]); ctx.lineWidth = 1.2;
             ctx.beginPath();
@@ -399,16 +495,22 @@
             ctx.lineTo(cx + total / 2 + 10, cy + 14);
             ctx.stroke();
             ctx.setLineDash([]);
+
             ctx.fillStyle = colour;
             ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(kv, cx, cy - towerH - 12);
+            ctx.fillText(kv, cx, cy - towerH - 26);
             ctx.fillText(n + (n === 1 ? ' circuit' : ' circuits'), cx, cy + 30);
+            ctx.fillStyle = 'rgba(230,237,243,0.55)';
+            ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
+            ctx.fillText(note, cx, cy + 44);
         }
 
-        const baseY = H - 70;
-        corridor(W * 0.27, baseY, n765, '#34d399', '765 kV', 78, 150);
-        corridor(W * 0.72, baseY, n345, '#fbbf24', '345 kV', 56, 100);
+        const baseY = H - 84;
+        corridor(W * 0.27, baseY, n765, '#34d399', '765 kV', 96, 132,
+                 tower765, '6-conductor bundles, horizontal');
+        corridor(W * 0.72, baseY, n345, '#fbbf24', '345 kV', 62, 104,
+                 tower345, 'twin bundles, double circuit');
 
         ctx.strokeStyle = 'rgba(230,237,243,0.25)';
         ctx.lineWidth = 1;

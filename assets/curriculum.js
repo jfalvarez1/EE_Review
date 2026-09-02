@@ -2323,6 +2323,16 @@ const CURRICULUM = {
             description: 'Undergraduate power systems plus the operating reality of the Texas grid and a large US utility',
             lessons: [
                 {
+                    // Lesson zero, and numbered that way on purpose: it is the
+                    // refresher the other eighteen assume you already have.
+                    // Everything after this one is quoted in MW, MVAR and MVA
+                    // without pausing to say what they are.
+                    id: 0,
+                    title: 'AC Power: RMS, Phasors and the Power Triangle',
+                    description: 'The vocabulary the rest of this module is written in',
+                    topics: ['RMS and true RMS', 'Phasors and jwL', 'P, Q, S and power factor', 'Power factor correction', 'Why sqrt(3)']
+                },
+                {
                     id: 1,
                     title: 'Three-Phase Power and the Per-Unit System',
                     description: 'The language every other power-systems number is quoted in',
@@ -2642,6 +2652,19 @@ const Router = {
     init() {
         this.installTimerScope();
         window.addEventListener('hashchange', () => this.handleRoute());
+
+        // Clicking a link to the lesson you are ALREADY reading changes no
+        // hash, so no hashchange fires and nothing above runs - the reader
+        // clicks the highlighted sidebar entry and stays stranded wherever
+        // they had scrolled to. Catch that one case here. Delegated, because
+        // the sidebar, the path thread, the in-lesson nav and the floating
+        // next button are all rebuilt at different times.
+        document.addEventListener('click', (e) => {
+            const a = e.target && e.target.closest && e.target.closest('a[href^="#"]');
+            if (!a) return;
+            if (a.getAttribute('href') === window.location.hash) this.scrollToTop();
+        });
+
         this.handleRoute();
     },
 
@@ -2746,6 +2769,31 @@ const Router = {
             .replace(/^(?:\.\.\/)+/, '')
             .replace(/^\.\//, '')
             .replace(/^\//, '');
+    },
+
+    /**
+     * Put the reader at the top of the new page.
+     *
+     * This is less obvious than it looks, because the element that scrolls is
+     * not the element the content goes into. #lesson-content is an ordinary
+     * div with no overflow; the scroller is its parent <main id="content">,
+     * which carries height:100vh and overflow-y:auto. renderPath() had been
+     * setting scrollTop on #lesson-content for as long as it has existed,
+     * which does exactly nothing, and renderLesson() never reset it at all.
+     * The symptom: open a lesson from halfway down a long one and you land
+     * halfway down the new one, usually mid-sentence.
+     *
+     * Both the container and the window are reset, because which one scrolls
+     * depends on the viewport - the phone layout drops the fixed height so the
+     * document itself scrolls - and resetting one that is already at zero is
+     * free.
+     */
+    scrollToTop() {
+        const main = document.getElementById('content');
+        if (main) main.scrollTop = 0;
+        if (window.scrollTo) window.scrollTo(0, 0);
+        if (document.documentElement) document.documentElement.scrollTop = 0;
+        if (document.body) document.body.scrollTop = 0;
     },
 
     handleRoute() {
@@ -2860,7 +2908,7 @@ const Router = {
         const welcomeCard = content.querySelector('.welcome-card');
         if (welcomeCard) welcomeCard.style.display = 'none';
         content.innerHTML = html;
-        content.scrollTop = 0;
+        this.scrollToTop();
     },
 
     showWelcome() {
@@ -2992,6 +3040,7 @@ const Router = {
                 lessonHtml += this.renderLessonNav(module, lesson);
 
                 content.innerHTML = lessonHtml;
+                this.scrollToTop();
 
                 // Execute any scripts in the loaded content.
                 //
