@@ -31,6 +31,14 @@
  *    output happens to coincide for two adjacent options looked dead. Every
  *    option gets tried.
  *
+ * 4. It waited for the BREADCRUMB to name the target lesson. The router sets
+ *    the breadcrumb in loadLesson, before renderLesson's XHR has delivered
+ *    anything, so on a slow-loading lesson the harness went ahead and
+ *    enumerated the PREVIOUS lesson's controls. It then moved controls that
+ *    were removed from the document underneath it - which reported them dead
+ *    and produced 25 "Cannot set properties of null" errors that looked like
+ *    course bugs and were entirely self-inflicted. Wait for the content.
+ *
  * And one thing that is NOT a defect, which the first run wrongly flagged:
  * a control with no change-listener sitting next to a Calculate button is
  * button-driven by design. Check for the button before calling it broken.
@@ -101,13 +109,35 @@ window.RuntimeAudit = (function () {
         state.current = 'M' + m + '-' + l;
         const want = CURRICULUM.getLesson(m, l);
         if (!want) return false;
+
+        const root = document.getElementById('lesson-content');
+        const before = root.innerHTML.length;
         const target = '#module-' + m + '/lesson-' + l;
         if (location.hash === target) Router.loadLesson(m, l); else location.hash = target;
-        for (let i = 0; i < 80; i++) {
+
+        for (let i = 0; i < 120; i++) {
             await sleep(25);
+            // 358 of 369 lessons stamp the module and lesson on their root
+            // element. Where that exists it is proof the new content landed;
+            // the breadcrumb is NOT, because the router writes it before the
+            // XHR returns.
+            const stamped = document.querySelector('#lesson-content [data-module][data-lesson]');
+            if (stamped) {
+                if (+stamped.dataset.module === m && +stamped.dataset.lesson === l) {
+                    await sleep(220);
+                    return true;
+                }
+                continue;             // still showing the previous lesson
+            }
+            // For the handful with no stamp: the breadcrumb must match AND the
+            // markup must actually have been replaced.
             const bc = document.querySelector('#breadcrumb .breadcrumb-lesson');
-            const body = document.querySelector('#lesson-content .card, #lesson-content .lesson-content');
-            if (bc && bc.textContent === want.title && body) { await sleep(160); return true; }
+            const swapped = root.innerHTML.length !== before;
+            const body = root.querySelector('.card, .lesson-nav');
+            if (bc && bc.textContent === want.title && swapped && body) {
+                await sleep(260);
+                return true;
+            }
         }
         return false;
     }

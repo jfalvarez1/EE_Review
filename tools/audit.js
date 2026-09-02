@@ -44,6 +44,8 @@ const GATING = [
      'the phone layout rules a later stylesheet rule can silently undo'],
     ['check-palette.js',
      'a colour key that does not exist: undefined on strokeStyle is a silent no-op'],
+    ['check-element-ids.js',
+     'getElementById for an id the markup lacks: the throw kills the rest of the handler'],
     ['validate-path.js',
      'every syllabus step resolves to a lesson that exists on disk']
 ];
