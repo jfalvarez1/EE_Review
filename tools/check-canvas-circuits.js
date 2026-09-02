@@ -120,3 +120,55 @@ byFile.forEach((list, rel) => {
 console.log('\nThese should be SVG schematics: ComponentModels.diagram() where the parts');
 console.log('exist in the catalogue, or SchematicSVG otherwise. Drawn as SVG they get');
 console.log('real symbols, and check-diagram-nets can verify what connects to what.');
+
+/* ---------------------------------------------------------------------------
+ * A RATCHET, NOT A GATE.
+ *
+ * Fifteen of these remain and converting them is a content job, not a mechanical
+ * one - each needs a schematic laid out by someone who understands the circuit.
+ * Failing the build on all fifteen would mean the check is disabled on day one,
+ * which is how a known-issues list becomes a permanently red build that nobody
+ * reads.
+ *
+ * So the baseline below records exactly which canvases are known, and the check
+ * fails only when a NEW one appears. Converting one is expected to remove its
+ * line from this list; the count can go down and never up.
+ * ------------------------------------------------------------------------- */
+
+const BASELINE = new Set([
+    'lessons/module-05/lesson-11.html#cs-canvas',
+    'lessons/module-12/lesson-13.html#compensation-canvas',
+    'lessons/module-18/lesson-02.html#auto-protection-canvas',
+    'lessons/module-18/lesson-09.html#hall-physics-canvas',
+    'lessons/module-18/lesson-09.html#hall-architecture-canvas',
+    'lessons/module-21/lesson-01.html#pit-network-canvas',
+    'lessons/module-25/lesson-04.html#sensing-comparison-canvas',
+    'lessons/module-25/lesson-04.html#highside-csa-canvas',
+    'lessons/module-25/lesson-07.html#current-sense-canvas',
+    'lessons/module-25/lesson-07.html#automotive-led-canvas',
+    'lessons/module-25/lesson-14.html#esd-devices-canvas',
+    'lessons/module-25/lesson-15.html#inamp-canvas',
+    'lessons/module-25/lesson-15.html#antialiasing-canvas',
+    'lessons/module-25/lesson-24.html#boost-pfc-canvas',
+    'lessons/module-25/lesson-25.html#electrode-protection-canvas'
+]);
+
+const key = r => r.rel + '#' + r.id;
+const added = circuits.filter(r => !BASELINE.has(key(r)));
+const fixed = [...BASELINE].filter(b => !circuits.some(r => key(r) === b));
+
+if (fixed.length) {
+    console.log('\n' + fixed.length + ' baseline entries are no longer canvas circuits. ' +
+                'Remove them from BASELINE in this file:');
+    fixed.forEach(f => console.log('    ' + f));
+}
+
+if (added.length) {
+    console.log('\nNEW canvas-drawn circuits (' + added.length + ') — these are regressions:\n');
+    added.forEach(r => console.log('    ' + key(r) + '   ' + r.title));
+    console.log('\nDraw circuits as SVG. A canvas cannot be checked for connectivity and');
+    console.log('renders components as boxes.');
+    process.exit(1);
+}
+
+console.log('\n' + circuits.length + ' known, 0 new. (Baseline of ' + BASELINE.size + '.)');

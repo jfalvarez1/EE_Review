@@ -8,26 +8,45 @@ Everything below assumes a server is running: `./launch.bat` or `python tools/se
 
 ---
 
-## Command-line checkers
+## The audit
 
-These run without a browser and gate the Pages deploy and the release build.
-All exit non-zero on a finding.
+```bash
+node tools/audit.js            # nine gating checks, one exit code
+node tools/audit.js --full     # plus the advisory surveys
+node tools/audit.js --verbose  # each checker's own output
+```
 
-| Tool | Checks |
+This is what CI runs before the Pages deploy and before a release build.
+
+**Every gating check below exists because something was actually broken and
+nothing noticed.** They are not a generic lint suite; the list is a history of
+what has gone wrong in this repo.
+
+| Check | The defect it exists for |
 |---|---|
-| `tools/check-titles.js` | every catalogue title names the lesson the file actually contains |
-| `tools/check-markup.js` | lesson markup is balanced |
-| `tools/check-lesson-js.js` | every inline `<script>` parses |
-| `tools/check-diagram-nets.js` | every schematic pin is on a net; pnp orientation |
-| `tools/check-bias.js` | every drawn four-resistor BJT stage has a usable operating point |
-| `tools/validate-path.js` | every syllabus reference resolves to a real lesson |
-| `tools/check-media.js` | what each lesson draws, and whether it is interactive |
-| `tools/check-taxonomy.js` | lessons filed under the wrong module (heuristic) |
-| `tools/survey-depth.js` | how deep each lesson is against the course's own standard |
+| `check-structure` | 36 lessons were complete HTML documents; 14 rendered a stale nav bar naming the wrong module, because `innerHTML` drops `<head>` but not `<header>` |
+| `check-titles` | 48 lessons had a title naming a different lesson; three syllabus steps handed the reader the wrong one |
+| `check-markup` | three broken tags the browser was hiding by silently reparenting |
+| `check-lesson-js` | a syntax error fails at runtime, in one lesson, with a blank canvas and nothing in the console unless you are on that lesson |
+| `check-diagram-nets` | a transistor drawn 15 px from the rail it should be on; 212 such faults were found the first time. Also catches a pnp rotated instead of flipped |
+| `check-bias` | two amplifier circuits demanded more voltage than their supply had — one wanted 66 V from 12 V |
+| `check-canvas-circuits` | circuits drawn on a canvas, where components become boxes and nothing can verify connectivity |
+| `check-css` | one line, added later, silently overrode the mobile media query and gave phones a 91-pixel-wide lesson |
+| `validate-path` | a syllabus step pointing at a lesson that does not exist |
 
-`tools/check-taxonomy.js` is a heuristic and says so — it flags "Feedback
-Fundamentals" as belonging in the BJT module. Use it to find candidates to
-read, never to move anything.
+Advisory, never fails the build: `check-media`, `survey-depth`,
+`check-taxonomy`.
+
+`check-taxonomy` is a heuristic and says so — it flags "Feedback Fundamentals"
+as belonging in the BJT module. Use it to find candidates to read, never to
+move anything.
+
+### The canvas-circuit ratchet
+
+`check-canvas-circuits.js` carries a `BASELINE` of the 15 canvas-drawn circuits
+that remain. It fails only when a **new** one appears. Converting one is
+expected to remove its line from that list; the count can go down and never up.
+A build that is permanently red is a build nobody reads.
 
 ---
 

@@ -191,18 +191,38 @@ lessons/module-NN/       368 lesson fragments, one HTML file each
 tools/
   serve.py               The local web server the launchers use
   build-standalone.js    Bundles everything into one offline HTML file
-  validate-path.js       Every syllabus reference resolves to a real lesson
+  audit.js               Runs every check below; one command, one exit code
+  check-structure.js     Lessons stay fragments — no stray nav, <h1> or netlists
+  check-titles.js        The sidebar names the lesson the file actually contains
   check-markup.js        Lesson markup is balanced
   check-lesson-js.js     Every inline script parses
   check-diagram-nets.js  Every schematic pin is on a net
   check-bias.js          Every drawn BJT stage has a usable operating point
+  check-canvas-circuits.js  No new circuit drawn on a canvas
+  check-css.js           The phone layout rules, which a later rule can undo
+  validate-path.js       Every syllabus reference resolves to a real lesson
 docs/                    Troubleshooting notes and README images
 ```
 
-The checkers all exit non-zero on a finding, so they gate the Pages deploy and the
-release build. They are not decoration: `check-bias.js` found two amplifier circuits
-that demanded more voltage than their supply had, and `check-markup.js` found three
-broken tags the browser had been silently hiding.
+```bash
+node tools/audit.js          # all nine, before you commit
+node tools/audit.js --full   # plus media, depth and taxonomy surveys
+```
+
+**Every one of these exists because something was actually broken and nothing
+noticed.** They are not decoration and they are not a generic lint suite:
+
+- `check-bias` found two amplifier circuits demanding more voltage than their supply
+  had — one wanted 66 V from a 12 V rail.
+- `check-titles` found 48 lessons whose sidebar title named a *different lesson*, three
+  of which the syllabus was pointing readers at.
+- `check-markup` found three broken tags the browser had been hiding by silently
+  reparenting the page.
+- `check-css` guards one line that had quietly overridden the mobile layout and left
+  phones with a 91-pixel-wide lesson.
+
+They gate the Pages deploy and the release build, so a course that fails them does not
+ship.
 
 ### How a lesson loads
 
