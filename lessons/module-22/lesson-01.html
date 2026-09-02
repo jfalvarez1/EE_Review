@@ -250,23 +250,70 @@
                 return Math.sqrt(2 / (2 * Math.PI * freq * mu_0 * mu_r * sigma));
             }
 
-            function calcShieldingPlaneWave(sigma, mu_r, thickness, freq) {
-                const omega = 2 * Math.PI * freq;
+            /**
+             * Shielding effectiveness, R + A + M in dB.
+             *
+             * The Field Type control used to be read into `fieldType` and then
+             * never used: every case called this function, which only ever
+             * computed the PLANE WAVE reflection loss. That threw away the
+             * most useful thing this lesson has to say.
+             *
+             * Absorption is the same whatever the source - it only depends on
+             * how many skin depths thick the metal is. Reflection is not, and
+             * it is entirely a question of the mismatch between the wave
+             * impedance arriving at the shield and the impedance of the metal:
+             *
+             *   plane wave   far field, 377 ohms, the usual textbook case
+             *   electric     a high-impedance near field. Even more mismatched
+             *                than a plane wave, so reflection is enormous and
+             *                a few microns of foil will do.
+             *   magnetic     a LOW-impedance near field, which is close to the
+             *                impedance of the metal already. Almost nothing
+             *                reflects, so absorption is all you have - and
+             *                absorption is negligible at low frequency because
+             *                the skin depth is millimetres.
+             *
+             * That last case is why a mains-frequency magnetic field walks
+             * straight through a copper box and why the answer is mu-metal
+             * (high mu_r) or distance, not thicker copper. A reader who moves
+             * this control and watches R collapse learns that in one gesture.
+             *
+             * Standard Schelkunoff forms as given in Ott, Noise Reduction
+             * Techniques, with f in Hz, r in metres, sigma and mu relative to
+             * copper.
+             */
+            function calcShielding(sigma, mu_r, thickness, freq, fieldType, r) {
                 const delta = calcSkinDepth(sigma, mu_r, freq);
+                const sigma_r = sigma / 5.8e7;      // relative to copper
+                r = r || 0.1;                       // near-field distance, metres
 
-                // Shield impedance
-                const eta_s = Math.sqrt(omega * mu_0 * mu_r / sigma);
+                let R;
+                if (fieldType === 'electric') {
+                    R = 322 - 10 * Math.log10(mu_r * Math.pow(freq, 3) * r * r / sigma_r);
+                } else if (fieldType === 'magnetic') {
+                    R = 14.6 + 10 * Math.log10(freq * sigma_r * r * r / mu_r);
+                } else {
+                    R = 168 - 10 * Math.log10(mu_r * freq / sigma_r);
+                }
+                // Reflection loss cannot be negative: a shield does not amplify.
+                R = Math.max(0, R);
 
-                // Reflection loss (plane wave)
-                const R = 168 - 10 * Math.log10(mu_r * freq / (sigma / 5.8e7));
-
-                // Absorption loss
+                // Absorption loss - independent of the source impedance.
                 const A = 8.686 * thickness / delta;
 
-                // Multiple reflection (approximate)
-                const M = thickness > 2 * delta ? 0 : 20 * Math.log10(Math.abs(1 - Math.exp(-2 * thickness / delta)));
+                // Multiple reflection, which only matters in a thin shield and
+                // is a PENALTY, so it must not be allowed to go positive.
+                const M = thickness > 2 * delta
+                    ? 0
+                    : Math.min(0, 20 * Math.log10(Math.abs(1 - Math.exp(-2 * thickness / delta))));
 
-                return { R, A, M, total: R + A + M, delta };
+                return { R, A, M, total: Math.max(0, R + A + M), delta, fieldType };
+            }
+
+            // Kept so the other two call sites read naturally; both are
+            // frequency sweeps of the currently selected field type.
+            function calcShieldingPlaneWave(sigma, mu_r, thickness, freq, fieldType) {
+                return calcShielding(sigma, mu_r, thickness, freq, fieldType || 'plane');
             }
 
             function drawSE() {
@@ -282,10 +329,12 @@
                                                                           freq >= 1e3 ? (freq/1e3).toFixed(0) + ' kHz' : freq + ' Hz';
 
                 const m = materials[mat] || materials.copper;
-                const se = calcShieldingPlaneWave(m.sigma, m.mu_r, thickness, freq);
+                const se = calcShielding(m.sigma, m.mu_r, thickness, freq, fieldType);
 
                 document.getElementById('skin-depth').textContent = (se.delta * 1e6).toFixed(1) + ' μm';
-                document.getElementById('refl-loss').textContent = se.R.toFixed(0) + ' dB';
+                document.getElementById('refl-loss').textContent = se.R.toFixed(0) + ' dB' +
+                    (fieldType === 'magnetic' ? '  (low-Z source: barely reflects)' :
+                     fieldType === 'electric' ? '  (high-Z source: reflects almost everything)' : '');
                 document.getElementById('abs-loss').textContent = se.A.toFixed(0) + ' dB';
                 document.getElementById('total-se').textContent = Math.min(se.total, 300).toFixed(0) + ' dB';
 
@@ -334,7 +383,7 @@
                     ctx.beginPath();
                     for (let i = 0; i <= plotW - 60; i++) {
                         const f = Math.pow(10, 3 + i / (plotW - 60) * 6);
-                        const se2 = calcShieldingPlaneWave(m.sigma, m.mu_r, thickness, f);
+                        const se2 = calcShielding(m.sigma, m.mu_r, thickness, f, fieldType);
                         const val = Math.min(se2[component], 200);
 
                         const x = plotX + 50 + i;

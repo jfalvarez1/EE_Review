@@ -72,6 +72,7 @@
                 <div class="v mono" id="ps-test">—</div>
             </div>
         </div>
+        <p class="fig-note" id="ps-topology"></p>
     </div>
 
     <div class="card">
@@ -218,14 +219,82 @@
         }
     };
 
+    /* The Supply Type control was read into `type` and never used, so the
+     * diagnosis was the same whether you told it linear regulator or boost
+     * converter. It should not be. "No output" on a linear part means Vin,
+     * enable or thermal shutdown and there is no switching node to probe at
+     * all; on a boost converter it usually means the part is fine and the
+     * inductor path is not, and the output sits one diode drop below the
+     * input rather than at zero. Same symptom, different first move.
+     *
+     * So: the symptom picks the general shape, the topology sharpens it, and
+     * where the topology changes the answer outright it overrides.
+     */
+    const supplies = {
+        linear: {
+            label: 'Linear regulator',
+            note: 'A linear regulator is a variable resistor with a feedback loop. ' +
+                  'It cannot boost, it burns (Vin−Vout)×I as heat, and it has no ' +
+                  'switching node — so anything periodic on the output came in ' +
+                  'through it, not from it.',
+            per: {
+                no_output: 'No switch node to probe: it is Vin, the enable pin, or the part itself. Check for thermal shutdown before replacing anything.',
+                low_output: 'Suspect dropout first. Measure Vin AT THE PIN under full load — headroom requirement rises with current, and the drop is often in the wiring, not the regulator.',
+                high_ripple: 'A linear regulator makes no ripple of its own; this is input ripple getting through. PSRR collapses above a few tens of kHz, so a quiet-looking part can pass switching noise straight to the output.',
+                oscillating: 'Almost always the output capacitor. Older LDOs need ESR inside a window — too LITTLE ESR oscillates as reliably as too much, which is why swapping a tantalum for a ceramic breaks working designs.'
+            }
+        },
+        ldo: {
+            label: 'LDO',
+            note: 'An LDO is a linear regulator built for small headroom, which ' +
+                  'costs it stability margin and PSRR. Its dropout is specified ' +
+                  'at a current and a temperature; both matter.',
+            per: {
+                no_output: 'Check the enable pin — LDOs are far more likely than a plain regulator to have one, and a floating EN is the most common cause.',
+                low_output: 'In dropout an LDO tracks Vin down minus its drop. If Vout follows Vin as you raise it, it is dropout, not a feedback fault.',
+                high_ripple: 'Check PSRR at the frequency you are seeing, not the headline number: PSRR is quoted at 1 kHz and is often 20 dB worse at the switching frequency upstream.',
+                oscillating: 'Check the output capacitor type and its ESR against the datasheet window, then check the ceramic has not lost most of its capacitance to DC bias.'
+            }
+        },
+        buck: {
+            label: 'Buck converter',
+            note: 'A buck steps down and its switch node is the most informative ' +
+                  'point on the board: its duty cycle should read roughly ' +
+                  'Vout/Vin, and its edges tell you about the FETs and the layout.',
+            per: {
+                no_output: 'Probe the switch node first. Switching but no output means the inductor, the diode or the output path; not switching means enable, bootstrap capacitor, or the controller.',
+                low_output: 'Compare the switch-node duty cycle against Vout/Vin. At maximum duty it is current-limiting or the inductor is saturating; measure inductor current if you can.',
+                high_ripple: 'Separate the two ripples: at the switching frequency it is output capacitance and ESR; a slower wander is loop instability. Measure with a short ground spring, not a ground lead — a 6-inch lead invents ripple that is not there.',
+                oscillating: 'Look at the ratio of the oscillation to the switching frequency. Well below it is the control loop; at or near half of it is subharmonic oscillation from current-mode operation above 50% duty without enough slope compensation.'
+            }
+        },
+        boost: {
+            label: 'Boost converter',
+            note: 'A boost has a DC path from input to output through the ' +
+                  'inductor and diode, so the output is never truly off — it ' +
+                  'sits at Vin minus a diode drop even when the controller is ' +
+                  'dead. That single fact explains most boost debugging.',
+            per: {
+                no_output: 'If the output reads Vin minus a diode drop, the power path is intact and the controller is not switching — check enable, feedback and the current-sense path. A true zero means the inductor or diode is open.',
+                low_output: 'A boost cannot regulate below its input; below Vin it is behaving as a diode, not as a converter. Also check for input current limit, since input current is Iout×Vout/Vin and rises fast as Vin falls.',
+                high_ripple: 'Boost output ripple is inherently worse than buck: the output capacitor is fed in pulses rather than through an inductor, so ESR dominates and adding capacitance may not help as much as lowering ESR.',
+                oscillating: 'Suspect the right-half-plane zero. A boost cannot be compensated the way a buck can — the loop has to be rolled off below the RHP zero, which moves DOWN in frequency as load current rises and input voltage falls.'
+            }
+        }
+    };
+
     function update() {
         const symptom = document.getElementById('ps-symptom').value || 'no_output';
         const type = document.getElementById('ps-type').value || 'linear';
 
         const diag = diagnostics[symptom] || diagnostics.no_output;
-        document.getElementById('ps-first').textContent = diag.first;
+        const sup = supplies[type] || supplies.linear;
+        const override = sup.per[symptom];
+
+        document.getElementById('ps-first').textContent = override || diag.first;
         document.getElementById('ps-cause').textContent = diag.cause;
         document.getElementById('ps-test').textContent = diag.test;
+        AD.setText('ps-topology', sup.label + ': ' + sup.note);
 
         // Draw diagnostic flowchart
         ctx.fillStyle = '#000';
@@ -235,7 +304,7 @@
         ctx.font = '14px monospace';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#fff';
-        ctx.fillText('Power Supply Debug Flow: ' + symptom.replace('_', ' ').toUpperCase(), W/2, 30);
+        ctx.fillText(sup.label + ' — ' + symptom.replace(/_/g, ' ').toUpperCase(), W/2, 30);
 
         // Flowchart boxes
         const boxes = [];

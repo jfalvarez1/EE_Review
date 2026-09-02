@@ -93,6 +93,7 @@
                 <div class="v mono" id="smps-diag">—</div>
             </div>
         </div>
+        <p class="fig-note" id="smps-method"></p>
     </div>
 
     <div class="card">
@@ -272,17 +273,87 @@
         standby: {x: 550, y: 250, w: 80, h: 60, label: 'Standby\n5V', status: 'PASS', expected: '5V', measured: '5.1V', diag: 'Normal'}
     };
 
+    /* The Test Method dropdown was read into `test` and never used, so it did
+     * not matter which instrument you claimed to be holding. It matters a
+     * great deal. Two of these four are DEAD tests that require the supply
+     * off and the bulk capacitor discharged, and the primary side of this
+     * board sits at about 400 V with enough stored energy to be lethal for
+     * some minutes after unplugging. A troubleshooting lesson that lets you
+     * put an ESR meter on a live PFC bus without comment is teaching a habit
+     * that hurts people.
+     *
+     * Beyond safety, each instrument answers a different question, and the
+     * commonest beginner mistake in SMPS repair is using a DMM where only a
+     * scope can tell you anything - a supply in hiccup mode reads a plausible
+     * average DC voltage while producing nothing usable.
+     */
+    const methods = {
+        dc: {
+            label: 'DC voltage', live: true,
+            tells: 'An average. Fine for rails that are supposed to be steady, and ' +
+                   'actively misleading anywhere the voltage is switching: a meter ' +
+                   'reports the mean of a hiccuping supply as a calm number.',
+            suits: ['input', 'rectifier', 'pfc', 'secondary', 'standby', 'feedback']
+        },
+        diode: {
+            label: 'Diode mode', live: false,
+            tells: 'Junction drops and shorts, with the power OFF and the bulk ' +
+                   'capacitor discharged. The fastest way to find a shorted ' +
+                   'rectifier or switch, and it reads nonsense in-circuit ' +
+                   'wherever a low-resistance winding parallels the junction.',
+            suits: ['rectifier', 'secondary', 'primary']
+        },
+        scope: {
+            label: 'Oscilloscope', live: true,
+            tells: 'Shape and timing - the only instrument that can tell working ' +
+                   'from hiccuping. Probe the primary side only through an ' +
+                   'isolation transformer or a differential probe: the primary ' +
+                   'ground is NOT earth, and clipping a mains-referenced probe ' +
+                   'to it is how scopes and people get destroyed.',
+            suits: ['primary', 'pfc', 'feedback', 'secondary', 'standby']
+        },
+        esr: {
+            label: 'ESR meter', live: false,
+            tells: 'Series resistance of an electrolytic, power OFF and discharged. ' +
+                   'Catches the failure a capacitance meter misses entirely - a ' +
+                   'capacitor can measure full value and still have ohms of ESR, ' +
+                   'which is most of what makes old supplies fail.',
+            suits: ['input', 'pfc', 'secondary']
+        }
+    };
+
     function update() {
         const block = blockEl.value || 'input';
-        const test = testEl.value;
+        const test = testEl.value || 'dc';
 
         const b = blocks[block] || blocks.input;
         let statusColor = b.status === 'PASS' ? '#4f4' : (b.status === 'FAIL' ? '#f44' : '#fa4');
 
         document.getElementById('smps-status').innerHTML = '<span style="color:' + statusColor + '">' + b.status + '</span>';
         document.getElementById('smps-expect').textContent = b.expected;
-        document.getElementById('smps-meas').textContent = b.measured;
+        document.getElementById('smps-meas').textContent =
+            test === 'dc' || test === 'scope' ? b.measured : '(power off to measure)';
         document.getElementById('smps-diag').textContent = b.diag;
+
+        const m = methods[test] || methods.dc;
+        const fits = m.suits.indexOf(block) !== -1;
+        const label = (b.label || block).replace(/\n/g, ' ');
+        AD.setText('smps-method',
+            m.label + ' — ' + m.tells + '  ' +
+            (m.live
+                ? ''
+                : 'This is a DEAD test: unplug, then confirm the bulk capacitor is ' +
+                  'below a few volts before touching anything. ') +
+            (fits
+                ? 'At the ' + label + ' stage this is the right tool.'
+                : 'At the ' + label + ' stage this tells you very little — ' +
+                  (test === 'dc'
+                      ? 'the node is switching, and an average is not the question you are asking.'
+                      : test === 'esr'
+                          ? 'there is no electrolytic here whose series resistance is in doubt.'
+                          : test === 'diode'
+                              ? 'the junctions here are not what is in question.'
+                              : 'a steady rail has no waveform worth looking at.')));
 
         // Draw block diagram
         ctx.fillStyle = '#000';
