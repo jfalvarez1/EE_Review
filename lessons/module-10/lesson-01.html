@@ -1793,18 +1793,25 @@
             const trigPct = AD.num('scope-trig-level');
             const coupling = document.getElementById('scope-coupling').value;
             const probe = AD.num('scope-probe');
+            const trigEdge = document.getElementById('scope-trig-edge').value;
 
             document.getElementById('scope-trig-val').textContent = trigPct + '%';
 
-            // Generate signal
+            // Generate signal.
+            //
+            // TWICE the visible window, because the display is now actually
+            // triggered: the sweep has to be able to slide to wherever the
+            // chosen edge crosses the trigger level, and it can only do that
+            // if there is signal either side of the window to slide over.
             const N = 1000;
             const totalTime = tdiv * 10;
             const dt = totalTime / N;
+            const NG = N * 2;
 
             let signal = [];
             const amp = vpp / 2;
 
-            for (let i = 0; i < N; i++) {
+            for (let i = 0; i < NG; i++) {
                 const t = i * dt;
                 let v = dcOffset;
 
@@ -1839,8 +1846,18 @@
                 signal.push(v);
             }
 
-            // Apply bandwidth limiting
-            const scopeTr = 0.35 / bw;
+            // Apply bandwidth limiting.
+            //
+            // The probe is part of the measurement, not a cosmetic setting -
+            // its value used to be read into `probe` and never used again. A
+            // 1x probe puts roughly 100 pF on the node and is bandwidth
+            // limited to about 6 MHz whatever the scope in front of it can
+            // do; a 10x probe is nearer 10 pF and gets out of the way. So the
+            // system bandwidth is the lower of the two, which is the whole
+            // reason nobody measures a fast edge with a 1x probe.
+            const probeBw = probe >= 10 ? Infinity : 6e6;
+            const sysBw = Math.min(bw, probeBw);
+            const scopeTr = 0.35 / sysBw;
             const tau = scopeTr / 2.2;
             if (tau > dt) {
                 signal = AD.rcLowpass(signal, dt, tau);
@@ -1855,8 +1872,45 @@
                 signal = signal.map(() => 0);
             }
 
+            /* TRIGGERING, which this scope did not previously do.
+             *
+             * The trigger level drew a marker on the left edge and the
+             * trigger-edge dropdown was never read at all, so the display was
+             * free-running: the waveform sat wherever the sample buffer
+             * happened to start. That is the one thing a scope must not do,
+             * and triggering is most of what the control panel of a real
+             * scope is FOR - so a scope-basics lesson that fakes it is
+             * teaching the wrong lesson.
+             *
+             * Find where the signal crosses the trigger level with the
+             * selected slope, then centre the sweep on that crossing. When
+             * there is no such crossing - level set above the peak, say -
+             * report NOT TRIGGERED and free-run, exactly as the real
+             * instrument does. Watching the trace come to rest when the level
+             * drops inside the signal, and smear when it does not, is the
+             * point.
+             */
+            const trigLevel = (trigPct / 100) * (vdiv * 4);   // screen is +/-4 div
+            let trigIdx = -1;
+            for (let i = 1; i < NG - N; i++) {
+                const a = signal[i - 1], b = signal[i];
+                const rise = a < trigLevel && b >= trigLevel;
+                const fall = a > trigLevel && b <= trigLevel;
+                if ((trigEdge === 'rising' && rise) ||
+                    (trigEdge === 'falling' && fall) ||
+                    (trigEdge === 'either' && (rise || fall))) { trigIdx = i; break; }
+            }
+
+            const triggered = trigIdx >= 0 && coupling !== 'gnd';
+            // Centre the crossing on screen; free-run from the buffer start
+            // when there is nothing to lock to.
+            const start = triggered
+                ? Math.max(0, Math.min(NG - N, trigIdx - Math.floor(N / 2)))
+                : 0;
+            const view = signal.slice(start, start + N);
+
             // Draw scope display
-            drawScope(signal, vdiv, tdiv, trigPct);
+            drawScope(view, vdiv, tdiv, trigPct, triggered, trigEdge, sysBw);
 
             // Calculate measurements
             const vppMeas = Math.max(...signal) - Math.min(...signal);
@@ -1889,7 +1943,7 @@
             document.getElementById('scope-status').style.color = statusColor;
         }
 
-        function drawScope(signal, vdiv, tdiv, trigPct) {
+        function drawScope(signal, vdiv, tdiv, trigPct, triggered, trigEdge, sysBw) {
             const w = canvas.width;
             const h = canvas.height;
             const margin = 40;
@@ -1957,16 +2011,18 @@
             ctx.stroke();
             ctx.restore();
 
-            // Trigger level line
+            // Trigger level line, now drawn all the way across, because it is
+            // a level the sweep is genuinely locked to rather than decoration.
             const trigY = h / 2 - (trigPct / 100) * (plotH / 2);
             ctx.save();
-            ctx.strokeStyle = 'rgba(255, 100, 100, 0.6)';
+            ctx.strokeStyle = triggered ? 'rgba(255, 100, 100, 0.55)' : 'rgba(255, 100, 100, 0.3)';
             ctx.lineWidth = 1;
             ctx.setLineDash([5, 5]);
             ctx.beginPath();
             ctx.moveTo(margin, trigY);
-            ctx.lineTo(margin + 30, trigY);
+            ctx.lineTo(w - margin, trigY);
             ctx.stroke();
+            ctx.setLineDash([]);
             // Trigger arrow
             ctx.fillStyle = 'rgba(255, 100, 100, 0.8)';
             ctx.beginPath();
@@ -1975,6 +2031,33 @@
             ctx.lineTo(margin + 25, trigY + 5);
             ctx.closePath();
             ctx.fill();
+
+            // The trigger point itself, at screen centre when locked.
+            if (triggered) {
+                ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
+                ctx.beginPath();
+                ctx.moveTo(w / 2, trigY - 12);
+                ctx.lineTo(w / 2, trigY + 12);
+                ctx.stroke();
+            }
+
+            // Trigger status, which is the first thing a reader should look
+            // at on a real instrument and the reason a trace ever "sits still".
+            // Top centre, not bottom centre: the bottom of the plot already
+            // carries the "Time (s)" axis label and the two collided.
+            ctx.font = 'bold 11px monospace';
+            ctx.fillStyle = triggered ? 'rgba(52, 211, 153, 0.95)' : 'rgba(251, 113, 133, 0.95)';
+            ctx.textAlign = 'center';
+            ctx.fillText(triggered
+                ? 'TRIG’D  ' + trigEdge + ' edge @ ' + trigPct + '%'
+                : 'NOT TRIGGERED — level outside the signal, sweep free-running',
+                w / 2, margin - 12);
+            ctx.textAlign = 'left';
+            if (isFinite(sysBw)) {
+                ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                ctx.font = '10px monospace';
+                ctx.fillText('system BW ' + AD.fmtUnit(sysBw, 'Hz'), margin + 5, margin + 30);
+            }
             ctx.restore();
 
             // Labels and axis annotations

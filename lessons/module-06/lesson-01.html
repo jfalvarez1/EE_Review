@@ -232,10 +232,30 @@
         const k = AD.num('mos-k') / 1000; // mA/V² to A/V²
         const type = document.getElementById('mos-type').value;
 
-        document.getElementById('mos-vgs-val').textContent = vgs.toFixed(1) + 'V';
-        document.getElementById('mos-vth-val').textContent = vth.toFixed(1) + 'V';
+        /* The MOSFET Type control used to read its value into `type` and then
+         * never use it, so switching between N-channel and P-channel changed
+         * nothing at all - in the lesson that introduces the two.
+         *
+         * A PMOS is not a cosmetic relabelling of an NMOS. Its threshold is
+         * negative, it turns ON when the gate goes BELOW the source rather
+         * than above it, and drain current flows out of the drain instead of
+         * into it. Every sign flips. So the sliders are read as MAGNITUDES -
+         * the square law is identical in magnitude, which is the point worth
+         * making - and the sign is applied on display and on the plot, which
+         * puts the PMOS curve in the third quadrant where a textbook draws
+         * it. Watching the curve jump quadrants when you change the dropdown
+         * is a better explanation than a paragraph would be.
+         */
+        const pmos = type === 'pmos';
+        const s = pmos ? -1 : 1;
+        const sv = v => (s * v).toFixed(1) + 'V';
+
+        document.getElementById('mos-vgs-val').textContent = sv(vgs);
+        document.getElementById('mos-vth-val').textContent = sv(vth);
         document.getElementById('mos-k-val').textContent = (k * 1000).toFixed(1);
 
+        // Overdrive as a magnitude: |VGS| - |Vth|, positive means conducting
+        // for either polarity.
         const vov = vgs - vth;
         let id = 0;
         let region = 'Cutoff';
@@ -247,27 +267,43 @@
 
         const gm = vov > 0 ? 2 * Math.sqrt(k * id) : 0;
 
-        document.getElementById('mos-id').textContent = AD.fmtUnit(id, 'A');
-        document.getElementById('mos-vov').textContent = vov.toFixed(2) + 'V';
+        document.getElementById('mos-id').textContent =
+            (pmos && id > 0 ? '-' : '') + AD.fmtUnit(id, 'A') +
+            (pmos ? ' (out of drain)' : '');
+        document.getElementById('mos-vov').textContent =
+            (s * vov).toFixed(2) + 'V' + (pmos ? '  (V' + 'GS below Vth)' : '');
         document.getElementById('mos-gm').textContent = AD.fmtUnit(gm, 'S');
-        document.getElementById('mos-region').textContent = region;
+        document.getElementById('mos-region').textContent =
+            region + (pmos ? ' (P-channel)' : '');
         document.getElementById('mos-region').style.color = region === 'Cutoff' ? 'var(--bad)' : 'var(--ok)';
 
-        plotTransfer(k, vth, vgs);
+        plotTransfer(k, vth, vgs, s);
     }
 
-    function plotTransfer(k, vth, currentVgs) {
+    function plotTransfer(k, vth, currentVgs, s) {
         const w = canvas.width;
         const h = canvas.height;
+        s = s || 1;
+        const pmos = s < 0;
 
         AD.drawGrid(ctx, w, h, 10, 8);
 
         const vgsMax = 10;
         const idMax = k * Math.pow(vgsMax - vth, 2) * 1.2;
 
+        // For an NMOS the origin is bottom-left and both axes run positive.
+        // For a PMOS it is top-right, with VGS running negative to the left
+        // and ID negative downward - the third quadrant, as drawn in every
+        // textbook, and the reason the whole curve visibly flips when the
+        // dropdown changes.
+        const X = vgsMag => pmos ? w - (vgsMag / vgsMax) * w : (vgsMag / vgsMax) * w;
+        const Y = idMag => pmos
+            ? (idMag / idMax) * h * 0.9 + h * 0.05
+            : h - (idMag / idMax) * h * 0.9 - h * 0.05;
+
         // Transfer curve
         ctx.save();
-        ctx.strokeStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.strokeStyle = pmos ? 'rgba(110, 231, 255, 0.9)' : 'rgba(52, 211, 153, 0.9)';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
 
@@ -276,11 +312,8 @@
             const vov = vgs - vth;
             const id = vov > 0 ? k * vov * vov : 0;
 
-            const x = (vgs / vgsMax) * w;
-            const y = h - (id / idMax) * h * 0.9 - h * 0.05;
-
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+            if (i === 0) ctx.moveTo(X(vgs), Y(id));
+            else ctx.lineTo(X(vgs), Y(id));
         }
         ctx.stroke();
         ctx.restore();
@@ -288,8 +321,8 @@
         // Operating point marker
         const vov = currentVgs - vth;
         const opId = vov > 0 ? k * vov * vov : 0;
-        const opX = (currentVgs / vgsMax) * w;
-        const opY = h - (opId / idMax) * h * 0.9 - h * 0.05;
+        const opX = X(currentVgs);
+        const opY = Y(opId);
 
         ctx.save();
         ctx.fillStyle = 'rgba(251, 113, 133, 0.95)';
@@ -299,7 +332,7 @@
         ctx.restore();
 
         // Vth line
-        const vthX = (vth / vgsMax) * w;
+        const vthX = X(vth);
         ctx.save();
         ctx.strokeStyle = 'rgba(255, 200, 0, 0.6)';
         ctx.lineWidth = 1;
@@ -311,11 +344,17 @@
         ctx.restore();
 
         // Labels
+        const sg = v => (s * v).toFixed(1);
         ctx.save();
         ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
-        ctx.fillText(`VGS: 0-${vgsMax}V  |  ID: 0-${AD.fmtUnit(idMax, 'A')}  |  Vth = ${vth}V`, 10, 18);
-        ctx.fillText(`ID = ${AD.fmtUnit(opId, 'A')} at VGS = ${currentVgs}V`, 10, 36);
+        ctx.fillText(`${pmos ? 'P-channel' : 'N-channel'}  |  ` +
+                     `VGS: 0 to ${sg(vgsMax)}V  |  ` +
+                     `ID: 0 to ${pmos ? '-' : ''}${AD.fmtUnit(idMax, 'A')}  |  ` +
+                     `Vth = ${sg(vth)}V`, 10, 18);
+        ctx.fillText(`ID = ${pmos && opId > 0 ? '-' : ''}${AD.fmtUnit(opId, 'A')} ` +
+                     `at VGS = ${sg(currentVgs)}V` +
+                     (pmos ? '   — conducts when the gate goes BELOW the source' : ''), 10, 36);
         ctx.restore();
     }
 
