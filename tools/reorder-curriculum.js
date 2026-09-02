@@ -56,11 +56,27 @@ const MODULE_ORDER = [
 // Entries are validated as permutations of the module they name, so a stale
 // plan aborts rather than scrambling the lessons.
 const LESSON_ORDER = {
-    // Empty. Applied so far: the BJT small-signal model to 5-2 and Miller to
-    // 5-4; Bode-by-hand to 3-3, before the stability lesson that reads the plot
-    // it teaches; op-amp datasheet reading to 1-7, beside the error terms it
-    // locates; transistor selection to 5-36, in front of the selection guide
-    // and the worked mirror design.
+    // RE-PAIRING FILES WITH THE SLOTS THAT DESCRIBE THEM.
+    //
+    // check-titles.js found 48 lessons whose catalogue title named a different
+    // lesson than the file contained - clicking "Active Filters (Sallen-Key)"
+    // opened a transimpedance amplifier - and three learning-path steps landed
+    // on the wrong lesson as a result.
+    //
+    // In these five modules the files hold the right SET of topics in the wrong
+    // order, so a permutation fixes the sidebar, the search box and the
+    // syllabus at once. Computed by tools/plan-title-fix.js, which matches each
+    // file's <h2> against each slot's title and refuses a pairing it cannot
+    // justify; positions it could not match are left exactly where they are.
+    //
+    // Previously applied and now cleared: small-signal model to 5-2, Miller to
+    // 5-4, Bode-by-hand to 3-3, op-amp datasheet to 1-7, transistor selection
+    // to 5-36.
+    // NOT the tool for that job, as it turns out. This one carries a lesson's
+    // catalogue entry ALONG WITH its file, so permuting a module preserves the
+    // pairing and merely reshuffles it - which is right for changing teaching
+    // order and useless for repairing a title that names the wrong lesson.
+    // Titles are corrected in place by tools/fix-titles.js instead.
 };
 
 // Lessons that are in the wrong MODULE, given as current coordinates. Each is

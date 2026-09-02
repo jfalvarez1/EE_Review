@@ -120,25 +120,25 @@ const CURRICULUM = {
             lessons: [
                 {
                     id: 1,
-                    title: 'Active Filters (Sallen-Key)',
+                    title: 'Transimpedance Amplifiers (TIA)',
                     description: 'Butterworth, Chebyshev, Bessel responses',
                     topics: ['Filter type selection', 'Component value calculation', 'Cascading sections', 'Sensitivity analysis']
                 },
                 {
                     id: 2,
-                    title: 'Transimpedance Amplifier (TIA)',
+                    title: 'Instrumentation Amplifiers',
                     description: 'Photodiode interface design',
                     topics: ['Gain = Rf', 'Stability with Cpd', 'Compensation capacitor sizing', 'Noise gain peaking']
                 },
                 {
                     id: 3,
-                    title: 'Instrumentation Amplifier',
+                    title: 'Active Filters',
                     description: 'Three op-amp topology, CMRR, bridge sensors',
                     topics: ['G = 1 + 2R/Rgain', 'High input impedance', 'Common-mode rejection', 'Bridge sensor interface']
                 },
                 {
                     id: 4,
-                    title: 'Noise Analysis',
+                    title: 'Comparators and Schmitt Triggers',
                     description: 'Noise sources, noise budget, low-noise design',
                     topics: ['Voltage noise (en)', 'Current noise (in)', 'Thermal noise √(4kTR)', 'Total noise (RSS)']
                 },
@@ -712,19 +712,19 @@ const CURRICULUM = {
                 },
                 {
                     id: 2,
-                    title: 'CMOS Complementary Outputs',
+                    title: 'Class AB Push-Pull Output Stages',
                     description: 'Inverter, shoot-through, dynamic power',
                     topics: ['PMOS pulls HIGH', 'NMOS pulls LOW', 'Transition current', 'Power dissipation']
                 },
                 {
                     id: 3,
-                    title: 'Open-Drain / Open-Collector Outputs',
+                    title: 'Rail-to-Rail Output Stages',
                     description: 'Pull-up sizing, wired-AND, level shifting',
                     topics: ['When to use', 'Rise time calculation', 'I2C bus', 'Power trade-off']
                 },
                 {
                     id: 4,
-                    title: 'Current Sources and Sinks',
+                    title: 'Output Protection Circuits',
                     description: 'Simple mirror, cascode, Wilson',
                     topics: ['Output impedance', 'Compliance range', 'MOSFET current sources', 'Accuracy']
                 },
@@ -840,7 +840,7 @@ const CURRICULUM = {
                 },
                 {
                     id: 8,
-                    title: 'VCOs and VCFs',
+                    title: 'Voltage-Controlled Oscillators and Filters',
                     description: 'Voltage-controlled oscillators and filters',
                     topics: ['VCO gain (Hz/V)', 'Linearity requirements', 'VCF tuning range', 'OTA-based implementations']
                 },
@@ -970,13 +970,13 @@ const CURRICULUM = {
                 },
                 {
                     id: 2,
-                    title: 'PCB Layout Awareness',
+                    title: 'Component Selection',
                     description: 'Ground planes, bypass caps, analog/digital separation',
                     topics: ['Single ground plane', 'Partition (not split)', 'Bypass cap placement', 'Trace routing']
                 },
                 {
                     id: 3,
-                    title: 'Troubleshooting Workflow',
+                    title: 'PCB Layout for Analog Circuits',
                     description: 'Systematic debugging approach',
                     topics: ['Power → Bias → Signal → Load', 'Common symptoms', 'Quick fix patterns', 'Isolation techniques']
                 },
@@ -1050,25 +1050,25 @@ const CURRICULUM = {
             lessons: [
                 {
                     id: 1,
-                    title: 'The Trade-off Triangle',
+                    title: 'Speed vs Accuracy Trade-offs',
                     description: 'Fundamental constraints in analog design',
                     topics: ['Performance', 'Power', 'Cost', 'Can optimize any two']
                 },
                 {
                     id: 2,
-                    title: 'Op-Amp Selection Decision Tree',
+                    title: 'Power vs Performance Trade-offs',
                     description: 'Matching op-amp to application requirements',
                     topics: ['Primary constraint', 'Family selection', 'Trade-off awareness', 'Real examples']
                 },
                 {
                     id: 3,
-                    title: 'Component Selection for Precision',
+                    title: 'Cost vs Performance Trade-offs',
                     description: 'Resistor and capacitor tolerances, tempco',
                     topics: ['Tolerance requirements', 'Tempco matching', 'Capacitor types', 'Cost vs precision']
                 },
                 {
                     id: 4,
-                    title: 'Power Budget Optimization',
+                    title: 'System-Level Trade-offs',
                     description: 'Allocating power across subsystems',
                     topics: ['System power budget', 'Sleep current', 'Duty cycle', 'Active vs idle']
                 },
@@ -1202,31 +1202,31 @@ const CURRICULUM = {
                 },
                 {
                     id: 11,
-                    title: 'Exercise Set A: Transistor Biasing',
+                    title: 'BJT Operating Regions & Practical Effects',
                     description: 'BJT and FET bias calculations',
                     topics: ['Level 1: VBE/gm calculation', 'Level 2: CE amplifier design', 'Level 3: Temperature effects', 'Level 4: Matching optimization']
                 },
                 {
                     id: 12,
-                    title: 'Exercise Set B: Op-Amp Circuits',
+                    title: 'MOSFET Parasitics & Gate Drive',
                     description: 'Gain, bandwidth, stability',
                     topics: ['Level 1: Gain calculation', 'Level 2: Filter design', 'Level 3: Stability analysis', 'Level 4: Noise optimization']
                 },
                 {
                     id: 13,
-                    title: 'Exercise Set C: Power Supplies',
+                    title: 'Op-Amp Stability & Compensation',
                     description: 'Buck, LDO, efficiency',
                     topics: ['Level 1: Dropout calculation', 'Level 2: Inductor sizing', 'Level 3: Transient response', 'Level 4: Thermal design']
                 },
                 {
                     id: 14,
-                    title: 'Exercise Set D: Data Converters',
+                    title: 'Power Supply Noise & PSRR',
                     description: 'ADC/DAC interface design',
                     topics: ['Level 1: Resolution/LSB', 'Level 2: Driver design', 'Level 3: Error budget', 'Level 4: Noise analysis']
                 },
                 {
                     id: 15,
-                    title: 'Exercise Set E: Signal Integrity',
+                    title: 'Design Exercise: Precision Sensor Amplifier',
                     description: 'Transmission lines, termination, crosstalk',
                     topics: ['Level 1: Rise time/BW', 'Level 2: Termination', 'Level 3: Crosstalk', 'Level 4: Eye diagram']
                 }
@@ -1240,7 +1240,7 @@ const CURRICULUM = {
             lessons: [
                 {
                     id: 1,
-                    title: 'Power MOSFET Selection',
+                    title: 'Linear Regulators',
                     description: 'RDS(on) vs Qg trade-off, loss calculation',
                     topics: ['Conduction loss', 'Switching loss', 'Gate charge', 'SOA']
                 },
@@ -1252,13 +1252,13 @@ const CURRICULUM = {
                 },
                 {
                     id: 3,
-                    title: 'LDO Regulator Design',
+                    title: 'Boost (Step-Up) Converter',
                     description: 'Dropout, PSRR, noise, efficiency',
                     topics: ['When to use LDO', 'Dropout voltage', 'PSRR vs frequency', 'Thermal limits']
                 },
                 {
                     id: 4,
-                    title: 'PMIC Overview',
+                    title: 'Flyback and Isolated Topologies',
                     description: 'Integrated power management for portable devices',
                     topics: ['Multiple rails', 'Sequencing', 'Battery charging', 'Power path']
                 },
@@ -1406,19 +1406,19 @@ const CURRICULUM = {
                 },
                 {
                     id: 2,
-                    title: 'RC Snubber Design for Ringing',
+                    title: 'Power Supply Debugging',
                     description: '7-step design method, empirical tuning',
                     topics: ['Measure ringing frequency', 'Calculate parasitics', 'Snubber sizing', 'Power dissipation']
                 },
                 {
                     id: 3,
-                    title: 'Quick Fix Patterns',
+                    title: 'Signal Integrity Debugging',
                     description: 'Common problems and solutions',
                     topics: ['Rail oscillation', 'Op-amp oscillation', 'Digital noise', 'Ground bounce']
                 },
                 {
                     id: 4,
-                    title: 'Bleeder & Discharge Circuits',
+                    title: 'Systematic Debug Methodology',
                     description: 'Safety discharge, active discharge, QOD',
                     topics: ['Bleeder sizing', 'Discharge time', 'Active discharge', 'USB power cycling']
                 },
@@ -1468,19 +1468,19 @@ const CURRICULUM = {
             lessons: [
                 {
                     id: 1,
-                    title: 'Headphone Amplifier Design',
+                    title: 'Audio Amplifier Fundamentals',
                     description: 'Output power, impedance matching, distortion',
                     topics: ['Power calculation', 'Op-amp selection', 'Output coupling', 'Volume control']
                 },
                 {
                     id: 2,
-                    title: 'Audio Preamplifier (Mic/Guitar)',
+                    title: 'Headphone and Line Drivers',
                     description: 'Gain, input impedance, noise floor',
                     topics: ['Electret bias', 'High-Z guitar input', 'Gain selection', 'RIAA equalization']
                 },
                 {
                     id: 3,
-                    title: 'Graphic Equalizer (3-Band)',
+                    title: 'Microphone Preamps',
                     description: 'Bass/Mid/Treble control, shelving filters',
                     topics: ['Center frequencies', 'Q factor', 'Boost/cut range', 'Topology']
                 },
@@ -1560,7 +1560,7 @@ const CURRICULUM = {
             lessons: [
                 {
                     id: 1,
-                    title: 'SAR ADC Driver Design',
+                    title: 'DAC Fundamentals',
                     description: 'RC filter, settling time, kickback',
                     topics: ['tACQ ≥ k × R × C', 'Op-amp selection', 'Kickback absorption', 'Settling to 0.5 LSB']
                 },
@@ -1572,13 +1572,13 @@ const CURRICULUM = {
                 },
                 {
                     id: 3,
-                    title: 'DAC Reconstruction Filter',
+                    title: 'Sample and Hold Circuits',
                     description: 'Sinc rolloff, image rejection',
                     topics: ['Zero-order hold', 'Nyquist images', 'Filter order', 'Oversampling DACs']
                 },
                 {
                     id: 4,
-                    title: 'Voltage Reference Selection',
+                    title: 'Delta-Sigma (ΣΔ) Conversion',
                     description: 'Initial accuracy, tempco, noise',
                     topics: ['Error budget', 'Temperature drift', 'Long-term stability', 'PSRR']
                 },
@@ -1656,7 +1656,7 @@ const CURRICULUM = {
                 },
                 {
                     id: 17,
-                    title: 'Architecture-Specific Behavior',
+                    title: 'Converter Architecture & Monotonicity',
                     description: 'How different converter architectures handle monotonicity',
                     topics: ['Sigma-Delta inherent monotonicity', 'SAR capacitor matching', 'R-2R ladder sensitivity', 'Segmented DAC advantages']
                 },
@@ -1744,25 +1744,25 @@ const CURRICULUM = {
             lessons: [
                 {
                     id: 1,
-                    title: 'CMOS Logic Families & Voltage Levels',
+                    title: 'Logic Level Fundamentals',
                     description: 'HC, HCT, LVC, threshold voltages',
                     topics: ['VIH, VIL, VOH, VOL', 'CMOS vs TTL thresholds', '3.3V/5V compatibility', 'Noise margin']
                 },
                 {
                     id: 2,
-                    title: 'Level Shifting Techniques',
+                    title: 'Level Shifter Circuits',
                     description: '3.3V ↔ 5V conversion methods',
                     topics: ['Resistor divider', 'MOSFET bidirectional', 'Dedicated ICs', 'HCT for step-up']
                 },
                 {
                     id: 3,
-                    title: 'Pull-Up/Pull-Down Resistor Sizing',
+                    title: 'Push-Pull vs Open-Drain Outputs',
                     description: 'Rise time, power consumption, I2C example',
                     topics: ['tr ≈ 2.2×R×C', 'Current sink limit', 'Power = V²/R', 'Speed vs power']
                 },
                 {
                     id: 4,
-                    title: 'ESD Protection & Input Clamping',
+                    title: 'GPIO Electrical Characteristics',
                     description: 'Internal diodes, series resistors, TVS',
                     topics: ['Clamp current limit', 'Series R sizing', 'ESD rating', 'Layout']
                 },
@@ -1812,13 +1812,13 @@ const CURRICULUM = {
             lessons: [
                 {
                     id: 1,
-                    title: 'I2C Electrical Design',
+                    title: 'I2C Physical Layer & Analog Challenges',
                     description: 'Pull-up sizing, rise time, bus capacitance',
                     topics: ['Standard/Fast/Fast+ Mode', 'Rp calculation', 'Multi-master', 'Repeaters']
                 },
                 {
                     id: 2,
-                    title: 'SPI Electrical Design',
+                    title: 'SPI Signal Integrity',
                     description: 'CPOL/CPHA modes, timing, termination',
                     topics: ['Mode 0/1/2/3', 'Setup/hold time', 'Clock frequency limits', 'Series termination']
                 },
@@ -1830,7 +1830,7 @@ const CURRICULUM = {
                 },
                 {
                     id: 4,
-                    title: 'USB Electrical Fundamentals',
+                    title: 'Analog Signal Conditioning for ADCs',
                     description: 'D+/D- differential, speed detection',
                     topics: ['Pull-up detection', 'Differential signaling', 'Impedance matching', 'ESD protection']
                 },
@@ -1998,7 +1998,7 @@ const CURRICULUM = {
                 },
                 {
                     id: 7,
-                    title: 'IoT Edge Device',
+                    title: 'Case Study: Battery-Powered IoT Sensor Node',
                     description: 'Battery-powered wireless sensor node design',
                     topics: ['Power budget', 'Sleep modes', 'Wireless optimization', 'Energy harvesting']
                 },
@@ -2098,7 +2098,7 @@ const CURRICULUM = {
             lessons: [
                 {
                     id: 1,
-                    title: 'Laptop/Phone Audio System',
+                    title: 'Complete Audio Subsystem Design',
                     description: 'Complete audio subsystem: headphone amp, MEMS mic, Class-D speaker driver',
                     topics: ['Capless headphone output', 'PDM microphone interface', 'Class-D EMI filtering', 'Audio codec integration']
                 },
@@ -2176,7 +2176,7 @@ const CURRICULUM = {
                 },
                 {
                     id: 14,
-                    title: 'ESD Protection Design',
+                    title: 'Understanding ESD Threats',
                     description: 'System-level electrostatic discharge protection',
                     topics: ['TVS selection', 'Layout guidelines', 'IEC 61000-4-2', 'Protection coordination']
                 },

@@ -88,13 +88,13 @@ const LEARNING_PATH = (() => {
                 { ref: [1, 3], title: 'Integrator and differentiator',
                   earns: 'The golden rules applied to a capacitor: the same two rules now give ' +
                          'you calculus.' },
-                { ref: [2, 2], title: 'Transimpedance amplifier',
+                { ref: [2, 1], title: 'Transimpedance amplifier',
                   earns: 'Your first amplifier whose input is a current — the reason the four ' +
                          'amplifier types were worth naming.' },
-                { ref: [2, 3], title: 'Instrumentation amplifier',
+                { ref: [2, 2], title: 'Instrumentation amplifier',
                   earns: 'Difference amplification done properly, and the first circuit where ' +
                          'resistor matching, not the op-amp, sets performance.' },
-                { ref: [2, 1], title: 'Active filters (Sallen-Key)',
+                { ref: [2, 3], title: 'Active filters (Sallen-Key)',
                   earns: 'A complete, useful block built entirely on the ideal model.' }
             ]
         },
@@ -134,8 +134,16 @@ const LEARNING_PATH = (() => {
                          'three is to blame at your source impedance.' },
                 { ref: [1, 6], title: 'Power supply rejection',
                   earns: 'The supply is an input too.' },
-                { ref: [2, 4], title: 'Noise analysis',
-                  earns: 'The floor you cannot design below, and where it comes from.' },
+                // Pointed at 2-4 for a long time, which is "Comparators and
+                // Schmitt Triggers" - the catalogue title said "Noise Analysis"
+                // and the file never did. There is no op-amp noise lesson: the
+                // nearest are 5-17 (device-level BJT noise) and 1-16, which
+                // quotes noise densities without deriving anything. Marked as
+                // the gap it is rather than pointed somewhere plausible.
+                { ref: null, status: 'todo', title: 'Noise analysis',
+                  earns: 'The floor you cannot design below, and where it comes from: en and ' +
+                         'in, 1/f, resistor thermal noise, and why noise gain is not signal ' +
+                         'gain.' },
                 { ref: [1, 7], title: 'Reading an op-amp datasheet',
                   earns: 'Every error above, located on a real datasheet: where the number ' +
                          'hides, its test conditions, and which typical-only specs must never ' +
