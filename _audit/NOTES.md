@@ -8,7 +8,60 @@ Everything below assumes a server is running: `./launch.bat` or `python tools/se
 
 ---
 
-## The audit tools
+## Command-line checkers
+
+These run without a browser and gate the Pages deploy and the release build.
+All exit non-zero on a finding.
+
+| Tool | Checks |
+|---|---|
+| `tools/check-titles.js` | every catalogue title names the lesson the file actually contains |
+| `tools/check-markup.js` | lesson markup is balanced |
+| `tools/check-lesson-js.js` | every inline `<script>` parses |
+| `tools/check-diagram-nets.js` | every schematic pin is on a net; pnp orientation |
+| `tools/check-bias.js` | every drawn four-resistor BJT stage has a usable operating point |
+| `tools/validate-path.js` | every syllabus reference resolves to a real lesson |
+| `tools/check-media.js` | what each lesson draws, and whether it is interactive |
+| `tools/check-taxonomy.js` | lessons filed under the wrong module (heuristic) |
+| `tools/survey-depth.js` | how deep each lesson is against the course's own standard |
+
+`tools/check-taxonomy.js` is a heuristic and says so — it flags "Feedback
+Fundamentals" as belonging in the BJT module. Use it to find candidates to
+read, never to move anything.
+
+---
+
+## Open findings from the media audit
+
+`node tools/check-media.js`, last run against 368 lessons.
+
+**13 lessons have no visual at all.** Eleven are core device lessons where a
+circuit is the whole point:
+
+    5-28  Translinear Circuits            6-7   Body Effect & Back Gate
+    5-29  BJT Output Stages               6-9   MOSFET Current Mirrors
+    5-31  High-Speed BJT Circuits         6-13  Gate Drive Design
+    5-32  BJT Bootstrapping Techniques    6-17  Power MOSFET Thermal Design
+    5-33  BJT in Feedback Amplifiers      2-14  Industry Selection Guide
+    5-34  Precision BJT Matched Pairs     12-5  Problem Set 5
+    5-38  BJT Design Case Studies
+
+**22 lessons have a canvas but no control** — a picture that cost a canvas to
+draw. Lower priority than the above, but each is a candidate for a slider.
+
+**4 lessons draw labelled boxes and no conductors**, and all four were checked
+and are legitimate: solder joint quality (10-4), an ESR-vs-package chart
+(11-6), a component grade table (11-12) and a logic threshold band diagram
+(19-1). None is a block diagram standing in for a circuit.
+
+**0 lessons have a control that does nothing.** An earlier version of the
+checker reported 13; it was only looking for one readout CSS class and missed
+`AD.setText` and direct `textContent` assignment. Fixed in the tool rather than
+reported as findings.
+
+---
+
+## The browser audit tools
 
 Four checkers live in this folder. They are development tools and the app never loads them.
 
