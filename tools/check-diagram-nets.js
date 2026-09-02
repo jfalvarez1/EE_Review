@@ -63,7 +63,13 @@ function pinsOf(part) {
     return spec.pins.map(p => {
         const dx = (p.x !== undefined ? p.x : p.dx) || 0;
         const dy = (p.y !== undefined ? p.y : p.dy) || 0;
-        const r = rot(dx, dy, part.rotate);
+        // `mirror` flips about the local Y axis BEFORE rotation, matching
+        // ComponentModels.place() and the order the SVG transform list is
+        // emitted in. Ignoring it put every mirrored pin on the wrong side of
+        // its symbol and reported six perfectly good connections as floating -
+        // which is how a checker loses the reader's trust.
+        const mx = part.mirror ? -dx : dx;
+        const r = rot(mx, dy, part.rotate);
         return { name: p.name || p.id || '?', x: part.x + r[0], y: part.y + r[1] };
     });
 }
@@ -363,6 +369,30 @@ function checkFile(file) {
         if (unknown.length) {
             findings.push({ tag, kind: 'UNKNOWN KEY', msg: [...new Set(unknown)].join(', ') });
         }
+
+        // ---- orientation convention
+        //
+        // A pnp feeding a load from the positive rail needs its emitter at the
+        // top, and the obvious way to get there - rotate: 180 - is a ROTATION,
+        // so it also swings the base round to the right. The symbol stays a
+        // valid pnp (the arrow rotates with it) but it is drawn as the mirror
+        // image of how every textbook shows one, and the mirror's base tie then
+        // has to wrap around the outside of both devices.
+        //
+        // rotate: 180 WITH mirror: true composes to a pure vertical flip:
+        // emitter up, collector down, base still on the left.
+        parts.forEach(p => {
+            if (p.key !== 'pnp') return;
+            const r = ((p.rotate || 0) % 360 + 360) % 360;
+            if (r === 180 && !p.mirror) {
+                findings.push({
+                    tag, kind: 'ORIENTATION',
+                    msg: (p.label || 'pnp') + ' at (' + p.x + ',' + p.y + ') uses rotate:180 ' +
+                         'without mirror:true, which puts its base on the right. Add ' +
+                         'mirror: true for the conventional emitter-up drawing.'
+                });
+            }
+        });
     });
 
     return { specs: specs.length, findings };

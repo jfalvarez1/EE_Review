@@ -350,6 +350,47 @@ Error: Wire segment (95, 125)-(265, 125) crosses diode PD body
 
 This section documents actual fixes applied to lesson schematics, providing reusable patterns.
 
+### 4.0 Orienting a high-side PNP — rotate is not flip
+
+**Problem:** the BJT symbol is defined collector-up — base `(x-25, y)`, collector
+`(x+15, y-35)`, emitter `(x+15, y+35)`. A PNP feeding a load from the positive
+rail needs its **emitter** at the top, so the symbol must be flipped
+top-to-bottom.
+
+`rotate: 180` looks like it does that, and it does put the emitter up. But a
+rotation is not a flip: it also swings the base round to the **right**. The
+symbol is still a valid PNP — the arrow rotates with the body and still points
+into the base — but it is drawn as the mirror image of how every textbook shows
+one, and a current mirror's base tie then has to wrap around the outside of both
+devices to reach two bases that point outward.
+
+**Wrong:**
+```js
+{ key: 'pnp', x: 250, y: 110, rotate: 180 }
+// emitter (235, 75) up   ✓
+// collector (235, 145) down ✓
+// base (275, 110) — on the RIGHT ✗
+```
+
+**Right:**
+```js
+{ key: 'pnp', x: 250, y: 110, rotate: 180, mirror: true }
+// emitter (265, 75) up    ✓
+// collector (265, 145) down ✓
+// base (225, 110) — on the LEFT ✓
+```
+
+**Why it works:** the transform list is emitted as `rotate(180)` then
+`scale(-1 1)`, which composes to `scale(1 -1)` — a pure vertical flip. Pin
+coordinates follow the same order in `ComponentModels.place()`, which mirrors
+about the local Y axis *before* rotating.
+
+Note that the emitter/collector column moves from `x - 15` to `x + 15` when you
+add the mirror, so every wire that referenced that column has to move with it.
+
+`tools/check-diagram-nets.js` now reports a `pnp` placed with `rotate: 180` and
+no `mirror` as an `ORIENTATION` finding.
+
 ### 4.1 Diode Terminal Alignment (TIA Circuit)
 
 **Problem:** Wire crosses diode body because terminal positions were manually estimated.

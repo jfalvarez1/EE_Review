@@ -793,53 +793,70 @@
         const host = document.getElementById('al-diagram');
         if (!host || typeof ComponentModels === 'undefined') return;
 
-        // pnp/npn pins: base (x-25, y), collector (x+15, y-35), emitter (x+15, y+35).
-        // rotate:180 maps (dx,dy) -> (-dx,-dy), which puts a pnp's EMITTER at
-        // (x-15, y-35) so it can reach up to the positive rail, its collector at
-        // (x-15, y+35) pointing down at the load, and its base out to the right.
+        // ORIENTING A HIGH-SIDE PNP.
+        //
+        // The BJT symbol is defined collector-up: base (x-25, y), collector
+        // (x+15, y-35), emitter (x+15, y+35). A pnp feeding a load from the
+        // positive rail needs its EMITTER up, so the symbol has to be flipped
+        // top-to-bottom.
+        //
+        // `rotate: 180` alone does NOT do that. It is a rotation, so it flips
+        // the symbol left-to-right as well and leaves the base sticking out to
+        // the RIGHT - a mirror image of how every textbook draws a pnp. The
+        // emitter arrow still points correctly into the base, so it is not
+        // electrically wrong, but it reads backwards and it forces the mirror's
+        // base tie to wrap around the outside of both devices.
+        //
+        // The transform list is emitted as rotate(180) then scale(-1 1), which
+        // composes to scale(1 -1): a pure VERTICAL flip. So rotate + mirror
+        // together give emitter up, collector down, and the base still on the
+        // left where it belongs.
         const RAIL = 40;
-        const Q3X = 170, QY = 110;          // output device of the mirror
-        const Q2X = 330;                    // diode-connected reference device
-        const LCOL = Q3X - 15;              // 155 - the output column
-        const RCOL = Q2X - 15;              // 315 - the reference column
-        const Q1X = 140, Q1Y = 240;         // the amplifier
+        const QY = 110;
+        const Q2X = 250;                    // diode-connected reference device
+        const Q3X = 410;                    // output device of the mirror
+        const REFCOL = Q2X + 15;            // 265 - reference collector column
+        const OUTCOL = Q3X + 15;            // 425 - the output column
+        const Q1X = 410, Q1Y = 240;         // the amplifier, under Q3
 
         host.innerHTML = ComponentModels.diagram({
-            width: 560, height: 380, title: 'Common-emitter stage with a pnp current-mirror load',
+            width: 640, height: 380, title: 'Common-emitter stage with a pnp current-mirror load',
             parts: [
-                { key: 'vcc',      x: 240,  y: 30,   label: '+10 V', labelPos: 'top' },
-                { key: 'pnp',      x: Q3X,  y: QY,   rotate: 180, label: 'Q3', labelPos: 'left' },
-                { key: 'pnp',      x: Q2X,  y: QY,   rotate: 180, label: 'Q2', labelPos: 'right' },
-                { key: 'npn',      x: Q1X,  y: Q1Y,  label: 'Q1', labelPos: 'left' },
-                { key: 'isource',  x: 430,  y: 190,  label: 'IREF', value: '1 mA', labelPos: 'right' },
-                { key: 'port',     x: 60,   y: 240,  rotate: 180, label: 'in', labelPos: 'top' },
-                { key: 'port',     x: 265,  y: 190,  label: 'out', labelPos: 'top' },
-                { key: 'ground',   x: LCOL, y: 325 },
-                { key: 'ground',   x: 430,  y: 275 }
+                { key: 'vcc',      x: 345,    y: 30,   label: '+10 V', labelPos: 'top' },
+                { key: 'pnp',      x: Q2X,    y: QY,   rotate: 180, mirror: true,
+                  label: 'Q2', labelPos: 'left' },
+                { key: 'pnp',      x: Q3X,    y: QY,   rotate: 180, mirror: true,
+                  label: 'Q3', labelPos: 'right' },
+                { key: 'npn',      x: Q1X,    y: Q1Y,  label: 'Q1', labelPos: 'right' },
+                { key: 'isource',  x: REFCOL, y: 230,  label: 'IREF', value: '1 mA', labelPos: 'left' },
+                { key: 'port',     x: 300,    y: 240,  rotate: 180, label: 'in', labelPos: 'top' },
+                { key: 'port',     x: 520,    y: 190,  label: 'out', labelPos: 'top' },
+                { key: 'ground',   x: REFCOL, y: 300 },
+                { key: 'ground',   x: OUTCOL, y: 325 }
             ],
             wires: [
                 // the positive rail, feeding both pnp emitters
-                [[LCOL, RAIL], [RCOL, RAIL]],
-                [[LCOL, RAIL], [LCOL, 75]],
-                [[RCOL, RAIL], [RCOL, 75]],
+                [[REFCOL, RAIL], [OUTCOL, RAIL]],
+                [[REFCOL, RAIL], [REFCOL, 75]],
+                [[OUTCOL, RAIL], [OUTCOL, 75]],
+                // Q2's collector down through IREF to ground
+                [[REFCOL, 145], [REFCOL, 205]],
+                [[REFCOL, 255], [REFCOL, 290]],
+                // The mirror tie, doing two jobs with one wire: it leaves Q2's
+                // base, runs along y=175 THROUGH Q2's own collector line at
+                // (265,175) - which is what diode-connects Q2 - and carries on
+                // to Q3's base.
+                [[Q2X - 25, QY], [Q2X - 25, 175], [Q3X - 25, 175], [Q3X - 25, QY]],
                 // Q3's collector down to Q1's collector: the high-impedance node
-                [[LCOL, 145], [LCOL, 205]],
+                [[OUTCOL, 145], [OUTCOL, 205]],
+                // output tap off that node
+                [[OUTCOL, 190], [505, 190]],
                 // Q1's emitter to ground
-                [[LCOL, 275], [LCOL, 315]],
+                [[OUTCOL, 275], [OUTCOL, 315]],
                 // input into Q1's base
-                [[75, 240], [Q1X - 25, Q1Y]],
-                // Q2's collector out to the reference current source, then ground
-                [[RCOL, 145], [430, 145]],
-                [[430, 145], [430, 165]],
-                [[430, 215], [430, 265]],
-                // The mirror tie. It leaves Q2's base, drops THROUGH its own
-                // collector line at (355,145) - which is what diode-connects Q2 -
-                // and carries on to Q3's base. One wire does both jobs.
-                [[Q2X + 25, QY], [Q2X + 25, 175], [Q3X + 25, 175], [Q3X + 25, QY]],
-                // output tap, below the mirror tie so the two never meet
-                [[LCOL, 190], [250, 190]]
+                [[315, 240], [Q1X - 25, Q1Y]]
             ],
-            dots: [[240, RAIL], [355, 145], [LCOL, 190]],
+            dots: [[345, RAIL], [REFCOL, 175], [OUTCOL, 190]],
             texts: []
         });
     })();
