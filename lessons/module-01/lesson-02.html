@@ -52,8 +52,67 @@
         <h3>Virtual Ground Concept</h3>
         <p>The "virtual ground" is one of the most powerful concepts in op-amp analysis. It only exists in the inverting configuration:</p>
 
-        <div class="canvas-wrap">
-            <canvas id="vg-canvas" width="600" height="200"></canvas>
+        <div id="vg-diagram"></div>
+        <p class="fig-note">The inverting amplifier. The marked node is the virtual ground: the
+        op-amp drives its output to whatever voltage holds that node at 0 V, and it is held there
+        by <em>feedback</em>, not by any connection to ground.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="vg-vin">Input \(V_{in}\)</label>
+                <input type="range" id="vg-vin" min="-2" max="2" step="0.05" value="1">
+                <span class="range-value" id="vg-vin-val">1.00 V</span>
+            </div>
+            <div class="c4">
+                <label for="vg-r1">\(R_1\)</label>
+                <input type="range" id="vg-r1" min="3" max="5" step="0.02" value="4">
+                <span class="range-value" id="vg-r1-val">10 kΩ</span>
+            </div>
+            <div class="c4">
+                <label for="vg-rf">\(R_f\)</label>
+                <input type="range" id="vg-rf" min="3" max="6" step="0.02" value="5">
+                <span class="range-value" id="vg-rf-val">100 kΩ</span>
+            </div>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Voltage at the &minus; input</div><div class="v mono" id="vg-vminus">&mdash;</div></div>
+            <div class="box"><div class="k">Current through \(R_1\)</div><div class="v mono" id="vg-ir1">&mdash;</div></div>
+            <div class="box"><div class="k">Current into the op-amp</div><div class="v mono" id="vg-iin">&mdash;</div></div>
+            <div class="box"><div class="k">Current through \(R_f\)</div><div class="v mono" id="vg-irf">&mdash;</div></div>
+            <div class="box"><div class="k">Gain \(-R_f/R_1\)</div><div class="v mono" id="vg-gain">&mdash;</div></div>
+            <div class="box"><div class="k">Output</div><div class="v mono" id="vg-vout">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="vg-note"></p>
+
+        <div class="checkpoint" data-kind="predict" data-answer="b">
+            <p class="cp-q">Drag \(R_1\) and \(R_f\) to anything you like. Which readout
+            <em>never</em> changes?</p>
+            <ol class="cp-options">
+                <li data-k="a">The current through \(R_f\)
+                    <div class="cp-why">It changes with everything &mdash; it equals
+                    \(V_{in}/R_1\), so both the input and \(R_1\) move it.</div></li>
+                <li data-k="b">The voltage at the &minus; input
+                    <div class="cp-why">Right, and it is the whole idea. Whatever you do to the
+                    resistors or the input, the op-amp moves its output until the two inputs are
+                    equal &mdash; and the + input is tied to ground, so the &minus; input sits at
+                    0 V. It is <em>held</em> there rather than <em>connected</em> there, which is
+                    why it is called virtual. Break the feedback loop and it stops being 0 V
+                    immediately.</div></li>
+                <li data-k="c">The gain
+                    <div class="cp-why">The gain is \(-R_f/R_1\), so it changes the moment you
+                    move either resistor. It is independent of the <em>input</em>, which is a
+                    different and also useful fact.</div></li>
+                <li data-k="d">The output voltage
+                    <div class="cp-why">The output is the one thing that has to move. Holding the
+                    &minus; input at 0 V is precisely what the output is <em>for</em>.</div></li>
+            </ol>
+            <div class="cp-then">
+                <p>Because that node sits at 0 V, the current into it is \(V_{in}/R_1\) and
+                nothing else &mdash; the rest of the circuit cannot affect it. That is what makes
+                a summing amplifier possible: several inputs can share the node without
+                interacting, because none of them can move it.</p>
+            </div>
         </div>
 
         <div class="kv">
@@ -417,171 +476,117 @@
 })();
 
 // ============================================
-// VIRTUAL GROUND VISUALIZATION
+// VIRTUAL GROUND: schematic + live node analysis
 // ============================================
-(function() {
-    const canvas = document.getElementById('vg-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const TEK = AD.TEK_COLORS;
+//
+// This was 163 lines of hand-drawn canvas: resistors as strokeRect boxes, the
+// op-amp as three lineTo calls, and every number baked in as fillText. It drew
+// a picture of a circuit rather than a circuit, nothing could check what
+// connected to what, and none of it responded to the reader.
+(function () {
+    'use strict';
 
-    const w = canvas.width;
-    const h = canvas.height;
+    // ---- the schematic -----------------------------------------------
+    // opamp pins: in_neg (x-35, y-10), in_pos (x-35, y+10), out (x+35, y).
+    const host = document.getElementById('vg-diagram');
+    if (host && typeof ComponentModels !== 'undefined') {
+        const UX = 330, UY = 150;          // op-amp
+        const SUM = 250;                   // the summing node column
+        const RFY = 80;                    // the feedback resistor's row
 
-    // Draw the concept
-    ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(0, 0, w, h);
+        host.innerHTML = ComponentModels.diagram({
+            width: 560, height: 250, title: 'Inverting amplifier',
+            parts: [
+                { key: 'port',     x: 120, y: 140, rotate: 180, label: 'Vin', labelPos: 'top' },
+                { key: 'resistor', x: 185, y: 140, label: 'R1', value: '10 k', labelPos: 'top' },
+                { key: 'resistor', x: 300, y: RFY, label: 'Rf', value: '100 k', labelPos: 'top' },
+                { key: 'opamp',    x: UX,  y: UY,  label: 'U1', labelPos: 'bottom' },
+                { key: 'ground',   x: 270, y: 200 },
+                { key: 'port',     x: 455, y: UY,  label: 'Vout', labelPos: 'top' }
+            ],
+            wires: [
+                // input through R1 to the summing node
+                [[135, 140], [160, 140]],
+                [[210, 140], [SUM, 140]],
+                // the summing node into the inverting input
+                [[SUM, 140], [UX - 35, UY - 10]],
+                // feedback: summing node up, across Rf, down onto the output
+                [[SUM, 140], [SUM, RFY], [275, RFY]],
+                [[325, RFY], [400, RFY], [400, UY]],
+                // the non-inverting input to ground - the only REAL ground here
+                [[UX - 35, UY + 10], [270, UY + 10], [270, 190]],
+                // output
+                [[UX + 35, UY], [440, UY]]
+            ],
+            dots: [[SUM, 140], [400, UY]],
+            texts: [
+                // Below and left of the summing node. Directly above it (y=122)
+                // put the words on top of the feedback wire running up to Rf,
+                // and directly below collided with the ground stub at x=270.
+                { x: 200, y: 172, text: 'virtual ground', size: 10, anchor: 'middle' }
+            ]
+        });
+    }
 
-    // Draw inverting amp schematic (simplified)
-    const centerX = w / 2;
-    const opX = centerX + 50;
-    const opY = h / 2;
+    // ---- the live analysis -------------------------------------------
+    const vinEl = document.getElementById('vg-vin');
+    if (!vinEl) return;
 
-    // Op-amp triangle
-    ctx.strokeStyle = '#888';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(opX - 30, opY - 35);
-    ctx.lineTo(opX + 30, opY);
-    ctx.lineTo(opX - 30, opY + 35);
-    ctx.closePath();
-    ctx.stroke();
+    const eng = (x, unit, d) => {
+        const a = Math.abs(x);
+        let s = 1, p = '';
+        if (a >= 1e6) { s = 1e6; p = 'M'; }
+        else if (a >= 1e3) { s = 1e3; p = 'k'; }
+        else if (a >= 1) { s = 1; p = ''; }
+        else if (a >= 1e-3) { s = 1e-3; p = 'm'; }
+        else { s = 1e-6; p = 'µ'; }
+        return (x / s).toFixed(d === undefined ? 2 : d) + ' ' + p + unit;
+    };
 
-    // Minus and plus signs
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 16px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('−', opX - 20, opY - 15);
-    ctx.fillText('+', opX - 20, opY + 22);
+    function update() {
+        const vin = AD.num('vg-vin');
+        const r1 = Math.pow(10, AD.num('vg-r1'));
+        const rf = Math.pow(10, AD.num('vg-rf'));
 
-    // R1 (input resistor)
-    const r1X = opX - 130;
-    ctx.strokeStyle = TEK.ch2;
-    ctx.lineWidth = 3;
-    ctx.strokeRect(r1X, opY - 20 - 8, 60, 16);
-    ctx.fillStyle = TEK.ch2;
-    ctx.font = '12px sans-serif';
-    ctx.fillText('R1', r1X + 30, opY - 20 - 18);
+        AD.setText('vg-vin-val', vin.toFixed(2) + ' V');
+        AD.setText('vg-r1-val', eng(r1, 'Ω', 1));
+        AD.setText('vg-rf-val', eng(rf, 'Ω', 1));
 
-    // Rf (feedback resistor)
-    const rfY = opY - 60;
-    ctx.strokeStyle = TEK.ch1;
-    ctx.strokeRect(opX - 30, rfY - 8, 60, 16);
-    ctx.fillStyle = TEK.ch1;
-    ctx.fillText('Rf', opX, rfY - 18);
+        // The golden rules, applied literally. V- equals V+, which is ground.
+        const vminus = 0;
+        const ir1 = (vin - vminus) / r1;
+        const iin = 0;                       // an ideal op-amp input draws none
+        const irf = ir1 - iin;               // so all of it continues through Rf
+        const vout = vminus - irf * rf;
+        const gain = -rf / r1;
 
-    // Wires
-    ctx.strokeStyle = '#666';
-    ctx.lineWidth = 2;
+        AD.setText('vg-vminus', vminus.toFixed(3) + ' V');
+        AD.setText('vg-ir1', eng(ir1, 'A'));
+        AD.setText('vg-iin', '0 A (ideal)');
+        AD.setText('vg-irf', eng(irf, 'A'));
+        AD.setText('vg-gain', gain.toFixed(2) + '×');
+        AD.setText('vg-vout', vout.toFixed(3) + ' V');
 
-    // Vin to R1
-    ctx.beginPath();
-    ctx.moveTo(r1X - 30, opY - 20);
-    ctx.lineTo(r1X, opY - 20);
-    ctx.stroke();
+        const clipped = Math.abs(vout) > 12;
+        AD.setText('vg-note',
+            'The minus input sits at 0.000 V for every setting on these sliders, and that is ' +
+            'the point: it is held there by the output moving, not by a wire to ground. ' +
+            'With ' + vin.toFixed(2) + ' V across ' + eng(r1, 'Ω', 1) + ', ' + eng(ir1, 'A') +
+            ' flows into the node. The op-amp takes none of it, so all of it continues through ' +
+            'Rf, and the output must sit at ' + vout.toFixed(2) + ' V to pull it. ' +
+            (clipped
+                ? 'Note that ' + vout.toFixed(1) + ' V is beyond what a real op-amp on ±12 V ' +
+                  'rails could produce — past that the output saturates, feedback stops working, ' +
+                  'and the minus input is no longer held at zero. The virtual ground is a ' +
+                  'consequence of feedback, so it fails exactly when feedback does.'
+                : 'Every number here follows from two rules and no algebra about transistors.'));
+    }
 
-    // R1 to virtual ground node
-    ctx.beginPath();
-    ctx.moveTo(r1X + 60, opY - 20);
-    ctx.lineTo(opX - 30, opY - 20);
-    ctx.stroke();
-
-    // Virtual ground node up to Rf
-    ctx.beginPath();
-    ctx.moveTo(opX - 30, opY - 20);
-    ctx.lineTo(opX - 30, rfY);
-    ctx.stroke();
-
-    // Rf to output
-    ctx.beginPath();
-    ctx.moveTo(opX + 30, rfY);
-    ctx.lineTo(opX + 60, rfY);
-    ctx.lineTo(opX + 60, opY);
-    ctx.lineTo(opX + 30, opY);
-    ctx.stroke();
-
-    // + input to ground
-    ctx.beginPath();
-    ctx.moveTo(opX - 30, opY + 20);
-    ctx.lineTo(opX - 50, opY + 20);
-    ctx.lineTo(opX - 50, opY + 50);
-    ctx.stroke();
-
-    // Ground symbol at + input
-    ctx.beginPath();
-    ctx.moveTo(opX - 60, opY + 50);
-    ctx.lineTo(opX - 40, opY + 50);
-    ctx.moveTo(opX - 55, opY + 55);
-    ctx.lineTo(opX - 45, opY + 55);
-    ctx.moveTo(opX - 52, opY + 60);
-    ctx.lineTo(opX - 48, opY + 60);
-    ctx.stroke();
-
-    // Output
-    ctx.beginPath();
-    ctx.moveTo(opX + 30, opY);
-    ctx.lineTo(opX + 90, opY);
-    ctx.stroke();
-
-    // Virtual ground marker (highlighted)
-    ctx.fillStyle = TEK.ch4;
-    ctx.beginPath();
-    ctx.arc(opX - 30, opY - 20, 8, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Labels
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('Vin', r1X - 55, opY - 15);
-    ctx.fillText('Vout', opX + 95, opY + 5);
-
-    // Virtual ground annotation
-    ctx.fillStyle = TEK.ch4;
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('VIRTUAL', opX - 30, opY - 45);
-    ctx.fillText('GROUND', opX - 30, opY - 33);
-    ctx.fillText('(0V)', opX - 30, opY - 5);
-
-    // Current arrows
-    ctx.strokeStyle = TEK.signal;
-    ctx.lineWidth = 2;
-    ctx.fillStyle = TEK.signal;
-
-    // IR1 arrow
-    ctx.beginPath();
-    ctx.moveTo(r1X - 10, opY - 30);
-    ctx.lineTo(r1X + 40, opY - 30);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(r1X + 40, opY - 30);
-    ctx.lineTo(r1X + 35, opY - 35);
-    ctx.lineTo(r1X + 35, opY - 25);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillText('IR1', r1X + 15, opY - 38);
-
-    // IRf arrow
-    ctx.beginPath();
-    ctx.moveTo(opX - 10, rfY - 20);
-    ctx.lineTo(opX + 40, rfY - 20);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(opX + 40, rfY - 20);
-    ctx.lineTo(opX + 35, rfY - 25);
-    ctx.lineTo(opX + 35, rfY - 15);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillText('IRf', opX + 15, rfY - 28);
-
-    // Explanation text
-    ctx.fillStyle = '#aaa';
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('IR1 = Vin/R1  →  flows into virtual ground node', 20, h - 45);
-    ctx.fillText('IRf = IR1     →  same current flows through Rf (Kirchhoff)', 20, h - 28);
-    ctx.fillText('Vout = -IR1×Rf = -Vin×(Rf/R1)  →  GAIN = -Rf/R1', 20, h - 11);
+    ['vg-vin', 'vg-r1', 'vg-rf'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    update();
 })();
 
 // ============================================

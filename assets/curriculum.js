@@ -2873,6 +2873,8 @@ const Router = {
             }
         }
         document.getElementById('breadcrumb').innerHTML = '';
+        // No lesson open, so there is nothing to go on to.
+        this.updateNextFab(null, null);
     },
 
     // Incremented on every lesson load. Deferred work captures the value and
@@ -2935,6 +2937,7 @@ const Router = {
         WidgetFactory.destroyAll();
 
         // Load lesson content
+        this.updateNextFab(module, lesson);
         this.renderLesson(module, lesson);
     },
 
@@ -3161,6 +3164,53 @@ const Router = {
         }
         html += '</div></div>';
         return html;
+    },
+
+    /**
+     * Where "next" goes from here: the next lesson in this module, or the first
+     * lesson of the next module. Returns null at the very end of the course.
+     *
+     * Factored out because two things need it - the nav strip at the foot of a
+     * lesson and the floating arrow - and they must never disagree about what
+     * comes next.
+     */
+    nextFrom(module, lesson) {
+        const i = module.lessons.findIndex(l => l.id === lesson.id);
+        if (i !== -1 && i < module.lessons.length - 1) {
+            const n = module.lessons[i + 1];
+            return { href: `#module-${module.id}/lesson-${n.id}`, title: n.title, sameModule: true };
+        }
+        const mi = CURRICULUM.modules.findIndex(m => m.id === module.id);
+        if (mi !== -1 && mi < CURRICULUM.modules.length - 1) {
+            const nm = CURRICULUM.modules[mi + 1];
+            const first = nm.lessons[0];
+            if (first) {
+                return { href: `#module-${nm.id}/lesson-${first.id}`,
+                         title: first.title, sameModule: false, module: nm.title };
+            }
+        }
+        return null;
+    },
+
+    /**
+     * The floating next-lesson control.
+     *
+     * Reading a lesson end to end and then having to go back to the sidebar to
+     * continue is the wrong shape for a course that is meant to be read in
+     * order. This keeps the next step one thumb away at all times, which
+     * matters most on a phone where the sidebar is behind a hamburger.
+     */
+    updateNextFab(module, lesson) {
+        const fab = document.getElementById('next-lesson-fab');
+        if (!fab) return;
+        const next = module && lesson ? this.nextFrom(module, lesson) : null;
+        if (!next) { fab.hidden = true; return; }
+        fab.hidden = false;
+        fab.href = next.href;
+        fab.querySelector('.fab-title').textContent = next.title;
+        fab.querySelector('.fab-kicker').textContent =
+            next.sameModule ? 'Next lesson' : 'Next: ' + next.module;
+        fab.setAttribute('aria-label', 'Next lesson: ' + next.title);
     },
 
     renderLessonNav(module, lesson) {
