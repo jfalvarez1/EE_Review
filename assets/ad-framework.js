@@ -1030,6 +1030,76 @@ const AD = (() => {
     }
 
     /**
+     * How many cycles of a periodic signal to put on screen at a frequency.
+     *
+     * Widgets with a frequency slider kept getting this wrong in one of two
+     * opposite ways, and both make the slider useless:
+     *
+     *   const periods = 3; dt = periods / (freq * N);
+     *       The window shrinks exactly as fast as the period, so the picture
+     *       is identical at 100 Hz and at 100 kHz. The slider moves, the
+     *       label changes, the waveform does not. In the worst case found
+     *       (a `sin(2*PI*freq*t/freq)`) the frequency cancelled algebraically
+     *       and the trace could not respond even in principle.
+     *
+     *   const totalTime = 2e-6;  // fixed window
+     *       Cycles grow linearly with frequency and nothing stops them. At
+     *       the top of a 100:1 slider that is 200 cycles across 900 px -
+     *       four pixels each, which renders as a solid block, not a wave.
+     *
+     * What a reader expects is the middle: turn the frequency up and more
+     * cycles pack in, the way they do on a scope whose timebase you have not
+     * touched, but stopping before the trace stops being legible. Growth is
+     * logarithmic because these sliders routinely span 100:1 or 1000:1, and
+     * linear growth spends the whole useful range in the first tenth of the
+     * travel.
+     *
+     * The cap is derived from the canvas rather than picked by eye: the thing
+     * that actually decides legibility is pixels per cycle, so that is what
+     * is written down. It stays honest if the canvas is ever resized.
+     *
+     * @param {number} freq   current frequency, any unit
+     * @param {object} opts   fMin/fMax (same unit as freq, from the slider's
+     *                        own min/max), widthPx, minCycles, minPxPerCycle,
+     *                        or an explicit maxCycles to override the cap.
+     * @returns {number} cycles to draw, always an integer >= minCycles
+     */
+    function cyclesForFreq(freq, opts = {}) {
+        const {
+            fMin, fMax,
+            widthPx = 900,
+            minCycles = 2,
+            minPxPerCycle = 60,
+            maxCycles = null
+        } = opts;
+
+        const cap = maxCycles != null
+            ? Math.max(minCycles, maxCycles)
+            : Math.max(minCycles + 1, Math.floor(widthPx / minPxPerCycle));
+
+        // A degenerate or missing range means there is nothing to interpolate
+        // along; show the readable minimum rather than NaN cycles.
+        if (!(fMin > 0) || !(fMax > fMin) || !(freq > 0)) return minCycles;
+
+        const t = clamp(Math.log(freq / fMin) / Math.log(fMax / fMin), 0, 1);
+        return Math.max(minCycles, Math.round(minCycles + (cap - minCycles) * t));
+    }
+
+    /**
+     * The same decision expressed as a time window, for widgets that build
+     * their x-axis in seconds. Returns { cycles, span, dt, atCap }.
+     */
+    function timeWindowFor(freq, N, opts = {}) {
+        const cycles = cyclesForFreq(freq, opts);
+        const cap = opts.maxCycles != null
+            ? opts.maxCycles
+            : Math.max((opts.minCycles || 2) + 1,
+                       Math.floor((opts.widthPx || 900) / (opts.minPxPerCycle || 60)));
+        const span = cycles / freq;
+        return { cycles, span, dt: span / N, atCap: cycles >= cap };
+    }
+
+    /**
      * Plot waveform with automatic scaling - convenience wrapper
      */
     function plotWaveAuto(ctx, w, h, samples, tPerDiv = null, options = {}) {
@@ -1441,6 +1511,8 @@ const AD = (() => {
         plotWaveAuto,
         plotMultiWave,
         plotMultiWaveAuto,
+        cyclesForFreq,
+        timeWindowFor,
         plotBode,
         dftMag,
         plotSpectrum,

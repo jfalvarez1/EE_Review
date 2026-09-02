@@ -174,6 +174,7 @@
         <div class="canvas-wrap">
             <canvas id="oa-canvas" width="980" height="320"></canvas>
         </div>
+        <p class="fig-note" id="oa-note"></p>
 
         <div class="kv">
             <div class="box">
@@ -650,53 +651,111 @@
         plotWaveforms(vinDC, gain, freq, phase);
     }
 
+    // The supply the output can actually swing between. Quoted as ±12 V in the
+    // virtual-ground discussion further up this lesson, so it is ±12 V here
+    // too - the plot used to clip at ±10 V while the prose said 12, which is
+    // the kind of quiet disagreement a reader spends ten minutes on.
+    const RAIL = 12;
+
+    // How many cycles to show at a given frequency. See AD.cyclesForFreq for
+    // why this is neither a constant nor a fixed time window.
+    const cycleOpts = () => ({
+        fMin: parseFloat(freqEl.min) * 1000,
+        fMax: parseFloat(freqEl.max) * 1000,
+        widthPx: canvas.width
+    });
+
     function plotWaveforms(vinPeak, gain, freq, phaseDeg) {
         const w = canvas.width;
         const h = canvas.height;
 
-        AD.drawGrid(ctx, w, h, 10, 8);
+        // Enough samples that even a screen full of cycles stays smooth.
+        const N = 1600;
+        const win = AD.timeWindowFor(freq, N, cycleOpts());
+        const cycles = win.cycles, atCap = win.atCap, dt = win.dt;
 
-        const N = 500;
-        const periods = 3;
-        const dt = periods / (freq * N);
-        const phaseRad = phaseDeg * Math.PI / 180;
-
-        // Generate input
         const vin = AD.genSine({ N, dt, f: freq, amp: Math.abs(vinPeak), off: 0 });
-
-        // Generate output with gain and phase
         const vout = vin.map(v => v * gain);
 
-        // Clip to ±10V rails
-        const voutClipped = vout.map(v => Math.max(-10, Math.min(10, v)));
-        const isClipping = vout.some(v => Math.abs(v) > 10);
+        const voutClipped = vout.map(v => Math.max(-RAIL, Math.min(RAIL, v)));
+        const isClipping = vout.some(v => Math.abs(v) > RAIL);
+        const wanted = Math.abs(vinPeak * gain);
 
-        // Scale
-        const maxV = Math.max(Math.abs(vinPeak), Math.abs(vinPeak * gain), 1) * 1.2;
+        // Keep both rails on screen whenever the output is anywhere near them,
+        // so the flat top is visibly a flat top against a limit and not just a
+        // strangely shaped wave.
+        const maxV = Math.max(Math.abs(vinPeak), Math.min(wanted, RAIL),
+                              isClipping ? RAIL * 1.15 : 1) * 1.2;
         const vPerDiv = maxV / 4;
+        const secPerDiv = cycles / (freq * 10);
 
-        // Plot input (cyan)
-        AD.plotWave(ctx, w, h, vin, vPerDiv, 0, periods / (freq * 10), {
-            color: 'rgba(110, 231, 255, 0.9)',
-            label: 'Vin'
+        // ONE call, both traces. plotWave() redraws the grid on entry, so the
+        // old code's two calls meant the second erased the first and the input
+        // waveform was never actually visible - the legend promised a cyan
+        // Vin that nothing ever drew. plotMultiWave exists for exactly this.
+        // Its own header prints V/div and s/div, so the extra information goes
+        // in `label`, which it renders on the line below instead of on top.
+        AD.plotMultiWave(ctx, w, h, [
+            { samples: vin,         name: 'Vin',  color: 'rgba(110, 231, 255, 0.9)' },
+            { samples: voutClipped, name: 'Vout',
+              color: isClipping ? 'rgba(251, 113, 133, 0.95)' : 'rgba(52, 211, 153, 0.9)' }
+        ], vPerDiv, 0, secPerDiv, {
+            label: `${cycles} cycles${atCap ? ' (max)' : ''}  |  Gain ${gain.toFixed(1)}  |  ` +
+                   `Phase ${phaseDeg}°`
         });
 
-        // Plot output (green or red if clipping)
-        AD.plotWave(ctx, w, h, voutClipped, vPerDiv, 0, periods / (freq * 10), {
-            color: isClipping ? 'rgba(251, 113, 133, 0.9)' : 'rgba(52, 211, 153, 0.9)',
-            label: 'Vout'
-        });
-
-        // Labels
-        ctx.save();
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.font = '12px ui-sans-serif, system-ui, sans-serif';
-        ctx.fillText(`V/div: ${AD.fmtUnit(vPerDiv, 'V')}  |  Gain: ${gain.toFixed(1)}  |  Phase: ${phaseDeg}°`, 10, 18);
-        if (isClipping) {
-            ctx.fillStyle = 'var(--bad)';
-            ctx.fillText('OUTPUT CLIPPING!', w - 150, 18);
+        // The rails, over the top. Drawn last because plotMultiWave clears the
+        // canvas; the shading is faint enough not to tint the traces under it.
+        const yOf = v => h / 2 - (v / (4 * vPerDiv)) * (h / 2 * 0.95);
+        if (RAIL <= 4 * vPerDiv) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(251, 113, 133, 0.07)';
+            ctx.fillRect(0, 0, w, Math.max(0, yOf(RAIL)));
+            ctx.fillRect(0, yOf(-RAIL), w, Math.max(0, h - yOf(-RAIL)));
+            ctx.strokeStyle = 'rgba(251, 113, 133, 0.6)';
+            ctx.setLineDash([6, 4]);
+            ctx.lineWidth = 1;
+            [RAIL, -RAIL].forEach(v => {
+                ctx.beginPath();
+                ctx.moveTo(0, yOf(v)); ctx.lineTo(w, yOf(v)); ctx.stroke();
+            });
+            ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(251, 113, 133, 0.8)';
+            ctx.font = '11px ui-monospace, monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText('+' + RAIL + ' V rail', w - 10, yOf(RAIL) - 5);
+            ctx.fillText('−' + RAIL + ' V rail', w - 10, yOf(-RAIL) + 14);
+            ctx.restore();
         }
-        ctx.restore();
+
+        if (isClipping) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(251, 113, 133, 0.95)';
+            ctx.font = 'bold 12px ui-sans-serif, system-ui, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText('OUTPUT SATURATED', w - 10, 18);
+            ctx.restore();
+        }
+
+        AD.setText('oa-note',
+            (isClipping
+                ? 'The gain asks for ' + wanted.toFixed(1) + ' V peak and the rails stop it at ' +
+                  RAIL + ' V, so the top and bottom are flat. Nothing is broken and nothing is ' +
+                  'overloaded — the output simply cannot go where feedback is telling it to go, ' +
+                  'and while it is stuck there the summing junction is no longer held at zero. ' +
+                  'The virtual ground is a consequence of feedback, so it fails exactly when ' +
+                  'feedback runs out of room. Lower Vin or lower Rf/R1 and it comes back.'
+                : 'The output peaks at ' + wanted.toFixed(2) + ' V, comfortably inside the ±' +
+                  RAIL + ' V rails, so the shape is preserved and the gain means what it says. ' +
+                  'Push Vin or Rf until the trace touches a dashed line to see it stop being ' +
+                  'true.') +
+            ' ' +
+            (atCap
+                ? 'The timebase has stopped following the frequency: ' + cycles + ' cycles is ' +
+                  'as many as this window shows legibly, so beyond here the trace would turn ' +
+                  'into a solid band rather than a waveform.'
+                : 'Raise the frequency and more cycles pack into the same window, the way they ' +
+                  'do on a scope you have not touched the timebase on.'));
     }
 
     // Bind events
