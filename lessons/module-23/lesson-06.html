@@ -152,9 +152,10 @@
                 <tbody>
                     <tr><td class="mono">Vecg+</td><td>Voltage source</td><td>sine 500&nbsp;&micro;V amplitude at 1&nbsp;Hz</td><td>from <span class="mono">inp</span> to ground</td></tr>
                     <tr><td class="mono">Vecg-</td><td>Voltage source</td><td>sine -500&nbsp;&micro;V amplitude at 1&nbsp;Hz</td><td>from <span class="mono">inn</span> to ground</td></tr>
-                    <tr><td class="mono">Vcm</td><td>Voltage source</td><td>sine 1&nbsp;V amplitude at 60&nbsp;Hz</td><td>from <span class="mono">cm</span> to ground</td></tr>
-                    <tr><td class="mono">E_add_p</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">inp_cm</span> to <span class="mono">inp</span>, sensing <span class="mono">cm</span> to <span class="mono">1</span></td></tr>
-                    <tr><td class="mono">E_add_n</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">inn_cm</span> to <span class="mono">inn</span>, sensing <span class="mono">cm</span> to <span class="mono">1</span></td></tr>
+                    <tr><td class="mono">Vcm</td><td>Voltage source</td><td>sine 1&nbsp;V amplitude at 60&nbsp;Hz</td><td>from <span class="mono">cm_src</span> to ground</td></tr>
+                    <tr><td class="mono">Rcouple</td><td>Resistor</td><td>1&nbsp;M&Omega; &mdash; capacitive coupling from the mains</td><td>between <span class="mono">cm_src</span> and <span class="mono">cm</span> <em>(the RLD cannot drive against an ideal source; interference reaches a patient through an impedance and that is what makes it cancellable)</em></td></tr>
+                    <tr><td class="mono">E_add_p</td><td>VCVS</td><td>gain 1</td><td>output <span class="mono">inp_cm</span> to <span class="mono">inp</span>, sensing <span class="mono">cm</span> to ground</td></tr>
+                    <tr><td class="mono">E_add_n</td><td>VCVS</td><td>gain 1</td><td>output <span class="mono">inn_cm</span> to <span class="mono">inn</span>, sensing <span class="mono">cm</span> to ground</td></tr>
                     <tr><td class="mono">Rp</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">inp_cm</span> and <span class="mono">inap</span></td></tr>
                     <tr><td class="mono">Rn</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">inn_cm</span> and <span class="mono">inan</span></td></tr>
                     <tr><td class="mono">X1</td><td>Block (instrumentation amplifier)</td><td><span class="mono">Sub-Circuit</span></td><td>pins <span class="mono">inap</span>, <span class="mono">inan</span>, ground, <span class="mono">out1</span></td></tr>
@@ -163,8 +164,10 @@
                     <tr><td class="mono">Egain</td><td>Controlled source</td><td>100</td><td>output <span class="mono">out2</span> to ground, sensing <span class="mono">hp1</span> to ground</td></tr>
                     <tr><td class="mono">Rlp</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">out2</span> and <span class="mono">out</span></td></tr>
                     <tr><td class="mono">Clp</td><td>Capacitor</td><td>106&nbsp;nF</td><td>between <span class="mono">out</span> and ground</td></tr>
-                    <tr><td class="mono">Erld</td><td>Controlled source</td><td>0 inan 0 0 -0.5 -0.5</td><td>output <span class="mono">rld</span> to ground, sensing <span class="mono">POLY(2)</span> to <span class="mono">inap</span></td></tr>
+                    <tr><td class="mono">Erld1</td><td>VCVS</td><td>gain &minus;0.5</td><td>output <span class="mono">rld_a</span> to ground, sensing <span class="mono">inap</span> to ground</td></tr>
+                    <tr><td class="mono">Erld2</td><td>VCVS</td><td>gain &minus;0.5</td><td>output <span class="mono">rld</span> to <span class="mono">rld_a</span>, sensing <span class="mono">inan</span> to ground <em>(stacked, because one VCVS cannot sum two nodes; together they make &minus;1 &times; the common mode)</em></td></tr>
                     <tr><td class="mono">Rrld_out</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">rld</span> and <span class="mono">rl_electrode</span></td></tr>
+                    <tr><td class="mono">Rbody</td><td>Resistor</td><td>50&nbsp;k&Omega; &mdash; the patient, electrode to electrode</td><td>between <span class="mono">rl_electrode</span> and <span class="mono">cm</span> <em>(this is what closes the RLD loop; without it the drive electrode is not connected to anything)</em></td></tr>
                 </tbody>
             </table>
         </div>
@@ -174,6 +177,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m23l06-ecg"></div>
     </div>
 
     <div class="card">
@@ -437,5 +442,112 @@
     drawSchematic();
     initChecklist();
     initExercises();
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m23l06-ecg', {
+        id: 'm23l06-ecg',
+        title: 'Half a millivolt under a volt of mains',
+        intro: 'This is the hardest measurement in the course: a 500&nbsp;&micro;V signal ' +
+               'sitting under a 60&nbsp;Hz interference two thousand times larger. Check ' +
+               'the interference first, at the electrodes, so you know what the rest of ' +
+               'the chain is up against &mdash; and then check it again after the ' +
+               'right-leg drive, which is the only stage that actually removes it.',
+        probes: [
+            { id: 'cm_raw', label: 'V(cm_src) — the mains interference before anything',
+              expect: '1.000', unit: 'V peak', tol: 0.02,
+              why: 'A volt of 60&nbsp;Hz, capacitively coupled from the room. This is not ' +
+                   'pessimistic: a person standing near mains wiring is a plate of a ' +
+                   'capacitor, and the resulting common-mode voltage on the body is ' +
+                   'routinely volts. <strong>The signal you want is 500&nbsp;&micro;V, so ' +
+                   'the interference is 2000 times bigger</strong> &mdash; 66&nbsp;dB of ' +
+                   'unwanted signal to get rid of before anything else can happen.' },
+            { id: 'cm_driven', label: 'V(cm) — the common mode at the body, with the RLD running',
+              expect: '29', unit: 'mV peak', tol: 4,
+              why: 'The right-leg drive senses the common mode at the two input ' +
+                   'electrodes, inverts it, and pushes it back into the patient through ' +
+                   '60&nbsp;k&Omega;. Against the 1&nbsp;M&Omega; of coupling impedance ' +
+                   'that is a divider of (1/1M)/(1/1M&nbsp;+&nbsp;2/60k) = 0.0291, so ' +
+                   '<strong>1&nbsp;V becomes 29&nbsp;mV: 30.7&nbsp;dB of ' +
+                   'reduction</strong>. Note where it happens &mdash; the interference is ' +
+                   'cancelled <em>at the patient</em>, before the amplifier sees it, which ' +
+                   'is the only place it can be cancelled without also being amplified.' },
+            { id: 'sig', label: 'V(inap, inan) — the differential ECG at the amplifier',
+              expect: '1.000', unit: 'mV peak', tol: 0.05,
+              why: '&plusmn;500&nbsp;&micro;V from the two electrodes is 1&nbsp;mV ' +
+                   'differential, and <strong>the RLD has not touched it</strong>. That is ' +
+                   'the whole trick: the drive is derived from the <em>average</em> of the ' +
+                   'two inputs, so it is blind to their difference by construction. It can ' +
+                   'be turned up hard without ever attenuating the signal.' },
+            { id: 'out', label: 'V(out) — the amplified ECG',
+              expect: '100', unit: 'mV peak', tol: 10,
+              why: '1&nbsp;mV through the instrumentation amplifier and then ' +
+                   '&times;100 in the second stage. Getting a millivolt to a hundred is the ' +
+                   'easy part of this circuit; everything difficult happened before the ' +
+                   'first stage.' },
+            { id: 'hp', label: '−3 dB corner of the high-pass (Chp with Rhp)',
+              expect: '0.05', unit: 'Hz', tol: 0.01,
+              why: '1/(2&pi;&nbsp;&times;&nbsp;1&nbsp;M&Omega;&nbsp;&times;&nbsp;3.2&nbsp;&micro;F) ' +
+                   '= <strong>0.05&nbsp;Hz</strong>, which is the standard diagnostic ECG ' +
+                   'lower limit and not an arbitrary choice. It has to be that low because ' +
+                   'the ST segment is nearly DC and clinicians read its displacement; put ' +
+                   'the corner at 1&nbsp;Hz to settle faster and you distort exactly the ' +
+                   'feature a cardiologist is looking at. The cost is that a 3.2&nbsp;&micro;F ' +
+                   'capacitor charging through 1&nbsp;M&Omega; takes <strong>seconds</strong> ' +
+                   'to recover from an electrode movement, which is why a real ECG has a ' +
+                   'fast-recovery path that shorts it after a saturation.' }
+        ],
+        experiments: [
+            { action: 'Disable the right-leg drive: set both Erld gains to 0.',
+              expect: 'V(cm) returns to the full <strong>1 V</strong>, and V(out) may still ' +
+                      'look fine.',
+              why: 'And that second half is the trap. With ideal amplifiers the ' +
+                   'instrumentation amp rejects the common mode perfectly and the output is ' +
+                   'unchanged, so <strong>the simulation says the RLD is unnecessary</strong>. ' +
+                   'A real INA has finite CMRR &mdash; 90&nbsp;dB is good &mdash; so a volt ' +
+                   'of common mode leaks 32&nbsp;&micro;V into a 1&nbsp;mV signal, 3% ' +
+                   'distortion at exactly 60&nbsp;Hz. Worse, a volt of common mode swings ' +
+                   'the inputs around and can exceed the amplifier\'s input range entirely. ' +
+                   'Swap the ideal INA for a real model and the RLD stops looking optional.' },
+            { action: 'Mismatch the electrodes: make Rp 10 kΩ and Rn 60 kΩ, which is an ' +
+                      'ordinary difference between a fresh gel electrode and a drying one.',
+              expect: '<strong>60 Hz appears in the output</strong>, and the RLD does not ' +
+                      'remove it.',
+              why: 'The common mode now reaches the two amplifier inputs through different ' +
+                   'impedances, so it arrives as a genuine <em>differential</em> signal ' +
+                   '&mdash; and no amount of common-mode rejection removes something that ' +
+                   'is no longer common mode. <strong>Electrode impedance mismatch converts ' +
+                   'interference into signal</strong>, and it is the single most common ' +
+                   'reason a real recording is unusable. This is why the clinical fix for a ' +
+                   'noisy trace is to re-prep the skin rather than to adjust the machine.' },
+            { action: 'Turn the RLD up: make both Erld gains −2 instead of −0.5.',
+              expect: 'Better rejection at first, and then it <strong>oscillates</strong>.',
+              why: 'The right-leg drive is a feedback loop around the patient, and its loop ' +
+                   'gain is what you just multiplied by four. The body and the electrodes ' +
+                   'have capacitance, the amplifier has bandwidth, and at some frequency ' +
+                   'the accumulated phase shift turns the negative feedback positive. ' +
+                   '<strong>An RLD is a stability problem before it is a rejection ' +
+                   'problem</strong>, which is why real designs put a deliberate low-pass ' +
+                   'in the drive path and why the standard limits how much current may be ' +
+                   'delivered into a patient anyway.' },
+            { action: 'Look at the amplitudes at each node in order: cm_src, cm, inap–inan, ' +
+                      'out1, out.',
+              expect: '1 V, 29 mV, 1 mV, then rising.',
+              why: 'Worth doing as a single list because it shows where the work is done. ' +
+                   'The interference falls by 30&nbsp;dB before the first active stage and ' +
+                   'the signal is untouched; everything after that is gain, which amplifies ' +
+                   'both equally and improves nothing. <strong>Signal-to-interference ratio ' +
+                   'is decided entirely at the front end</strong> &mdash; every stage after ' +
+                   'the first can only preserve it or make it worse, and this is the general ' +
+                   'principle behind putting the LNA first in a receiver and the ' +
+                   'preamplifier inside the microphone.' }
+        ]
+    });
 })();
 </script>

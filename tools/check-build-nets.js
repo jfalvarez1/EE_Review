@@ -229,7 +229,11 @@ files.forEach(file => {
             .filter(([n, d]) => d < 2 && !watched.has(n))
             .map(([n]) => n);
 
-        const unknown = [...watched].filter(n => !degree.has(n));
+        // Rails are deliberately kept out of `degree`, so asking whether a
+        // watched node is in it reports every lesson that watches V(vcc) as
+        // watching something it never built. Skip them here for the same
+        // reason they were skipped there.
+        const unknown = [...watched].filter(n => !degree.has(n) && !isRail(n));
 
         if (dangling.length || unknown.length) {
             findings.push({ rel, dangling, unknown, rows: rows.length });
