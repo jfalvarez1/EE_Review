@@ -174,7 +174,7 @@
                     <tr><td class="mono">RINT</td><td>Resistor</td><td>100&nbsp;k&Omega;</td><td>between <span class="mono">error</span> and <span class="mono">integ</span></td></tr>
                     <tr><td class="mono">CINT</td><td>Capacitor</td><td>1&nbsp;&micro;F</td><td>between <span class="mono">integ</span> and ground</td></tr>
                     <tr><td class="mono">EBUF</td><td>Controlled source</td><td>1</td><td>output <span class="mono">ctrl</span> to ground, sensing <span class="mono">integ</span> to ground</td></tr>
-                    <tr><td class="mono">EDAC</td><td>Controlled source</td><td>=</td><td>output <span class="mono">dac_out</span> to ground, sensing <span class="mono">TABLE</span> to <span class="mono">{V(ctrl)}</span></td></tr>
+                    <tr><td class="mono">EDAC</td><td>VCVS</td><td>gain 1 &mdash; an ideal DAC, for now</td><td>output <span class="mono">dac_out</span> to ground, sensing <span class="mono">ctrl</span> to ground</td></tr>
                     <tr><td class="mono">RMOTOR</td><td>Resistor</td><td>100&nbsp;&Omega;</td><td>between <span class="mono">dac_out</span> and <span class="mono">position</span></td></tr>
                     <tr><td class="mono">CMOTOR</td><td>Capacitor</td><td>100&nbsp;&micro;F</td><td>between <span class="mono">position</span> and ground</td></tr>
                     <tr><td class="mono">ESENS</td><td>Controlled source</td><td>1</td><td>output <span class="mono">feedback</span> to ground, sensing <span class="mono">position</span> to ground</td></tr>
@@ -182,12 +182,14 @@
             </table>
         </div>
 
-        <p><strong>What to run:</strong> a <strong>transient run</strong> of 100&nbsp;ms in steps of 1&nbsp;&micro;s.</p>
+        <p><strong>What to run:</strong> a <strong>transient run</strong> of 1&nbsp;s in steps of 100&nbsp;&micro;s. The loop's dominant time constant is R<sub>INT</sub>C<sub>INT</sub> = 0.1&nbsp;s, so a 100&nbsp;ms run stops at 63% of the way there and looks like a failure to settle.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(setpoint)</span>, <span class="mono">V(position)</span>, <span class="mono">V(ctrl)</span>, <span class="mono">V(dac_out)</span>.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m17l18-servo"></div>
     </div>
 
     <div class="card">
@@ -768,6 +770,112 @@
         unit: '%',
         solution: 'Samples per code = 100,000/256 = 390.6. Uncertainty = 1/√390.6 = 0.051 = 5.1%',
         explanation: 'With 390 samples per code on average, the statistical uncertainty is about 5%. This means a measured DNL of -0.5 LSB could actually be anywhere from -0.47 to -0.53 LSB. For better confidence, use more samples. Sources: Analog Devices Data Conversion Handbook'
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m17l18-servo', {
+        id: 'm17l18-servo',
+        title: 'The loop hides the DAC until it cannot',
+        intro: 'This loop is worth measuring twice: once with the DAC ideal, and once ' +
+               'after you have broken it. The first set of numbers establishes what the ' +
+               'loop does; the second shows which of them a bad converter changes and ' +
+               'which it does not touch &mdash; and that distinction is the whole subject ' +
+               'of the lesson.',
+        probes: [
+            { id: 'final', label: 'V(position) at the end of the run',
+              expect: '2.500', unit: 'V', tol: 0.01,
+              why: 'Exactly the setpoint, and this is the first thing to be clear about: ' +
+                   '<strong>the integrator forces it there regardless of the DAC\'s ' +
+                   'gain</strong>. As long as any error remains, the integrator keeps ' +
+                   'moving; it only stops when the error is zero. Halve EDAC\'s gain and ' +
+                   'this number does not move at all. That is what makes the next few ' +
+                   'probes the interesting ones.' },
+            { id: 'err', label: 'V(error) at the end of the run',
+              expect: '0.000', unit: 'V', tol: 0.005,
+              why: 'The same statement from the other side. A finite output from a zero ' +
+                   'input is what an integrator is for, and it is why this loop has no ' +
+                   'steady-state error while a proportional-only loop would have one ' +
+                   'proportional to 1/(1 + loop gain).' },
+            { id: 'ctrl', label: 'V(ctrl) at the end of the run',
+              expect: '2.500', unit: 'V', tol: 0.01,
+              why: 'With a DAC gain of 1 and a plant that has no DC loss, the control ' +
+                   'signal has to equal the output. Worth recording rather than skipping: ' +
+                   '<strong>when you halve the DAC gain later, this is the number that ' +
+                   'doubles</strong> while V(position) stays put. The loop absorbs the ' +
+                   'change by moving its own internal state, which is exactly why a bad ' +
+                   'converter inside a loop is so hard to notice.' },
+            { id: 'tau', label: 'Time for V(position) to reach 63% of 2.5 V (1.575 V)',
+              expect: '0.1', unit: 's', tol: 0.02,
+              why: 'R<sub>INT</sub>C<sub>INT</sub> = 100&nbsp;k&nbsp;&times;&nbsp;1&nbsp;&micro;F ' +
+                   '= 0.1&nbsp;s. The plant\'s own 10&nbsp;ms is ten times faster and barely ' +
+                   'shows. <strong>The slow element sets the response and the fast one ' +
+                   'mostly sets the phase margin</strong> &mdash; which is the usual ' +
+                   'arrangement, and the reason it is safe to design a loop around its ' +
+                   'dominant pole and check the others afterwards.' },
+            { id: 'pm', label: 'Overshoot on V(position)',
+              expect: '0', unit: '%', tol: 2,
+              why: 'None, or almost none. Crossover is at 1/(R<sub>INT</sub>C<sub>INT</sub>) ' +
+                   '= 10&nbsp;rad/s, where the plant\'s 10&nbsp;ms pole contributes ' +
+                   'arctan(0.1) = 5.7&deg;, so the phase margin is <strong>84&deg;</strong> ' +
+                   '&mdash; almost the 90&deg; of a pure integrator. If you see ringing, the ' +
+                   'plant pole has moved in near crossover and the two are no longer ' +
+                   'separated.' }
+        ],
+        experiments: [
+            { action: 'Halve EDAC\'s gain from 1 to 0.5.',
+              expect: 'V(position) still settles at <strong>exactly 2.500 V</strong>. Only ' +
+                      'V(ctrl) changes, to 5 V, and the loop gets <strong>twice as ' +
+                      'slow</strong>.',
+              why: 'Both halves of this matter. Accuracy is unaffected, because the ' +
+                   'integrator will produce whatever control signal the error demands. ' +
+                   'Speed is halved, because DAC gain is loop gain and crossover moves down ' +
+                   'with it. <strong>A converter error inside a feedback loop shows up as a ' +
+                   'bandwidth change, not an accuracy change</strong> &mdash; which is why ' +
+                   'it gets diagnosed as a tuning problem, and why the same DAC used ' +
+                   'open-loop would have been obviously wrong.' },
+            { action: 'Make the DAC non-monotonic: give EDAC a gain of −0.2 instead of 1.',
+              expect: 'The loop <strong>runs away</strong> — V(position) heads for a rail ' +
+                      'and stays there.',
+              why: 'This is the failure the lesson exists for, and it is worth watching ' +
+                   'once. A negative slope anywhere in the forward path turns negative ' +
+                   'feedback into positive feedback. The integrator, seeing an error, moves ' +
+                   'in the direction that <em>should</em> reduce it, the DAC moves the ' +
+                   'output the other way, the error grows, and the integrator pushes ' +
+                   'harder. <strong>Non-monotonicity is not an accuracy specification, it ' +
+                   'is a stability one</strong>: a DAC that is 1% inaccurate is usable ' +
+                   'inside a loop and a DAC that reverses over one code is not, however ' +
+                   'small that reversal is. This is why converter datasheets guarantee ' +
+                   'monotonicity separately, and often to more bits than they guarantee ' +
+                   'accuracy.' },
+            { action: 'Add a 1 mV offset: put a small source in series with ESENS\'s output ' +
+                      'so the feedback reads 1 mV high.',
+              expect: 'V(position) settles at <strong>2.499 V</strong> — off by exactly the ' +
+                      'offset.',
+              why: 'Follow where the error went. The integrator drives the error at its own ' +
+                   'input to zero, and it has no way of knowing that input is already ' +
+                   'wrong. <strong>Feedback rejects everything inside the loop and nothing ' +
+                   'in the sensor</strong>, so the measurement path\'s offset, gain error ' +
+                   'and drift pass straight through to the output at full size. That is why ' +
+                   'the expensive component in a precision servo is the sensor and its ' +
+                   'amplifier, never the driver.' },
+            { action: 'Speed up the integrator: make RINT 10 kΩ instead of 100 kΩ.',
+              expect: 'Ten times faster, and now <strong>visible overshoot</strong>.',
+              why: 'Crossover moves to 100&nbsp;rad/s, where the plant\'s 10&nbsp;ms pole is ' +
+                   'no longer negligible: arctan(100&nbsp;&times;&nbsp;0.01) = 45&deg;, so ' +
+                   'the phase margin falls from 84&deg; to <strong>45&deg;</strong> and the ' +
+                   'step response starts to ring. Take RINT to 1&nbsp;k and crossover lands ' +
+                   'at 1000&nbsp;rad/s, ten times past the plant pole, with about 6&deg; of ' +
+                   'margin left. <strong>You cannot design a loop faster than the thing it ' +
+                   'is controlling</strong>, and the plant pole is where the budget runs ' +
+                   'out.' }
+        ]
     });
 })();
 </script>
