@@ -343,8 +343,82 @@
     </div>
 
     <!-- ================================================================= -->
+    <!-- ================================================================= -->
+    <div class="acceptance">
+        <h3>6. Acceptance tests &mdash; does the design hold up?</h3>
+        <p>The calculation closing is not the same as the design working. Below is
+        what this circuit must survive, with a pass criterion for each. The
+        <strong>abuse</strong> rows are the ones worth dwelling on: the pass
+        criterion there is not "works" but "fails in a way you chose".</p>
+
+        <h4>Performance</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Test</th><th>Condition</th><th>Pass criterion</th><th>If it fails</th></tr></thead>
+                <tbody>
+                    <tr><td>Discharge time</td><td>Nominal C, room temperature, no load</td>
+                        <td>&lt; 0.2 V within 50 ms of EN falling</td>
+                        <td>R too large, or the FET is not fully on &mdash; check \(V_{GS}\)</td></tr>
+                    <tr><td>Worst-case discharge</td><td>C at +80%, board at maximum ambient</td>
+                        <td>Still &lt; 0.2 V within 50 ms</td>
+                        <td>Designed at nominal. Size R from \(C_{max}\), not from the printed value.</td></tr>
+                    <tr><td>No leakage when idle</td><td>EN high, rail at 1.2 V, steady state</td>
+                        <td>Current into the discharge path &lt; 50 &micro;A</td>
+                        <td>Q1 is not holding the gate down, or R2 is too small</td></tr>
+                    <tr><td>Clean restart</td><td>Power off then immediately on, 100 cycles</td>
+                        <td>The downstream converter starts every time, no pre-bias</td>
+                        <td>The reason this circuit exists. If this fails nothing else matters.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Abuse</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What is done to it</th><th>What physically happens</th><th>Acceptable outcome</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>10 V applied to a rail designed for 1.2 V</strong></td>
+                        <td>The discharge resistor is the first thing to find out. \(P = V^2/R = 100/12 = \mathbf{8.3\ W}\) in a part sized for a 1.6 mJ pulse &mdash; typically an 0603 rated at 0.1 W. That is <strong>83 times its rating</strong>. And if the FET is on, its \(R_{DS(on)}\) carries 833 mA.</td>
+                        <td><strong>The 0603 resistor opens within a second or two</strong>, usually with a visible mark, and in doing so it disconnects the discharge path &mdash; which is a benign failure, because the circuit's job is only needed at shutdown. Design it that way deliberately: a small resistor is a fuse you did not have to buy. What is <em>not</em> acceptable is the resistor surviving while the FET fails short, which puts a permanent 12 &Omega; across the rail.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>EN and the rail fail together</strong> (a shared upstream supply dies)</td>
+                        <td>R2 pulls M1's gate up from the rail being discharged. As the rail falls, so does \(V_{GS}\), and below \(V_{th}\) the FET turns off with charge still on the capacitor.</td>
+                        <td>The rail stalls at roughly \(V_{th}\) &mdash; 1 to 2 V &mdash; and stays there. <strong>This is a design failure, not a component failure</strong>, and it is why the gate drive must come from a rail that outlives this one. If it cannot, write the specification against \(V_{th}\) rather than against zero.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>EN left floating</strong> (unpopulated connector, broken track)</td>
+                        <td>Q1's base floats. Leakage and noise decide whether it conducts, so the discharge FET may be on, off, or somewhere in between &mdash; the last being the dangerous one, since a partly-on FET is a resistor dissipating continuously.</td>
+                        <td>A pull-up on Q1's base to the EN rail makes the default state "discharge off". <strong>Never leave a gate or a base to decide for itself</strong>; a floating input is a coin toss made at the factory.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Rail shorted to ground</strong> while EN is alive</td>
+                        <td>Nothing, from this circuit's point of view. The FET is held off and the resistor sees no voltage.</td>
+                        <td>No action. Worth confirming so that the discharge circuit is eliminated as a suspect when someone is debugging a shorted rail.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Repeated fast power cycling</strong>, 10 Hz for an hour</td>
+                        <td>The resistor absorbs \(\frac12CV_0^2\) = 1.6 mJ per cycle, so 16 mW average. Trivial here. On the 400 V bus of worked example B it would be <strong>37.6 J &times; 10 = 376 W average</strong>, which no discharge resistor survives.</td>
+                        <td>At low voltage, no action. At high voltage, the repetition rate is a specification and the resistor must be rated for average power as well as single-pulse energy. This is the case people forget, because a discharge resistor is instinctively treated as a one-shot part.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="ac-consequence">
+            <strong>The overvoltage row is the general lesson.</strong> Ask of every
+            component: <em>what does it do when the input is three times what it
+            should be?</em> The good answer is that something cheap and identifiable
+            fails first, in a way that leaves the rest safe. The bad answer is that
+            everything survives except one expensive part, or that nothing fails but
+            everything degrades. Choosing which part is the weakest is a design
+            decision, and if you do not make it, the layout makes it for you.
+        </div>
+    </div>
+
     <div class="card">
-        <h3>6. Proving it on the bench</h3>
+        <h3>7. Proving it on the bench</h3>
         <ol class="lab-steps">
             <li class="lab-step">Scope on the rail, DC coupled, trigger on the
                 falling edge with a threshold just below \(V_0\). Single shot.</li>
