@@ -1445,6 +1445,12 @@ const CURRICULUM = {
                     title: 'Interview Prep — Power Supply Design',
                     description: 'The whole module as it gets asked on a whiteboard',
                     topics: ['Find the discontinuous loop', 'Transient sizes the output cap', 'Probe grounds lie', 'Why it fails only in the product']
+                },
+                {
+                    id: 12,
+                    title: 'Design: Discharging a Rail to a Deadline',
+                    description: 'A spec with a number in it, taken end to end to real parts',
+                    topics: ['R = t/(C·ln(V0/Vf))', 'Energy has no R in it', 'Gate drive from a rail that outlives it', 'Cmax and hot is the corner']
                 }
             ]
         },

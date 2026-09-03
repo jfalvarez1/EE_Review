@@ -1,0 +1,662 @@
+<!-- Module 14, Lesson 12: Design — Discharging a Rail to a Deadline -->
+<div class="lesson-content" data-module="14" data-lesson="12">
+
+    <div class="card">
+        <h2>Design: Discharging a Rail to a Deadline</h2>
+        <p>Somebody hands you a requirement: <em>this rail must be below X volts
+        within Y milliseconds of shutdown.</em> That is a complete specification and
+        it has a closed-form answer, which makes it a good first design to do
+        end to end &mdash; brief, equation, numbers, real parts, corners, and a way
+        to prove it on the bench.</p>
+
+        <div class="notice">
+            <strong>Why anyone asks for this.</strong> Three reasons, and they push
+            the design in different directions.
+            <ul style="margin-top:8px">
+                <li><strong>Clean restart.</strong> A synchronous buck starting into
+                a rail that still has charge on it will <em>sink</em> current to pull
+                it down to its soft-start ramp. That reverse current has nowhere good
+                to go and can damage the low-side FET. Sequencers and PMICs
+                therefore require rails to be at zero before the next start.</li>
+                <li><strong>Safety.</strong> Standards such as IEC 61010 require
+                accessible parts to fall below 60 V within a set time after
+                disconnection &mdash; typically 5 seconds. On a 400 V bus this is
+                the requirement that sizes the circuit.</li>
+                <li><strong>Service.</strong> An engineer opening the enclosure
+                should not find a charged bulk capacitor. This is the same
+                requirement as safety but with a longer allowance.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>1. The one equation, and what it does not tell you</h3>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ V(t) = V_0\,e^{-t/RC} \]
+                <span class="drv-why">A capacitor discharging into a resistor. No
+                approximation, no small-signal assumption.</span>
+            </div>
+            <div class="drv-step">
+                \[ t = RC\ln\!\frac{V_0}{V_f} \;\Longrightarrow\; \boxed{R = \frac{t}{C\,\ln(V_0/V_f)}} \]
+                <span class="drv-why">Rearranged for the thing you are choosing.
+                Everything else in the brief is given.</span>
+            </div>
+            <div class="drv-step">
+                \[ E = \tfrac{1}{2}CV_0^2 \]
+                <span class="drv-why">And this is the number the equation above
+                hides. It does NOT depend on R. Whatever resistor you pick, the same
+                joules end up in it — R only decides how fast.</span>
+            </div>
+        </div>
+
+        <div class="analogy">
+            <span class="analogy-label">A way to hold this</span>
+            <p>A capacitor discharging through a resistor is a bucket of water
+            draining through a hole. The <strong>hole size is R</strong> and the
+            <strong>bucket size is C</strong>. Two things follow immediately and
+            they are the two things people get backwards.</p>
+            <p>First, the water drains <em>fastest at the start</em>, when the depth
+            is greatest, and the last inch takes forever — which is why the answer is
+            an exponential rather than a straight line, and why "how long to reach
+            zero" has no answer while "how long to reach a tenth" has a clean one.
+            That is the whole reason a specification must name a <em>target
+            voltage</em> and not just a time.</p>
+            <p>Second, and this is the useful part: <strong>the amount of water is
+            fixed by the bucket, not by the hole.</strong> Drill a bigger hole and it
+            empties sooner, but exactly the same volume comes out. That is
+            \(E=\frac12CV_0^2\) with no R in it, and it is why the resistor is chosen
+            for the energy it must swallow separately from the value that sets the
+            time.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> water
+            drains at a rate set by \(\sqrt{\text{depth}}\), not by depth, so a real
+            bucket does not empty exponentially. The analogy is right about what
+            depends on what and wrong about the shape of the curve — take the
+            reasoning from it and the exponential from the algebra.</div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">The two ways this design fails</span>
+            <p>A resistor permanently across a rail dissipates \(V_0^2/R\)
+            <em>forever</em>, not just during shutdown. On a low-voltage rail that
+            is a rounding error; on a high-voltage bus it is a heater. That is the
+            first failure, and it is the one that decides between a passive bleeder
+            and a switched one.</p>
+            <p>The second is that the resistor has to absorb \(\frac12CV_0^2\) in a
+            single pulse lasting a few time constants. A part rated for 1 W
+            continuous is not automatically able to take 40 joules in five seconds,
+            and thick-film resistors fail by cracking rather than by getting warm.
+            Check the manufacturer's single-pulse curve, not the power rating.</p>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. Worked example A &mdash; a core rail that must reach zero</h3>
+
+        <div class="kv">
+            <div class="box"><div class="k">Rail</div><div class="v mono">1.2 V core</div></div>
+            <div class="box"><div class="k">Bulk capacitance</div><div class="v mono">2200 µF</div></div>
+            <div class="box"><div class="k">Must reach</div><div class="v mono">&lt; 0.2 V</div></div>
+            <div class="box"><div class="k">Within</div><div class="v mono">50 ms of shutdown</div></div>
+        </div>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \ln\frac{V_0}{V_f} = \ln\frac{1.2}{0.2} = \ln 6 = 1.792 \]
+            </div>
+            <div class="drv-step">
+                \[ RC_{req} = \frac{50\,\mathrm{ms}}{1.792} = 27.9\,\mathrm{ms} \]
+            </div>
+            <div class="drv-step">
+                \[ R = \frac{27.9\times10^{-3}}{2200\times10^{-6}} = 12.7\,\Omega \;\rightarrow\; \textbf{12 }\Omega \text{ (E24, rounded DOWN)} \]
+                <span class="drv-why">Down, not to nearest. A smaller resistor
+                discharges faster, so rounding down keeps you inside the deadline
+                instead of outside it.</span>
+            </div>
+            <div class="drv-step">
+                \[ \tau = 12 \times 2200\mu = 26.4\,\mathrm{ms}, \quad t_{actual} = 26.4 \times 1.792 = 47.3\,\mathrm{ms} \quad\checkmark \]
+            </div>
+            <div class="drv-step">
+                \[ I_{peak} = \frac{1.2}{12} = 100\,\mathrm{mA}, \qquad E = \tfrac12(2200\mu)(1.2)^2 = 1.58\,\mathrm{mJ} \]
+                <span class="drv-why">Both trivial. A 0603 resistor and a small
+                logic-level FET cover this without thinking.</span>
+            </div>
+            <div class="drv-step">
+                \[ P_{standing} \text{ if left permanently connected} = \frac{1.2^2}{12} = 120\,\mathrm{mW} \]
+                <span class="drv-why">Which is real but survivable — so on THIS
+                rail a passive bleeder is a defensible choice, and the switch is
+                about not loading the regulator rather than about heat.</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>3. Worked example B &mdash; the same equation, a different answer</h3>
+
+        <div class="kv">
+            <div class="box"><div class="k">Bus</div><div class="v mono">400 V DC</div></div>
+            <div class="box"><div class="k">Bulk capacitance</div><div class="v mono">470 µF</div></div>
+            <div class="box"><div class="k">Must reach</div><div class="v mono">&lt; 60 V (safety)</div></div>
+            <div class="box"><div class="k">Within</div><div class="v mono">5 s</div></div>
+        </div>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ RC_{req} = \frac{5}{\ln(400/60)} = \frac{5}{1.897} = 2.64\,\mathrm{s} \;\Rightarrow\; R = 5.6\,\mathrm{k}\Omega \]
+            </div>
+            <div class="drv-step">
+                \[ P_{standing} = \frac{400^2}{5600} = 28.6\,\mathrm{W} \]
+                <span class="drv-why">Continuously, for the entire life of the
+                product, to solve a problem that occurs at shutdown. That is the
+                whole argument for switching it.</span>
+            </div>
+            <div class="drv-step">
+                \[ E = \tfrac12(470\mu)(400)^2 = 37.6\,\mathrm{J} \]
+                <span class="drv-why">Into one resistor, in about five seconds.
+                That is a genuine pulse-rating problem and it needs a wirewound or a
+                purpose-made pulse-withstanding part.</span>
+            </div>
+            <div class="drv-step">
+                \[ I_{peak} = \frac{400}{5600} = 71\,\mathrm{mA}, \qquad P_{initial} = 400 \times 0.071 = 28.6\,\mathrm{W} \]
+                <span class="drv-why">Peak power equals the standing power figure,
+                because at \(t=0\) the switched circuit is momentarily identical to
+                the passive one.</span>
+            </div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">Same equation, opposite conclusion</span>
+            <p>On the 1.2 V rail the constraint was <em>time</em> and the energy was
+            nothing. On the 400 V bus the time constraint is easy and the constraints
+            are <em>standing power</em> and <em>pulse energy</em>. Recognising which
+            of the three binds is most of the design work, and it is why the
+            calculator below reports all three rather than just the resistor.</p>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Design calculator</h3>
+        <p>Put your own specification in. The resistor is snapped to the nearest E24
+        value <em>below</em> the ideal, and the verdict is against the number that
+        actually binds.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="dis-v0">Rail voltage \(V_0\)</label>
+                <input type="range" id="dis-v0" min="0" max="2.65" step="0.01" value="0.079">
+                <span class="range-value" id="dis-v0-val">1.2 V</span>
+            </div>
+            <div class="c4">
+                <label for="dis-c">Bulk capacitance</label>
+                <input type="range" id="dis-c" min="0" max="4" step="0.01" value="3.342">
+                <span class="range-value" id="dis-c-val">2200 µF</span>
+            </div>
+            <div class="c4">
+                <label for="dis-vf">Target, as a fraction of \(V_0\)</label>
+                <input type="range" id="dis-vf" min="1" max="50" step="0.5" value="16.7">
+                <span class="range-value" id="dis-vf-val">16.7 %</span>
+            </div>
+            <div class="c4">
+                <label for="dis-t">Deadline</label>
+                <input type="range" id="dis-t" min="-3" max="1" step="0.02" value="-1.301">
+                <span class="range-value" id="dis-t-val">50 ms</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="dis-canvas" width="900" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Ideal R</div><div class="v mono" id="dis-rideal">&mdash;</div></div>
+            <div class="box"><div class="k">Chosen R (E24)</div><div class="v mono" id="dis-r">&mdash;</div></div>
+            <div class="box"><div class="k">Time to target</div><div class="v mono" id="dis-tact">&mdash;</div></div>
+            <div class="box"><div class="k">Peak current</div><div class="v mono" id="dis-ipk">&mdash;</div></div>
+            <div class="box"><div class="k">Pulse energy</div><div class="v mono" id="dis-energy">&mdash;</div></div>
+            <div class="box"><div class="k">Standing power if passive</div><div class="v mono" id="dis-pstand">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="dis-note"></p>
+
+        <div class="checkpoint" data-kind="predict" data-answer="c">
+            <p class="cp-q">Halve the resistor. What happens to the energy the
+            resistor has to absorb?</p>
+            <ol class="cp-options">
+                <li data-k="a">It doubles, because the peak current doubles
+                    <div class="cp-why">The peak current does double, and the peak
+                    <em>power</em> does too — but only for half as long. Power is not
+                    energy.</div></li>
+                <li data-k="b">It halves, because the discharge is over sooner
+                    <div class="cp-why">The discharge is indeed twice as fast, but
+                    the charge that has to leave the capacitor has not
+                    changed.</div></li>
+                <li data-k="c">It does not change
+                    <div class="cp-why">Right. \(E = \frac12CV_0^2\) contains no
+                    R at all. Every joule that was stored in the capacitor ends up in
+                    the resistor whatever its value; R only sets how long that takes
+                    and therefore the peak power. This is why a discharge resistor is
+                    selected on <strong>pulse energy</strong> and not on power
+                    rating.</div></li>
+                <li data-k="d">It depends on the capacitor's ESR
+                    <div class="cp-why">ESR shares a little of the dissipation, but
+                    it is milliohms against ohms or kilohms here — under a percent.
+                    The stored energy is still fixed by C and \(V_0\).</div></li>
+            </ol>
+            <div class="cp-then">
+                <p>So the resistor choice is two independent questions: what value
+                meets the deadline, and what construction survives
+                \(\frac12CV_0^2\) delivered in a few time constants.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. Switching it: the circuit, and the part everyone gets wrong</h3>
+
+        <div id="dis-diagram"></div>
+        <p class="fig-note">The discharge FET is off whenever the gate is held low.
+        Q1 does that, and Q1's base is driven from a rail that is still alive. When
+        that rail collapses, R2 pulls M1's gate up and the discharge starts.</p>
+
+        <div class="notice">
+            <strong>Where does the gate drive come from?</strong> This is the
+            question that decides whether the circuit works, and it is not obvious,
+            because the thing you are discharging is by definition the thing that is
+            dying.
+            <ul style="margin-top:8px">
+                <li><strong>From a rail that outlives it.</strong> The clean answer
+                in a sequenced system. The shutdown order is the reverse of the
+                start-up order, so when the 1.2 V core is being discharged the 3.3 V
+                rail is still up — and 3.3 V comfortably enhances a logic-level FET
+                whose threshold is around 1 V.</li>
+                <li><strong>From the rail itself, through a pull-up.</strong> Simple
+                and self-powered, and it stops working at \(V_{GS} = V_{th}\). A
+                12 V rail discharged this way stalls somewhere around 2 V and stays
+                there, which fails a specification written as "below 1 V". If you use
+                this, write the spec against \(V_{th}\), not against zero.</li>
+                <li><strong>From a held-up local supply.</strong> A small capacitor
+                and a diode charge from the rail during normal operation and keep a
+                gate driver alive through the discharge. This is what high-voltage
+                drives do, because a 400 V bus has no friendly neighbour rail.</li>
+            </ul>
+        </div>
+
+        <h4>Sizing the FET</h4>
+        <div class="derivation">
+            <div class="drv-step">
+                \[ R_{DS(on)} \ll R \]
+                <span class="drv-why">The FET is a switch, not the resistor. If
+                \(R_{DS(on)}\) is a meaningful fraction of R, the discharge time
+                depends on the FET's temperature — which is not a design, it is a
+                coincidence.</span>
+            </div>
+            <div class="drv-step">
+                \[ V_{DS(max)} > V_0 \text{ with margin}, \qquad I_D > \frac{V_0}{R} \]
+            </div>
+            <div class="drv-step">
+                \[ \text{Check } R_{DS(on)} \text{ at the ACTUAL } V_{GS} \]
+                <span class="drv-why">Datasheets headline \(R_{DS(on)}\) at
+                \(V_{GS}=10\,\mathrm{V}\). At 3.3 V it can be two or three times
+                higher, and on a non-logic-level part the FET may not turn on at
+                all.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>5. The corners</h3>
+        <p>A design is not finished at the nominal calculation. Four things move,
+        and they do not all move the same way.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What varies</th><th>By how much</th><th>Effect on discharge time</th><th>What to do</th></tr></thead>
+                <tbody>
+                    <tr><td>Capacitance</td><td>Electrolytic &minus;20/+80%; ceramic loses 50&ndash;80% to DC bias</td>
+                        <td>Directly proportional. The high tolerance corner is the one that misses the deadline.</td>
+                        <td>Design against \(C_{max}\), and use the DC-bias-derated value for ceramics rather than the printed one.</td></tr>
+                    <tr><td>Resistor</td><td>&plusmn;1% typical, &plusmn;5% for pulse-rated parts</td>
+                        <td>Directly proportional. Small compared with the capacitor.</td>
+                        <td>Rounding down to E24 usually swamps this.</td></tr>
+                    <tr><td>Temperature</td><td>Electrolytic capacitance rises at high temperature, falls sharply below 0 &deg;C</td>
+                        <td>Slower when hot, faster when cold. The hot corner is worst.</td>
+                        <td>Check at maximum ambient with maximum capacitance together — the corners correlate.</td></tr>
+                    <tr><td>Load still attached</td><td>Anything from nothing to most of the discharge</td>
+                        <td>Helps, and you must not rely on it.</td>
+                        <td>Design for no load. A downstream device in reset may draw almost nothing.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="notice">
+            <strong>The worst case is not the nominal times a margin.</strong> With
+            \(C\) at +80% and hot, a 47 ms nominal discharge becomes 85 ms and misses
+            a 50 ms deadline outright. Put \(C_{max}\) into the calculator above and
+            size the resistor from <em>that</em>, then confirm the peak current at
+            \(C_{min}\) is still acceptable. Designing at nominal and adding 20% is
+            how these fail in production.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>6. Proving it on the bench</h3>
+        <ol class="lab-steps">
+            <li class="lab-step">Scope on the rail, DC coupled, trigger on the
+                falling edge with a threshold just below \(V_0\). Single shot.</li>
+            <li class="lab-step">Cut power at the input, not at the load. You are
+                testing the shutdown path, and pulling the load changes the
+                discharge.</li>
+            <li class="lab-step">Measure the time from the trigger to the target
+                voltage, with cursors. Compare against the calculator.</li>
+            <li class="lab-step">Repeat with the board at maximum operating
+                temperature and, if you can, with a high-tolerance capacitor lot.
+                This is the corner that fails.</li>
+            <li class="lab-step">Check the resistor with a thermal camera or a
+                fingertip a second after discharge. A part that is noticeably hot
+                after one event is being asked for more pulse energy than it wants.</li>
+            <li class="lab-step">Finally, cycle power rapidly — off and immediately
+                on — and confirm the downstream converter starts cleanly every time.
+                That is the requirement the whole circuit exists to satisfy, and it
+                is the only test that checks it directly.</li>
+        </ol>
+    </div>
+
+    <div class="card">
+        <h3>Build it in Circuit Toy</h3>
+        <p>The calculator above has the physics written into it, which is exactly
+        what you want while choosing a value and exactly what you should not trust
+        as proof. Put it in front of a real solver in
+        <a href="https://github.com/jfalvarez1/circuit_toy" target="_blank" rel="noopener">Circuit Toy</a>.
+        Node names are labels &mdash; anything sharing a name is one wire.</p>
+
+        <p><strong>Passive bleeder, to see the exponential</strong></p>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">C1</td><td>Capacitor</td><td>2200&nbsp;&micro;F, initial condition 1.2&nbsp;V</td><td>between <span class="mono">rail</span> and ground</td></tr>
+                    <tr><td class="mono">R1</td><td>Resistor</td><td>12&nbsp;&Omega;</td><td>between <span class="mono">rail</span> and ground</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p><strong>What to run:</strong> a transient of 100&nbsp;ms in 100&nbsp;&micro;s
+        steps, with no source at all &mdash; the capacitor's initial condition is the
+        whole stimulus. <strong>What to watch:</strong>
+        <span class="mono">V(rail)</span>. Put a cursor at 0.2&nbsp;V and check it
+        against the 47.3&nbsp;ms the calculator predicted.</p>
+
+        <p><strong>Switched version, to see the gate drive matter</strong></p>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">C1</td><td>Capacitor</td><td>2200&nbsp;&micro;F, initial condition 1.2&nbsp;V</td><td>between <span class="mono">rail</span> and ground</td></tr>
+                    <tr><td class="mono">R1</td><td>Resistor</td><td>12&nbsp;&Omega;</td><td>between <span class="mono">rail</span> and <span class="mono">drain</span></td></tr>
+                    <tr><td class="mono">M1</td><td>N-channel MOSFET</td><td><span class="mono">COMP_NMOS</span>, logic level</td><td>drain <span class="mono">drain</span>, gate <span class="mono">gate</span>, source ground</td></tr>
+                    <tr><td class="mono">VGATE</td><td>Voltage source</td><td>pulse: 0&nbsp;V until 10&nbsp;ms, then 3.3&nbsp;V</td><td>from <span class="mono">gate</span> to ground</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p><strong>What to run:</strong> a transient of 100&nbsp;ms.
+        <strong>What to watch:</strong> <span class="mono">V(rail)</span> and
+        <span class="mono">I(R1)</span>.</p>
+
+        <p><strong>Then change one thing and predict first.</strong> Drop
+        <span class="mono">VGATE</span>'s high level from 3.3&nbsp;V to 1.5&nbsp;V.
+        The rail should stall part-way down, because \(R_{DS(on)}\) rises steeply as
+        \(V_{GS}\) approaches \(V_{th}\) and the FET stops being a switch. That is
+        the failure this lesson's gate-drive section is about, and it is far more
+        convincing when you have watched it happen than when you have read it.</p>
+
+        <p class="fig-note"><strong>Faster route:</strong> Circuit Toy's gallery
+        already contains <span class="mono">Buck Converter</span> and
+        <span class="mono">Discrete Buck, Node by Node</span>. Either one arrives
+        with a bulk output capacitor and a low-side FET already placed and already
+        the right kind of parts &mdash; add R1 across the output and you have this
+        circuit without drawing it. <span class="mono">The Two-Capacitor Problem</span>
+        and <span class="mono">Half the energy leaves, whatever the resistance</span>
+        are both worth opening alongside: the second is this lesson's checkpoint,
+        built as a circuit.</p>
+    </div>
+
+    <div class="card">
+        <h3>What to carry forward</h3>
+        <div class="kv">
+            <div class="box"><div class="k">The design equation</div>
+                <div class="v mono">R = t / (C·ln(V₀/V<sub>f</sub>))</div></div>
+            <div class="box"><div class="k">Round R down</div>
+                <div class="v">Faster than required keeps you inside the deadline.</div></div>
+            <div class="box"><div class="k">Energy has no R in it</div>
+                <div class="v">\(\frac12CV_0^2\) lands in the resistor whatever value you pick.</div></div>
+            <div class="box"><div class="k">Three constraints, one binds</div>
+                <div class="v">Time, standing power, pulse energy. Which one depends entirely on the voltage.</div></div>
+            <div class="box"><div class="k">Gate drive from a survivor</div>
+                <div class="v">Self-powered discharge stalls at \(V_{th}\) and cannot reach zero.</div></div>
+            <div class="box"><div class="k">Corner on \(C_{max}\) and hot</div>
+                <div class="v">Nominal plus 20% is not a worst case. +80% and hot is.</div></div>
+        </div>
+        <p>Next: the circuit that decides <em>when</em> to fire this — an analog
+        sequencer driven by the power state.</p>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    // E24: the values you can actually buy in 5% and 1% parts alike.
+    var E24 = [1.0, 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 2.0, 2.2, 2.4, 2.7, 3.0,
+               3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8, 7.5, 8.2, 9.1];
+
+    /**
+     * Snap DOWN to the nearest E24 value.
+     *
+     * Down rather than nearest, deliberately: a smaller resistor discharges
+     * faster than the calculation demanded, which keeps the design inside the
+     * deadline. Rounding to nearest puts half of all designs outside it, and
+     * the ones that land outside do so by an amount nobody checks.
+     */
+    function e24Below(x) {
+        if (!(x > 0) || !isFinite(x)) return 1;
+        var dec = Math.floor(Math.log10(x));
+        var mant = x / Math.pow(10, dec);
+        var best = E24[0];
+        for (var i = 0; i < E24.length; i++) if (E24[i] <= mant + 1e-9) best = E24[i];
+        // A mantissa below 1.0 cannot happen, but guard the decade edge anyway.
+        return best * Math.pow(10, dec);
+    }
+
+    var canvas = document.getElementById('dis-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+
+    function update() {
+        // Three of the four controls are logarithmic, because these quantities
+        // span decades and a linear slider spends all its travel at one end.
+        var V0   = Math.pow(10, AD.num('dis-v0'));
+        var C    = Math.pow(10, AD.num('dis-c')) * 1e-6;
+        var frac = AD.num('dis-vf') / 100;
+        var tReq = Math.pow(10, AD.num('dis-t'));
+
+        var Vf = V0 * frac;
+        var lnRatio = Math.log(1 / frac);
+
+        var Rideal = tReq / (C * lnRatio);
+        var R = e24Below(Rideal);
+        var tau = R * C;
+        var tAct = tau * lnRatio;
+        var Ipk = V0 / R;
+        var E = 0.5 * C * V0 * V0;
+        var Pstand = V0 * V0 / R;
+        var ok = tAct <= tReq * 1.0001;
+
+        AD.setText('dis-v0-val', AD.fmtUnit(V0, 'V'));
+        AD.setText('dis-c-val', AD.fmtUnit(C, 'F'));
+        AD.setText('dis-vf-val', (frac * 100).toFixed(1) + ' %  (' + AD.fmtUnit(Vf, 'V') + ')');
+        AD.setText('dis-t-val', AD.fmtUnit(tReq, 's'));
+
+        AD.setText('dis-rideal', AD.fmtUnit(Rideal, 'Ω'));
+        AD.setText('dis-r', AD.fmtUnit(R, 'Ω'));
+        AD.setText('dis-tact', AD.fmtUnit(tAct, 's') + (ok ? '  ✓' : '  ✗ MISSES'));
+        AD.setText('dis-ipk', AD.fmtUnit(Ipk, 'A'));
+        AD.setText('dis-energy', AD.fmtUnit(E, 'J'));
+        AD.setText('dis-pstand', AD.fmtUnit(Pstand, 'W'));
+
+        // ---- the curve -------------------------------------------------
+        var w = canvas.width, h = canvas.height;
+        var ml = 62, mr = 20, mt = 26, mb = 40;
+        var pw = w - ml - mr, ph = h - mt - mb;
+        var tMax = Math.max(tReq * 1.6, tAct * 1.15);
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        var X = function (t) { return ml + (t / tMax) * pw; };
+        var Y = function (v) { return mt + ph - (v / V0) * ph * 0.92; };
+
+        // The region the rail must be inside by the deadline.
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.10)';
+        ctx.fillRect(X(tReq), Y(Vf), pw - (X(tReq) - ml), mt + ph - Y(Vf));
+
+        // Deadline and target lines.
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.8)';
+        ctx.setLineDash([5, 4]); ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(X(tReq), mt); ctx.lineTo(X(tReq), mt + ph); ctx.stroke();
+        ctx.strokeStyle = 'rgba(110, 231, 255, 0.8)';
+        ctx.beginPath(); ctx.moveTo(ml, Y(Vf)); ctx.lineTo(ml + pw, Y(Vf)); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // V(t).
+        ctx.strokeStyle = ok ? 'rgba(52, 211, 153, 0.95)' : 'rgba(251, 113, 133, 0.95)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (var i = 0; i <= 400; i++) {
+            var t = (i / 400) * tMax;
+            var v = V0 * Math.exp(-t / tau);
+            if (i === 0) ctx.moveTo(X(t), Y(v)); else ctx.lineTo(X(t), Y(v));
+        }
+        ctx.stroke();
+
+        // Where it actually crosses.
+        if (tAct <= tMax) {
+            ctx.fillStyle = ok ? 'rgba(52, 211, 153, 0.95)' : 'rgba(251, 113, 133, 0.95)';
+            ctx.beginPath(); ctx.arc(X(tAct), Y(Vf), 5, 0, Math.PI * 2); ctx.fill();
+        }
+
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+        ctx.textAlign = 'left';
+        ctx.fillText('deadline ' + AD.fmtUnit(tReq, 's'), X(tReq) + 6, mt + 12);
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.fillText('target ' + AD.fmtUnit(Vf, 'V'), ml + 6, Y(Vf) - 6);
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillText(AD.fmtUnit(V0, 'V') + ' start', ml + 6, Y(V0) + 14);
+        ctx.textAlign = 'center';
+        ctx.fillText('time', ml + pw / 2, h - 12);
+
+        // ---- which constraint is actually binding ----------------------
+        // Reporting the resistor alone would hide the design: on a low rail the
+        // deadline decides, on a high one the heat does.
+        var verdict;
+        if (!ok) {
+            verdict = 'The nearest E24 value below the ideal still misses the deadline, ' +
+                      'which happens when the ideal R sits just above an E24 step. ' +
+                      'Take the next value down, or put two in parallel.';
+        } else if (Pstand > 1) {
+            verdict = 'The deadline is met, but a permanent bleeder here would burn ' +
+                      AD.fmtUnit(Pstand, 'W') + ' continuously for the life of the product to solve a ' +
+                      'problem that happens at shutdown. Switch it with a FET.';
+        } else if (E > 1) {
+            verdict = 'The deadline is met and the standing power is tolerable, but the ' +
+                      'resistor has to absorb ' + AD.fmtUnit(E, 'J') + ' in about ' +
+                      AD.fmtUnit(3 * tau, 's') + '. That is a pulse-rating question, not a ' +
+                      'power-rating one — check the single-pulse curve, and expect to need a ' +
+                      'wirewound or a purpose-made pulse resistor.';
+        } else {
+            verdict = 'Comfortable on all three counts: the deadline is met with ' +
+                      ((1 - tAct / tReq) * 100).toFixed(0) + '% to spare, the standing power is ' +
+                      AD.fmtUnit(Pstand, 'W') + ', and the pulse energy is ' + AD.fmtUnit(E, 'J') +
+                      '. A passive bleeder is defensible here; switch it only if the ' +
+                      'standing current matters to the regulator or to a sleep budget.';
+        }
+
+        AD.setText('dis-note',
+            'Ideal ' + AD.fmtUnit(Rideal, 'Ω') + ' rounded down to ' + AD.fmtUnit(R, 'Ω') +
+            ', giving τ = ' + AD.fmtUnit(tau, 's') + ' and ' + AD.fmtUnit(tAct, 's') +
+            ' to reach ' + AD.fmtUnit(Vf, 'V') + '. ' + verdict +
+            '  Now try it again with the capacitance 80% higher, which is where an ' +
+            'electrolytic tolerance can legitimately sit.');
+    }
+
+    ['dis-v0', 'dis-c', 'dis-vf', 'dis-t'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    update();
+
+    // ================================================ the switched circuit
+    (function schematic() {
+        var host = document.getElementById('dis-diagram');
+        if (!host || typeof ComponentModels === 'undefined') return;
+
+        // Pin geometry, so the wires below land on something:
+        //   port          (x-15, y), or (x+15, y) when rotated 180
+        //   resistor/cap  (x±25, y), or (x, y±25) when rotated 90
+        //   nmos / npn    gate|base (x-25, y), drain|collector (x+15, y-35),
+        //                 source|emitter (x+15, y+35)
+        //   ground        (x, y-10)
+        host.innerHTML = ComponentModels.diagram({
+            width: 620, height: 380,
+            title: 'Switched rail discharge, held off by a rail that outlives it',
+            parts: [
+                { key: 'port',      x: 45,  y: 60,  rotate: 180, label: 'V_RAIL', labelPos: 'top' },
+                { key: 'resistor',  x: 110, y: 200, label: 'R2', value: '100 kΩ', labelPos: 'top' },
+                { key: 'nmos',      x: 200, y: 200, label: 'M1', labelPos: 'right' },
+                { key: 'resistor',  x: 215, y: 110, rotate: 90, label: 'R1', value: '12 Ω', labelPos: 'right' },
+                { key: 'capacitor', x: 330, y: 110, rotate: 90, label: 'C_bulk', value: '2200 µF', labelPos: 'right' },
+                { key: 'npn',       x: 130, y: 285, label: 'Q1', labelPos: 'right' },
+                { key: 'resistor',  x: 75,  y: 285, label: 'R3', value: '10 kΩ', labelPos: 'top' },
+                { key: 'port',      x: 30,  y: 285, rotate: 180, label: 'EN', labelPos: 'bottom' },
+                { key: 'ground',    x: 215, y: 275 },
+                { key: 'ground',    x: 330, y: 200 },
+                { key: 'ground',    x: 145, y: 340 }
+            ],
+            wires: [
+                // The rail itself, ending at the bulk capacitor rather than
+                // running on into empty space.
+                [[60, 60], [330, 60]],
+                // bulk capacitance
+                [[330, 60], [330, 85]],
+                [[330, 135], [330, 190]],
+                // discharge resistor into the FET drain
+                [[215, 60], [215, 85]],
+                [[215, 135], [215, 165]],
+                // FET source to ground
+                [[215, 235], [215, 265]],
+                // gate pull-up, taken from the rail well clear of the drain
+                [[85, 200], [85, 60]],
+                [[135, 200], [175, 200]],
+                // Q1 holds the gate down while EN is alive
+                [[145, 250], [145, 225], [155, 225], [155, 200]],
+                [[145, 320], [145, 330]],
+                [[100, 285], [105, 285]],
+                [[45, 285], [50, 285]]
+            ],
+            dots: [[85, 60], [215, 60], [155, 200]],
+            texts: [
+                { x: 440, y: 96,  text: 'R2 pulls the gate up', size: 10, anchor: 'start' },
+                { x: 440, y: 112, text: 'only when Q1 lets go', size: 10, anchor: 'start' },
+                { x: 440, y: 288, text: 'EN alive  = discharge OFF', size: 10, anchor: 'start' },
+                { x: 440, y: 304, text: 'EN dead   = discharge ON', size: 10, anchor: 'start' },
+                { x: 440, y: 328, text: 'EN comes from a rail that', size: 10, anchor: 'start' },
+                { x: 440, y: 344, text: 'outlives this one', size: 10, anchor: 'start' }
+            ]
+        });
+    })();
+})();
+</script>
