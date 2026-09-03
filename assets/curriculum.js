@@ -283,6 +283,12 @@ const CURRICULUM = {
                     title: 'Feedback Design Case Studies',
                     description: 'Complete worked examples from Razavi and Art of Electronics',
                     topics: ['Precision amplifier', 'High-speed buffer', 'Transimpedance amplifier', 'Power supply compensator']
+                },
+                {
+                    id: 12,
+                    title: 'Interview Prep — Feedback and Stability',
+                    description: 'The whole module as it gets asked on a whiteboard',
+                    topics: ['Bode plot by hand', 'Why unity gain is the worst case', 'RHP zeros', 'Conditional stability']
                 }
             ]
         },
@@ -545,6 +551,12 @@ const CURRICULUM = {
                     title: 'Design: A Current Mirror from a Datasheet',
                     description: 'An error budget against a real spec, and choosing the part that meets it',
                     topics: ['VBE mismatch = dVBE/VT', 'Matched pairs: 2N3904 vs BC847BS vs MAT12', 'Emitter degeneration: money or headroom', 'Early effect and the cascode fix']
+                },
+                {
+                    id: 40,
+                    title: 'Interview Prep — BJTs',
+                    description: 'The whole module as it gets asked on a whiteboard',
+                    topics: ['gm = Ic/VT from the exponential', 'Gain as an impedance ratio', 'Miller and the cascode', 'Ranking current-mirror errors']
                 }
             ]
         },
@@ -703,6 +715,12 @@ const CURRICULUM = {
                     title: 'Industry MOSFET Selection Guide',
                     description: 'A repeatable process for choosing a switch',
                     topics: ['Figure of merit (Rds(on) x Qg)', 'Current derating', 'Logic level vs standard gate', '48 V system considerations']
+                },
+                {
+                    id: 26,
+                    title: 'Interview Prep — MOSFETs',
+                    description: 'The whole module as it gets asked on a whiteboard',
+                    topics: ['gm goes as sqrt(Id)', 'Body effect and the source follower', 'Three loss terms', 'Cdv/dt turn-on']
                 }
             ]
         },
