@@ -60,6 +60,8 @@ const GATING = [
      'a figure the markup promises, with a caption, that no code ever draws into'],
     ['check-build-nets.js',
      'a build table you cannot wire up: a lead going nowhere, or a node it never builds'],
+    ['check-build-values.js',
+     'a component with no value: perfectly wired, and nothing a reader can actually enter'],
     ['check-toy-parts.js',
      'a build table naming a part Circuit Toy does not have, which sends readers to the wrong one'],
     ['check-arithmetic.js',
