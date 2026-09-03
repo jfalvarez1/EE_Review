@@ -200,8 +200,8 @@
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
                     <tr><td class="mono">VCM</td><td>Voltage source</td><td>2.50&nbsp;V DC</td><td>from <span class="mono">cm</span> to ground</td></tr>
-                    <tr><td class="mono">E_A</td><td>Controlled source</td><td>1*V(data)}</td><td>output <span class="mono">a_drv</span> to ground, sensing <span class="mono">VALUE={2.5</span> to <span class="mono">+</span></td></tr>
-                    <tr><td class="mono">E_B</td><td>Controlled source</td><td>1*V(data)}</td><td>output <span class="mono">b_drv</span> to ground, sensing <span class="mono">VALUE={2.5</span> to <span class="mono">-</span></td></tr>
+                    <tr><td class="mono">E_A</td><td>VCVS</td><td>gain +1</td><td>output <span class="mono">a_drv</span> to <span class="mono">cm</span>, sensing <span class="mono">data</span> to ground</td></tr>
+                    <tr><td class="mono">E_B</td><td>VCVS</td><td>gain &minus;1 <em>(the sign is the whole trick)</em></td><td>output <span class="mono">b_drv</span> to <span class="mono">cm</span>, sensing <span class="mono">data</span> to ground</td></tr>
                     <tr><td class="mono">RDA</td><td>Resistor</td><td>50&nbsp;&Omega;</td><td>between <span class="mono">a_drv</span> and <span class="mono">a_line</span></td></tr>
                     <tr><td class="mono">RDB</td><td>Resistor</td><td>50&nbsp;&Omega;</td><td>between <span class="mono">b_drv</span> and <span class="mono">b_line</span></td></tr>
                     <tr><td class="mono">RLINE_A</td><td>Resistor</td><td>10&nbsp;&Omega;</td><td>between <span class="mono">a_line</span> and <span class="mono">a_rcv</span></td></tr>
@@ -210,9 +210,9 @@
                     <tr><td class="mono">CLINE_B</td><td>Capacitor</td><td>100&nbsp;pF</td><td>between <span class="mono">b_rcv</span> and ground</td></tr>
                     <tr><td class="mono">RTERM</td><td>Resistor</td><td>120&nbsp;&Omega;</td><td>between <span class="mono">a_rcv</span> and <span class="mono">b_rcv</span></td></tr>
                     <tr><td class="mono">VN_CM</td><td>Voltage source</td><td>sine 1&nbsp;V amplitude at 60&nbsp;Hz</td><td>from <span class="mono">noise</span> to ground</td></tr>
-                    <tr><td class="mono">E_NOISE_A</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">a_rcv_noisy</span> to ground, sensing <span class="mono">VALUE={V(a_rcv)+V(noise)}</span> to <span class="mono">undefined</span></td></tr>
-                    <tr><td class="mono">E_NOISE_B</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">b_rcv_noisy</span> to ground, sensing <span class="mono">VALUE={V(b_rcv)+V(noise)}</span> to <span class="mono">undefined</span></td></tr>
-                    <tr><td class="mono">E_DIFF</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">diff</span> to ground, sensing <span class="mono">VALUE={V(a_rcv_noisy)-V(b_rcv_noisy)}</span> to <span class="mono">undefined</span></td></tr>
+                    <tr><td class="mono">E_NOISE_A</td><td>VCVS</td><td>gain 1</td><td>output <span class="mono">a_rcv_noisy</span> to <span class="mono">a_rcv</span>, sensing <span class="mono">noise</span> to ground</td></tr>
+                    <tr><td class="mono">E_NOISE_B</td><td>VCVS</td><td>gain 1 <em>(the same noise, on both lines &mdash; that is what makes it common mode)</em></td><td>output <span class="mono">b_rcv_noisy</span> to <span class="mono">b_rcv</span>, sensing <span class="mono">noise</span> to ground</td></tr>
+                    <tr><td class="mono">E_DIFF</td><td>VCVS</td><td>gain 1 &mdash; the receiver</td><td>output <span class="mono">diff</span> to ground, sensing <span class="mono">a_rcv_noisy</span> to <span class="mono">b_rcv_noisy</span></td></tr>
                     <tr><td class="mono">VDATA</td><td>Voltage source</td><td>pulse -1&nbsp;V to 1&nbsp;V, period 4.34&nbsp;&micro;s</td><td>from <span class="mono">data</span> to ground</td></tr>
                 </tbody>
             </table>
@@ -224,6 +224,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m20l03-rs485"></div>
     </div>
 
     <div class="card">
@@ -451,6 +453,114 @@
         unit: 'm',
         solution: 'Max distance = 10^8 / 250000 = 400m',
         explanation: 'The baud×distance product should not exceed 10^8 for reliable communication. At 250kbps, this gives 400m maximum.'
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m20l03-rs485', {
+        id: 'm20l03-rs485',
+        title: 'One volt of noise, and none of it in the answer',
+        intro: 'This circuit is worth checking numerically rather than by eye, because the ' +
+               'thing it demonstrates is a <em>cancellation</em>, and a cancellation looks ' +
+               'the same on a plot whether it is exact or merely close. Check the two line ' +
+               'voltages first &mdash; both are visibly full of 60&nbsp;Hz &mdash; and then ' +
+               'check the difference.',
+        probes: [
+            { id: 'diff', label: 'V(diff) while data is at +1 V',
+              expect: '1.000', unit: 'V', tol: 0.02,
+              why: 'The driver puts out &plusmn;1&nbsp;V about the common-mode point, so ' +
+                   '2&nbsp;V differential. It reaches the receiver through 60&nbsp;&Omega; ' +
+                   'on each line into a 120&nbsp;&Omega; termination, which is a two-to-one ' +
+                   'divider: <strong>1.000&nbsp;V, and not one millivolt of the ' +
+                   '60&nbsp;Hz</strong>. The noise is on both lines identically, so it ' +
+                   'lands in the common-mode term and the subtraction never sees it.' },
+            { id: 'arcv', label: 'V(a_rcv_noisy) at the same instant, at the peak of the noise',
+              expect: '4.00', unit: 'V', tol: 0.05,
+              why: '2.5 common mode + 0.5 signal + 1.0 of noise. <strong>This is the ' +
+                   'number that makes the point</strong>: the wire genuinely carries a ' +
+                   'volt of interference, four times the signal on that line. Anyone ' +
+                   'probing a single conductor against ground would conclude the link was ' +
+                   'unusable.' },
+            { id: 'brcv', label: 'V(b_rcv_noisy) at the same instant',
+              expect: '3.00', unit: 'V', tol: 0.05,
+              why: '2.5 &minus; 0.5 + 1.0. Same noise, same size, same sign &mdash; that ' +
+                   'is the definition of common mode, and it is why the pair has to be ' +
+                   'twisted: the two conductors must see the same field, or the noise ' +
+                   'stops being common.' },
+            { id: 'iloop', label: 'Current through RTERM',
+              expect: '8.33', unit: 'mA', tol: 0.2,
+              why: '2&nbsp;V across 240&nbsp;&Omega; total &mdash; 50 + 10 out, ' +
+                   '120 across, 10 + 50 back. Worth knowing because it is where RS-485\'s ' +
+                   'power goes: a terminated bus burns this current continuously while ' +
+                   'driving, which is why the standard limits how many drivers and ' +
+                   'terminations a segment may have.' },
+            { id: 'cm', label: 'Common mode at the receiver, (V(a_rcv) + V(b_rcv))/2',
+              expect: '2.50', unit: 'V', tol: 0.02,
+              why: 'Unchanged from the driver, because RTERM carries only differential ' +
+                   'current and the line resistors drop nothing common-mode. RS-485 ' +
+                   'specifies a receiver common-mode range of &minus;7&nbsp;V to ' +
+                   '+12&nbsp;V, and <strong>that window, not the noise amplitude, is what ' +
+                   'actually limits how much interference a link survives</strong>. Two ' +
+                   'volts of noise here is fine; ten would put a_rcv outside the range and ' +
+                   'the receiver would stop working even though the difference was still ' +
+                   'perfect.' }
+        ],
+        experiments: [
+            { action: 'Change E_NOISE_B\'s gain from 1 to 0.98 — a 2% mismatch in how the ' +
+                      'noise couples to the two lines.',
+              expect: '<strong>20 mV of 60 Hz appears on V(diff)</strong>, on top of the ' +
+                      '1 V signal.',
+              why: 'Two percent of a 1&nbsp;V disturbance is 20&nbsp;mV, so the rejection ' +
+                   'is 20&nbsp;log(1/0.02) = <strong>34&nbsp;dB</strong> &mdash; and it is ' +
+                   'set entirely by the matching, not by the receiver, which is still ' +
+                   'subtracting perfectly. This is the single most useful thing to ' +
+                   'understand about differential signalling: <strong>CMRR is a property ' +
+                   'of symmetry</strong>. It is why the two conductors are the same length, ' +
+                   'the same gauge, twisted at the same pitch, and terminated with the same ' +
+                   'resistor, and why a link degrades when one of a pair gets a corroded ' +
+                   'crimp.' },
+            { action: 'Delete RTERM entirely and re-run.',
+              expect: 'V(diff) <strong>doubles to 2 V</strong>.',
+              why: 'No termination means no load, so the two-to-one divider disappears and ' +
+                   'the receiver sees the driver\'s full output. That sounds like an ' +
+                   'improvement and is the reason people leave terminations off. What this ' +
+                   'DC model cannot show is the cost: an unterminated line reflects, and at ' +
+                   '230&nbsp;kbaud over any real cable those reflections arrive inside the ' +
+                   'bit and close the eye. <strong>The 120&nbsp;&Omega; is not there to set ' +
+                   'the amplitude, it is there to make the far end look like more ' +
+                   'cable</strong> &mdash; which is a property of the transmission line, ' +
+                   'not of the lumped resistors in this table.' },
+            { action: 'Raise the noise source from 1 V to 10 V.',
+              expect: 'V(diff) stays at exactly 1 V. In a real link, it would <strong>stop ' +
+                      'working</strong>.',
+              why: 'The model has ideal sources with no rails, so it rejects arbitrarily ' +
+                   'large common-mode signals. A real receiver is a differential amplifier ' +
+                   'built from transistors that need their inputs inside a supply range, and ' +
+                   'at 10&nbsp;V of noise a_rcv reaches 13&nbsp;V, outside the ' +
+                   '&minus;7/+12&nbsp;V window. <strong>The common-mode range is what a ' +
+                   'transceiver datasheet is selling you</strong>, and this is exactly the ' +
+                   'kind of limit an idealised simulation will never volunteer. Ground ' +
+                   'potential differences of several volts between buildings are ordinary; ' +
+                   'this is why isolated transceivers exist.' },
+            { action: 'Make RLINE_A 60 Ω instead of 10 Ω — one conductor with a bad joint.',
+              expect: 'V(diff) drops to about <strong>0.83 V</strong>, but the noise ' +
+                      'rejection is untouched.',
+              why: 'Worth doing to see which faults matter for which reason. The extra ' +
+                   '50&nbsp;&Omega; changes the divider &mdash; 2&nbsp;V across ' +
+                   '290&nbsp;&Omega; total into 120&nbsp;&Omega; &mdash; so the signal ' +
+                   'shrinks. But the noise still cancels perfectly, because in this model ' +
+                   'it is injected downstream of the line impedance. In real hardware a ' +
+                   'mismatched pair converts common mode to differential on the way, and ' +
+                   'you would lose amplitude <em>and</em> rejection together. <strong>The ' +
+                   'model is honest about the divider and optimistic about the ' +
+                   'rejection</strong>, which is worth remembering before trusting it.' }
+        ]
     });
 })();
 </script>

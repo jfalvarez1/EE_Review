@@ -87,6 +87,10 @@ const isRail = n => /^(?:v?cc|vdd|vee|vss|vbb|vbat|vbus|avdd|dvdd|avss|dvss|v\+|
  * counted as a row with no connections.
  */
 function nodesOf(cell) {
+    // The Connect cell is stripped of tags before it gets here, so an aside in
+    // <em> arrives as bare prose and its words get read as node names - "the
+    // minus input goes to the OUTPUT" yielded a node called "goes". Asides are
+    // marked up, so they can be dropped before the tags are.
     const s = cell.replace(/\bthe\b/gi, ' ').trim();
     const out = [];
     let matched = false;
@@ -177,7 +181,12 @@ files.forEach(file => {
             const cells = [];
             const cRe = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
             let cm;
-            while ((cm = cRe.exec(rm[1]))) cells.push(text(cm[1]));
+            // Drop <em>/<small> asides first: they are prose about the wiring,
+            // not wiring, and nodesOf cannot tell the difference once the tags
+            // are gone.
+            while ((cm = cRe.exec(rm[1]))) {
+                cells.push(text(cm[1].replace(/<(em|small|i)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')));
+            }
             if (cells.length >= 4) rows.push(cells);
         }
         if (rows.length < 2) continue;
