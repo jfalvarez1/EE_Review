@@ -223,6 +223,35 @@ function group(s, i) {
     return null;
 }
 
+/**
+ * Remove a macro and its brace group, counting nested braces.
+ *
+ * \boxed and \underbrace keep their contents (they wrap a value); the label
+ * macros drop theirs (they wrap a unit). The difference is which side of the
+ * `keep` flag they are on.
+ */
+function stripBalanced(s, macroRe, keep) {
+    for (let guard = 0; guard < 60; guard++) {
+        macroRe.lastIndex = 0;
+        const m = macroRe.exec(s);
+        if (!m) return s;
+        const start = m.index;
+        let i = m.index + m[0].length;
+        while (s[i] === ' ') i++;
+        if (s[i] !== '{') { s = s.slice(0, start) + ' ' + s.slice(i); continue; }
+        let depth = 0, j = i;
+        for (; j < s.length; j++) {
+            if (s[j] === '{') depth++;
+            else if (s[j] === '}') { depth--; if (!depth) break; }
+        }
+        if (j >= s.length) return s.slice(0, start) + ' ';
+        const inner = s.slice(i + 1, j);
+        const wrapsValue = /\\(?:boxed|underbrace)/.test(m[0]);
+        s = s.slice(0, start) + (wrapsValue ? ' (' + inner + ') ' : ' ') + s.slice(j + 1);
+    }
+    return s;
+}
+
 /** Rewrite \frac and \sqrt into ordinary parenthesised arithmetic. */
 function expandMacros(s) {
     for (let guard = 0; guard < 40; guard++) {
@@ -267,7 +296,12 @@ function delatex(raw) {
     if (/\\(?:begin|end)\b/.test(t)) return null;
 
     t = t.replace(/\\left|\\right/g, '');
-    t = t.replace(/\\(?:mathrm|text|textrm|mathbf|bf|rm|mathit|operatorname)\s*\{[^{}]*\}/g, ' ');
+    // A unit label may itself contain braces - \mathrm{nV/\sqrt{Hz}} - and a
+    // non-nesting strip leaves the \mathrm behind, which then trips the
+    // "unhandled macro" guard and silently skips the expression. That is how a
+    // wrong step in the noise lesson survived: 4 x 0.387 = 1.58 was never
+    // looked at.
+    t = stripBalanced(t, /\\(?:mathrm|text|textrm|mathbf|bf|rm|mathit|operatorname|boxed|underbrace)\s*/g);
     t = t.replace(/\\[,;!:>| ]/g, ' ');
     t = t.replace(/\\!/g, '');
 
@@ -413,6 +447,15 @@ function checkChain(body, rawForDb, sink, where) {
                 said: rhs.value,
                 errPct: err * 100
             });
+        } else if (err > relTol * 0.45 && err > 0.002 &&
+                   !isPrefixShift(lhsVal, rhs.value)) {
+            // Inside tolerance but only just. Worth listing on request: a
+            // number that is 1.5% out when it should round to 0.2% is usually
+            // a constant taken at the wrong temperature, not a rounding.
+            sink.near.push({
+                where, expr: lhsClean.slice(0, 80),
+                got: lhsVal, said: rhs.value, errPct: err * 100
+            });
         }
     }
 }
@@ -548,6 +591,11 @@ function checkProse(text, sink, where) {
                         where, expr: lhsChain.slice(0, 40) + '  =  ' + rhsChain.slice(0, 40),
                         got: a, said: b, errPct: err * 100
                     });
+                } else if (err > 0.005) {
+                    sink.near.push({
+                        where, expr: lhsChain.slice(0, 40) + '  =  ' + rhsChain.slice(0, 40),
+                        got: a, said: b, errPct: err * 100
+                    });
                 }
                 continue;
             }
@@ -607,7 +655,7 @@ function checkProse(text, sink, where) {
  * Run
  * ================================================================== */
 
-const sink = { checked: 0, findings: [] };
+const sink = { checked: 0, findings: [], near: [] };
 const files = walk(LESSONS, []).sort();
 
 files.forEach(file => {
@@ -642,6 +690,17 @@ files.forEach(file => {
         checkProse(deentity(chunk), sink, rel);
     });
 });
+
+if (process.argv.includes('--near')) {
+    console.log('INSIDE TOLERANCE, BUT ONLY JUST (' + sink.near.length + ')\n');
+    sink.near.forEach(function (f) {
+        console.log('  ' + f.where);
+        console.log('      ' + f.expr);
+        console.log('      ' + f.got.toPrecision(6) + ' vs ' + f.said +
+                    '   (' + f.errPct.toFixed(1) + '% out)');
+    });
+    console.log('');
+}
 
 if (!sink.findings.length) {
     console.log('PASS - ' + sink.checked + ' worked expressions check out.');
