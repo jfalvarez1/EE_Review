@@ -2585,6 +2585,12 @@ const CURRICULUM = {
                     title: 'Design: A Class D Amplifier',
                     description: 'The same 50 W the other way: modulator, bridge, filter, and the EMI you buy it with',
                     topics: ['Loss follows frequency not volume', 'The speaker is part of the filter', 'Dead time is crossover distortion', 'No load is now dangerous']
+                },
+                {
+                    id: 7,
+                    title: 'Design: A Headphone Amplifier',
+                    description: 'One output that has to drive a 37:1 range of loads, and why output impedance is a tone control',
+                    topics: ['5 V for high Z, 20 mA for low', 'Zout against a swinging load', 'The op-amp is not the problem', 'Excess gain is a hazard']
                 }
             ]
         }
