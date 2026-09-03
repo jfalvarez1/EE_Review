@@ -340,6 +340,12 @@ function deentity(s) {
         .replace(/&divide;|&#247;|÷/g, '/')
         .replace(/&minus;|&#8722;|−|–|—/g, '-')
         .replace(/&plus;|＋/g, '+')
+        // Units, so the unit-aware pass below can see them. Lessons write
+        // "4.7&nbsp;k&Omega;", and a scanner that does not decode &Omega;
+        // simply never sees a resistance.
+        .replace(/&Omega;|&#937;/g, 'Ω')
+        .replace(/&micro;|&mu;|&#181;/g, 'µ')
+        .replace(/&deg;/g, '°')
         .replace(/&pi;|π/g, 'pi')
         .replace(/&radic;|√/g, 'sqrt')
         .replace(/&sup2;|²/g, '^2')
@@ -652,6 +658,108 @@ function checkProse(text, sink, where) {
 }
 
 /* ==================================================================
+ * Arithmetic written with units
+ * ==================================================================
+ * Most of the course's sums are not written as bare numbers. They are written
+ * the way an engineer writes them - "12 V / 4.7 kOhm = 2.55 mA" - and the
+ * scanner above skips every one of those, because its operands have to be
+ * plain digits. That is a large blind spot: unit-bearing arithmetic is where
+ * the prefix errors live, and a prefix error is a factor of a thousand.
+ *
+ * So this pass evaluates operands in BASE units and compares the result in
+ * base units too. It is deliberately narrow: every operand must carry a
+ * recognised unit or be dimensionless, the whole expression must sit in one
+ * text node, and a mixed-dimension result is skipped rather than guessed at.
+ */
+
+const PREFIX = { p: 1e-12, n: 1e-9, u: 1e-6, 'µ': 1e-6, 'μ': 1e-6, m: 1e-3,
+                 k: 1e3, K: 1e3, M: 1e6, G: 1e9, T: 1e12 };
+
+// Units whose prefixes are unambiguous here. Deliberately excludes dB, %, and
+// bare "F"/"C" as Fahrenheit/Celsius, which would need context to read.
+const UNIT = '(?:V|A|W|Hz|F|H|s|J|Ω|ohms?)';
+
+const OPERAND = new RegExp(
+    '(-?\\d+(?:\\.\\d+)?)\\s*([pnuµμmkKMGT]?)\\s*(' + UNIT + ')\\b', 'g');
+
+function toBase(numStr, prefix, unit) {
+    let v = parseFloat(numStr);
+    if (!isFinite(v)) return null;
+    if (prefix) {
+        // "m" before "s" is milli; "M" before anything is mega. The table is
+        // case-sensitive on purpose.
+        const f = PREFIX[prefix];
+        if (f === undefined) return null;
+        v *= f;
+    }
+    return { v: v, unit: /^ohm/i.test(unit) ? 'Ω' : unit };
+}
+
+/**
+ * One "a op b [op c] = r" statement in which every operand carries a unit.
+ * Anchored on the equals sign, same as the other scanners.
+ */
+const UNIT_EXPR = new RegExp(
+    '(-?\\d+(?:\\.\\d+)?\\s*[pnuµμmkKMGT]?\\s*' + UNIT + '\\b' +
+    '(?:\\s*[-+*/×÷]\\s*-?\\d+(?:\\.\\d+)?\\s*[pnuµμmkKMGT]?\\s*(?:' + UNIT + '\\b)?){1,4})' +
+    '\\s*=\\s*' +
+    '(-?\\d+(?:\\.\\d+)?)\\s*([pnuµμmkKMGT]?)\\s*(' + UNIT + ')\\b', 'g');
+
+function checkUnitArithmetic(text, sink, where) {
+    let m;
+    UNIT_EXPR.lastIndex = 0;
+    while ((m = UNIT_EXPR.exec(text))) {
+        const lhsRaw = m[1];
+
+        // The match must start at the START of the expression. "I = 2 x 2pi x
+        // 50 x 2.2nF x 230" has dimensionless leading factors, so a regex
+        // anchored on the first unit-bearing operand grabs only the tail and
+        // compares two thirds of a correct calculation against its own answer.
+        const before = text.slice(0, m.index).replace(/\s+$/, '');
+        if (/[-+*/×÷0-9.]$|[A-Za-zΩ]$/.test(before)) continue;
+
+        const rhs = toBase(m[2], m[3], m[4]);
+        if (!rhs) continue;
+
+        // A COMPOUND unit on the result - "0.67 V/µs" - is a different
+        // dimension from the one this pass computes, and comparing the two
+        // reported a correct slew-rate calculation as a million percent out.
+        // Dimensional analysis is out of scope; skipping is the honest answer.
+        const afterRhs = text.slice(m.index + m[0].length);
+        if (/^\s*[/·⋅]/.test(afterRhs)) continue;
+        if (/[/·⋅]\s*[pnuµμmkKMGT]?\s*(?:V|A|W|Hz|F|H|s|J|Ω)\b/.test(lhsRaw)) continue;
+
+        // Rebuild the left side in base units, keeping the operators.
+        let expr = lhsRaw.replace(/×/g, '*').replace(/÷/g, '/');
+        let ok = true;
+        expr = expr.replace(
+            new RegExp('(-?\\d+(?:\\.\\d+)?)\\s*([pnuµμmkKMGT]?)\\s*(' + UNIT + ')\\b', 'g'),
+            (all, n, p, u) => {
+                const b = toBase(n, p, u);
+                if (!b) { ok = false; return all; }
+                return '(' + b.v.toExponential(12) + ')';
+            });
+        if (!ok) continue;
+        // Any dimensionless operand left over is fine; a stray letter is not.
+        if (/[A-Za-zΩ]/.test(expr.replace(/e[+-]\d+/gi, ''))) continue;
+
+        const lhsVal = evaluate(expr);
+        if (lhsVal === null) continue;
+
+        sink.checked++;
+        const sf = sigFigs(m[2]);
+        const relTol = Math.max(Math.pow(10, -(sf - 1)) * 0.55, 0.005);
+        const err = Math.abs(lhsVal - rhs.v) / (Math.abs(rhs.v) || 1);
+        if (err > relTol) {
+            sink.findings.push({
+                where, expr: lhsRaw.slice(0, 80) + '  (in base units)',
+                got: lhsVal, said: rhs.v, errPct: err * 100
+            });
+        }
+    }
+}
+
+/* ==================================================================
  * Run
  * ================================================================== */
 
@@ -685,9 +793,19 @@ files.forEach(file => {
                         .replace(/<style[\s\S]*?<\/style>/gi, ' ')
                         .replace(/\\\[[\s\S]*?\\\]/g, ' ')
                         .replace(/\\\([\s\S]*?\\\)/g, ' ');
-    noScript.split(/<[^>]+>/).forEach(chunk => {
+    // Inline formatting splits an expression into pieces. Lessons write
+    // "<span class="mono">12 V</span> / <span class="mono">4.7 kΩ</span> =
+    // 2.55 mA", and a scanner that treats every tag as a boundary sees three
+    // fragments and no arithmetic. Drop the inline tags, keep the block ones
+    // as boundaries so an expression can still never span two cells.
+    const inlined = noScript.replace(
+        /<\/?(?:span|strong|b|em|i|code|small|abbr|a|u|mark|var|samp|kbd|tt|font)\b[^>]*>/gi, '');
+
+    inlined.split(/<[^>]+>/).forEach(chunk => {
         if (!/\d/.test(chunk)) return;
-        checkProse(deentity(chunk), sink, rel);
+        const clean = deentity(chunk);
+        checkProse(clean, sink, rel);
+        checkUnitArithmetic(clean, sink, rel);
     });
 });
 
