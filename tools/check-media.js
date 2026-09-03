@@ -74,6 +74,18 @@ C.modules.forEach(m => m.lessons.forEach(l => {
     const gen = (s.match(/ComponentModels\.diagram\(/g) || []).length;
     const eng = (s.match(/new SchematicSVG\(/g) || []).length;
     const canvases = (s.match(/<canvas\b/gi) || []).length;
+
+    // A third way of drawing that this survey used to miss entirely: the
+    // Schematic helper (S.create / AD.Schematic.create), which builds its SVG
+    // at runtime into an empty <div>. Twenty-six lessons were reported as
+    // having NO VISUAL AT ALL when they in fact render fine - module 6 lesson
+    // 9 draws two full current-mirror schematics this way. A survey that
+    // reports a lesson as bare when it is not sends you to fix something that
+    // is not broken, which is worse than not surveying at all.
+    const helper = (s.match(/\b(?:S|AD\.Schematic|Schematic)\.create\s*\(/g) || []).length;
+
+    // And an <img>, which is how the real-layout figures arrive.
+    const imgs = (s.match(/<img\b/gi) || []).length;
     const ranges = (s.match(/<input[^>]*type="range"/gi) || []).length;
     const selects = (s.match(/<select\b/gi) || []).length;
     // "Does the reader get something back" is not a question about one CSS
@@ -96,10 +108,11 @@ C.modules.forEach(m => m.lessons.forEach(l => {
 
     rows.push({
         mod: m.id, les: l.id, title: l.title, rel,
-        gen, eng, canvases, ranges, selects, readouts, checkpoints,
+        gen, eng, helper, imgs, canvases, ranges, selects, readouts, checkpoints,
         svgTotal: sv.length, blocky: blocky.length, drawn: drawn.length,
-        hasCircuit: gen > 0 || eng > 0 || drawn.length > 0,
-        hasVisual: gen > 0 || eng > 0 || canvases > 0 || sv.length > 0,
+        hasCircuit: gen > 0 || eng > 0 || helper > 0 || drawn.length > 0,
+        hasVisual: gen > 0 || eng > 0 || helper > 0 || imgs > 0 ||
+                   canvases > 0 || sv.length > 0,
         interactive: ranges + selects > 0
     });
 }));

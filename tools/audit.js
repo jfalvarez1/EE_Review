@@ -52,6 +52,8 @@ const GATING = [
      'getElementById for an id the markup lacks: the throw kills the rest of the handler'],
     ['check-widget-args.js',
      'a widget given an argument shape it cannot render - the [object Object] class of bug'],
+    ['check-empty-containers.js',
+     'a figure the markup promises, with a caption, that no code ever draws into'],
     ['check-toy-parts.js',
      'a build table naming a part Circuit Toy does not have, which sends readers to the wrong one'],
     ['validate-path.js',
