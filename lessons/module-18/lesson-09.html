@@ -208,19 +208,25 @@
             <table>
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
-                    <tr><td class="mono">V_supply</td><td>Voltage source</td><td>set by <span class="mono">VCC</span></td><td>from <span class="mono">vcc</span> to ground</td></tr>
-                    <tr><td class="mono">E_hall</td><td>Controlled source</td><td>SENS*B_FIELD*1000}</td><td>output <span class="mono">v_hall</span> to ground, sensing <span class="mono">VALUE={VQ</span> to <span class="mono">+</span></td></tr>
-                    <tr><td class="mono">E_out</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">out</span> to ground, sensing <span class="mono">VALUE={</span> to <span class="mono">undefined</span></td></tr>
+                    <tr><td class="mono">V_supply</td><td>Voltage source</td><td>5&nbsp;V DC</td><td>from <span class="mono">vcc</span> to ground</td></tr>
+                    <tr><td class="mono">V_field</td><td>Voltage source</td><td>0&nbsp;V DC, swept &mdash; <strong>1&nbsp;V stands for 1&nbsp;T</strong></td><td>from <span class="mono">b_field</span> to ground</td></tr>
+                    <tr><td class="mono">E_hall</td><td>VCVS</td><td>gain 0.1 &mdash; the plate, 0.1&nbsp;V/T</td><td>output <span class="mono">v_hall</span> to ground, sensing <span class="mono">b_field</span> to ground</td></tr>
+                    <tr><td class="mono">V_quies</td><td>Voltage source</td><td>2.5&nbsp;V DC &mdash; VCC/2</td><td>from <span class="mono">vq</span> to ground</td></tr>
+                    <tr><td class="mono">E_out</td><td>VCVS</td><td>gain 50 &mdash; the on-chip amplifier</td><td>output <span class="mono">out</span> to <span class="mono">vq</span>, sensing <span class="mono">v_hall</span> to ground</td></tr>
                     <tr><td class="mono">R_load</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">out</span> and ground</td></tr>
                 </tbody>
             </table>
         </div>
 
-        <p><strong>What to run:</strong> a <strong>DC sweep</strong> of <span class="mono">B_FIELD</span> from -100&nbsp;m to 100&nbsp;m.</p>
+        <p><strong>What to run:</strong> a <strong>DC sweep</strong> of <span class="mono">V_field</span> from &minus;100&nbsp;mV to +100&nbsp;mV &mdash; that is &plusmn;100&nbsp;mT on the 1&nbsp;V&nbsp;=&nbsp;1&nbsp;T scale.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(out)</span>, <span class="mono">V(v_hall)</span>.</p>
+        <p>The two controlled sources are the two things inside the package: the plate, which turns field into a small voltage, and the amplifier, which scales it and stands it on a VCC/2 pedestal so the output can swing both ways. 0.1&nbsp;V/T &times; 50 = 5&nbsp;mV/mT, the sensitivity the slider above defaults to. <strong>V_quies is an ideal source and not a divider on purpose</strong> &mdash; E_out is floating, so the current R_load draws has to come out of that node, and a 10k/10k divider sitting 2.5&nbsp;V behind 5&nbsp;k&Omega; would sag to 2.5&nbsp;&times;&nbsp;10/15 = 1.67&nbsp;V. That is 833&nbsp;mV of error where the whole signal is 500&nbsp;mV. Real parts buffer that divider for the same reason.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m18l09-hall"></div>
     </div>
 
         <div class="card">
@@ -1840,3 +1846,107 @@
         })();
     });
     </script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m18l09-hall', {
+        id: 'm18l09-hall',
+        title: 'A ratiometric output has three numbers, not one',
+        intro: 'A Hall sensor\'s datasheet quotes a quiescent output, a sensitivity and a ' +
+               'span, and all three are fractions of V<sub>CC</sub>. Check the quiescent ' +
+               'point first: if that is wrong, every field reading is wrong by the same ' +
+               'amount and nothing about the slope will tell you.',
+        probes: [
+            { id: 'quies', label: 'V(out) with V_field at 0 V (zero field)',
+              expect: '2.500', unit: 'V', tol: 0.01,
+              why: 'V<sub>CC</sub>/2. A field can point either way, so the output has to ' +
+                   'sit in the middle to have room to move both directions. ' +
+                   '<strong>This is the number that costs money on a real part</strong> ' +
+                   '&mdash; the quiescent voltage drifts with temperature and with ' +
+                   'mechanical stress on the package, and it is indistinguishable from a ' +
+                   'real field. Everything else here is easier than this.' },
+            { id: 'pos', label: 'V(out) with V_field at +100 mV (+100 mT)',
+              expect: '3.000', unit: 'V', tol: 0.01,
+              why: '2.5 + 0.1&nbsp;T &times; 5&nbsp;V/T = 3.000&nbsp;V. The plate gives ' +
+                   '0.1&nbsp;V/T and the amplifier multiplies by 50, so the whole chain ' +
+                   'is 5&nbsp;V/T = 5&nbsp;mV/mT &mdash; the middle of the 1&ndash;10 ' +
+                   'mV/mT the spec box above quotes for a linear Hall IC.' },
+            { id: 'neg', label: 'V(out) with V_field at −100 mV (−100 mT)',
+              expect: '2.000', unit: 'V', tol: 0.01,
+              why: 'Symmetric about the quiescent point, because a Hall plate is a ' +
+                   'genuinely bipolar sensor: reverse the field and the Lorentz force on ' +
+                   'the carriers reverses with it. A saturating magnetoresistive or ' +
+                   'reed-based sensor cannot do this, which is the usual reason to pay ' +
+                   'for a Hall part.' },
+            { id: 'raw', label: 'V(v_hall) at +100 mT &mdash; the raw plate output',
+              expect: '10.0', unit: 'mV', tol: 0.2,
+              why: '0.1&nbsp;V/T &times; 0.1&nbsp;T. Ten millivolts is the honest scale of ' +
+                   'a Hall plate\'s output, and it is why the amplifier is on the same ' +
+                   'die: ten millivolts down a wire, next to a motor, arrives as noise. ' +
+                   '<strong>Everything the sensor is good for depends on amplifying ' +
+                   'before the signal leaves the package.</strong>' },
+            { id: 'span', label: 'V(out) at +100 mT minus V(out) at −100 mT',
+              expect: '1.000', unit: 'V', tol: 0.02,
+              why: 'The span across the full &plusmn;100&nbsp;mT sweep. 1&nbsp;V out of a ' +
+                   '5&nbsp;V supply is only a fifth of the available range, which is a ' +
+                   'design decision rather than a limitation: the headroom is there so ' +
+                   'that a stronger magnet, or a closer one, does not clip. Sensor ' +
+                   'datasheets specify the linear range well inside the rails for exactly ' +
+                   'this reason.' }
+        ],
+        experiments: [
+            { action: 'Change V_supply from 5 V to 3.3 V, leaving V_quies at 2.5 V.',
+              expect: 'Nothing changes at all, which is <strong>wrong</strong> — a real ' +
+                      'ratiometric sensor would move its quiescent point to 1.65 V.',
+              why: 'This is the model\'s honest limitation and it is worth knowing about. ' +
+                   'V_quies is an independent source here, so it ignores the supply. A ' +
+                   'real ratiometric part derives both the quiescent point and the ' +
+                   'sensitivity from V<sub>CC</sub>, so that an ADC running from the same ' +
+                   'rail divides the supply back out and the reading survives a sagging ' +
+                   'battery. To model that, set V_quies to V<sub>CC</sub>/2 by hand and ' +
+                   'scale E_out\'s gain by the same ratio &mdash; then repeat this ' +
+                   'experiment and watch the ADC-referred code stay put.' },
+            { action: 'Replace V_quies with a 10 kΩ / 10 kΩ divider from vcc to ground.',
+              expect: 'The quiescent output sags to <strong>1.667 V</strong> instead of ' +
+                      'sitting at 2.5 V — an error of 833 mV.',
+              why: 'E_out is a floating source, so the current R_load draws has to come ' +
+                   'out of node <span class="mono">vq</span>. A 10k/10k divider is ' +
+                   '2.5&nbsp;V behind 5&nbsp;k&Omega;, and hanging an effective ' +
+                   '10&nbsp;k&Omega; on that is a plain divider: 2.5 &times; 10/15 = ' +
+                   '1.667&nbsp;V. The error is 833&nbsp;mV, which is <em>most of a ' +
+                   'tesla</em> of apparent field on a 5&nbsp;mV/mT scale &mdash; far ' +
+                   'larger than anything you were trying to measure. <strong>Real sensors ' +
+                   'buffer that divider, and this is the entire reason.</strong> It is ' +
+                   'also the most common way a working breadboard turns into a broken ' +
+                   'one: a reference divider that was fine unloaded, quietly loaded.' },
+            { action: 'Add a 100 Ω resistor in series between out and R_load, then make ' +
+                      'R_load 100 Ω.',
+              expect: 'V(out) barely moves, but the voltage at R_load is now <strong>half ' +
+                      'of it</strong>.',
+              why: 'The ideal VCVS holds its own terminal regardless of current, so ' +
+                   'nothing warns you. A real sensor has an output impedance of a few ' +
+                   'hundred ohms to a few kilohms and cannot drive 100&nbsp;&Omega; at ' +
+                   'all. <strong>Whenever an ideal source is standing in for a real ' +
+                   'part, the simulation gets loading questions wrong in the optimistic ' +
+                   'direction</strong> &mdash; which is why the datasheet\'s minimum load ' +
+                   'resistance is a number to read rather than skip.' },
+            { action: 'Sweep V_field from −1 V to +1 V, ten times the intended range.',
+              expect: 'A perfectly straight line all the way to <strong>±5 V and ' +
+                      'beyond</strong>.',
+              why: 'Which is impossible: the output cannot leave the 0&ndash;5&nbsp;V ' +
+                   'supply. A real part clips at roughly 0.2&nbsp;V from each rail, so it ' +
+                   'saturates near &plusmn;480&nbsp;mT here and the reading stops meaning ' +
+                   'anything &mdash; and, worse, a saturated Hall sensor looks exactly ' +
+                   'like a correctly-reading one at a slightly weaker field. ' +
+                   '<strong>Ideal controlled sources have no rails, so they never warn ' +
+                   'you about range.</strong> If you are modelling a sensor with one, the ' +
+                   'valid span is something you have to remember, because the simulator ' +
+                   'will not.' }
+        ]
+    });
+})();
+</script>

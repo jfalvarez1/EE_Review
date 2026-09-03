@@ -256,7 +256,7 @@
                     <tr><td class="mono">Rin+</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">IN+</span> and <span class="mono">N1</span></td></tr>
                     <tr><td class="mono">Rin-</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">IN-</span> and <span class="mono">N2</span></td></tr>
                     <tr><td class="mono">C1</td><td>Capacitor</td><td>100&nbsp;nF</td><td>between <span class="mono">N1</span> and <span class="mono">N2</span></td></tr>
-                    <tr><td class="mono">E_IA</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">OUT</span> to ground, sensing <span class="mono">VALUE={Gain*(V(N1)-V(N2))}</span> to <span class="mono">undefined</span></td></tr>
+                    <tr><td class="mono">E_IA</td><td>VCVS</td><td>gain 64 &mdash; the PGA setting above</td><td>output <span class="mono">OUT</span> to ground, sensing <span class="mono">N1</span> to <span class="mono">N2</span></td></tr>
                     <tr><td class="mono">Rout_IA</td><td>Resistor</td><td>100&nbsp;&Omega;</td><td>between <span class="mono">OUT</span> and <span class="mono">N3</span></td></tr>
                     <tr><td class="mono">R_filt</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">N3</span> and <span class="mono">N4</span></td></tr>
                     <tr><td class="mono">C_filt</td><td>Capacitor</td><td>1&nbsp;&micro;F</td><td>between <span class="mono">N4</span> and ground</td></tr>
@@ -269,11 +269,13 @@
         </div>
 
         <p><strong>What to run:</strong> an <strong>AC sweep</strong> from 100&nbsp;mHz to 10&nbsp;kHz; then a <strong>noise analysis</strong>.</p>
-        <p><strong>What to watch:</strong> <span class="mono">V(IN+,IN-)</span>, <span class="mono">V(OUT)</span>, <span class="mono">V(VOUT)</span>.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(IN+,IN-)</span>, <span class="mono">V(OUT)</span>, <span class="mono">V(VOUT)</span>, <span class="mono">V(ADC_IN)</span> &mdash; the last one is the node the converter actually sees, and the only one that matters.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m26l06-chain"></div>
     </div>
 
         <!-- Design Checklist -->
@@ -1269,3 +1271,107 @@
             });
         });
     </script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m26l06-chain', {
+        id: 'm26l06-chain',
+        title: 'Three corners and one gain',
+        intro: 'A signal chain is easy to get wrong in a way that only shows up as a ' +
+               'number being quietly late, or quietly small. This one has a differential ' +
+               'input filter, a gain of 64, and a post-gain filter, and each of the three ' +
+               'has a corner you can predict from two components. Check the DC gain first ' +
+               '&mdash; everything else is a deviation from it.',
+        probes: [
+            { id: 'dcgain', label: 'V(OUT) at low frequency, with 1 mV in',
+              expect: '64.0', unit: 'mV', tol: 1,
+              why: 'The PGA gain, and nothing else, because at DC the input filter\'s ' +
+                   'capacitor is an open circuit and the two 10&nbsp;k resistors carry no ' +
+                   'current into an ideal amplifier. 1&nbsp;mV &times; 64 = ' +
+                   '<strong>64&nbsp;mV</strong>, which is 36.1&nbsp;dB.' },
+            { id: 'vout', label: 'V(VOUT) at low frequency',
+              expect: '64.0', unit: 'mV', tol: 1,
+              why: 'The same, because the RC after the amplifier has no DC loss and the ' +
+                   'buffer is unity gain. <strong>If V(VOUT) is smaller than V(OUT) at ' +
+                   'DC, something is drawing current that should not be</strong> &mdash; ' +
+                   'that is the single most useful thing this probe tells you.' },
+            { id: 'adc', label: 'V(ADC_IN) at low frequency',
+              expect: '64.0', unit: 'mV', tol: 1,
+              why: 'Rout_buf is 10&nbsp;&Omega; and the node beyond it is open, so it ' +
+                   'drops nothing here. That resistor exists for a different reason: it ' +
+                   'isolates the buffer from the ADC\'s sampling capacitor, which slams ' +
+                   'onto this node every conversion. Ten ohms into a real ADC\'s input is ' +
+                   'a deliberate compromise between settling time and stability, and ' +
+                   '<strong>an AC sweep will never show you the reason for it</strong>.' },
+            { id: 'fin', label: '−3 dB corner of the input filter',
+              expect: '79.6', unit: 'Hz', tol: 4,
+              why: '1/(2&pi;RC) with <strong>R = 20&nbsp;k&Omega;, not 10</strong>: the ' +
+                   'capacitor is differential, so the loop goes out through one ' +
+                   '10&nbsp;k and back through the other. Halving that resistance in your ' +
+                   'head is the classic error, and it puts the answer at 159&nbsp;Hz ' +
+                   '&mdash; a factor of two, which is exactly the kind of mistake that ' +
+                   'survives review because it looks plausible.' },
+            { id: 'fpost', label: '−3 dB corner of the post-gain filter',
+              expect: '145', unit: 'Hz', tol: 8,
+              why: '1/(2&pi; &times; (100&nbsp;&Omega; + 1&nbsp;k&Omega;) &times; ' +
+                   '1&nbsp;&micro;F) = 145&nbsp;Hz. Rout_IA is in the RC whether you meant ' +
+                   'it to be or not &mdash; 100&nbsp;&Omega; on top of 1&nbsp;k is a 10% ' +
+                   'shift in the corner. <strong>Source impedance is part of every ' +
+                   'passive filter you build</strong>, and forgetting it is why the ' +
+                   'measured corner is always a bit lower than the calculated one.' }
+        ],
+        experiments: [
+            { action: 'Raise the PGA gain from 64 to 128 and re-run the AC sweep.',
+              expect: 'The output doubles and <strong>none of the corner frequencies ' +
+                      'move</strong>.',
+              why: 'The filters are passive and sit outside the gain block, so gain and ' +
+                   'bandwidth are independent here. That is the good case, and it is worth ' +
+                   'noticing because it is not the usual one: put the filter <em>inside</em> ' +
+                   'the feedback loop of a real amplifier and the gain-bandwidth product ' +
+                   'ties them together, so doubling the gain halves the bandwidth. ' +
+                   'Whether your filter is inside or outside the loop decides which world ' +
+                   'you are in.' },
+            { action: 'Run the noise analysis, then raise the PGA gain from 64 to 128 and ' +
+                      'run it again.',
+              expect: 'Output noise roughly doubles, and <strong>input-referred noise ' +
+                      'barely changes</strong>.',
+              why: 'This is the whole reason a chain is arranged gain-first. Noise added ' +
+                   'after the amplifier is divided by 64 when you refer it back to the ' +
+                   'input; noise added at the input is not divided by anything. ' +
+                   '<strong>The first stage sets the noise floor of the entire ' +
+                   'chain</strong> &mdash; Friis\' formula, the same result that decides ' +
+                   'why an LNA goes first in a receiver. Everything downstream of a gain ' +
+                   'of 64 is 36&nbsp;dB less important than it looks.' },
+            { action: 'Make C1 10 nF instead of 100 nF.',
+              expect: 'The input corner moves out to <strong>796 Hz</strong> and more ' +
+                      'high-frequency content reaches the amplifier.',
+              why: 'Ten times less capacitance is ten times the corner. That sounds like ' +
+                   'more bandwidth, and at 250&nbsp;SPS it is a mistake: the ADC samples ' +
+                   'at 250&nbsp;Hz, so its Nyquist limit is 125&nbsp;Hz, and anything ' +
+                   'above that folds down into the band you care about and cannot be ' +
+                   'removed afterwards. <strong>The input filter is an anti-alias filter, ' +
+                   'and its corner belongs to the sample rate, not to the signal.</strong> ' +
+                   'With the original 100&nbsp;nF the 79.6&nbsp;Hz corner already sits ' +
+                   'below Nyquist, which is the correct relationship.' },
+            { action: 'Make Rin+ 10 kΩ and Rin− 1 kΩ, so the two input resistors no longer ' +
+                      'match.',
+              expect: 'The differential response barely changes, but a common-mode signal ' +
+                      'now <strong>appears at the output</strong>.',
+              why: 'Try it properly: set both Vin+ and Vin&minus; to the same 1&nbsp;V AC ' +
+                   'source, so the differential input is zero. With matched resistors the ' +
+                   'output stays at zero. With 10&nbsp;k against 1&nbsp;k the common-mode ' +
+                   'signal reaches N1 and N2 through different impedances, arrives with ' +
+                   'different phase above the filter corner, and the amplifier faithfully ' +
+                   'amplifies the difference &mdash; which is now a real difference. ' +
+                   '<strong>CMRR is a property of the resistors in front of the ' +
+                   'amplifier at least as much as of the amplifier</strong>, which is why ' +
+                   'instrumentation amps are sold with the gain resistors on-die and why ' +
+                   'input filters are built from matched pairs.' }
+        ]
+    });
+})();
+</script>

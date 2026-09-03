@@ -92,10 +92,20 @@ function nodesOf(cell) {
     let matched = false;
 
     const add = n => {
-        if (!n) return;
+        if (typeof n !== 'string') return;                  // an absent capture
         const clean = n.trim().replace(/^["'`]|["'`.,;]$/g, '');
-        if (!clean || /^(?:and|to|from|between|node|pin|pins)$/i.test(clean)) return;
-        if (!/^[A-Za-z0-9_+\-]{1,20}$/.test(clean)) return;
+        if (!clean) return;
+        // Only the connector words themselves. Do NOT add short English words
+        // here: "in", "a" and "on" are all real node names in these tables, and
+        // filtering them made twenty lessons look like they watched a node they
+        // never built.
+        if (/^(?:and|to|from|between|node|pin|pins|the)$/i.test(clean)) return;
+        if (/^[+\-]$/.test(clean)) return;             // a stray polarity marker
+        // A quantity is not a node. The MCU lessons describe pseudo-code in the
+        // Connect column and their identifiers were being read as nets.
+        if (/^\d/.test(clean)) return;
+        if (/^(?:mA|mAh|mV|uA|uF|nF|pF|kohm|ohm|Hz|kHz|MHz)$/i.test(clean)) return;
+        if (!/^[A-Za-z_][A-Za-z0-9_+\-]{0,19}$/.test(clean)) return;
         out.push(clean);
     };
 
@@ -116,6 +126,18 @@ function nodesOf(cell) {
         matched = true;
         add(t[1]);
     }
+
+    // Controlled sources: "output A to B, sensing C to D". The terminal rule
+    // below picks up "output A" and stops, which loses three nodes out of four
+    // and made every VCVS in the course look like a dangling lead.
+    m = /\boutput\s+([^\s,]+)\s+to\s+([^\s,.]+)/i.exec(s);
+    if (m) { matched = true; add(m[1]); add(m[2]); }
+    m = /\bsensing\s+([^\s,]+)\s+to\s+([^\s,.]+)/i.exec(s);
+    if (m) { matched = true; add(m[1]); add(m[2]); }
+
+    // Gates: "inputs A and B, output C".
+    m = /\binputs\s+([^\s,]+)\s+and\s+([^\s,.]+)/i.exec(s);
+    if (m) { matched = true; add(m[1]); add(m[2]); }
 
     // pins a, b, c, ground
     m = /\bpins?\s+(.+)$/i.exec(s);
