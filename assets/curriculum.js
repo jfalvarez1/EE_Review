@@ -1993,6 +1993,12 @@ const CURRICULUM = {
                     title: 'Noise Figure, the Cascade and Receiver Sensitivity',
                     description: 'Where the noise comes from, how it accumulates, and what range it buys',
                     topics: ['kTB and the -174 dBm/Hz floor', 'Noise figure, factor, temperature', 'The Friis cascade', 'Sensitivity', 'Link budget']
+                },
+                {
+                    id: 8,
+                    title: 'Linearity: Compression, IP3 and Intermodulation',
+                    description: 'Why the LAST stage decides linearity when the FIRST decides noise',
+                    topics: ['Where the products come from', 'P1dB and IP3', 'The cascade, backwards from Friis', 'SFDR', 'Blocking and spectral regrowth']
                 }
             ]
         },

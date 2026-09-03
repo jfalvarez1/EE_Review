@@ -1,6 +1,12 @@
 # EE Review — Analog Design & Power Systems Study Guide
 
-A browser-based study guide for electrical engineering. **26 modules, 359 lessons**, each one
+# ▶ [**View HERE**](https://jfalvarez1.github.io/EE_Review/)
+
+### It runs in your browser. Nothing to install.
+
+---
+
+A browser-based study guide for electrical engineering. **29 modules, 401 lessons**, each one
 short enough to read in a sitting: the concept, the equations that matter, a worked example
 with real numbers, an interactive calculator, and the gotchas that only show up on a bench or
 in the field.
@@ -15,7 +21,7 @@ It reads two ways, and they are genuinely different documents:
 - **The sidebar** — the same lessons, browsable by topic. It now runs in the same order as the
   path, so you can follow it top to bottom or jump straight to what you need.
 
-![The welcome screen, showing 26 modules and 359 lessons](docs/images/welcome.png)
+![The welcome screen, showing 29 modules and 401 lessons](docs/images/welcome.png)
 
 ### Suggested pairing: run the simulations in Circuit Toy
 
@@ -44,7 +50,7 @@ Three ways, in order of how little you want to install.
 | **Offline, one file** | Download `EE_Review.html` from [Releases](https://github.com/jfalvarez1/EE_Review/releases) and double-click it | a browser |
 | **From a clone** | `launch.bat` / `./launch.sh` | Python |
 
-The **one-file offline edition** is the whole course — all 368 lessons, every interactive,
+The **one-file offline edition** is the whole course — all 401 lessons, every interactive,
 all the maths — inside a single 13 MB HTML file. No server, no Python, no internet, no
 install. It runs from a USB stick, and it will keep working for as long as browsers do.
 That is deliberate: a reference you cannot open when the network is down is not much of a
