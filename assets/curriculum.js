@@ -2570,6 +2570,12 @@ const CURRICULUM = {
                     topics: ['N-1 sizes the conductor', 'Span versus structure-height trade', 'Loss economics', 'The line spec sheet']
                 },
                 {
+                    id: 19,
+                    title: 'Measuring Safely: CAT Ratings and Seeing This Without Touching Mains',
+                    description: 'Why the category matters more than the voltage, and six ways to verify all of this at zero risk',
+                    topics: ['IEC 61010 measurement categories', 'Source impedance is the hazard', 'Never float a scope', 'Six mains-free alternatives', 'NFPA 70E, IEEE 1584, OSHA 1910.269']
+                },
+                {
                     id: 20,
                     title: 'Interview Prep — Power Systems',
                     description: 'The whole module as it gets asked on a whiteboard',
