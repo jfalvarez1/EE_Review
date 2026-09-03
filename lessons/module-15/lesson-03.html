@@ -1,230 +1,177 @@
-<!-- Module 15, Lesson 3: Signal Integrity Debugging -->
+<!-- Module 15, Lesson 3: Protection Circuits -->
 <div class="lesson-content" data-module="15" data-lesson="3">
 
     <div class="card">
-        <h2>Signal Integrity Debugging</h2>
-        <p>When signals don't look clean, systematic debugging identifies the root cause: reflections, crosstalk, ground bounce, or termination issues.</p>
+        <h2>Battery Protection Circuits</h2>
+        <p>Battery protection prevents damage from overcharge, over-discharge, overcurrent, and short circuits. Learn protection IC architectures and design considerations for safe battery operation.</p>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Reflections</div>
-                <div class="v">Impedance mismatch</div>
+                <div class="k">OVP</div>
+                <div class="v">Overvoltage (4.25-4.35V)</div>
             </div>
             <div class="box">
-                <div class="k">Crosstalk</div>
-                <div class="v">Coupled noise</div>
+                <div class="k">UVP</div>
+                <div class="v">Undervoltage (2.5-3.0V)</div>
             </div>
             <div class="box">
-                <div class="k">Ground Bounce</div>
-                <div class="v">Return path inductance</div>
+                <div class="k">OCP</div>
+                <div class="v">Overcurrent limit</div>
+            </div>
+            <div class="box">
+                <div class="k">SCP</div>
+                <div class="v">Short circuit (<100µs)</div>
             </div>
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> If the edge rate is faster than 2× the propagation delay down the trace, treat it as a transmission line. For FR4, this means traces longer than ~2cm for 1ns edges.
+            <strong>Safety Critical:</strong> Li-ion batteries can catch fire or explode if abused. Protection circuits are your last line of defense. Never bypass or defeat protection features.
         </div>
     </div>
 
     <div class="card">
-        <h3>Interactive: Transmission Line Effects</h3>
+        <h3>Interactive: Protection Threshold Analyzer</h3>
 
         <div class="controls">
             <div class="c3">
-                <label for="si-z0">Trace Z<sub>0</sub> (Ω)</label>
-                <input type="text" id="si-z0" value="50">
+                <label for="prot-ovp">OVP Threshold (V)</label>
+                <input type="range" id="prot-ovp" min="4.2" max="4.4" step="0.01" value="4.28">
+                <span id="prot-ovp-val" class="mono">4.28V</span>
             </div>
             <div class="c3">
-                <label for="si-zl">Load Z<sub>L</sub> (Ω)</label>
-                <input type="range" id="si-zl" min="10" max="500" step="10" value="100">
-                <span id="si-zl-val" class="mono">100Ω</span>
+                <label for="prot-uvp">UVP Threshold (V)</label>
+                <input type="range" id="prot-uvp" min="2.3" max="3.2" step="0.1" value="2.8">
+                <span id="prot-uvp-val" class="mono">2.8V</span>
             </div>
             <div class="c3">
-                <label for="si-len">Trace Length (cm)</label>
-                <input type="range" id="si-len" min="1" max="30" step="1" value="10">
-                <span id="si-len-val" class="mono">10cm</span>
+                <label for="prot-ocp">OCP Threshold (A)</label>
+                <input type="range" id="prot-ocp" min="1" max="20" step="1" value="5">
+                <span id="prot-ocp-val" class="mono">5A</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="c3">
+                <label for="prot-vcell">Cell Voltage (V)</label>
+                <input type="range" id="prot-vcell" min="2" max="4.5" step="0.05" value="3.7">
+                <span id="prot-vcell-val" class="mono">3.7V</span>
             </div>
             <div class="c3">
-                <label for="si-tr">Rise Time (ns)</label>
-                <input type="range" id="si-tr" min="0.5" max="10" step="0.5" value="1">
-                <span id="si-tr-val" class="mono">1ns</span>
+                <label for="prot-icell">Cell Current (A)</label>
+                <input type="range" id="prot-icell" min="0" max="15" step="0.5" value="2">
+                <span id="prot-icell-val" class="mono">2.0A</span>
             </div>
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="si-canvas" width="980" height="300"></canvas>
+            <canvas id="prot-canvas" width="980" height="320"></canvas>
         </div>
 
         <div class="kv">
             <div class="box">
-                <div class="k">Reflection Coeff</div>
-                <div class="v mono" id="si-gamma">—</div>
+                <div class="k">OVP Status</div>
+                <div class="v mono" id="prot-ovp-status">—</div>
             </div>
             <div class="box">
-                <div class="k">Propagation Delay</div>
-                <div class="v mono" id="si-tpd">—</div>
+                <div class="k">UVP Status</div>
+                <div class="v mono" id="prot-uvp-status">—</div>
             </div>
             <div class="box">
-                <div class="k">Critical Length</div>
-                <div class="v mono" id="si-lcrit">—</div>
+                <div class="k">OCP Status</div>
+                <div class="v mono" id="prot-ocp-status">—</div>
             </div>
             <div class="box">
-                <div class="k">Status</div>
-                <div class="v mono" id="si-status">—</div>
+                <div class="k">FET State</div>
+                <div class="v mono" id="prot-fet">—</div>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Eye Diagram Analysis</h3>
-
-        <!-- SVG Eye Diagram -->
-        <div class="diagram-container" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; padding: 20px; margin: 15px 0;">
-            <svg viewBox="0 0 600 350" style="width: 100%; max-width: 600px; display: block; margin: 0 auto;">
-                <defs>
-                    <marker id="eyeArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#6ee7ff"/>
-                    </marker>
-                    <!-- Gradient for eye traces -->
-                    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" style="stop-color:#34d399;stop-opacity:0.3" />
-                        <stop offset="50%" style="stop-color:#34d399;stop-opacity:0.8" />
-                        <stop offset="100%" style="stop-color:#34d399;stop-opacity:0.3" />
-                    </linearGradient>
-                </defs>
-
-                <!-- Grid background -->
-                <pattern id="eyeGrid" width="30" height="30" patternUnits="userSpaceOnUse">
-                    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
-                </pattern>
-                <rect x="50" y="30" width="400" height="200" fill="url(#eyeGrid)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-
-                <!-- Decision threshold line -->
-                <line x1="50" y1="130" x2="450" y2="130" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="5,3"/>
-                <text x="460" y="135" fill="#fbbf24" font-size="10">Threshold</text>
-
-                <!-- Eye shape - multiple overlapping traces to simulate eye pattern -->
-                <!-- Upper eye opening traces -->
-                <path d="M 50 130 Q 150 60, 250 60 Q 350 60, 450 130" fill="none" stroke="url(#eyeGrad)" stroke-width="2"/>
-                <path d="M 50 130 Q 150 70, 250 65 Q 350 70, 450 130" fill="none" stroke="rgba(52,211,153,0.4)" stroke-width="1.5"/>
-                <path d="M 50 130 Q 150 55, 250 55 Q 350 55, 450 130" fill="none" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
-
-                <!-- Lower eye opening traces -->
-                <path d="M 50 130 Q 150 200, 250 200 Q 350 200, 450 130" fill="none" stroke="url(#eyeGrad)" stroke-width="2"/>
-                <path d="M 50 130 Q 150 190, 250 195 Q 350 190, 450 130" fill="none" stroke="rgba(52,211,153,0.4)" stroke-width="1.5"/>
-                <path d="M 50 130 Q 150 205, 250 205 Q 350 205, 450 130" fill="none" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
-
-                <!-- Jitter/noise at crossings (slight spread) -->
-                <ellipse cx="50" cy="130" rx="8" ry="15" fill="rgba(52,211,153,0.3)"/>
-                <ellipse cx="450" cy="130" rx="8" ry="15" fill="rgba(52,211,153,0.3)"/>
-
-                <!-- Noise at logic levels -->
-                <rect x="230" y="50" width="40" height="15" fill="rgba(52,211,153,0.2)" rx="2"/>
-                <rect x="230" y="195" width="40" height="15" fill="rgba(52,211,153,0.2)" rx="2"/>
-
-                <!-- Annotations -->
-                <!-- Eye Height -->
-                <line x1="250" y1="60" x2="250" y2="200" stroke="#6ee7ff" stroke-width="1.5" marker-start="url(#eyeArrow)" marker-end="url(#eyeArrow)"/>
-                <text x="265" y="130" fill="#6ee7ff" font-size="11" font-weight="bold">Eye</text>
-                <text x="265" y="145" fill="#6ee7ff" font-size="11" font-weight="bold">Height</text>
-
-                <!-- Eye Width -->
-                <line x1="90" y1="220" x2="410" y2="220" stroke="#fb7185" stroke-width="1.5" marker-start="url(#eyeArrow)" marker-end="url(#eyeArrow)"/>
-                <text x="230" y="240" fill="#fb7185" font-size="11" text-anchor="middle" font-weight="bold">Eye Width</text>
-
-                <!-- Bit period -->
-                <line x1="50" y1="250" x2="450" y2="250" stroke="#888" stroke-width="1"/>
-                <line x1="50" y1="245" x2="50" y2="255" stroke="#888" stroke-width="1"/>
-                <line x1="450" y1="245" x2="450" y2="255" stroke="#888" stroke-width="1"/>
-                <text x="250" y="265" fill="#888" font-size="10" text-anchor="middle">Bit Period (UI)</text>
-
-                <!-- Legend box -->
-                <g transform="translate(480, 30)">
-                    <rect width="110" height="120" rx="4" fill="rgba(30,30,50,0.8)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-                    <text x="10" y="20" fill="#ccc" font-size="10" font-weight="bold">What to Look For:</text>
-
-                    <circle cx="15" cy="38" r="4" fill="#fb7185"/>
-                    <text x="25" y="42" fill="#aaa" font-size="9">Closed = Jitter</text>
-
-                    <circle cx="15" cy="58" r="4" fill="#fbbf24"/>
-                    <text x="25" y="62" fill="#aaa" font-size="9">Asymm = Duty</text>
-
-                    <circle cx="15" cy="78" r="4" fill="#a78bfa"/>
-                    <text x="25" y="82" fill="#aaa" font-size="9">Multiple = ISI</text>
-
-                    <circle cx="15" cy="98" r="4" fill="#6ee7ff"/>
-                    <text x="25" y="102" fill="#aaa" font-size="9">Spread = Jitter</text>
-                </g>
-
-                <!-- Crossing jitter label -->
-                <text x="50" y="160" fill="#a78bfa" font-size="9" text-anchor="middle">Jitter at</text>
-                <text x="50" y="172" fill="#a78bfa" font-size="9" text-anchor="middle">crossing</text>
-            </svg>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 15px;">
-            <div style="background: rgba(251, 113, 133, 0.1); border-left: 3px solid #fb7185; padding: 10px; border-radius: 4px;">
-                <strong style="color: #fb7185; font-size: 12px;">Closed Eye</strong>
-                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">Too much jitter or noise - reduce data rate or improve channel</p>
-            </div>
-            <div style="background: rgba(251, 191, 36, 0.1); border-left: 3px solid #fbbf24; padding: 10px; border-radius: 4px;">
-                <strong style="color: #fbbf24; font-size: 12px;">Asymmetric</strong>
-                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">Duty cycle distortion - check driver output stage</p>
-            </div>
-            <div style="background: rgba(167, 139, 250, 0.1); border-left: 3px solid #a78bfa; padding: 10px; border-radius: 4px;">
-                <strong style="color: #a78bfa; font-size: 12px;">Multiple Crossings</strong>
-                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">ISI (intersymbol interference) - need equalization</p>
-            </div>
-            <div style="background: rgba(110, 231, 255, 0.1); border-left: 3px solid #6ee7ff; padding: 10px; border-radius: 4px;">
-                <strong style="color: #6ee7ff; font-size: 12px;">Spread at Levels</strong>
-                <p style="font-size: 11px; margin: 5px 0 0 0; color: #aaa;">Crosstalk or reflections - check termination</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Common SI Problems</h3>
+        <h3>Protection Features</h3>
 
         <table class="table">
             <tr>
-                <th>Symptom</th>
-                <th>Likely Cause</th>
-                <th>Solution</th>
+                <th>Protection</th>
+                <th>Trigger</th>
+                <th>Action</th>
+                <th>Recovery</th>
             </tr>
             <tr>
-                <td>Ringing after edges</td>
-                <td>Unterminated line, mismatch</td>
-                <td>Add series/parallel termination</td>
+                <td>Overcharge (OVP)</td>
+                <td>Vcell > 4.25-4.35V</td>
+                <td>Turn off charge FET</td>
+                <td>Voltage drops below threshold</td>
             </tr>
             <tr>
-                <td>Overshoot > 30%</td>
-                <td>Source impedance too low</td>
-                <td>Add series resistor at source</td>
+                <td>Over-discharge (UVP)</td>
+                <td>Vcell < 2.5-3.0V</td>
+                <td>Turn off discharge FET</td>
+                <td>Charger connected</td>
             </tr>
             <tr>
-                <td>Slow rise time</td>
-                <td>RC loading, long stubs</td>
-                <td>Reduce capacitive load, remove stubs</td>
+                <td>Overcurrent discharge</td>
+                <td>I > limit (5-30A)</td>
+                <td>Turn off discharge FET</td>
+                <td>Load removed, delay</td>
             </tr>
             <tr>
-                <td>Glitches on quiet line</td>
-                <td>Crosstalk from adjacent</td>
-                <td>Add spacing, ground guard</td>
+                <td>Overcurrent charge</td>
+                <td>I > charge limit</td>
+                <td>Turn off charge FET</td>
+                <td>Current drops, delay</td>
             </tr>
             <tr>
-                <td>Signal shifts with activity</td>
-                <td>Ground bounce, SSO</td>
-                <td>More power/ground pins, decoupling</td>
+                <td>Short circuit</td>
+                <td>I >> limit, fast</td>
+                <td>Immediate FET off</td>
+                <td>Load removed, long delay</td>
+            </tr>
+            <tr>
+                <td>Overtemperature</td>
+                <td>T > 60-80°C</td>
+                <td>Turn off both FETs</td>
+                <td>Temperature drops</td>
             </tr>
         </table>
+    </div>
 
-        <div class="warn">
-            <strong>Termination Trade-offs:</strong>
-            <ul style="margin: 10px 0 0 20px;">
-                <li>Series termination: Low power, works for point-to-point only</li>
-                <li>Parallel termination: Multi-drop okay, but constant current draw</li>
-                <li>AC termination (RC): Compromise, lower DC power</li>
-            </ul>
-        </div>
+    <div class="card">
+        <h3>Design Equations</h3>
+        <pre style="color:#4af; background:#111; padding:15px; border-radius:4px; font-size:11px;">
+Current Sensing:
+    Vsense = I × Rsense
+    Rsense = Vth_ocp / Iocp
+
+    Example: 100mV threshold, 5A limit
+    Rsense = 0.1V / 5A = 20mΩ
+
+Power Dissipation:
+    Psense = I² × Rsense = 5² × 0.02 = 0.5W
+
+MOSFET Selection:
+    Vds_rating > Vpack × 1.5 (margin)
+    Id_rating > Iocp × 1.5
+    Rds_on: Lower = less loss, higher = self-limiting
+
+    Power in FET: Pfet = I² × Rds_on
+
+Protection Delay Times:
+    OVP delay: 50-500ms (filter noise)
+    UVP delay: 50-500ms
+    OCP delay: 5-20ms
+    SCP delay: <100µs (must be fast!)
+
+Hysteresis:
+    OVP: ~50-100mV below trip
+    UVP: ~100-300mV above trip
+    Prevents oscillation near threshold
+        </pre>
+    </div>
+
+    <div class="card">
+        <h3>Protection Circuit Schematic</h3>
+        <div id="prot-schematic"></div>
     </div>
 
         <div class="card">
@@ -235,21 +182,24 @@
         from the table below. Node names are just labels &mdash; anything
         sharing a name is one wire.</p>
 
-        <p><strong>Transmission Line with Termination</strong></p>
+        <p><strong>Protection Circuit Simulation</strong></p>
 
         <div class="table-wrap">
             <table>
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
-                    <tr><td class="mono">VPULSE</td><td>Voltage source</td><td>pulse 0&nbsp;V to 3.30&nbsp;V, period 10&nbsp;ns</td><td>from <span class="mono">src</span> to ground</td></tr>
-                    <tr><td class="mono">RSRC</td><td>Resistor</td><td>10&nbsp;&Omega;</td><td>between <span class="mono">src</span> and <span class="mono">drv</span></td></tr>
-                    <tr><td class="mono">RLOAD</td><td>Resistor</td><td>1&nbsp;M&Omega;</td><td>between <span class="mono">load</span> and ground</td></tr>
+                    <tr><td class="mono">Vcell</td><td>Voltage source</td><td>3.70&nbsp;V DC</td><td>from <span class="mono">cell_pos</span> to <span class="mono">cell_neg</span></td></tr>
+                    <tr><td class="mono">Xprot</td><td>Block (protection IC)</td><td><span class="mono">Sub-Circuit</span></td><td>pins <span class="mono">cell_pos</span>, <span class="mono">cell_neg</span>, <span class="mono">do</span>, <span class="mono">co</span>, <span class="mono">cs</span></td></tr>
+                    <tr><td class="mono">Mdsg</td><td>Transistor (MOSFET)</td><td><span class="mono">PMOS</span></td><td>drain <span class="mono">p_pos</span>, gate <span class="mono">gate_d</span>, source <span class="mono">cell_pos</span></td></tr>
+                    <tr><td class="mono">Mchg</td><td>Transistor (MOSFET)</td><td><span class="mono">PMOS</span></td><td>drain <span class="mono">p_pos</span>, gate <span class="mono">gate_c</span>, source <span class="mono">p_mid</span></td></tr>
+                    <tr><td class="mono">Rsense</td><td>Resistor</td><td>20&nbsp;m&Omega;</td><td>between <span class="mono">p_mid</span> and <span class="mono">cs</span></td></tr>
+                    <tr><td class="mono">Rload</td><td>Resistor</td><td>1&nbsp;&Omega;</td><td>between <span class="mono">p_pos</span> and <span class="mono">p_neg</span></td></tr>
                 </tbody>
             </table>
         </div>
 
-        <p><strong>What to run:</strong> a <strong>transient run</strong> of 50&nbsp;ns in steps of 100&nbsp;ps.</p>
-        <p><strong>What to watch:</strong> <span class="mono">V(drv)</span>, <span class="mono">V(load)</span>.</p>
+        <p><strong>What to run:</strong> a <strong>transient run</strong> of 100&nbsp;ms in steps of 1&nbsp;ms; then a <strong>DC sweep</strong> of <span class="mono">Vcell</span> from 2&nbsp; to 4.50&nbsp;.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(cell_pos)</span>, <span class="mono">V(do)</span>, <span class="mono">V(co)</span>, <span class="mono">I(Rload)</span>.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
@@ -257,196 +207,429 @@
     </div>
 
     <div class="card">
-        <h3>Verification Checklist</h3>
-        <div id="checklist-container"></div>
+        <h3>Design Checklist</h3>
+        <div id="prot-checklist"></div>
     </div>
 
     <div class="card">
-        <h3>Practice Exercise</h3>
-        <div id="exercise-container"></div>
+        <h3>Practice Exercises</h3>
+        <div id="prot-exercises"></div>
     </div>
 
 </div>
 
 <script>
 (function() {
-    const canvas = document.getElementById('si-canvas');
+    const TEK = {ch1:'#FFFF00', ch2:'#00FFFF', ch3:'#FF66FF', ch4:'#00FF00', ref:'#888888', grid:'#444444'};
+
+    const canvas = document.getElementById('prot-canvas');
     const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mL = 80, mR = 40, mT = 40, mB = 50;
 
     function update() {
-        const z0 = AD.parseValue(document.getElementById('si-z0').value) || 50;
-        const zl = AD.num('si-zl');
-        const len = AD.num('si-len');
-        const tr = AD.num('si-tr');
+        const ovpTh = AD.num('prot-ovp') || 4.28;
+        const uvpTh = AD.num('prot-uvp') || 2.8;
+        const ocpTh = AD.num('prot-ocp') || 5;
+        const Vcell = AD.num('prot-vcell') || 3.7;
+        const Icell = AD.num('prot-icell') || 2;
 
-        document.getElementById('si-zl-val').textContent = zl + 'Ω';
-        document.getElementById('si-len-val').textContent = len + 'cm';
-        document.getElementById('si-tr-val').textContent = tr + 'ns';
+        document.getElementById('prot-ovp-val').textContent = ovpTh.toFixed(2) + 'V';
+        document.getElementById('prot-uvp-val').textContent = uvpTh.toFixed(1) + 'V';
+        document.getElementById('prot-ocp-val').textContent = ocpTh + 'A';
+        document.getElementById('prot-vcell-val').textContent = Vcell.toFixed(2) + 'V';
+        document.getElementById('prot-icell-val').textContent = Icell.toFixed(1) + 'A';
 
-        // Reflection coefficient
-        const gamma = (zl - z0) / (zl + z0);
-        document.getElementById('si-gamma').textContent =
-            (gamma >= 0 ? '+' : '') + gamma.toFixed(2) + ' (' + (gamma * 100).toFixed(0) + '%)';
+        // Determine protection status
+        const ovpTripped = Vcell > ovpTh;
+        const uvpTripped = Vcell < uvpTh;
+        const ocpTripped = Icell > ocpTh;
 
-        // Propagation delay (FR4 ≈ 6.7ns/m or 0.67ns/10cm)
-        const tpd = len * 0.067; // ns
-        document.getElementById('si-tpd').textContent = tpd.toFixed(2) + 'ns';
+        const chargeFetOn = !ovpTripped;
+        const dischargeFetOn = !uvpTripped && !ocpTripped;
 
-        // Critical length (where trace becomes transmission line)
-        const lcrit = tr / 0.067 / 2; // cm, rule: tpd < tr/2
-        document.getElementById('si-lcrit').textContent = lcrit.toFixed(1) + 'cm';
+        document.getElementById('prot-ovp-status').innerHTML = ovpTripped ?
+            '<span style="color:#f44">TRIPPED</span>' : '<span style="color:#4f4">OK</span>';
+        document.getElementById('prot-uvp-status').innerHTML = uvpTripped ?
+            '<span style="color:#f44">TRIPPED</span>' : '<span style="color:#4f4">OK</span>';
+        document.getElementById('prot-ocp-status').innerHTML = ocpTripped ?
+            '<span style="color:#f44">TRIPPED</span>' : '<span style="color:#4f4">OK</span>';
+        document.getElementById('prot-fet').innerHTML =
+            (chargeFetOn ? '<span style="color:#4f4">CHG:ON</span>' : '<span style="color:#f44">CHG:OFF</span>') +
+            ' ' +
+            (dischargeFetOn ? '<span style="color:#4f4">DSG:ON</span>' : '<span style="color:#f44">DSG:OFF</span>');
 
-        const statusEl = document.getElementById('si-status');
-        if (len < lcrit) {
-            statusEl.textContent = 'Lumped (no TL effects)';
-            statusEl.style.color = 'var(--ok)';
-        } else if (Math.abs(gamma) < 0.2) {
-            statusEl.textContent = 'Well matched';
-            statusEl.style.color = 'var(--ok)';
-        } else {
-            statusEl.textContent = 'Reflections likely';
-            statusEl.style.color = 'var(--warn)';
-        }
+        // Draw visualization
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
 
-        plotTransmissionLine(z0, zl, len, tr, gamma, tpd);
-    }
+        // Voltage operating range (left)
+        const vBarX = mL, vBarY = mT + 20;
+        const vBarW = 60, vBarH = 200;
 
-    function plotTransmissionLine(z0, zl, len, tr, gamma, tpd) {
-        const w = canvas.width;
-        const h = canvas.height;
+        ctx.fillStyle = '#222';
+        ctx.fillRect(vBarX, vBarY, vBarW, vBarH);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(vBarX, vBarY, vBarW, vBarH);
 
-        const totalTime = tpd * 8 + tr * 2; // Show multiple reflections
+        // OVP zone (red at top)
+        const ovpY = vBarY + ((4.5 - ovpTh) / 2.5) * vBarH;
+        ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
+        ctx.fillRect(vBarX, vBarY, vBarW, ovpY - vBarY);
 
-        const axes = AD.drawAxes(ctx, w, h, {
-            xMin: 0,
-            xMax: totalTime,
-            yMin: -0.3,
-            yMax: 1.5,
-            xLabel: 'Time',
-            yLabel: 'Voltage',
-            xUnit: 'ns',
-            yUnit: 'V',
-            xDivs: 10,
-            yDivs: 8
-        });
+        // UVP zone (red at bottom)
+        const uvpY = vBarY + ((4.5 - uvpTh) / 2.5) * vBarH;
+        ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
+        ctx.fillRect(vBarX, uvpY, vBarW, vBarY + vBarH - uvpY);
 
-        const N = 500;
-        const tData = [];
-        const vSourceData = [];
-        const vLoadData = [];
+        // Safe zone (green)
+        ctx.fillStyle = 'rgba(68, 255, 68, 0.2)';
+        ctx.fillRect(vBarX, ovpY, vBarW, uvpY - ovpY);
 
-        for (let i = 0; i < N; i++) {
-            const t = (i / N) * totalTime;
-            tData.push(t);
-
-            // Simplified transmission line model with reflections
-            let vSource = 0;
-            let vLoad = 0;
-
-            // Initial step (simplified as smooth rise)
-            const riseFunc = (time) => {
-                if (time < 0) return 0;
-                if (time > tr) return 1;
-                return time / tr;
-            };
-
-            // Source voltage includes reflections
-            vSource = riseFunc(t) * 0.5; // Initial launch (source impedance divider)
-
-            // First forward wave arrives at load
-            if (t > tpd) {
-                vLoad = riseFunc(t - tpd) * 0.5 * (1 + gamma);
-            }
-
-            // First reflection returns to source
-            if (t > 2 * tpd) {
-                vSource += riseFunc(t - 2 * tpd) * 0.5 * gamma;
-            }
-
-            // Second reflection at load
-            if (t > 3 * tpd) {
-                vLoad += riseFunc(t - 3 * tpd) * 0.5 * gamma * gamma * (1 + gamma);
-            }
-
-            // Continue reflections
-            if (t > 4 * tpd) {
-                vSource += riseFunc(t - 4 * tpd) * 0.5 * Math.pow(gamma, 2);
-            }
-
-            if (t > 5 * tpd) {
-                vLoad += riseFunc(t - 5 * tpd) * 0.5 * Math.pow(gamma, 3) * (1 + gamma);
-            }
-
-            vSourceData.push(vSource);
-            vLoadData.push(vLoad);
-        }
-
-        // Plot source voltage
-        AD.plotData(ctx, axes, tData, vSourceData, {
-            color: 'rgba(251, 191, 36, 0.95)',
-            lineWidth: 2
-        });
-
-        // Plot load voltage
-        AD.plotData(ctx, axes, tData, vLoadData, {
-            color: 'rgba(110, 231, 255, 0.95)',
-            lineWidth: 2
-        });
-
-        // Mark final voltage level
-        const vFinal = 1.0;
-        ctx.save();
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 1;
-
-        const finalPt = axes.toCanvas(0, vFinal);
+        // Threshold lines
+        ctx.strokeStyle = '#f44';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 3]);
         ctx.beginPath();
-        ctx.moveTo(axes.left, finalPt.y);
-        ctx.lineTo(axes.left + axes.width, finalPt.y);
+        ctx.moveTo(vBarX, ovpY);
+        ctx.lineTo(vBarX + vBarW, ovpY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(vBarX, uvpY);
+        ctx.lineTo(vBarX + vBarW, uvpY);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '10px ui-sans-serif';
-        ctx.fillText('Final: ' + vFinal.toFixed(1) + 'V', axes.left + axes.width - 60, finalPt.y - 5);
-        ctx.restore();
+        // Current voltage indicator
+        const vcellY = vBarY + ((4.5 - Vcell) / 2.5) * vBarH;
+        ctx.fillStyle = Vcell > ovpTh || Vcell < uvpTh ? '#f44' : '#4f4';
+        ctx.beginPath();
+        ctx.moveTo(vBarX + vBarW + 5, vcellY);
+        ctx.lineTo(vBarX + vBarW + 20, vcellY - 8);
+        ctx.lineTo(vBarX + vBarW + 20, vcellY + 8);
+        ctx.fill();
 
-        AD.drawLegend(ctx, axes.left + 10, axes.top + 15, [
-            { color: 'rgba(251, 191, 36, 0.95)', label: 'Source end' },
-            { color: 'rgba(110, 231, 255, 0.95)', label: 'Load end' }
-        ]);
+        // Labels
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('4.5V', vBarX - 5, vBarY + 4);
+        ctx.fillText('2.0V', vBarX - 5, vBarY + vBarH + 4);
+
+        ctx.fillStyle = '#f44';
+        ctx.fillText('OVP', vBarX - 5, ovpY + 4);
+        ctx.fillText('UVP', vBarX - 5, uvpY + 4);
+
+        ctx.fillStyle = '#4f4';
+        ctx.textAlign = 'left';
+        ctx.fillText(Vcell.toFixed(2) + 'V', vBarX + vBarW + 25, vcellY + 4);
+
+        ctx.textAlign = 'center';
+        ctx.fillText('Voltage', vBarX + vBarW/2, vBarY + vBarH + 20);
+
+        // Current bar (right of voltage)
+        const iBarX = mL + 150, iBarY = mT + 20;
+        const iBarW = 60, iBarH = 200;
+
+        ctx.fillStyle = '#222';
+        ctx.fillRect(iBarX, iBarY, iBarW, iBarH);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(iBarX, iBarY, iBarW, iBarH);
+
+        // OCP zone
+        const ocpY = iBarY + ((20 - ocpTh) / 20) * iBarH;
+        ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
+        ctx.fillRect(iBarX, iBarY, iBarW, ocpY - iBarY);
+
+        // OCP line
+        ctx.strokeStyle = '#f44';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+        ctx.moveTo(iBarX, ocpY);
+        ctx.lineTo(iBarX + iBarW, ocpY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Current indicator
+        const icellY = iBarY + ((20 - Icell) / 20) * iBarH;
+        ctx.fillStyle = Icell > ocpTh ? '#f44' : '#4f4';
+        ctx.beginPath();
+        ctx.moveTo(iBarX + iBarW + 5, icellY);
+        ctx.lineTo(iBarX + iBarW + 20, icellY - 8);
+        ctx.lineTo(iBarX + iBarW + 20, icellY + 8);
+        ctx.fill();
+
+        // Labels
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('20A', iBarX - 5, iBarY + 4);
+        ctx.fillText('0A', iBarX - 5, iBarY + iBarH + 4);
+
+        ctx.fillStyle = '#f44';
+        ctx.fillText('OCP', iBarX - 5, ocpY + 4);
+
+        ctx.fillStyle = '#4f4';
+        ctx.textAlign = 'left';
+        ctx.fillText(Icell.toFixed(1) + 'A', iBarX + iBarW + 25, icellY + 4);
+
+        ctx.textAlign = 'center';
+        ctx.fillText('Current', iBarX + iBarW/2, iBarY + iBarH + 20);
+
+        // Protection circuit diagram
+        const circX = 350, circY = mT;
+
+        ctx.fillStyle = '#222';
+        ctx.fillRect(circX, circY, 580, 250);
+        ctx.strokeStyle = '#444';
+        ctx.strokeRect(circX, circY, 580, 250);
+
+        ctx.fillStyle = '#4af';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Protection Circuit Status:', circX + 10, circY + 20);
+
+        // Draw simplified circuit
+        // Battery
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(circX + 40, circY + 60, 50, 80);
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Cell', circX + 65, circY + 105);
+
+        // Charge FET
+        ctx.fillStyle = chargeFetOn ? '#4f4' : '#f44';
+        ctx.fillRect(circX + 130, circY + 80, 40, 30);
+        ctx.fillStyle = '#000';
+        ctx.font = '9px monospace';
+        ctx.fillText('CHG', circX + 150, circY + 100);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(chargeFetOn ? 'ON' : 'OFF', circX + 150, circY + 125);
+
+        // Discharge FET
+        ctx.fillStyle = dischargeFetOn ? '#4f4' : '#f44';
+        ctx.fillRect(circX + 200, circY + 80, 40, 30);
+        ctx.fillStyle = '#000';
+        ctx.fillText('DSG', circX + 220, circY + 100);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(dischargeFetOn ? 'ON' : 'OFF', circX + 220, circY + 125);
+
+        // Sense resistor
+        ctx.fillStyle = '#fa4';
+        ctx.fillRect(circX + 270, circY + 85, 40, 20);
+        ctx.fillStyle = '#000';
+        ctx.font = '8px monospace';
+        ctx.fillText('Rsense', circX + 290, circY + 98);
+
+        // Protection IC
+        ctx.strokeStyle = '#4af';
+        ctx.strokeRect(circX + 120, circY + 150, 130, 70);
+        ctx.fillStyle = '#4af';
+        ctx.font = '10px monospace';
+        ctx.fillText('Protection IC', circX + 185, circY + 175);
+
+        // Status LEDs
+        ctx.font = '9px monospace';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left';
+
+        ctx.fillText('OVP: ', circX + 130, circY + 195);
+        ctx.fillStyle = ovpTripped ? '#f44' : '#4f4';
+        ctx.beginPath();
+        ctx.arc(circX + 175, circY + 192, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#fff';
+        ctx.fillText('UVP: ', circX + 190, circY + 195);
+        ctx.fillStyle = uvpTripped ? '#f44' : '#4f4';
+        ctx.beginPath();
+        ctx.arc(circX + 235, circY + 192, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#fff';
+        ctx.fillText('OCP: ', circX + 130, circY + 210);
+        ctx.fillStyle = ocpTripped ? '#f44' : '#4f4';
+        ctx.beginPath();
+        ctx.arc(circX + 175, circY + 207, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Connection wires
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(circX + 90, circY + 95);
+        ctx.lineTo(circX + 130, circY + 95);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(circX + 170, circY + 95);
+        ctx.lineTo(circX + 200, circY + 95);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(circX + 240, circY + 95);
+        ctx.lineTo(circX + 270, circY + 95);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(circX + 310, circY + 95);
+        ctx.lineTo(circX + 350, circY + 95);
+        ctx.stroke();
+
+        // Output
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.fillText('P+', circX + 355, circY + 90);
+        ctx.fillText('P-', circX + 355, circY + 140);
+
+        // Wire to bottom
+        ctx.strokeStyle = '#666';
+        ctx.beginPath();
+        ctx.moveTo(circX + 65, circY + 140);
+        ctx.lineTo(circX + 65, circY + 180);
+        ctx.lineTo(circX + 120, circY + 180);
+        ctx.stroke();
+
+        // Bottom connection
+        ctx.beginPath();
+        ctx.moveTo(circX + 250, circY + 180);
+        ctx.lineTo(circX + 350, circY + 180);
+        ctx.lineTo(circX + 350, circY + 135);
+        ctx.stroke();
+
+        // Operating info
+        ctx.fillStyle = '#888';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+
+        const info = [];
+        if (ovpTripped) info.push('OVP: Charge blocked to prevent overcharge');
+        if (uvpTripped) info.push('UVP: Discharge blocked to prevent deep discharge');
+        if (ocpTripped) info.push('OCP: Discharge blocked due to overcurrent');
+        if (info.length === 0) info.push('Normal operation - all protection inactive');
+
+        info.forEach((line, i) => {
+            ctx.fillStyle = line.includes('blocked') ? '#fa4' : '#4f4';
+            ctx.fillText(line, circX + 370, circY + 60 + i * 15);
+        });
     }
 
-    ['si-z0', 'si-zl', 'si-len', 'si-tr'].forEach(id => {
+    ['prot-ovp', 'prot-uvp', 'prot-ocp', 'prot-vcell', 'prot-icell'].forEach(id => {
         document.getElementById(id).addEventListener('input', update);
     });
 
+    // Schematic
+    function drawSchematic() {
+        const container = document.getElementById('prot-schematic');
+        const svg = new SchematicSVG(700, 220);
+
+        svg.text(50, 25, 'Battery Protection Circuit:', {fontSize: 12, fill: '#4af'});
+
+        // Cell
+        svg.rect(50, 60, 40, 60, {fill: 'none', stroke: '#888'});
+        svg.text(70, 95, 'Cell', {fontSize: 9});
+        svg.wire([[50, 60], [50, 50]]);
+        svg.text(45, 45, 'B+', {fontSize: 9});
+
+        // Protection IC
+        svg.rect(120, 50, 100, 80, {fill: 'none', stroke: '#888'});
+        svg.text(170, 75, 'Protection', {fontSize: 9});
+        svg.text(170, 90, 'IC', {fontSize: 9});
+
+        // Connections to IC
+        svg.wire([[90, 70], [120, 70]]);
+        svg.text(100, 65, 'VCC', {fontSize: 8});
+        svg.wire([[90, 110], [120, 110]]);
+        svg.text(100, 118, 'VSS', {fontSize: 8});
+
+        // FETs
+        svg.wire([[220, 80], [280, 80]]);
+        svg.rect(280, 65, 30, 30, {fill: 'none', stroke: '#888'});
+        svg.text(295, 85, 'Q1', {fontSize: 9});
+
+        svg.wire([[310, 80], [340, 80]]);
+        svg.rect(340, 65, 30, 30, {fill: 'none', stroke: '#888'});
+        svg.text(355, 85, 'Q2', {fontSize: 9});
+
+        // Sense resistor
+        svg.wire([[370, 80], [400, 80]]);
+        svg.resistor(420, 80, {horizontal: true});
+        svg.text(420, 65, 'Rs', {fontSize: 9});
+        svg.wire([[440, 80], [480, 80]]);
+
+        // Output
+        svg.text(490, 75, 'P+', {fontSize: 10});
+        svg.wire([[50, 120], [50, 150]]);
+        svg.wire([[50, 150], [480, 150]]);
+        svg.text(490, 155, 'P-', {fontSize: 10});
+
+        // Gate drives
+        svg.wire([[220, 100], [295, 100], [295, 95]]);
+        svg.text(250, 115, 'DO', {fontSize: 8});
+        svg.wire([[220, 110], [240, 110], [240, 130], [355, 130], [355, 95]]);
+        svg.text(250, 140, 'CO', {fontSize: 8});
+
+        // Current sense
+        svg.wire([[430, 80], [430, 130], [220, 130]]);
+        svg.text(320, 138, 'CS', {fontSize: 8});
+
+        // Annotations
+        svg.text(500, 60, 'Q1: Discharge FET', {fontSize: 9, fill: '#888'});
+        svg.text(500, 75, 'Q2: Charge FET', {fontSize: 9, fill: '#888'});
+        svg.text(500, 90, 'Rs: Current sense', {fontSize: 9, fill: '#888'});
+        svg.text(500, 110, 'DO: Discharge gate', {fontSize: 9, fill: '#888'});
+        svg.text(500, 125, 'CO: Charge gate', {fontSize: 9, fill: '#888'});
+
+        svg.text(50, 190, 'Common ICs: DW01, FS312, S8261, BQ2970', {fontSize: 10, fill: '#888'});
+
+        container.innerHTML = svg.render();
+    }
+
+    // Checklist
+    function initChecklist() {
+        new ChecklistWidget('prot-checklist', {
+            title: 'Protection Circuit Checklist',
+            items: [
+                'Select protection IC for cell count',
+                'Set OVP threshold (typically 4.25-4.30V)',
+                'Set UVP threshold (typically 2.5-3.0V)',
+                'Calculate sense resistor for OCP',
+                'Select MOSFETs for current rating',
+                'Verify MOSFET Vds rating > pack voltage',
+                'Check short circuit response time',
+                'Verify thermal shutdown threshold',
+                'Test all protection triggers',
+                'Confirm recovery conditions work'
+            ]
+        });
+    }
+
+    // Exercises
+    function initExercises() {
+        new ExerciseWidget('prot-exercises', {
+            exercises: [
+                {
+                    question: 'OCP threshold is 100mV, limit is 8A. What sense resistor?',
+                    answer: '12.5mΩ',
+                    solution: 'R = V/I = 100mV / 8A = 12.5mΩ. Choose nearest standard: 10mΩ (10A limit) or 15mΩ (6.7A limit).'
+                },
+                {
+                    question: 'Cell at 4.3V, OVP = 4.25V. What happens?',
+                    answer: 'Charge FET turns off',
+                    solution: 'Voltage exceeds OVP threshold. Protection IC turns off charge FET to prevent further charging. Discharge still allowed through body diode or if separate FET.'
+                },
+                {
+                    question: '10mΩ sense resistor, 10A max current. Power dissipation?',
+                    answer: '1W',
+                    solution: 'P = I²R = 10² × 0.01 = 1W. Need resistor rated for at least 1W, preferably 2W for margin and derating.'
+                }
+            ]
+        });
+    }
+
     update();
-
-    
-
-    new ChecklistWidget('checklist-container', {
-        lessonKey: 'm19l3',
-        items: [
-            'Calculate critical length for edge rate',
-            'Check impedance matching at both ends',
-            'Look for stubs and discontinuities',
-            'Verify return path is continuous',
-            'Consider crosstalk from adjacent traces'
-        ]
-    });
-
-    new ExerciseWidget('exercise-container', {
-        id: 'D3-1',
-        type: 'numeric',
-        question: 'A 50Ω trace is terminated with 75Ω. What is the reflection coefficient?',
-        hint: 'Γ = (ZL - Z0) / (ZL + Z0)',
-        expected: 0.2,
-        tolerance: 0.05,
-        unit: '',
-        solution: 'Γ = (75 - 50) / (75 + 50) = 25 / 125 = 0.2',
-        explanation: '20% of the signal is reflected. This creates a 20% overshoot at the load and rings until settled. For clean signals, keep Γ < 0.1.'
-    });
+    drawSchematic();
+    initChecklist();
+    initExercises();
 })();
 </script>

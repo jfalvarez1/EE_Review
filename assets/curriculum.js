@@ -1480,63 +1480,39 @@ const CURRICULUM = {
             lessons: [
                 {
                     id: 1,
-                    title: 'Oscilloscope Debugging Techniques',
-                    description: 'Setup checklist, common errors, probing',
-                    topics: ['Default setup', 'Probe compensation', 'Ground lead length', 'Bandwidth rule']
+                    title: 'Fuel Gauge Algorithms',
+                    description: 'Estimating state of charge, and why every method drifts',
+                    topics: ['Voltage vs coulomb counting', 'Impedance track', 'Capacity fade', 'Runtime estimation']
                 },
                 {
                     id: 2,
-                    title: 'Power Supply Debugging',
-                    description: '7-step design method, empirical tuning',
-                    topics: ['Measure ringing frequency', 'Calculate parasitics', 'Snubber sizing', 'Power dissipation']
+                    title: 'Cell Balancing Circuits',
+                    description: 'Passive and active balancing, and what imbalance costs you',
+                    topics: ['Why cells drift apart', 'Bleed resistors', 'Charge shuttling', 'Top vs bottom balancing']
                 },
                 {
                     id: 3,
-                    title: 'Signal Integrity Debugging',
-                    description: 'Common problems and solutions',
-                    topics: ['Rail oscillation', 'Op-amp oscillation', 'Digital noise', 'Ground bounce']
+                    title: 'Protection Circuits',
+                    description: 'Over-voltage, under-voltage, over-current and thermal cut-offs',
+                    topics: ['Protection FET pairs', 'Trip thresholds', 'Recovery behaviour', 'Redundancy']
                 },
                 {
                     id: 4,
-                    title: 'Systematic Debug Methodology',
-                    description: 'Safety discharge, active discharge, QOD',
-                    topics: ['Bleeder sizing', 'Discharge time', 'Active discharge', 'USB power cycling']
+                    title: 'Charging Profiles',
+                    description: 'CC-CV and what each chemistry demands of a charger',
+                    topics: ['Constant current, constant voltage', 'Termination', 'Pre-charge', 'Temperature windows']
                 },
                 {
                     id: 5,
-                    title: 'Fuel Gauge Algorithms',
-                    description: 'State-of-charge estimation methods',
-                    topics: ['Coulomb counting', 'Voltage-based SOC', 'Impedance tracking', 'Learning algorithms']
+                    title: 'Battery Chemistry Selection',
+                    description: 'Li-ion, LiFePO4, NiMH, lead-acid and what each is for',
+                    topics: ['Energy vs power density', 'Cycle life', 'Temperature behaviour', 'Safety by chemistry']
                 },
                 {
                     id: 6,
-                    title: 'Cell Balancing Circuits',
-                    description: 'Passive and active balancing techniques',
-                    topics: ['Passive bleed balancing', 'Active balancing', 'Balance current', 'Multi-cell packs']
-                },
-                {
-                    id: 7,
-                    title: 'Protection Circuits',
-                    description: 'Over-voltage, under-voltage, and over-current protection',
-                    topics: ['Protection IC selection', 'MOSFET sizing', 'Short-circuit protection', 'Cell monitoring']
-                },
-                {
-                    id: 8,
-                    title: 'Charging Profiles',
-                    description: 'CC-CV and other charging algorithms',
-                    topics: ['CC-CV charging', 'Pre-conditioning', 'Temperature compensation', 'Fast charging']
-                },
-                {
-                    id: 9,
-                    title: 'Battery Chemistry Selection',
-                    description: 'Choosing the right battery for the application',
-                    topics: ['Li-ion variants', 'LiFePO4 characteristics', 'NiMH applications', 'Capacity vs cycle life']
-                },
-                {
-                    id: 10,
                     title: 'BMS Integration',
-                    description: 'Complete battery management system design',
-                    topics: ['BMS architecture', 'Communication interfaces', 'Safety certification', 'Field diagnostics']
+                    description: 'Putting the gauge, balancer and protection together',
+                    topics: ['BMS architecture', 'Host communication', 'Fault handling', 'Qualification']
                 }
             ]
         },
@@ -2179,7 +2155,32 @@ const CURRICULUM = {
                     title: 'Systematic Debug Methodology',
                     description: 'Structured approach to finding root causes',
                     topics: ['Divide and conquer', 'Substitution method', 'Stress testing', 'Documentation']
-                }
+                },
+                {
+                    id: 11,
+                    title: 'Oscilloscope Techniques for Analog Debug',
+                    description: 'Getting a measurement you can trust before you trust it',
+                    topics: ['Probe compensation', 'Ground spring', 'Bandwidth vs rise time', 'What the probe adds']
+                },
+                {
+                    id: 12,
+                    title: 'Power Supply Debugging: Measurement and Common Faults',
+                    description: 'Measurement setup first, then the faults it reveals',
+                    topics: ['Where to probe', 'Ripple vs noise', 'Load-step response', 'Common failure signatures']
+                },
+                {
+                    id: 13,
+                    title: 'Signal Integrity Debugging: Measurement and Fixes',
+                    description: 'Seeing reflections and crosstalk honestly, then removing them',
+                    topics: ['Reflection signatures', 'Crosstalk', 'Return path breaks', 'Termination fixes']
+                },
+                {
+                    id: 14,
+                    title: 'Debug Decision Trees and Test-Point Strategy',
+                    description: 'A repeatable procedure, and designing the board so it can be debugged',
+                    topics: ['Decision trees', 'Test point placement', 'Design for debug', 'Common mistakes']
+                },
+                
             ]
         },
         // ========== MODULE 25: Real-World System Design ==========
