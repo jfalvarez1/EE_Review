@@ -312,6 +312,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="sim-check-opamp-configs"></div>
     </div>
 
     <div class="card">
@@ -1075,6 +1077,114 @@ Build a 2-input inverting summing amplifier:
 
         // Now create the widget
         new ExerciseWidget(`simlab-m2l1-${i}`, lab);
+    });
+})();
+</script>
+
+<script>
+/* Verify the two op-amp configurations against numbers, not against a feeling
+   that the trace "looks about right". Every figure below comes from the two
+   gain expressions and the values in the build table above - nothing here is
+   measured from a run, so if your run disagrees, one of the two of us has the
+   circuit wrong and it is worth finding out which. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('sim-check-opamp-configs', {
+        id: 'm01l02-opamp-configs',
+        title: 'Does your build actually match?',
+        intro: 'Read these off the transient run once the trace is steady. ' +
+               'Every value is an <strong>amplitude</strong> &mdash; half the ' +
+               'peak-to-peak height of the sine, not the peak-to-peak itself. ' +
+               'Both stages use the ideal <span class="mono">Op-Amp</span>, so ' +
+               'the textbook numbers are the exact answer here: no offset, no ' +
+               'bias current and no gain roll-off to blur them.',
+        probes: [
+            { id: 'out1', label: 'Inverting output, amplitude', node: 'V(out1)',
+              expect: '1.0', unit: 'V', tol: 0.02,
+              why: 'A<sub>v</sub> = &minus;R<sub>F</sub>/R<sub>1</sub> = ' +
+                   '&minus;100k/10k = &minus;10, and the input amplitude is ' +
+                   '100&nbsp;mV, so 10 &times; 0.1 = 1.0&nbsp;V. The minus sign ' +
+                   'is phase, not size: <span class="mono">out1</span> should be ' +
+                   '180&deg; out of step with <span class="mono">in</span>. If ' +
+                   'you get 1.1&nbsp;V you have wired a non-inverting stage by ' +
+                   'mistake &mdash; check which input the source drives.' },
+            { id: 'vm1', label: 'Inverting node, amplitude', node: 'V(vm1)',
+              expect: '0.000', unit: 'V', tol: 0.002,
+              why: 'This is the virtual ground, and it is the whole reason the ' +
+                   'inverting amplifier works. The op-amp drives ' +
+                   '<span class="mono">out1</span> to whatever value forces ' +
+                   '<span class="mono">vm1</span> to match the + input, which is ' +
+                   'at 0&nbsp;V. Anything above a millivolt or so means feedback ' +
+                   'is not closing &mdash; the commonest cause is ' +
+                   'R<sub>F</sub> connected to the wrong node.' },
+            { id: 'out2', label: 'Non-inverting output, amplitude', node: 'V(out2)',
+              expect: '1.1', unit: 'V', tol: 0.02,
+              why: 'A<sub>v</sub> = 1 + R<sub>F</sub>/R<sub>1</sub> = 1 + 10 = 11, ' +
+                   'so 11 &times; 0.1 = 1.1&nbsp;V, in phase with the input. That ' +
+                   'leading 1 is the signal path straight through the + input; it ' +
+                   'is why this topology cannot be set to a gain below unity, no ' +
+                   'matter what you do to the resistors.' },
+            { id: 'vm2', label: 'Feedback node, amplitude', node: 'V(vm2)',
+              expect: '0.100', unit: 'V', tol: 0.005,
+              why: 'Feedback holds <span class="mono">vm2</span> equal to the ' +
+                   '+ input, so it tracks the 100&nbsp;mV input exactly. Read it ' +
+                   'the other way and it is the divider: 1.1&nbsp;V &times; ' +
+                   '10k/(10k+100k) = 0.1&nbsp;V. Those two statements being the ' +
+                   'same statement is what "the feedback network sets the gain" ' +
+                   'means.' }
+        ],
+        experiments: [
+            { action: 'Hang a 1 kΩ resistor from out1 to ground.',
+              expect: 'Nothing. <span class="mono">V(out1)</span> stays at ' +
+                      '1.0&nbsp;V amplitude to within your cursor’s reading ' +
+                      'accuracy.',
+              why: 'The ideal op-amp’s output is a voltage source with zero ' +
+                   'output impedance, and feedback would hide a non-zero one ' +
+                   'anyway. What <em>has</em> changed is that the op-amp is now ' +
+                   'sourcing 1&nbsp;mA of peak current it was not sourcing ' +
+                   'before. Swap the part for <span class="mono">Real Op-Amp</span> ' +
+                   'and walk the load down &mdash; somewhere near 50&nbsp;&Omega; ' +
+                   'the peaks flatten, because the output stage runs out of ' +
+                   'current and the loop can no longer get what it asks for. ' +
+                   'That is the difference between a gain equation and a part.' },
+            { action: 'Change RFinv from 100 kΩ to 220 kΩ.',
+              expect: '<span class="mono">V(out1)</span> amplitude goes to ' +
+                      '2.2&nbsp;V. <span class="mono">V(vm1)</span> does not move ' +
+                      'at all.',
+              why: 'Gain is &minus;220k/10k = &minus;22, so 22 &times; 0.1 = ' +
+                   '2.2&nbsp;V. The point worth taking away is the second half: ' +
+                   'the virtual ground is set by the + input, not by the feedback ' +
+                   'resistor, so changing R<sub>F</sub> changes what the output ' +
+                   'has to do without changing where the summing node sits.' },
+            { action: 'Inject a source at the other input. Disconnect U1’s ' +
+                      '+ input from ground, call that node ref, and put a ' +
+                      '200 mV DC source from ref to ground.',
+              expect: '<span class="mono">V(out1)</span> now swings between ' +
+                      '+1.2&nbsp;V and +3.2&nbsp;V &mdash; the same 1.0&nbsp;V ' +
+                      'amplitude sine, sitting on <strong>2.2&nbsp;V</strong> of ' +
+                      'DC. <span class="mono">V(vm1)</span> sits at 200&nbsp;mV.',
+              why: 'Superposition, and it catches people out. To the AC signal ' +
+                   'this is still an inverting amplifier with a gain of ' +
+                   '&minus;10. But to the DC at the + input it is a ' +
+                   '<em>non-inverting</em> amplifier, gain 1 + R<sub>F</sub>/' +
+                   'R<sub>1</sub> = 11, so 200&nbsp;mV &times; 11 = 2.2&nbsp;V. ' +
+                   'One circuit, two gains, depending on which door you come in ' +
+                   'through. This is exactly the mechanism by which an op-amp’s ' +
+                   'input offset voltage &mdash; a millivolt you never asked for, ' +
+                   'sitting right there at the + input &mdash; arrives at the ' +
+                   'output multiplied by the noise gain.' },
+            { action: 'Take VIN1’s amplitude up from 100 mV to 2 V.',
+              expect: 'With the ideal <span class="mono">Op-Amp</span>: a clean ' +
+                      '20&nbsp;V amplitude sine. With ' +
+                      '<span class="mono">Real Op-Amp</span> on &plusmn;15&nbsp;V: ' +
+                      'flat tops somewhere short of the rails.',
+              why: 'The ideal part will happily hand you 20&nbsp;V out of a ' +
+                   '15&nbsp;V supply, because "ideal" means the model contains ' +
+                   'no supply. That is a feature when you are checking algebra ' +
+                   'and a trap when you are checking a design. Any time a ' +
+                   'simulated result is better than physics allows, the model ' +
+                   'has run out of road before your circuit did.' }
+        ]
     });
 })();
 </script>

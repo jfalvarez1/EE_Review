@@ -56,6 +56,8 @@ const GATING = [
      'a figure the markup promises, with a caption, that no code ever draws into'],
     ['check-toy-parts.js',
      'a build table naming a part Circuit Toy does not have, which sends readers to the wrong one'],
+    ['check-arithmetic.js',
+     'a worked number that does not evaluate as written - the reader trusts it and blames themselves'],
     ['validate-path.js',
      'every syllabus step resolves to a lesson that exists on disk'],
     ['stamp-build.js --check',
@@ -63,6 +65,7 @@ const GATING = [
 ];
 
 const ADVISORY = [
+    ['check-sim-metrics.js', 'build sections that never say what a correct build shows'],
     ['check-media.js',   'what each lesson draws, and whether it is interactive'],
     ['survey-depth.js',  'how deep each lesson is against the course standard'],
     ['check-taxonomy.js', 'lessons that may be filed under the wrong module (heuristic)']
