@@ -186,6 +186,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m17l16-string"></div>
     </div>
 
     <div class="card">
@@ -853,6 +855,104 @@
         unit: 'LSB',
         solution: 'DNL = 0.1% × 2^(10-1) = 0.001 × 512 = 0.512 LSB',
         explanation: 'The MSB represents half the full scale. Any percentage mismatch on the MSB translates to that percentage of 2^(N-1) LSBs. For 0.1% mismatch: 0.001 × 512 = 0.512 LSB. This is still within the ±1 LSB monotonicity limit. Sources: ERSA Electronics, TU Sofia Research'
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m17l16-string', {
+        id: 'm17l16-string',
+        title: 'A resistor 50% wrong, and still monotonic',
+        intro: 'The point of this circuit is a contrast with the ladder two lessons back, ' +
+               'so read the taps in order and then ask the question that matters: is each ' +
+               'one higher than the last? R3 is fifty percent wrong, forty times the error ' +
+               'that started breaking the R-2R, and the answer is still yes.',
+        probes: [
+            { id: 't1', node: 't1', dc: true, label: 'V(t1) — code 1',
+              expect: '555.56', unit: 'mV', tol: 5,
+              why: 'The string carries 2.5&nbsp;V/4.5&nbsp;k&Omega; = 555.6&nbsp;&micro;A ' +
+                   'end to end, and t1 is one 1&nbsp;k&Omega; above ground. Note that the ' +
+                   'ideal first code is 0.625&nbsp;V, so this tap is already low &mdash; the ' +
+                   'error below it has pushed everything down.' },
+            { id: 't2', node: 't2', dc: true, label: 'V(t2) — code 2',
+              expect: '1.38889', unit: 'V', tol: 0.01,
+              why: 'The 1.5&nbsp;k&Omega; step, so 833.3&nbsp;mV above t1 instead of ' +
+                   '555.6. <strong>This is the wide code</strong>, and it is where the ' +
+                   'oversized resistor is.' },
+            { id: 't3', node: 't3', dc: true, label: 'V(t3) — code 3',
+              expect: '1.94444', unit: 'V', tol: 0.01,
+              why: 'Back to a 555.6&nbsp;mV step. Every step above the bad resistor is the ' +
+                   'correct width again, which is the difference between differential and ' +
+                   'integral nonlinearity: <strong>DNL is local and INL accumulates</strong>. ' +
+                   'One wrong resistor gives you one wrong step and a permanent offset in ' +
+                   'everything above it.' },
+            { id: 'dnl', label: 'The step from t1 to t2, as a fraction of the ideal 625 mV',
+              expect: '1.333', unit: 'LSB', tol: 0.03,
+              why: '833.3/625. So <strong>DNL = +0.333&nbsp;LSB</strong> at that code, and ' +
+                   '&minus;0.111 at each of the other three. Note they sum to zero, and they ' +
+                   'have to: the string starts at ground and ends at V<sub>REF</sub> whatever ' +
+                   'the resistors do, so the widths can be redistributed but not created.' },
+            { id: 'inl', label: 'V(t2) minus its ideal value of 1.250 V',
+              expect: '138.9', unit: 'mV', tol: 8,
+              why: '+0.222&nbsp;LSB, and this is the <em>worst</em> INL in the converter. ' +
+                   'INL is the running sum of the DNL, so it goes &minus;0.111 at t1, then ' +
+                   '+0.222 at t2 once the wide code has been added, then +0.111, then back ' +
+                   'to zero at the top. <strong>It has to return to zero at both ends</strong>, ' +
+                   'because the string begins at ground and finishes at V<sub>REF</sub> ' +
+                   'whatever the resistors do &mdash; which is why an INL plot is always a ' +
+                   'bow rather than a drift, and why the specification quotes a maximum ' +
+                   'rather than an endpoint error.' }
+        ],
+        experiments: [
+            { action: 'Make R3 10 kΩ — a resistor an order of magnitude wrong.',
+              expect: 'The steps become badly unequal and the output is <strong>still ' +
+                      'monotonic</strong>.',
+              why: 'This is the experiment the lesson exists for. A single current flows down ' +
+                   'a single string in a single direction, so every tap is above the one ' +
+                   'below it, and there is no resistor value that can change that. ' +
+                   '<strong>Monotonicity here is a property of the topology and not of the ' +
+                   'components</strong> &mdash; compare with lesson&nbsp;15, where 14% on one ' +
+                   'resistor is enough to make the R-2R go backwards. That guarantee is what ' +
+                   'you are buying, and the price is 2<sup>n</sup> resistors and ' +
+                   '2<sup>n</sup> switches against a ladder\'s 2n.' },
+            { action: 'Set every resistor to 1 kΩ.',
+              expect: 'The taps become <strong>625 mV, 1.250 V and 1.875 V</strong>, and all ' +
+                      'four DNLs go to zero.',
+              why: 'The reference case, and worth reading once so the numbers above have ' +
+                   'something to be compared against. Note that the accuracy now depends on ' +
+                   'nothing but the <em>ratios</em> of four identical resistors, not their ' +
+                   'absolute value: make them all 10&nbsp;k and every tap is unchanged. ' +
+                   '<strong>Matching is cheap on a die and absolute accuracy is not</strong>, ' +
+                   'which is why converter design is almost entirely about ratios.' },
+            { action: 'Load the t2 tap with 10 kΩ to ground.',
+              expect: 'V(t2) sags to <strong>exactly 1.2500 V</strong>, and t1 and t3 move ' +
+                      'too.',
+              why: 'Looking into t2 the string is 2&nbsp;k&Omega; up to V<sub>REF</sub> and ' +
+                   '2.5&nbsp;k&Omega; down to ground: 1.3889&nbsp;V behind ' +
+                   '1111&nbsp;&Omega;, which a 10&nbsp;k load divides to 1.2500. The output ' +
+                   'impedance depends on <em>which tap</em> you are reading &mdash; highest ' +
+                   'in the middle, near zero at the ends &mdash; so loading changes the code ' +
+                   'you asked for and the ones either side of it, by different amounts. That ' +
+                   'is why E1 is there. <strong>The buffer is not a ' +
+                   'convenience, it is what makes the DAC\'s answer independent of what is ' +
+                   'listening</strong>, and it is also why a string DAC settles slowly: the ' +
+                   'buffer has to drive whatever comes next through its own bandwidth.' },
+            { action: 'Compare the resistor count with lesson 15\'s ladder for 8 bits.',
+              expect: '<strong>256 resistors and 256 switches</strong>, against 16 resistors ' +
+                      'and 8 switches.',
+              why: 'Which is the whole trade in one line. A string DAC is monotonic by ' +
+                   'construction and grows as 2<sup>n</sup>; a ladder is compact and grows as ' +
+                   'n, and buys that with a monotonicity guarantee that has to come from ' +
+                   'matching. At 8 bits the string is merely large; at 12 it is 4096 ' +
+                   'resistors and nobody builds one. <strong>Real converters are hybrids</strong> ' +
+                   '&mdash; a string for the top few bits where monotonicity matters most, a ' +
+                   'ladder or a charge array below it.' }
+        ]
     });
 })();
 </script>
