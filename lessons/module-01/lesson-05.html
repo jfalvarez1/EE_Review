@@ -261,17 +261,20 @@
                     <tr><td class="mono">U1</td><td>Op-amp</td><td><span class="mono">Real Op-Amp</span></td><td>+ input ground, &minus; input <span class="mono">inv</span>, output <span class="mono">out</span></td></tr>
                     <tr><td class="mono">R1</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">in</span> and <span class="mono">inv</span></td></tr>
                     <tr><td class="mono">RF</td><td>Resistor</td><td>100&nbsp;k&Omega;</td><td>between <span class="mono">inv</span> and <span class="mono">out</span></td></tr>
-                    <tr><td class="mono">RSRC</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between ground and <span class="mono">in</span></td></tr>
+                    <tr><td class="mono">RSRC</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">src</span> and <span class="mono">in</span></td></tr>
+                    <tr><td class="mono">VIN</td><td>Voltage source</td><td>0&nbsp;V DC</td><td>from <span class="mono">src</span> to ground</td></tr>
                 </tbody>
             </table>
         </div>
 
-        <p><strong>What to run:</strong> a <strong>DC operating point</strong>; then a <strong>DC sweep</strong> of <span class="mono">VIN</span> from  to 0&nbsp;.</p>
+        <p><strong>What to run:</strong> a <strong>DC operating point</strong>; then a <strong>DC sweep</strong> of <span class="mono">VIN</span> from &minus;1&nbsp;V to 1&nbsp;V.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(out)</span>.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="sim-check-m01l05"></div>
     </div>
 
     <div class="card">
@@ -865,6 +868,120 @@
         div.style.marginBottom = '15px';
         container.appendChild(div);
         new ExerciseWidget(`exercise-m2l3-${i}`, ex);
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('sim-check-m01l05', {
+        id: 'm01l05-dc-errors',
+        title: 'Find the error, then find out which error it is',
+        intro: 'This is a diagnosis, not a calculation. With the input at zero the ' +
+               'output will not be at zero, and the useful question is not ' +
+               '&ldquo;how much&rdquo; but <strong>&ldquo;which one&rdquo;</strong> ' +
+               '&mdash; offset voltage and bias current produce the same symptom ' +
+               'and have completely different cures. The rows below get you the ' +
+               'number; the perturbations tell you what it is made of.',
+        probes: [
+            { id: 'vout0', label: 'V(out) with VIN at 0 V', node: 'V(out)',
+              unit: 'mV', record: true,
+              why: 'Every millivolt of this is error. It has two sources: the ' +
+                   'op-amp&rsquo;s input offset voltage multiplied by the noise ' +
+                   'gain, and its inverting-input bias current flowing in ' +
+                   'R<sub>F</sub>. They add, they have no fixed sign relationship, ' +
+                   'and nothing about this single reading tells you the split.' },
+            { id: 'gain', label: 'Signal gain, dV(out)/dVIN',
+              expect: '-5.0', unit: '×', tol: 0.25,
+              why: 'Not &minus;10. R<sub>SRC</sub> is in series with R<sub>1</sub>, ' +
+                   'so the resistance from the source to the summing node is ' +
+                   '20&nbsp;k&Omega; and the gain is ' +
+                   '&minus;R<sub>F</sub>/(R<sub>SRC</sub> + R<sub>1</sub>) = ' +
+                   '&minus;100k/20k = &minus;5. This is the most-repeated mistake ' +
+                   'with inverting stages: the source impedance is part of the gain ' +
+                   'equation, because the summing node is a virtual ground and ' +
+                   'everything upstream of it is just resistance in series. A ' +
+                   'non-inverting stage does not have this problem, which is one of ' +
+                   'the few real arguments for choosing one.' },
+            { id: 'irerr', label: 'Input-referred error, V(out at 0) ÷ 6',
+              unit: 'mV', record: true,
+              why: 'Six is the noise gain: 1 + R<sub>F</sub>/(R<sub>SRC</sub> + ' +
+                   'R<sub>1</sub>) = 1 + 5. Dividing by it moves the error back to ' +
+                   'the input, where it belongs &mdash; that is the number you can ' +
+                   'compare against a data sheet, and the number that stays put when ' +
+                   'you change the gain. Quoting an output-referred error without ' +
+                   'saying what the gain was is meaningless.' },
+            { id: 'ng', label: 'V(out) change when the + input is moved to a 100 mV source',
+              expect: '600', unit: 'mV', tol: 40,
+              why: 'The noise gain, measured rather than asserted. Anything ' +
+                   'appearing at the + input &mdash; a deliberate reference, a ' +
+                   'millivolt of offset, a bias current in a resistor you put there ' +
+                   'for balance &mdash; arrives at the output multiplied by 6, not ' +
+                   'by the signal gain of 5. That is why an offset spec is always ' +
+                   'given input-referred: only you know what your noise gain is.' }
+        ],
+        experiments: [
+            { action: 'Balance the inputs: add RP = 16.7 kΩ between the + input and ' +
+                      'ground. (That is (RSRC + R1) ∥ RF = 20k ∥ 100k.)',
+              expect: 'One of two things. Either the output error ' +
+                      '<strong>shrinks a lot</strong>, or it <strong>barely ' +
+                      'moves</strong>. Note which.',
+              why: 'This is the diagnostic. R<sub>P</sub> makes both inputs see the ' +
+                   'same resistance to ground, so the two bias currents produce ' +
+                   'equal and opposing offsets and cancel &mdash; leaving only the ' +
+                   '<em>difference</em> between them, the input offset current, ' +
+                   'which is typically a tenth as large. If the error collapsed, ' +
+                   'your model is bias-current dominated and this resistor is the ' +
+                   'fix. If it did not move, the error is offset voltage and no ' +
+                   'resistor anywhere will help you: that one needs trimming, ' +
+                   'chopping, or a better part.' },
+            { action: 'Scale everything: R1 to 100 kΩ, RF to 1 MΩ, RSRC to 100 kΩ. ' +
+                      'The gain is unchanged at −5.',
+              expect: 'If the error grows roughly <strong>ten times</strong>, it is ' +
+                      'bias current. If it stays <strong>the same</strong>, it is ' +
+                      'offset voltage.',
+              why: 'The cleanest separation there is, and it needs no extra parts. ' +
+                   'The V<sub>OS</sub> term is V<sub>OS</sub> &times; noise gain, ' +
+                   'and you kept the noise gain fixed. The I<sub>B</sub> term is ' +
+                   'I<sub>B</sub> &times; R<sub>F</sub>, and you made R<sub>F</sub> ' +
+                   'ten times bigger. Run this and the previous experiment together ' +
+                   'and you have not only identified the mechanism, you have ' +
+                   'measured both parameters: V<sub>OS</sub> from the residue and ' +
+                   'I<sub>B</sub> from the slope. This is how the numbers on a data ' +
+                   'sheet were obtained in the first place.' },
+            { action: 'Short RSRC to 0 Ω, so the source drives R1 directly.',
+              expect: 'The signal gain becomes <strong>−10</strong> and the noise ' +
+                      'gain becomes <strong>11</strong>. The offset-voltage part of ' +
+                      'the error grows with it; the bias-current part does not move ' +
+                      'at all.',
+              why: 'Another lever that pulls the two terms apart, and a reminder ' +
+                   'that source impedance is never free. It changes your gain, it ' +
+                   'changes your noise gain, it changes your bandwidth (which is set ' +
+                   'by noise gain), and it changes how much of the bias current ' +
+                   'error you can cancel. A sensor with 10&nbsp;k&Omega; of output ' +
+                   'impedance is a different design problem from the same sensor ' +
+                   'buffered to 10&nbsp;&Omega;.' },
+            { action: 'Take RF to 1 MΩ on its own, leaving R1 and RSRC alone.',
+              expect: 'Signal gain −50, noise gain 51. The output error grows by ' +
+                      'roughly 8.5× if it is offset-dominated and by <strong>10× if ' +
+                      'it is bias-current dominated</strong>. The input-referred ' +
+                      'error from row 3 stays put in the first case and grows in the ' +
+                      'second.',
+              why: 'Worth finishing on, because it shows what &ldquo;input-referred&rdquo; ' +
+                   'is actually promising. Offset voltage really is a property of ' +
+                   'the input, so referring it there makes it a constant. Bias ' +
+                   'current is not &mdash; its effect depends on the resistors you ' +
+                   'chose &mdash; so referring it to the input only works if you ' +
+                   'quote the impedance it was measured at. That is why precision ' +
+                   'data sheets give V<sub>OS</sub> in microvolts and ' +
+                   'I<sub>B</sub> in nanoamps rather than giving you one combined ' +
+                   'error figure: only you know which one is going to dominate in ' +
+                   'your circuit.' }
+        ]
     });
 })();
 </script>

@@ -143,7 +143,8 @@
 
     <div class="card">
         <h3>Design Table: 2nd-Order Butterworth</h3>
-        <p>For unity-gain Sallen-Key with C1 = C2 = C:</p>
+        <p>For a unity-gain Sallen-Key, pick <strong>equal resistors</strong> and
+        let the two capacitors set Q:</p>
 
         <table class="table">
             <tr>
@@ -152,16 +153,38 @@
                 <th>Highpass</th>
             </tr>
             <tr>
-                <td>R1</td>
-                <td class="mono">0.707/(2πf<sub>c</sub>C)</td>
-                <td class="mono">1/(2πf<sub>c</sub>C×1.414)</td>
+                <td>R1 = R2 = R</td>
+                <td class="mono">choose it &mdash; 10 k&Omega; is a good default</td>
+                <td class="mono">R1 = 0.707/(2&pi;f<sub>c</sub>C), R2 = 1.414/(2&pi;f<sub>c</sub>C)</td>
             </tr>
             <tr>
-                <td>R2</td>
-                <td class="mono">1.414/(2πf<sub>c</sub>C)</td>
-                <td class="mono">1/(2πf<sub>c</sub>C×0.707)</td>
+                <td>C1 (feedback, node&nbsp;1 to output)</td>
+                <td class="mono">1.414/(2&pi;f<sub>c</sub>R)</td>
+                <td class="mono">C1 = C2 = C</td>
+            </tr>
+            <tr>
+                <td>C2 (node&nbsp;2 to ground)</td>
+                <td class="mono">0.707/(2&pi;f<sub>c</sub>R)</td>
+                <td class="mono">&mdash;</td>
             </tr>
         </table>
+
+        <div class="notice">
+            <strong>Why the lowpass cannot use equal capacitors.</strong>
+            Work the transfer function through and you get
+            \(Q = \sqrt{R_1R_2C_1C_2}\,/\,[C_2(R_1+R_2)]\). Set
+            \(C_1 = C_2\) and that collapses to \(\sqrt{R_1R_2}/(R_1+R_2)\),
+            which by the AM&ndash;GM inequality can never exceed
+            <strong>0.5</strong> &mdash; it hits 0.5 only when
+            \(R_1 = R_2\). Butterworth needs 0.707, so no choice of resistors
+            will get you there with equal capacitors and a unity-gain buffer.
+            You have exactly three ways out: make the capacitors unequal (the
+            table above, and the usual answer), give the buffer a gain of
+            1.586 and keep equal parts, or use a different topology such as
+            multiple-feedback. The highpass has the ratio the other way up,
+            which is why <em>it</em> can use equal capacitors and unequal
+            resistors.
+        </div>
     </div>
 
         <div class="card">
@@ -180,9 +203,9 @@
                 <tbody>
                     <tr><td class="mono">U1</td><td>Op-amp</td><td><span class="mono">Op-Amp</span></td><td>+ input <span class="mono">n2</span>, &minus; input <span class="mono">out</span>, output <span class="mono">out</span></td></tr>
                     <tr><td class="mono">R1</td><td>Resistor</td><td>11.25&nbsp;k&Omega;</td><td>between <span class="mono">in</span> and <span class="mono">n1</span></td></tr>
-                    <tr><td class="mono">R2</td><td>Resistor</td><td>22.50&nbsp;k&Omega;</td><td>between <span class="mono">n1</span> and ground</td></tr>
-                    <tr><td class="mono">C1</td><td>Capacitor</td><td>10&nbsp;nF</td><td>between <span class="mono">n1</span> and <span class="mono">n2</span></td></tr>
-                    <tr><td class="mono">C2</td><td>Capacitor</td><td>10&nbsp;nF</td><td>between <span class="mono">n2</span> and <span class="mono">out</span></td></tr>
+                    <tr><td class="mono">R2</td><td>Resistor</td><td>11.25&nbsp;k&Omega;</td><td>between <span class="mono">n1</span> and <span class="mono">n2</span></td></tr>
+                    <tr><td class="mono">C1</td><td>Capacitor</td><td>20&nbsp;nF</td><td>between <span class="mono">n1</span> and <span class="mono">out</span></td></tr>
+                    <tr><td class="mono">C2</td><td>Capacitor</td><td>10&nbsp;nF</td><td>between <span class="mono">n2</span> and ground</td></tr>
                     <tr><td class="mono">VIN</td><td>Voltage source</td><td>AC 1&nbsp;V for a frequency sweep</td><td>from <span class="mono">in</span> to ground</td></tr>
                 </tbody>
             </table>
@@ -194,6 +217,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="sim-check-m02l03"></div>
     </div>
 
     <div class="card">
@@ -219,74 +244,85 @@
 
         const sch = Schematic.create(container, { width: 450, height: 220 });
 
-        // Op-amp
-        const opX = 280, opY = 110;
+        /* The Sallen-Key lowpass, drawn the way it actually connects.
+         *
+         * Two series resistors from the input to the + terminal, one capacitor
+         * from the MIDDLE of that pair back to the output, and one capacitor
+         * from the + terminal to ground. The buffer's job is to make the
+         * output a copy of the + terminal with no output impedance, so that
+         * the feedback capacitor can inject current into node A that depends
+         * on the output rather than on ground - that positive feedback is what
+         * lifts Q above the 0.5 a passive two-pole RC is stuck with.
+         *
+         * Get either capacitor's destination wrong and it stops being a
+         * Sallen-Key: C1 to ground gives you a plain cascaded RC, and C2 to
+         * the output gives you a capacitor with the same node on both plates,
+         * which does nothing at all while leaving the + input with no DC path
+         * to anywhere.
+         */
+        /* AD.Schematic places two-terminal parts by their FIRST terminal, not
+         * their centre, and a body is 50 units long. Every coordinate below is
+         * written with that in mind - getting it wrong is how a wire ends up
+         * drawn straight through a resistor. */
+        const opX = 300, opY = 100;
         sch.opamp(opX, opY, { label: null });
-        const op = Schematic.opampTerminals(opX, opY);
-        sch.text(opX + 70, opY - 20, 'U1', { size: 11, bold: true, anchor: 'start' });
+        const op = Schematic.opampTerminals(opX, opY);   // in- (285,85) in+ (285,115) out (365,100)
 
-        // R1 (input resistor)
-        const r1X = 50, r1Y = op.nonInvInput.y;
-        sch.resistor(r1X, r1Y, 'horizontal', { label: 'R1' });
-        const r1 = Schematic.resistorTerminals(r1X, r1Y, 'horizontal');
+        const railY = op.nonInvInput.y;   // the signal path runs along here
+        const topY = 35;                  // C1 returns along the top
+        const nodeA = 125, nodeB = 225;
 
-        // Vin label - wire must reach label position
-        const vinX = r1.start.x - 15;
-        sch.nodeLabel(vinX, r1.start.y, 'Vin');
-        sch.wire([[vinX, r1.start.y], [r1.start.x, r1.start.y]]);
+        // R1: Vin -> node A
+        sch.resistor(50, railY, 'horizontal', { label: 'R1' });
+        const r1 = Schematic.resistorTerminals(50, railY, 'horizontal');
+        sch.nodeLabel(20, railY, 'Vin');
+        sch.wire([[20, railY], [r1.start.x, r1.start.y]]);
+        sch.wire([[r1.end.x, r1.end.y], [nodeA, railY]]);
+        sch.junction(nodeA, railY);
 
-        // Junction after R1
-        sch.junction(r1.end.x + 15, r1.end.y);
+        // R2: node A -> node B, which is the + input
+        sch.resistor(150, railY, 'horizontal', { label: 'R2' });
+        const r2 = Schematic.resistorTerminals(150, railY, 'horizontal');
+        sch.wire([[nodeA, railY], [r2.start.x, r2.start.y]]);
+        sch.wire([[r2.end.x, r2.end.y], [nodeB, railY]]);
+        sch.junction(nodeB, railY);
+        sch.wire([[nodeB, railY], [op.nonInvInput.x, op.nonInvInput.y]]);
 
-        // R2 down to ground
-        sch.resistor(r1.end.x + 15, r1.end.y + 40, 'vertical', { label: 'R2' });
-        const r2 = Schematic.resistorTerminals(r1.end.x + 15, r1.end.y + 40, 'vertical');
-        sch.wire([[r1.end.x + 15, r1.end.y], [r2.start.x, r2.start.y]]);
-        // Wire from R2 end to ground symbol
-        sch.wire([[r2.end.x, r2.end.y], [r2.end.x, r2.end.y + 8]]);
-        sch.ground(r2.end.x, r2.end.y + 8);
+        // C2: node B -> ground. This is the one that sets Q.
+        sch.capacitor(nodeB, railY + 25, 'vertical', { label: 'C2' });
+        const c2 = Schematic.capacitorTerminals(nodeB, railY + 25, 'vertical');
+        sch.wire([[nodeB, railY], [c2.start.x, c2.start.y]]);
+        sch.wire([[c2.end.x, c2.end.y], [c2.end.x, c2.end.y + 10]]);
+        sch.ground(c2.end.x, c2.end.y + 10);
 
-        // C1 from junction to next node
-        const c1X = r1.end.x + 35, c1Y = r1.end.y;
-        sch.capacitor(c1X, c1Y, 'horizontal', { label: 'C1' });
-        const c1 = Schematic.capacitorTerminals(c1X, c1Y, 'horizontal');
-        sch.wire([[r1.end.x, r1.end.y], [c1.start.x, c1.start.y]]);
+        // C1: node A -> output. The positive feedback path.
+        sch.wire([[nodeA, railY], [nodeA, topY]]);
+        sch.capacitor(175, topY, 'horizontal', { label: 'C1' });
+        const c1 = Schematic.capacitorTerminals(175, topY, 'horizontal');
+        sch.wire([[nodeA, topY], [c1.start.x, c1.start.y]]);
 
-        // Wire from C1 to + input
-        sch.wire([[c1.end.x, c1.end.y], [op.nonInvInput.x, op.nonInvInput.y]]);
-        sch.junction(op.nonInvInput.x - 30, op.nonInvInput.y);
+        // Output rail, and the two things that hang off it.
+        const outX = 400;
+        sch.wire([[op.output.x, op.output.y], [outX, op.output.y]]);
+        sch.junction(outX, op.output.y);
+        sch.wire([[c1.end.x, c1.end.y], [outX, topY]]);
+        sch.wire([[outX, topY], [outX, op.output.y]]);
+        sch.nodeLabel(428, op.output.y, 'Vout');
+        sch.wire([[outX, op.output.y], [428, op.output.y]]);
 
-        // C2 from + input node down to output
-        sch.capacitor(op.nonInvInput.x - 30, op.nonInvInput.y + 50, 'vertical');
-        sch.text(op.nonInvInput.x - 55, op.nonInvInput.y + 75, 'C2', { size: 11, bold: true, anchor: 'end' });
-        const c2 = Schematic.capacitorTerminals(op.nonInvInput.x - 30, op.nonInvInput.y + 50, 'vertical');
-        sch.wire([[op.nonInvInput.x - 30, op.nonInvInput.y], [c2.start.x, c2.start.y]]);
-
-        // Unity gain feedback (output to inverting input)
-        sch.wire([[op.output.x, op.output.y], [op.output.x + 20, op.output.y]]);
-        sch.junction(op.output.x + 20, op.output.y);
-        sch.wire([[op.output.x + 20, op.output.y], [op.output.x + 20, op.invInput.y + 60]]);
-        sch.wire([[op.output.x + 20, op.invInput.y + 60], [op.invInput.x - 20, op.invInput.y + 60]]);
-        sch.wire([[op.invInput.x - 20, op.invInput.y + 60], [op.invInput.x - 20, op.invInput.y]]);
+        // Unity-gain feedback: output straight back to the - input.
+        const fbX = 383, fbY = 62;
+        sch.junction(fbX, op.output.y);
+        sch.wire([[fbX, op.output.y], [fbX, fbY]]);
+        sch.wire([[fbX, fbY], [op.invInput.x - 20, fbY]]);
+        sch.wire([[op.invInput.x - 20, fbY], [op.invInput.x - 20, op.invInput.y]]);
         sch.wire([[op.invInput.x - 20, op.invInput.y], [op.invInput.x, op.invInput.y]]);
 
-        // C2 to output - route around the capacitor body
-        // C2 end terminal is at (c2.end.x, c2.end.y) = (235, 225)
-        // Route right first to avoid crossing C2 body, then down and across to output
-        const c2RouteX = c2.end.x + 30;  // Go right of C2
-        sch.wire([[c2.end.x, c2.end.y], [c2RouteX, c2.end.y]]);
-        sch.wire([[c2RouteX, c2.end.y], [c2RouteX, op.output.y + 40]]);
-        sch.wire([[c2RouteX, op.output.y + 40], [op.output.x + 20, op.output.y + 40]]);
-        sch.wire([[op.output.x + 20, op.output.y + 40], [op.output.x + 20, op.output.y]]);
-
-        // Vout label - wire must reach label position
-        const sallenVoutX = op.output.x + 45;
-        sch.wire([[op.output.x + 20, op.output.y], [sallenVoutX, op.output.y]]);
-        sch.nodeLabel(sallenVoutX, op.output.y, 'Vout');
+        sch.text(opX + 35, opY + 48, 'U1', { size: 11, bold: true, anchor: 'start' });
 
         // Annotations
-        sch.text(225, 12, '2nd-Order Lowpass (Unity Gain)', {
-            size: 10, anchor: 'middle', color: 'rgba(110, 231, 255, 0.8)'
+        sch.text(20, 195, 'Sallen-Key lowpass, unity gain', {
+            size: 10, anchor: 'start', color: 'rgba(110, 231, 255, 0.8)'
         });
 
         sch.finalize();
@@ -701,6 +737,119 @@
         div.style.marginBottom = '15px';
         container.appendChild(div);
         new ExerciseWidget(`exercise-m3l3-${i}`, ex);
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('sim-check-m02l03', {
+        id: 'm02l03-sallen-key',
+        title: 'Confirm both the corner and the Q',
+        intro: 'Two numbers define a second-order lowpass, and only one of them is ' +
+               'easy to see. The corner you can read off a Bode plot at a glance; ' +
+               'Q hides in the shape of the knee, and a filter with the right ' +
+               'corner and the wrong Q looks almost identical until you put a step ' +
+               'through it. Rows 2 and 4 pin down each one separately.',
+        probes: [
+            { id: 'dc', label: 'Passband gain at 10 Hz',
+              expect: '0.0', unit: 'dB', tol: 0.3,
+              why: 'Unity, because the op-amp is a follower and at DC both ' +
+                   'capacitors are open, so the two resistors carry no current and ' +
+                   'drop nothing. Anything other than 0&nbsp;dB here means the ' +
+                   '+ input has a DC path to ground it should not have &mdash; ' +
+                   'check that C<sub>2</sub> is a capacitor and not a resistor.' },
+            { id: 'fc', label: 'The −3 dB frequency',
+              expect: '1000', unit: 'Hz', tol: 60,
+              why: 'f<sub>0</sub> = 1/(2&pi;&radic;(R<sub>1</sub>R<sub>2</sub>' +
+                   'C<sub>1</sub>C<sub>2</sub>)) = 1/(2&pi; &times; 11.25k &times; ' +
+                   '&radic;(20n &times; 10n)) = 1/(2&pi; &times; 11.25k &times; ' +
+                   '14.14n) = 1000&nbsp;Hz. For Butterworth specifically &mdash; ' +
+                   'Q&nbsp;=&nbsp;0.707 &mdash; the &minus;3&nbsp;dB point lands ' +
+                   'exactly on f<sub>0</sub>. That is a coincidence of this ' +
+                   'alignment and not a general rule: at other Q values the two ' +
+                   'part company, which is why the design tables are written in ' +
+                   'terms of f<sub>0</sub>.' },
+            { id: 'hf', label: 'Gain at 10 kHz',
+              expect: '-40.0', unit: 'dB', tol: 1.5,
+              why: 'Two poles, so 40&nbsp;dB per decade, and 10&nbsp;kHz is one ' +
+                   'decade past the corner. This is the row that confirms you have ' +
+                   'a second-order filter at all: if you read &minus;20&nbsp;dB, ' +
+                   'one of the capacitors is doing nothing, and the usual reason is ' +
+                   'that C<sub>2</sub> has been wired to the output instead of to ' +
+                   'ground &mdash; where it has the same node on both plates and is ' +
+                   'electrically absent.' },
+            { id: 'q', label: 'Gain at 2 kHz',
+              expect: '-12.3', unit: 'dB', tol: 1.0,
+              why: 'This is the Q measurement in disguise. At twice the corner the ' +
+                   'response is 1/&radic;[(1&minus;4)&sup2; + (2/Q)&sup2;]; at ' +
+                   'Q&nbsp;=&nbsp;0.707 that is &minus;12.3&nbsp;dB, and at ' +
+                   'Q&nbsp;=&nbsp;0.5 it would be &minus;14.0&nbsp;dB. Under two ' +
+                   'decibels apart, which is exactly why nobody catches a wrong Q by ' +
+                   'looking. Read it with a cursor.' }
+        ],
+        experiments: [
+            { action: 'Make the capacitors equal: change C1 from 20 nF to 10 nF.',
+              expect: 'The &minus;3 dB point moves <strong>down</strong> to about ' +
+                      '910 Hz even though f<sub>0</sub> has moved <strong>up</strong> ' +
+                      'to 1414 Hz, the knee gets visibly rounder, and the gain at ' +
+                      '2 kHz <em>rises</em> to about &minus;9.5 dB from &minus;12.3.',
+              why: 'Q drops to 0.5, which is two coincident real poles and the most ' +
+                   'damped a second-order lowpass can be. It is worth knowing ' +
+                   '<em>why</em> you cannot get Butterworth back by adjusting the ' +
+                   'resistors: with C<sub>1</sub> = C<sub>2</sub> the Q expression ' +
+                   'collapses to &radic;(R<sub>1</sub>R<sub>2</sub>)/(R<sub>1</sub>+' +
+                   'R<sub>2</sub>), and no two positive numbers make that exceed ' +
+                   '0.5. This is a hard limit of the topology, not a tuning ' +
+                   'problem, and it is the reason the design table asks for unequal ' +
+                   'capacitors.' },
+            { action: 'Overdo it: change C1 to 80 nF, leaving C2 at 10 nF.',
+              expect: 'Q goes to 1.41, f<sub>0</sub> falls to 500 Hz, and the ' +
+                      'response grows a <strong>peak of about +3.6 dB</strong> just ' +
+                      'below the corner. Switch to a transient run with a square ' +
+                      'wave in and you will see the step response ring.',
+              why: 'Peaking in the frequency domain and ringing in the time domain ' +
+                   'are the same fact seen from two angles. Above Q = 0.707 you get ' +
+                   'both; below it you get neither, at the cost of a softer knee. ' +
+                   'Chebyshev alignments deliberately sit high on this scale to ' +
+                   'buy a sharper transition and accept the passband ripple and the ' +
+                   'overshoot; Bessel sits low to keep the group delay flat and ' +
+                   'accepts a lazy roll-off. Butterworth is the one that just ' +
+                   'barely does not peak.' },
+            { action: 'Inject a source in the middle: drive node n1 with a 100 mV ' +
+                      'AC source through a 1 MΩ resistor, with the main input ' +
+                      'grounded.',
+              expect: 'A <strong>bandpass</strong> response, peaking near ' +
+                      'f<sub>0</sub>, not a lowpass.',
+              why: 'Node 1 is the node C<sub>1</sub> feeds back into, and injecting ' +
+                   'there excites the resonance directly rather than through the ' +
+                   'input pole. The same two poles, a different zero, a completely ' +
+                   'different response. This is the practical reason to care: any ' +
+                   'noise that couples onto that node &mdash; a long trace, a via ' +
+                   'to a noisy layer, a nearby clock &mdash; arrives at the output ' +
+                   'amplified by Q rather than filtered. In a Sallen-Key layout, ' +
+                   'node 1 is the one to keep short.' },
+            { action: 'Make the classic wiring mistake on purpose: move C1’s far ' +
+                      'end from the output to ground.',
+              expect: 'The &minus;3 dB point <strong>collapses to about 400 Hz</strong> ' +
+                      'and the gain at 1 kHz falls from &minus;3 dB to about ' +
+                      '&minus;9 dB. The far slope is still 40 dB/decade, so it still ' +
+                      '<em>looks</em> like a working two-pole filter.',
+              why: 'With C<sub>1</sub> grounded there is no positive feedback, so ' +
+                   'this is a passive two-stage RC with a buffer bolted on the end, ' +
+                   'and its Q is 0.354. The corner frequency f<sub>0</sub> has not ' +
+                   'moved &mdash; it is still 1&nbsp;kHz &mdash; but the response at ' +
+                   'f<sub>0</sub> is now 9&nbsp;dB down instead of 3. That is what ' +
+                   'C<sub>1</sub>&rsquo;s return to the output was buying: the ' +
+                   'op-amp drives the bottom of that capacitor with a copy of the ' +
+                   'output, which feeds energy back into node 1 near resonance and ' +
+                   'lifts Q above what any passive RC can reach. Worth doing once, ' +
+                   'because the broken version passes a casual glance.' }
+        ]
     });
 })();
 </script>

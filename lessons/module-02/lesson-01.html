@@ -235,6 +235,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="sim-check-m02l01"></div>
     </div>
 
     <div class="card">
@@ -678,6 +680,114 @@
         div.style.marginBottom = '15px';
         container.appendChild(div);
         new ExerciseWidget(`exercise-m3l1-${i}`, ex);
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('sim-check-m02l01', {
+        id: 'm02l01-tia',
+        title: 'A transimpedance amplifier is judged in ohms',
+        intro: 'The output of a TIA is a voltage and its input is a current, so its ' +
+               'gain has units of ohms and it is R<sub>F</sub> &mdash; nothing else. ' +
+               'Everything interesting about the circuit is what happens around ' +
+               'that: where the bandwidth comes from, why C<sub>F</sub> is not ' +
+               'optional, and why the photodiode&rsquo;s own capacitance is the ' +
+               'component that decides whether the thing is stable.',
+        probes: [
+            { id: 'vout', label: 'V(out) amplitude at 10 kHz', node: 'V(out)',
+              expect: '1.0', unit: 'V', tol: 0.05,
+              why: '1&nbsp;&micro;A &times; 1&nbsp;M&Omega; = 1&nbsp;V. All of the ' +
+                   'photocurrent flows in R<sub>F</sub>, because the summing node is ' +
+                   'a virtual ground and C<sub>PD</sub> therefore has no voltage ' +
+                   'across it and takes none of the current. That last clause is the ' +
+                   'entire reason a TIA beats a load resistor: hang 1&nbsp;M&Omega; ' +
+                   'straight across the diode instead and the 10&nbsp;pF rolls the ' +
+                   'response off at 16&nbsp;kHz.' },
+            { id: 'fc', label: 'The −3 dB frequency',
+              expect: '159', unit: 'kHz', tol: 25,
+              why: '1/(2&pi;R<sub>F</sub>C<sub>F</sub>) = 1/(2&pi; &times; 1M ' +
+                   '&times; 1p) = 159&nbsp;kHz. C<sub>F</sub> sets it and nothing ' +
+                   'else does, with an ideal op-amp. One picofarad is not a ' +
+                   'component you buy so much as one you accept: the stray ' +
+                   'capacitance across a 1&nbsp;M&Omega; resistor and its pads is ' +
+                   'about 0.3&nbsp;pF whatever you do, which is why a megohm ' +
+                   'feedback resistor can never be fast.' },
+            { id: 'vhf', label: 'V(out) amplitude at 1 MHz',
+              expect: '0.16', unit: 'V', tol: 0.04,
+              why: 'A single pole, so above the corner the amplitude falls as ' +
+                   '1/(f/f<sub>c</sub>): 159&nbsp;kHz/1&nbsp;MHz = 0.159. Checking a ' +
+                   'point well past the corner is worth doing &mdash; it confirms ' +
+                   'the roll-off is 20&nbsp;dB/decade and not 40, which would mean ' +
+                   'a second pole you had not accounted for.' },
+            { id: 'ohms', label: 'Transimpedance at 10 kHz, in dBΩ',
+              expect: '120', unit: 'dBΩ', tol: 1,
+              why: '20&nbsp;log<sub>10</sub>(10<sup>6</sup>) = 120. The unit looks ' +
+                   'odd the first time and it is the right one: this is a ratio of ' +
+                   'volts to amps, so decibels of ohms. Data sheets for photodiode ' +
+                   'front ends quote it this way, and it lets you add the ' +
+                   'diode&rsquo;s responsivity in A/W to get an overall V/W without ' +
+                   'leaving the log domain.' }
+        ],
+        experiments: [
+            { action: 'Delete CF and switch U1 to Real Op-Amp.',
+              expect: 'The step response <strong>rings</strong>, or the frequency ' +
+                      'response grows a peak of several dB near the top end, or the ' +
+                      'thing oscillates outright.',
+              why: 'Here is the mechanism, and it is the single most important idea ' +
+                   'in TIA design. C<sub>PD</sub> and R<sub>F</sub> put a zero in ' +
+                   'the <em>noise gain</em> at 1/(2&pi;R<sub>F</sub>C<sub>PD</sub>) ' +
+                   '= 16&nbsp;kHz, above which the feedback factor falls and the ' +
+                   'noise gain rises at 20&nbsp;dB/decade. The op-amp&rsquo;s open ' +
+                   'loop is falling at 20&nbsp;dB/decade at the same time, so the ' +
+                   'two close at 40&nbsp;dB/decade &mdash; which is 180&deg; of ' +
+                   'phase and no margin at all. C<sub>F</sub> puts a pole in the ' +
+                   'noise gain to flatten it again before the crossing. It is a ' +
+                   'compensation component, not a filter, and the fact that it also ' +
+                   'sets the bandwidth is a consequence rather than its purpose.' },
+            { action: 'Use a bigger photodiode: change CPD from 10 pF to 100 pF, ' +
+                      'with CF back in place.',
+              expect: 'With the ideal op-amp, nothing. With ' +
+                      '<span class="mono">Real Op-Amp</span>, the peaking comes ' +
+                      'back — 1 pF is no longer enough.',
+              why: 'The compensation condition is roughly C<sub>F</sub> = ' +
+                   '&radic;(C<sub>PD</sub>/(2&pi;R<sub>F</sub>&middot;GBW)), so ' +
+                   'ten times the diode capacitance needs about three times the ' +
+                   'feedback capacitance &mdash; and bandwidth falls in proportion. ' +
+                   'A larger photodiode collects more light and costs you speed, ' +
+                   'and the exchange rate is a square root. That trade is the reason ' +
+                   'optical receivers use the smallest diode that will catch the ' +
+                   'beam rather than the biggest one that fits.' },
+            { action: 'Add dark current: give IPD a 100 nA DC component alongside ' +
+                      'the 1 µA sine.',
+              expect: 'The whole waveform lifts by <strong>100 mV</strong> of DC ' +
+                      'and stays exactly the same shape.',
+              why: '100&nbsp;nA &times; 1&nbsp;M&Omega;. A real photodiode leaks ' +
+                   'this much or more at room temperature, and it roughly doubles ' +
+                   'every 10&nbsp;&deg;C, so the DC output of a high-gain TIA is a ' +
+                   'thermometer with an optical input attached. It is also the hard ' +
+                   'ceiling on R<sub>F</sub>: raise it to 10&nbsp;M&Omega; for more ' +
+                   'gain and the dark current alone puts a volt on the output before ' +
+                   'any light arrives. AC-coupling after the TIA is the usual ' +
+                   'answer, and it is why so many optical front ends cannot measure ' +
+                   'a steady light level.' },
+            { action: 'Change RF from 1 MΩ to 10 MΩ, leaving CF at 1 pF.',
+              expect: 'The output at 10 kHz goes to about <strong>8.5 V</strong>, not ' +
+                      '10 — because the corner has moved down to ' +
+                      '<strong>15.9 kHz</strong> and 10 kHz is no longer safely ' +
+                      'inside the passband.',
+              why: 'Ten times the transimpedance, a tenth of the bandwidth: the ' +
+                   'product R<sub>F</sub>C<sub>F</sub> is the whole story, and ' +
+                   'C<sub>F</sub> has a floor set by stray capacitance. That makes ' +
+                   'gain-bandwidth a fixed budget in a TIA just as it is in a ' +
+                   'voltage amplifier, but for a completely different reason &mdash; ' +
+                   'here it is the feedback network, not the op-amp, that runs out.' }
+        ]
     });
 })();
 </script>

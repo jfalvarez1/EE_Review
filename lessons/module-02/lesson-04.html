@@ -81,7 +81,8 @@
         <div class="kv">
             <div class="box">
                 <div class="k">Hysteresis Width</div>
-                <div class="v mono">V<sub>hyst</sub> = V<sub>out(swing)</sub> × R1/(R1+R2)</div>
+                <div class="v mono">V<sub>hyst</sub> = V<sub>out(swing)</sub> × R<sub>lower</sub>/(R<sub>fb</sub>+R<sub>lower</sub>)</div>
+                <div class="v" style="font-size:12px;color:var(--muted)">R<sub>fb</sub> runs from the output to the + input; R<sub>lower</sub> from the + input to V<sub>ref</sub></div>
             </div>
             <div class="box">
                 <div class="k">Center Voltage</div>
@@ -169,11 +170,11 @@
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
                     <tr><td class="mono">XCOMP</td><td>Block (LM311)</td><td><span class="mono">LM311</span></td><td>pins <span class="mono">in</span>, <span class="mono">ref</span>, <span class="mono">out</span>, ground</td></tr>
-                    <tr><td class="mono">R1</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">out</span> and <span class="mono">in</span></td></tr>
-                    <tr><td class="mono">R2</td><td>Resistor</td><td>49&nbsp;k&Omega;</td><td>between <span class="mono">in</span> and <span class="mono">ref</span></td></tr>
+                    <tr><td class="mono">R1</td><td>Resistor</td><td>49&nbsp;k&Omega;</td><td>between <span class="mono">out</span> and <span class="mono">ref</span></td></tr>
+                    <tr><td class="mono">R2</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">ref</span> and <span class="mono">vref</span></td></tr>
                     <tr><td class="mono">RPULL</td><td>Resistor</td><td>4.70&nbsp;k&Omega;</td><td>between <span class="mono">out</span> and <span class="mono">vcc</span></td></tr>
                     <tr><td class="mono">VCC</td><td>Voltage source</td><td>5&nbsp;V DC</td><td>from <span class="mono">vcc</span> to ground</td></tr>
-                    <tr><td class="mono">VREF</td><td>Voltage source</td><td>2.50&nbsp;V DC</td><td>from <span class="mono">ref</span> to ground</td></tr>
+                    <tr><td class="mono">VREF</td><td>Voltage source</td><td>2.50&nbsp;V DC</td><td>from <span class="mono">vref</span> to ground</td></tr>
                     <tr><td class="mono">VIN</td><td>Voltage source</td><td>sine 1.50&nbsp;V amplitude at 100&nbsp;Hz, offset 2.50&nbsp;V</td><td>from <span class="mono">in</span> to ground</td></tr>
                 </tbody>
             </table>
@@ -185,6 +186,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="sim-check-m02l04"></div>
     </div>
 
     <div class="card">
@@ -615,6 +618,116 @@
         div.style.marginBottom = '15px';
         container.appendChild(div);
         new ExerciseWidget(`exercise-m3l4-${i}`, ex);
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('sim-check-m02l04', {
+        id: 'm02l04-schmitt',
+        title: 'Measure the two thresholds, not the one',
+        intro: 'A comparator has one threshold. A Schmitt trigger has two, and the ' +
+               'gap between them is the only thing standing between you and a burst ' +
+               'of transitions every time a noisy signal wanders past the ' +
+               'reference. So measure both, and measure the gap &mdash; it is a ' +
+               'design parameter, not an accident.',
+        probes: [
+            { id: 'vth', label: 'V(ref) while the output is high', node: 'V(ref)',
+              expect: '2.546', unit: 'V', tol: 0.03,
+              why: 'With the LM311&rsquo;s open-collector output off, current runs ' +
+                   'from the 5&nbsp;V rail through R<sub>PULL</sub> + R<sub>1</sub> ' +
+                   '+ R<sub>2</sub> = 54.7&nbsp;k&Omega; down to the 2.5&nbsp;V ' +
+                   'reference: 45.7&nbsp;&micro;A, which lifts V(ref) by ' +
+                   '45.7&nbsp;&micro;A &times; 1&nbsp;k&Omega; = 46&nbsp;mV. This ' +
+                   'is the upper threshold, the voltage the input has to <em>rise ' +
+                   'past</em> before anything happens.' },
+            { id: 'vtl', label: 'V(ref) while the output is low', node: 'V(ref)',
+              expect: '2.452', unit: 'V', tol: 0.03,
+              why: 'Output transistor on, so R<sub>1</sub> now pulls V(ref) toward ' +
+                   'roughly 0.1&nbsp;V instead of toward the rail: ' +
+                   '(2.5 &minus; 0.1)/50&nbsp;k = 48&nbsp;&micro;A out of the ' +
+                   'reference, dropping V(ref) by 48&nbsp;mV. The threshold moved ' +
+                   '<em>away</em> from the input the moment the output switched, ' +
+                   'which is the whole trick &mdash; the circuit commits to its ' +
+                   'decision.' },
+            { id: 'hyst', label: 'Hysteresis width, V<sub>TH</sub> − V<sub>TL</sub>',
+              expect: '94', unit: 'mV', tol: 15,
+              why: 'Roughly V<sub>swing</sub> &times; R<sub>2</sub>/(R<sub>1</sub> ' +
+                   '+ R<sub>2</sub>) = 4.7&nbsp;V &times; 1/50 = 94&nbsp;mV. That ' +
+                   'ratio is the design knob: the hysteresis is the output swing ' +
+                   'divided down by the feedback divider, so you set it with two ' +
+                   'resistors and it scales with the supply. Rule of thumb: make it ' +
+                   'at least twice the peak-to-peak noise you expect on the input.' },
+            { id: 'voh', label: 'Output high level', node: 'V(out)',
+              expect: '4.79', unit: 'V', tol: 0.15,
+              why: 'Not 5&nbsp;V, because R<sub>PULL</sub> is carrying the ' +
+                   '46&nbsp;&micro;A that the feedback network draws and drops ' +
+                   '0.21&nbsp;V doing it. Small here, but the general point is not: ' +
+                   'an open-collector output has no pull-up of its own, so its high ' +
+                   'level is whatever the external resistor and everything hanging ' +
+                   'off it agree on. If you read zero volts, you have forgotten ' +
+                   'R<sub>PULL</sub> &mdash; which is the next experiment.' }
+        ],
+        experiments: [
+            { action: 'Delete RPULL.',
+              expect: 'The output <strong>never goes high</strong>. It sits near ' +
+                      'ground for the whole run and the circuit appears completely ' +
+                      'dead.',
+              why: 'The LM311&rsquo;s output is a bare NPN with its collector on the ' +
+                   'pin. It can pull down and it cannot pull up, so without an ' +
+                   'external resistor to a rail there is nothing to make a high ' +
+                   'level out of. This is worth doing once because the symptom is ' +
+                   'so unhelpful: a stuck-low output looks like a dead part, a ' +
+                   'missing supply or a wiring error, and it is none of those. It is ' +
+                   'also why open-collector outputs are useful &mdash; tie several ' +
+                   'together to one pull-up and you have a wired-OR, which a ' +
+                   'push-pull output cannot give you without a fight.' },
+            { action: 'Widen the hysteresis: change R1 from 49 kΩ to 4.9 kΩ.',
+              expect: 'The gap grows about seven times, to roughly ' +
+                      '<strong>0.64 V</strong> — and the output high level drops to ' +
+                      'about <strong>3.9 V</strong>.',
+              why: 'The first half is the point of the exercise. The second half is ' +
+                   'the part people forget: R<sub>1</sub> is now a 4.9&nbsp;k&Omega; ' +
+                   'load hanging on a 4.7&nbsp;k&Omega; pull-up, so it takes a large ' +
+                   'bite out of the high level, which in turn reduces the swing that ' +
+                   'sets the hysteresis. The feedback network and the pull-up are ' +
+                   'not independent, and the usual rule &mdash; keep R<sub>1</sub> ' +
+                   'at least ten times R<sub>PULL</sub> &mdash; exists precisely so ' +
+                   'that you can pretend they are.' },
+            { action: 'Add noise, then take the hysteresis away. Superimpose a ' +
+                      '30 mV Noise Source on VIN and run it; then change R1 to ' +
+                      '470 kΩ and run it again.',
+              expect: 'With 94 mV of hysteresis: <strong>two clean transitions per ' +
+                      'cycle</strong>. With R1 at 470 kΩ the hysteresis collapses to ' +
+                      'about 10 mV, and each crossing becomes a <strong>burst of ' +
+                      'transitions</strong>.',
+              why: 'This is what the circuit is <em>for</em>, and it is the only ' +
+                   'experiment in the lesson that shows it. A plain comparator ' +
+                   'near its threshold is a very high gain amplifier looking at ' +
+                   'noise, and it will produce every edge the noise gives it. ' +
+                   'Downstream, those extra edges get counted, clock something, or ' +
+                   'trigger an interrupt storm. Hysteresis makes the threshold run ' +
+                   'away from the input after each decision, so the noise has to be ' +
+                   'bigger than the gap to catch up. Ten millivolts against ' +
+                   '30&nbsp;mV of noise is not enough; 94 against 30 is.' },
+            { action: 'Move the reference: change VREF from 2.5 V to 3.5 V.',
+              expect: 'Both thresholds shift up by a volt, and the output duty cycle ' +
+                      'changes from 50% to about <strong>27%</strong>.',
+              why: 'Straightforward arithmetic worth confirming, because it shows ' +
+                   'the two controls are independent: V<sub>REF</sub> sets where the ' +
+                   'pair of thresholds sits, and R<sub>1</sub>/R<sub>2</sub> sets ' +
+                   'how far apart they are. The duty cycle follows because the input ' +
+                   'is a 1.5&nbsp;V sine on a 2.5&nbsp;V offset, so a 3.5&nbsp;V ' +
+                   'threshold is at sin&nbsp;&theta; = 0.667 and the signal only ' +
+                   'spends 96&deg; of each 360&deg; above it. That is how a ' +
+                   'comparator plus a triangle wave becomes a PWM generator, and ' +
+                   'it is exactly the circuit in the switching-supply module.' }
+        ]
     });
 })();
 </script>
