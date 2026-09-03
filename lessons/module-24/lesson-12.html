@@ -135,21 +135,25 @@
                     <tr><td class="mono">VSW</td><td>Voltage source</td><td>pulse 0&nbsp;V to 12&nbsp;V, period 1&nbsp;&micro;s</td><td>from <span class="mono">sw</span> to ground</td></tr>
                     <tr><td class="mono">L_OUT</td><td>Inductor</td><td>10&nbsp;&micro;H</td><td>between <span class="mono">sw</span> and <span class="mono">lx</span></td></tr>
                     <tr><td class="mono">R_DCR</td><td>Resistor</td><td>20&nbsp;m&Omega;</td><td>between <span class="mono">lx</span> and <span class="mono">out</span></td></tr>
-                    <tr><td class="mono">C_BULK</td><td>Capacitor</td><td>100&nbsp;&micro;F</td><td>between <span class="mono">out</span> and ground</td></tr>
                     <tr><td class="mono">R_ESR_BULK</td><td>Resistor</td><td>10&nbsp;m&Omega;</td><td>between <span class="mono">out</span> and <span class="mono">out_esr</span></td></tr>
-                    <tr><td class="mono">C_MLCC</td><td>Capacitor</td><td>22&nbsp;&micro;F</td><td>between <span class="mono">out</span> and ground</td></tr>
+                    <tr><td class="mono">C_BULK</td><td>Capacitor</td><td>100&nbsp;&micro;F</td><td>between <span class="mono">out_esr</span> and ground <em>(in series with its ESR, which is what an ESR is)</em></td></tr>
                     <tr><td class="mono">R_ESR_MLCC</td><td>Resistor</td><td>2&nbsp;m&Omega;</td><td>between <span class="mono">out</span> and <span class="mono">out_mlcc</span></td></tr>
-                    <tr><td class="mono">ILOAD</td><td>Current source</td><td>&mdash;</td><td>from <span class="mono">out</span> to ground</td></tr>
+                    <tr><td class="mono">C_MLCC</td><td>Capacitor</td><td>22&nbsp;&micro;F</td><td>between <span class="mono">out_mlcc</span> and ground</td></tr>
+                    <tr><td class="mono">ILOAD</td><td>Current source</td><td>pulse 0&nbsp;A to 2&nbsp;A, 10&nbsp;&micro;s on, period 50&nbsp;&micro;s &mdash; a load step</td><td>from <span class="mono">out</span> to ground</td></tr>
                 </tbody>
             </table>
         </div>
 
         <p><strong>What to run:</strong> a <strong>transient run</strong> of 200&nbsp;&micro;s in steps of 100&nbsp;ns.</p>
-        <p><strong>What to watch:</strong> <span class="mono">V(out)</span>, <span class="mono">I(L_OUT)</span>.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(out)</span>, <span class="mono">I(L_OUT)</span> &mdash; and zoom hard on the first microsecond of the step.</p>
+        <p>A load step produces two separate things and the whole skill is telling them apart. The 2&nbsp;A lands on the two ESRs in parallel, 10&nbsp;m&Omega; &#8214; 2&nbsp;m&Omega; = 1.667&nbsp;m&Omega;, giving <strong>3.33&nbsp;mV in zero time</strong> &mdash; a vertical step, because a resistance has no time constant. Then the capacitors supply the current while the inductor catches up, and the output sags at I/C = 2&nbsp;A/122&nbsp;&micro;F = 16.4&nbsp;kV/s, which over 10&nbsp;&micro;s is <strong>164&nbsp;mV</strong>.</p>
+        <p>Fifty times larger, and it is the one that responds to more capacitance. <strong>Adding capacitance fixes the sag and does nothing for the step; lowering ESR fixes the step and does nothing for the sag</strong> &mdash; so which one you are looking at on the scope decides which component to change, and getting that backwards is how a bulk capacitor gets added to a problem it cannot touch.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m24l12-loadstep"></div>
     </div>
 
     <div class="card">
@@ -482,5 +486,103 @@
     ctx.setLineDash([]);
     ctx.fillStyle = TEK.ch3;
     ctx.fillText('Vpp ripple', 410, 385);
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m24l12-loadstep', {
+        id: 'm24l12-loadstep',
+        title: 'Two numbers in one waveform',
+        intro: 'A load-step response looks like a single droop and is actually two ' +
+               'effects with different causes, different sizes and different fixes. ' +
+               'Measure them separately &mdash; the first in the first nanoseconds, the ' +
+               'second over the following microseconds &mdash; because deciding which one ' +
+               'you are looking at is the entire diagnostic.',
+        probes: [
+            { id: 'step', label: 'The instantaneous step in V(out) when the load turns on',
+              expect: '3.33', unit: 'mV', tol: 0.4,
+              why: '2&nbsp;A into the two ESRs in parallel: 10&nbsp;m&Omega; &#8214; ' +
+                   '2&nbsp;m&Omega; = 1.667&nbsp;m&Omega;. <strong>Vertical</strong>, in ' +
+                   'zero time, because a resistance has no time constant &mdash; and that ' +
+                   'is how you recognise it. Zoom in as far as you like and the edge stays ' +
+                   'sharp.' },
+            { id: 'sag', label: 'Additional droop 10 µs after the step',
+              expect: '164', unit: 'mV', tol: 20,
+              why: 'The capacitors supply the load while the inductor current ramps up to ' +
+                   'meet it, so the output falls at I/C = 2&nbsp;A/122&nbsp;&micro;F = ' +
+                   '16.4&nbsp;kV/s. Over 10&nbsp;&micro;s that is 164&nbsp;mV &mdash; ' +
+                   '<strong>fifty times the ESR step</strong>, and a slope rather than an ' +
+                   'edge.' },
+            { id: 'ibulk', label: 'I(R_ESR_BULK) at the instant of the step',
+              expect: '0.333', unit: 'A', tol: 0.05,
+              why: 'Here is the part that catches people out. The two capacitors are in ' +
+                   'parallel, so they share a <em>voltage</em> and split the ' +
+                   '<em>current</em> &mdash; inversely with ESR. 2&nbsp;A &times; ' +
+                   '2/(10+2) = <strong>0.333&nbsp;A</strong>: the 100&nbsp;&micro;F bulk ' +
+                   'part takes only a sixth of the step.' },
+            { id: 'imlcc', label: 'I(R_ESR_MLCC) at the instant of the step',
+              expect: '1.667', unit: 'A', tol: 0.1,
+              why: 'The other five sixths, through a capacitor that is a fifth of the size. ' +
+                   '<strong>At the leading edge, parallel capacitors divide current by ESR ' +
+                   'and not by value</strong> &mdash; and both develop the same ' +
+                   '3.33&nbsp;mV, because that is what being in parallel means. This is why ' +
+                   'ceramics sit next to the load and the electrolytic sits wherever it ' +
+                   'fits: the ceramic is doing the fast work regardless of how much bulk ' +
+                   'capacitance is elsewhere on the board.' },
+            { id: 'slope', label: 'Slope of the droop, in V/s',
+              expect: '16400', unit: 'V/s', tol: 2000,
+              why: 'I/C with the total 122&nbsp;&micro;F. This is the number the control ' +
+                   'loop is racing: it has to get the inductor up to 2&nbsp;A before the ' +
+                   'droop reaches whatever the load tolerates. <strong>Output capacitance ' +
+                   'buys time and loop bandwidth is what you spend it on</strong> &mdash; ' +
+                   'more of either fixes a droop, and they cost different things.' }
+        ],
+        experiments: [
+            { action: 'Double C_BULK to 200 µF and re-run.',
+              expect: 'The droop shrinks from 164 to <strong>90 mV</strong>. The ' +
+                      '<strong>3.33 mV step does not move at all</strong>.',
+              why: 'This is the experiment that pays for the lesson. Capacitance and ESR ' +
+                   'are independent knobs acting on independent parts of the waveform, and ' +
+                   'putting more capacitance on a problem that is actually an ESR step ' +
+                   'accomplishes precisely nothing &mdash; but it is what everyone tries ' +
+                   'first, because on a slow timebase the two effects look like one droop. ' +
+                   '<strong>The fix follows from which part of the waveform is too ' +
+                   'big</strong>, and you cannot tell without zooming in.' },
+            { action: 'Halve R_ESR_MLCC to 1 mΩ.',
+              expect: 'The step drops to <strong>1.82 mV</strong>. The droop is ' +
+                      '<strong>unchanged</strong>.',
+              why: 'The mirror image, and worth doing straight after the last one so the ' +
+                   'independence is unmistakable. In hardware you buy lower ESR by putting ' +
+                   'ceramics in parallel &mdash; four 22&nbsp;&micro;F parts have a quarter ' +
+                   'the ESR of one &mdash; which is why decoupling is specified as a count ' +
+                   'and a placement rather than as a total capacitance.' },
+            { action: 'Make the load step ten times smaller: 0.2 A instead of 2 A.',
+              expect: 'Both halves shrink by ten. The <strong>ratio between them does not ' +
+                      'change</strong>.',
+              why: 'Both scale with current, so the shape is identical and only the axis ' +
+                   'moves. What does change the balance is the step\'s <em>duration</em>: ' +
+                   'shorten it enough and the loop never has to respond at all, because the ' +
+                   'capacitors carry the whole event and the droop never accumulates. ' +
+                   '<strong>A converter\'s transient specification is meaningless without ' +
+                   'the step\'s slew rate and duration</strong>, which is why datasheets ' +
+                   'quote all three.' },
+            { action: 'Remove C_MLCC entirely, leaving only the 100 µF bulk.',
+              expect: 'The step jumps from 3.33 to <strong>20 mV</strong> — six times worse ' +
+                      '— and the droop worsens from 164 to <strong>200 mV</strong>.',
+              why: 'Look at the two numbers separately. Removing 18% of the capacitance ' +
+                   'costs 22% more droop, which is proportionate and unsurprising. It also ' +
+                   'costs <strong>six times the transient step</strong>, which is not, and ' +
+                   'which is the whole argument for a mixed capacitor bank. A BOM ' +
+                   'consolidation that replaces "redundant" small ceramics with one larger ' +
+                   'part keeps the capacitance and throws away the ESR, and it is a ' +
+                   'recurring way to break a supply that was working. <strong>The ceramics ' +
+                   'were never there for their capacitance.</strong>' }
+        ]
+    });
 })();
 </script>
