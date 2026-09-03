@@ -27,12 +27,28 @@ think from time to time.* Not a lecture, and not a puzzle book either.
 
 | | baseline | now |
 | --- | --- | --- |
-| build sections stating what a correct build shows | 3 / 173 | **42 / 172** |
+| build sections stating what a correct build shows | 3 / 173 | **46 / 172** |
 | build tables with a wiring problem | 55 / 196 | **0 / 196** |
+| components with no value a reader could enter | 46 | **0** |
+| stated values checked against the circuit itself | 0 | **41** |
 | expected values stated | ~8 | **72** |
 | perturbations with a predicted outcome | 0 | **88** |
 | lessons with an acceptance check | 7% | **12%** |
 | lessons asking the reader to do nothing | 237 | **221** |
+
+**The bottleneck moved.** Stating an expected value meant solving the circuit by
+hand, which is slow and is where three of my own numbers went wrong. `solve-dc`
+and `solve-ac` do modified nodal analysis over the netlist the build tables
+already contain - 45 tables settle to an operating point, 17 sweep - and
+`check-sim-values` holds every `dc: true` or `acNode` probe to what the circuit
+actually does. 26 DC and 15 AC values are now checked on every build.
+
+That closed a gap nothing else could see. Module 25 lesson 16's Type III
+compensator passed check-build-nets (every node connected), check-build-values
+(every component valued) and check-toy-parts, and was still the wrong circuit:
+both series RC branches were wired in parallel, so the amplifier did not
+integrate and the infinite DC gain the topology exists for was simply absent.
+Only solving it showed that.
 
 Done so far: M1 L2–L5, M2 L1–L4, M5 L1/L3/L5/L6/L7, M6 L1/L7/L8/L9,
 M7 L1–L3, M9 L1–L2. One `DesignBriefWidget` (M5 L5, bias design) and one

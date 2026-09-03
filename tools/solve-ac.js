@@ -160,9 +160,11 @@ function report(rel, rows, tableNo) {
     if (!parts.some(q => (q.type === 'V' || q.type === 'I') && q.v !== 0)) {
         return { skip: 'no AC stimulus: every source is DC only', tag };
     }
-    if (!parts.some(q => q.type === 'C' || q.type === 'L')) {
-        return { skip: 'no reactive parts: the response is flat and solve-dc already has it', tag };
-    }
+    // A circuit with no reactive parts still has a gain, and for an amplifier
+    // driven by a sine that gain is the whole checkable claim - solve-dc reports
+    // zero for it, because the source has no DC component. Sweep it anyway; the
+    // response is simply flat and the corner search will find nothing.
+    const reactive = parts.some(q => q.type === 'C' || q.type === 'L');
     const idx = N.nodeIndex(parts);
     if (idx.size > 60) return { skip: 'too large', tag };
 
@@ -226,7 +228,8 @@ function report(rel, rows, tableNo) {
         }
 
         let s = '  V(' + node + ')  ';
-        if (ref !== null) s += refEnd + ' gain ' + dB(ref);
+        if (!reactive) s += 'flat, gain ' + dB(ref === null ? lo : ref);
+        else if (ref !== null) s += refEnd + ' gain ' + dB(ref);
         else s += 'no flat region';
         if (ref !== null && peak > ref * 1.01) s += ', peaks ' + dB(peak);
         if (corners.length) s += ', 3 dB at ' + corners.map(eng).join(', ');
