@@ -448,10 +448,10 @@
                 <tbody>
                     <tr><td class="mono">Vfb</td><td>Voltage source</td><td>500&nbsp;mV DC, AC 1&nbsp;V for a frequency sweep</td><td>from <span class="mono">fb</span> to ground</td></tr>
                     <tr><td class="mono">R1</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">fb</span> and <span class="mono">inv</span></td></tr>
-                    <tr><td class="mono">C3</td><td>Capacitor</td><td>10&nbsp;nF</td><td>between <span class="mono">fb</span> and <span class="mono">inv</span></td></tr>
-                    <tr><td class="mono">R3</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">inv</span> and <span class="mono">node1</span></td></tr>
-                    <tr><td class="mono">R2</td><td>Resistor</td><td>100&nbsp;k&Omega;</td><td>between <span class="mono">node1</span> and <span class="mono">out</span></td></tr>
-                    <tr><td class="mono">C2</td><td>Capacitor</td><td>2.20&nbsp;nF</td><td>between <span class="mono">node1</span> and <span class="mono">out</span></td></tr>
+                    <tr><td class="mono">R3</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">fb</span> and <span class="mono">node1</span></td></tr>
+                    <tr><td class="mono">C3</td><td>Capacitor</td><td>10&nbsp;nF</td><td>between <span class="mono">node1</span> and <span class="mono">inv</span> <em>(in SERIES with R3, the pair in parallel with R1)</em></td></tr>
+                    <tr><td class="mono">R2</td><td>Resistor</td><td>100&nbsp;k&Omega;</td><td>between <span class="mono">inv</span> and <span class="mono">node2</span></td></tr>
+                    <tr><td class="mono">C2</td><td>Capacitor</td><td>2.20&nbsp;nF</td><td>between <span class="mono">node2</span> and <span class="mono">out</span> <em>(in SERIES with R2 &mdash; in parallel it is an open at DC that never opens, and the compensator loses the infinite DC gain it exists for)</em></td></tr>
                     <tr><td class="mono">C1</td><td>Capacitor</td><td>100&nbsp;pF</td><td>between <span class="mono">inv</span> and <span class="mono">out</span></td></tr>
                     <tr><td class="mono">Vref</td><td>Voltage source</td><td>600&nbsp;mV DC</td><td>from <span class="mono">ref</span> to ground</td></tr>
                     <tr><td class="mono">U1</td><td>Op-amp</td><td><span class="mono">Op-Amp</span></td><td>+ input <span class="mono">ref</span>, &minus; input <span class="mono">inv</span>, output <span class="mono">out</span></td></tr>
@@ -465,6 +465,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m25l16-typeiii"></div>
     </div>
 
     <div class="card">
@@ -622,5 +624,113 @@
             new ExerciseWidget(`ex-m23l16-${i}`, ex);
         });
     }
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m25l16-typeiii', {
+        id: 'm25l16-typeiii',
+        title: 'Infinite gain at DC, and 124 degrees where you need them',
+        intro: 'A Type III compensator is not a filter and its gain plot is not the ' +
+               'point &mdash; the phase is. Check the shape in three places: falling at ' +
+               '&minus;20&nbsp;dB/decade at the bottom, a boost region in the middle, ' +
+               'falling again at the top. If the low-frequency end is flat rather than ' +
+               'falling, the compensator is not integrating and the converter will have ' +
+               'a steady-state error nothing can remove.',
+        probes: [
+            { id: 'g1', label: 'Gain at 1 Hz', acNode: 'out', acAt: 1,
+              expect: '76.8', unit: 'dB', tol: 1,
+              why: 'Large, and getting larger the lower you sweep, because C1 and C2 are ' +
+                   'both open at DC and the feedback impedance is infinite. <strong>That ' +
+                   'is the whole reason for a Type III</strong>: infinite DC gain drives ' +
+                   'the converter\'s output error to exactly zero, the same way the ' +
+                   'integrator in module 17\'s servo does. A finite number here means one ' +
+                   'of the two capacitors is in parallel with its resistor instead of in ' +
+                   'series with it, which is a topology error rather than a value one.' },
+            { id: 'g10', label: 'Gain at 10 Hz', acNode: 'out', acAt: 10,
+              expect: '56.8', unit: 'dB', tol: 1,
+              why: 'Exactly 20&nbsp;dB below the 1&nbsp;Hz reading, which is what ' +
+                   '&minus;20&nbsp;dB/decade means. Worth taking both points rather than ' +
+                   'one: a single number tells you the gain is large, and the pair tells ' +
+                   'you it is <em>integrating</em>, which is the property that matters.' },
+            { id: 'gdip', label: 'Gain at 1 kHz — the bottom of the dip',
+              acNode: 'out', acAt: 1000,
+              expect: '23.1', unit: 'dB', tol: 1,
+              why: 'The two zeros sit at 1/(2&pi;R2C2) = 723&nbsp;Hz and ' +
+                   '1/(2&pi;(R1+R3)C3) = 1447&nbsp;Hz, and between them the falling ' +
+                   'integrator slope is cancelled. In the textbook picture this is a flat ' +
+                   'midband at R2/R1 = 20&nbsp;dB; here the two zeros are only an octave ' +
+                   'apart, so it is a shallow minimum at 23&nbsp;dB rather than a plateau. ' +
+                   '<strong>Spreading the zeros further apart flattens it and narrows the ' +
+                   'phase boost</strong>, which is the trade this component set makes.' },
+            { id: 'gpeak', label: 'Gain at 16 kHz — the top of the boost',
+              acNode: 'out', acAt: 16000,
+              expect: '34.7', unit: 'dB', tol: 1,
+              why: 'The two poles are at 1/(2&pi;R3C3) = 15.9&nbsp;kHz and ' +
+                   '1/(2&pi;R2(C1&#8214;C2)) = 16.6&nbsp;kHz, and the gain has been ' +
+                   'climbing at +20&nbsp;dB/decade since the zeros. 11.5&nbsp;dB of rise ' +
+                   'between the dip and the peak, and above the poles it falls again.' },
+            { id: 'ghf', label: 'Gain at 1 MHz', acNode: 'out', acAt: 1000000,
+              expect: '4.9', unit: 'dB', tol: 1.5,
+              why: 'Back down, and still falling. The high-frequency roll-off is what keeps ' +
+                   'switching ripple out of the control loop: the compensator has to boost ' +
+                   'phase near crossover and then <em>stop paying attention</em> well below ' +
+                   'the switching frequency, or the loop chases its own ripple. ' +
+                   '<strong>Those two requirements set the poles</strong>, which is why ' +
+                   'they are placed at about half the switching frequency in a real ' +
+                   'design.' }
+        ],
+        experiments: [
+            { action: 'Measure the phase at 4.08 kHz and compare it with the phase at 1 Hz.',
+              expect: 'About <strong>124 degrees</strong> more positive.',
+              why: 'This is the number the whole circuit exists to produce, and it is ' +
+                   'predictable to a degree: with a double zero at the geometric mean of ' +
+                   '723 and 1447 (1023&nbsp;Hz) and a double pole at the geometric mean of ' +
+                   '15.9 and 16.6&nbsp;kHz (16.3&nbsp;kHz), the maximum boost is ' +
+                   '2[arctan(f/z) &minus; arctan(f/p)] = 123.7&deg;, at the geometric mean ' +
+                   'of those two, 4.08&nbsp;kHz. <strong>A buck converter\'s LC output ' +
+                   'filter contributes &minus;180&deg; of its own</strong>, so without a ' +
+                   'boost of roughly this size there is no phase margin at all &mdash; ' +
+                   'which is why voltage-mode buck converters need Type III and ' +
+                   'current-mode ones, whose inductor pole is already inside another loop, ' +
+                   'usually do not.' },
+            { action: 'Put C2 in parallel with R2 instead of in series with it.',
+              expect: 'The DC gain collapses from 77 dB to <strong>20 dB</strong> and the ' +
+                      'shape becomes a notch instead of a boost.',
+              why: 'Worth doing because it is the mistake this table used to contain, and ' +
+                   'because it is invisible on a schematic if you are not looking for it. ' +
+                   'In parallel, the feedback impedance at DC is R3&nbsp;+&nbsp;R2 = ' +
+                   '101&nbsp;k&Omega;, which is finite, so the amplifier stops integrating. ' +
+                   'The gain plot still has features in roughly the right places, so it ' +
+                   'looks plausible; what it no longer has is <strong>the infinite DC gain ' +
+                   'that makes the output error zero</strong>. The converter would regulate ' +
+                   'to within a percent or so and never better, and the fault would be ' +
+                   'blamed on the reference.' },
+            { action: 'Make C3 100 nF instead of 10 nF.',
+              expect: 'The second zero drops to <strong>145 Hz</strong> and the first pole ' +
+                      'to <strong>1.6 kHz</strong>.',
+              why: 'Both move together, because R3 and C3 set one of each: the zero at ' +
+                   '1/(2&pi;(R1+R3)C3) and the pole at 1/(2&pi;R3C3). <strong>Their ratio ' +
+                   'is fixed at (R1+R3)/R3 = 11 regardless of the capacitor</strong>, so C3 ' +
+                   'slides the pair up and down the frequency axis and R3 sets how far ' +
+                   'apart they sit. That decomposition is what makes a Type III designable ' +
+                   'by hand rather than by iteration: two components choose a frequency, ' +
+                   'the third chooses a spread.' },
+            { action: 'Short R3 out entirely.',
+              expect: 'The first pole runs off to infinity and the gain <strong>keeps ' +
+                      'climbing</strong> above the zeros.',
+              why: 'With R3 = 0 the pole at 1/(2&pi;R3C3) is at infinity, so nothing stops ' +
+                   'the +20&nbsp;dB/decade rise the zeros started. In a real loop that means ' +
+                   'the compensator amplifies switching ripple more than it amplifies the ' +
+                   'signal, and the error amplifier saturates on its own output noise. ' +
+                   '<strong>Every zero in a compensator needs a pole above it</strong>, and ' +
+                   'R3 is the only reason this one has one.' }
+        ]
+    });
 })();
 </script>
