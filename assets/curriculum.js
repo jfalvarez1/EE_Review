@@ -2682,6 +2682,12 @@ const CURRICULUM = {
                     title: 'Layout Strategy: Placement, Partitioning and Flow',
                     description: 'The decisions made before a single trace is routed, which decide whether routing works',
                     topics: ['Placement is 90% of layout', 'Partitioning by function', 'Decoupling loop inductance', 'Design rules that are myths']
+                },
+                {
+                    id: 7,
+                    title: 'Reading Real Layouts: Three Boards, Measured',
+                    description: 'Three real KiCad boards critiqued from their files - and why DRC-clean is not the same as correct',
+                    topics: ['An LDO with 41 mV outside the loop', 'A buck whose FB passes the inductor', 'An autorouted 4-layer board with no reference plane', 'The review checklist they produce']
                 }
             ]
         }

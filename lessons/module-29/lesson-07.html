@@ -1,0 +1,519 @@
+<!-- Module 29, Lesson 7: Reading Real Layouts: Three Boards, Measured -->
+<div class="lesson-content" data-module="29" data-lesson="7">
+
+    <div class="card">
+        <h2>Reading Real Layouts: Three Boards, Measured</h2>
+        <p>The six lessons before this one gave you rules. This one applies them
+        to three boards that actually exist &mdash; a 3.3&nbsp;V LDO, a
+        TPS564201 buck converter, and a four-layer ignition controller &mdash;
+        by reading their <span class="mono">.kicad_pcb</span> files and
+        measuring. Every number below is extracted from the file, not estimated
+        from a picture.</p>
+
+        <p>Two of the three are DRC-clean and would ship. All three have
+        something worth pointing at, and in each case the defect is invisible to
+        every automated check that was run on them. That gap &mdash; between
+        <em>passes the rule checker</em> and <em>is correctly designed</em>
+        &mdash; is what this lesson is about.</p>
+
+        <div class="analogy">
+            <span class="analogy-label">A spellchecker is not an editor</span>
+            <p>A spellchecker proves every word is a word. It has nothing to say
+            about whether the sentences mean anything, because meaning is not a
+            property it can see.</p>
+            <p>DRC proves every clearance is met and every net is connected. It
+            has nothing to say about whether the return path is continuous,
+            whether the feedback trace runs under the inductor, or whether the
+            power trace is wide enough for the current the part can deliver
+            &mdash; because none of those are geometric rules, they are
+            <em>intentions</em> the file does not record.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> a
+            spellchecker never makes the prose worse. An autorouter optimising
+            for completion genuinely can make the electrical design worse while
+            improving the metric it was given, which is the third board
+            below.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. A 3.3 V, 500 mA LDO — two layers, five parts</h3>
+
+        <div class="figure-plate">
+            <img src="docs/images/layouts/ldo_routed.svg"
+                 alt="Routed 3.3 V LDO board: top copper, silkscreen and board outline">
+        </div>
+        <p class="fig-note"><strong>Figure 1.</strong> The routed board. U1 is a
+        SOT-223 regulator, C1 and C2 its input and output capacitors, J1 and J2
+        terminal blocks. The bottom layer is a filled GND pour, not shown.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Measured from the file</th><th>Value</th></tr></thead>
+                <tbody>
+                    <tr><td>Layers</td><td>2 (F.Cu, B.Cu)</td></tr>
+                    <tr><td>Tracks / vias / parts</td><td>31 / 6 / 5</td></tr>
+                    <tr><td>Copper zones</td><td>1 &mdash; GND on B.Cu, filled</td></tr>
+                    <tr><td>Track widths</td><td>0.250 mm (18 segments), 0.254 mm (13)</td></tr>
+                    <tr><td>Via sizes</td><td>0.8/0.4 mm and 0.61/0.30 mm</td></tr>
+                    <tr><td>Vout net length</td><td>42.3 mm</td></tr>
+                    <tr><td>Vin net length</td><td>33.2 mm</td></tr>
+                    <tr><td>Tracks on B.Cu</td><td>2 of 31 &mdash; so B.Cu is essentially all pour</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>What it gets right</h4>
+        <p>A solid, filled ground pour on the bottom layer with almost nothing
+        routed through it. That is the correct two-layer strategy from lesson 1:
+        the pour is a reference plane rather than a dumping ground, so every
+        top-layer trace has a return path directly beneath it.</p>
+
+        <h4>Is 0.25 mm wide enough for 500 mA?</h4>
+        <div class="derivation">
+            <div class="drv-step">
+                \[ A = 9.84\,\mathrm{mil}\times1.378 = 13.6\ \mathrm{mil^2},
+                   \quad I_{10^\circ C} = 0.048\times10^{0.44}\times13.6^{0.725}
+                   = 0.875\ \mathrm{A} \]
+                <span class="drv-why">IPC-2221, external, 1 oz. At the actual
+                500 mA the rise is
+                \(\left(0.5/0.318\right)^{1/0.44} = \mathbf{2.8\,^\circ C}\).
+                <strong>Thermally this is comfortable</strong> — the trace is
+                barely warm.</span>
+            </div>
+        </div>
+
+        <h4>The finding: it is not the heat, it is the drop</h4>
+        <div class="derivation">
+            <div class="drv-step">
+                \[ R_{Vout} = 0.49\,\mathrm{m\Omega}\times\frac{42.3}{0.25}
+                   = 0.49 \times 169 = 82.9\ \mathrm{m\Omega} \]
+                <span class="drv-why">169 squares of 1 oz copper.</span>
+            </div>
+            <div class="drv-step">
+                \[ V_{drop} = 0.5 \times 0.0829 = \mathbf{41.5\ mV}
+                   = 1.26\%\ \text{of } 3.3\,\mathrm{V} \]
+                <span class="drv-why">And here is why it matters more than it
+                looks: <strong>the LDO regulates at its own output pin</strong>,
+                not at J2. Its feedback network senses the voltage before the
+                42 mm of trace. So this 41.5 mV is entirely outside the loop and
+                appears at the connector as load regulation error the regulator
+                cannot see and cannot correct.</span>
+            </div>
+        </div>
+
+        <p>An LDO's datasheet load regulation might be 10&nbsp;mV from no load to
+        full load. The board has quietly added four times that, and the
+        measurement that would reveal it &mdash; probing at the connector rather
+        than at the IC &mdash; is the one nobody does. On a 3.3&nbsp;V rail
+        feeding logic this is harmless; on a rail feeding an ADC reference it is
+        1.26% of full scale.</p>
+
+        <p class="fig-note"><strong>The fix, in order of cost:</strong> widen
+        Vout to 0.8&nbsp;mm (drop falls to 13&nbsp;mV) &mdash; free, the space
+        exists; or shorten it by moving J2 nearer U1 &mdash; also free, and
+        better; or use a regulator with a sense pin and Kelvin-connect it at the
+        load. Note also the two via sizes and the 0.250/0.254&nbsp;mm width mix:
+        0.254&nbsp;mm is exactly 10&nbsp;mil and 0.250 is metric, which is the
+        signature of two different tools having touched the board. Harmless, but
+        it tells you the file has a history.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. A TPS564201 buck converter — where the loops are</h3>
+
+        <div class="figure-plate two-up">
+            <figure>
+                <img src="docs/images/layouts/buck_top.svg"
+                     alt="Buck converter top copper layer with silkscreen">
+                <figcaption>F.Cu — 101 of the 111 track segments</figcaption>
+            </figure>
+            <figure>
+                <img src="docs/images/layouts/buck_bot.svg"
+                     alt="Buck converter bottom copper layer, mostly ground pour">
+                <figcaption>B.Cu — 10 segments and the GND pour</figcaption>
+            </figure>
+        </div>
+        <p class="fig-note"><strong>Figure 2.</strong> Left to right on the top
+        layer: J1 in, C1&ndash;C3 input capacitors, U1 the regulator, L1, then
+        C5&ndash;C7 output capacitors with the R2/R3 feedback divider above them,
+        and J2 out.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Net</th><th>Length</th><th>Width</th><th>Layers</th><th>Reading</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">Net-(U1-SW)</td><td>5.6 mm</td><td>0.254 mm</td><td>F.Cu + B.Cu</td>
+                        <td class="t-ok">Short, which is what you want &mdash; but it changes layer, so it goes through a via</td></tr>
+                    <tr><td class="mono">/VFB</td><td class="t-warn">27.6 mm</td><td>0.254 mm</td><td>F.Cu</td>
+                        <td class="t-warn">The highest-impedance node on the board, and the longest signal on it</td></tr>
+                    <tr><td class="mono">/12Vin</td><td>17.8 mm</td><td>0.508 mm</td><td>F.Cu + B.Cu</td><td></td></tr>
+                    <tr><td class="mono">/1.8Vout</td><td>18.6 mm</td><td>0.508 mm</td><td>F.Cu</td><td>See the current question below</td></tr>
+                    <tr><td class="mono">GND</td><td>52.9 mm</td><td>0.254 mm</td><td>both</td><td>Plus the B.Cu pour</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>What it gets right: the switch node is short</h4>
+        <p>5.6&nbsp;mm. The switch node swings the full 12&nbsp;V input in
+        nanoseconds and is the board's most effective E-field radiator, so
+        keeping its copper area small is the single most valuable thing a buck
+        layout does. This one does it.</p>
+
+        <h4>Finding 1: the feedback trace is 27.6 mm and passes the inductor</h4>
+        <p>Read the placement coordinates. U1 sits at x&nbsp;=&nbsp;69.7&nbsp;mm.
+        The feedback divider R2/R3 sits at x&nbsp;=&nbsp;83.1&nbsp;mm, beside the
+        output capacitors. Between them, at x&nbsp;=&nbsp;78.8&nbsp;mm, is
+        <strong>L1</strong>.</p>
+
+        <p>So the feedback signal &mdash; a high-impedance node carrying the
+        information the control loop depends on &mdash; has to travel about
+        13&nbsp;mm back past the inductor, and the routed length is 27.6&nbsp;mm,
+        meaning it took a detour on the way. An inductor's fringing field is
+        exactly what a high-impedance node picks up, and injected noise on FB is
+        indistinguishable from a real output change: the loop responds to
+        it.</p>
+
+        <div class="warn">
+            <strong>Why this is a real problem and not a nitpick.</strong> Noise
+            on the feedback node produces jitter on the switching edges, which
+            produces subharmonic content in the output ripple and a spread
+            spectral signature that fails EMI scans. It is also very hard to
+            diagnose, because the output looks noisy and the obvious response is
+            to add output capacitance &mdash; which does nothing, since the noise
+            is being <em>commanded</em> rather than filtered out.
+        </div>
+
+        <p class="fig-note"><strong>The fix:</strong> route FB on the opposite
+        side of the board from the inductor, or take it around rather than past.
+        Better still, keep the divider at the IC and run a single sense trace to
+        the output &mdash; the sense trace carries no current, so it can be thin
+        and it can take the long way round while FB itself stays under
+        3&nbsp;mm.</p>
+
+        <h4>Finding 2: 0.508 mm encodes an assumption nobody wrote down</h4>
+        <div class="derivation">
+            <div class="drv-step">
+                \[ A = 20\,\mathrm{mil}\times1.378 = 27.6\ \mathrm{mil^2},
+                   \qquad k\,A^{0.725} = 0.048\times11.07 = 0.531 \]
+            </div>
+            <div class="drv-step">
+                \[ I_{10^\circ C} = 0.531\times10^{0.44} = 1.46\ \mathrm{A} \]
+                <span class="drv-why">So 0.508 mm is a 1.5 A trace at a
+                comfortable rise.</span>
+            </div>
+            <div class="drv-step">
+                \[ \Delta T = \left(\frac{I}{0.531}\right)^{1/0.44}:\quad
+                   2\,\mathrm{A} \to 20^\circ C,\quad
+                   3\,\mathrm{A} \to 51^\circ C,\quad
+                   4\,\mathrm{A} \to \mathbf{98^\circ C} \]
+                <span class="drv-why">The TPS564201 is rated <strong>4 A</strong>.
+                At its rated output this trace runs nearly 100 &deg;C above
+                ambient.</span>
+            </div>
+        </div>
+
+        <p>Nothing in the board says what current it is for. The DRC passes at
+        any current, because current is not in the file. The 0.508&nbsp;mm width
+        is a decision that the board will be used at about 2&nbsp;A, made
+        implicitly, recorded nowhere, and invisible to every check.</p>
+
+        <p class="fig-note">The IR drop tells the same story: 18.6&nbsp;mm at
+        0.508&nbsp;mm is 36.6 squares, so 17.9&nbsp;m&Omega;. At 2&nbsp;A that is
+        36&nbsp;mV on a 1.8&nbsp;V rail &mdash; 2.0%. At 4&nbsp;A it is
+        72&nbsp;mV, or 4.0%, which is outside the supply tolerance of most
+        things a 1.8&nbsp;V rail feeds. <strong>Write the design current on the
+        schematic.</strong> It is the input to half the decisions on the board
+        and it is the one thing the board file cannot hold.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. A four-layer ignition controller — the one that matters</h3>
+
+        <p>The same board, 49 components, 135.79 &times; 84.19&nbsp;mm, routed
+        two ways: once by an autorouter to <strong>21 of 21 nets connected with
+        zero DRC violations</strong>, and once with a human's corrections applied
+        afterwards. Both pass DRC. They are not equally good boards, and the
+        difference is a single decision.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th></th><th>Autorouted</th><th>Human-corrected</th></tr></thead>
+                <tbody>
+                    <tr><td>Track segments</td><td>273</td><td>315</td></tr>
+                    <tr><td>Vias</td><td>84</td><td class="t-ok">134  <em>(+50)</em></td></tr>
+                    <tr><td>GND zone on In1.Cu</td><td class="t-bad">none</td><td class="t-ok">yes, filled</td></tr>
+                    <tr><td>GND zone on In2.Cu</td><td class="t-bad">none</td><td class="t-ok">yes, filled</td></tr>
+                    <tr><td>GND zone on B.Cu</td><td>declared, <strong>0 filled polygons</strong></td><td>&mdash;</td></tr>
+                    <tr><td>Tracks on F.Cu / B.Cu</td><td>184 / 89</td><td>214 / 101</td></tr>
+                    <tr><td>DRC violations</td><td class="t-ok">0</td><td class="t-ok">0</td></tr>
+                    <tr><td>Nets connected</td><td class="t-ok">21 / 21</td><td class="t-ok">21 / 21</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="figure-plate two-up">
+            <figure>
+                <img src="docs/images/layouts/ign_router_in1.svg"
+                     alt="Inner layer 1 of the autorouted board: essentially empty">
+                <figcaption>Autorouted, In1.Cu &mdash; <strong>empty</strong></figcaption>
+            </figure>
+            <figure>
+                <img src="docs/images/layouts/ign_human_in1.svg"
+                     alt="Inner layer 1 of the human-corrected board: a filled ground plane">
+                <figcaption>Human-corrected, In1.Cu &mdash; <strong>a filled ground plane</strong></figcaption>
+            </figure>
+        </div>
+        <p class="fig-note"><strong>Figure 3.</strong> The same inner layer of the
+        same board. The exported files are 23&nbsp;kB and 159&nbsp;kB
+        respectively, and the reason is simply that one of them contains a
+        plane.</p>
+
+        <h4>What actually happened</h4>
+        <p>The autorouter was asked for connectivity and DRC cleanliness, and it
+        delivered both, completely. It put its ground pour on <strong>B.Cu</strong>
+        &mdash; which is also one of the two routing layers, carrying 89 track
+        segments &mdash; and left <strong>In1.Cu and In2.Cu completely
+        empty</strong>.</p>
+
+        <p>Apply lesson 2's rule to that stackup, layer by layer:</p>
+        <ul>
+            <li><strong>F.Cu</strong> (184 tracks): the nearest copper is In1,
+            which is bare. Its actual reference is B.Cu, three dielectrics and
+            the full board thickness away &mdash; and B.Cu is itself carved up by
+            89 tracks.</li>
+            <li><strong>B.Cu</strong> (89 tracks): its pour is on the same layer
+            as its traces, so the pour is a swiss cheese of copper islands rather
+            than a plane.</li>
+            <li><strong>In1, In2</strong>: two entire copper layers, paid for and
+            manufactured, carrying nothing.</li>
+        </ul>
+
+        <p>It is, electrically, a two-layer board with two wasted layers and no
+        reference plane &mdash; and it passes every automated check with a
+        perfect score.</p>
+
+        <h4>What the human did</h4>
+        <p>Moved the ground planes to <strong>In1.Cu and In2.Cu</strong> and
+        filled them. Now F.Cu references In1 one dielectric away, B.Cu
+        references In2 one dielectric away, and the arrangement is exactly the
+        SIG&ndash;GND&ndash;GND&ndash;SIG stackup of lesson 2. The
+        <strong>+50 vias</strong> are the stitching those planes need and the
+        layer changes that reference them.</p>
+
+        <div class="notice">
+            <strong>The lesson is not that autorouters are bad.</strong> This one
+            solved a genuinely hard problem &mdash; 21 of 21 nets, zero DRC, on a
+            49-part board &mdash; and did it faster than a person would. The
+            lesson is that <strong>DRC-clean and correctly-referenced are
+            different properties</strong>, and only the first is a rule a checker
+            can hold. Return-path continuity is not a clearance, so nothing in
+            the toolchain was ever going to notice that two of the four layers
+            were empty. That judgement is the part of layout that is still yours.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. The review checklist these three boards produce</h3>
+
+        <p>Every item below caught something real on one of the three boards
+        above, and every one of them is invisible to DRC.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Ask</th><th>How to check it in five minutes</th><th>Found on</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Does every signal layer have an adjacent filled plane?</strong></td>
+                        <td>Plot each copper layer on its own and look at it. An empty inner layer is obvious the moment you do, and invisible in the 3D view.</td>
+                        <td>Ignition controller</td></tr>
+                    <tr><td><strong>What current is this board for?</strong></td>
+                        <td>If it is not written on the schematic, nobody knows. Compute the rise at the part's <em>rated</em> output, not at the current you happen to be testing at.</td>
+                        <td>Buck converter</td></tr>
+                    <tr><td><strong>Where does the regulator sense its output?</strong></td>
+                        <td>Count the squares between the sense point and the load. That drop is outside the loop and the regulator cannot correct it.</td>
+                        <td>LDO</td></tr>
+                    <tr><td><strong>What is the longest high-impedance net?</strong></td>
+                        <td>Sort the nets by routed length and look at the top of the list for anything that should have been short — FB, a crystal, a reference, a sense line.</td>
+                        <td>Buck converter</td></tr>
+                    <tr><td><strong>Does the feedback trace pass the inductor?</strong></td>
+                        <td>Compare x/y coordinates of the IC, the divider and the magnetics. If the magnetics are between the other two, the answer is yes.</td>
+                        <td>Buck converter</td></tr>
+                    <tr><td><strong>How many vias, and where?</strong></td>
+                        <td>A four-layer board with planes and under a hundred vias is under-stitched. Compare the count before and after someone adds the planes.</td>
+                        <td>Ignition controller</td></tr>
+                    <tr><td><strong>Is the pour on a routing layer?</strong></td>
+                        <td>Count tracks per layer. A "plane" on a layer carrying 89 traces is not a plane.</td>
+                        <td>Ignition controller</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note">Notice what these have in common: every one is
+        answered by <em>reading the file or plotting a layer</em>, and none needs
+        a simulator, an expensive tool or a bench. The obstacle to catching them
+        has never been capability. It is that nobody looks, because the tool
+        already said the board was fine.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="acceptance">
+        <h3>5. Acceptance tests for a layout review</h3>
+
+        <h4>Performance</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Test</th><th>Condition</th><th>Pass criterion</th><th>If it fails</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Layer-by-layer plot</td>
+                        <td>Export each copper layer as its own image and look at all of them</td>
+                        <td>Every plane layer is filled and continuous; every signal layer has one adjacent</td>
+                        <td>This one check would have caught the worst defect on the worst of the three boards, and it takes a minute</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Net length review</td>
+                        <td>Sort nets by routed length</td>
+                        <td>No high-impedance or sensitive net near the top of the list</td>
+                        <td>FB, crystals, references and sense lines belong at the bottom of that list</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Current audit</td>
+                        <td>For each power net, compute the rise at the source's <em>rated</em> current</td>
+                        <td>Under the design's thermal budget, and the design current is documented</td>
+                        <td>Widen, or write the real limit on the schematic. Both are acceptable; silence is not.</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Sense-point audit</td>
+                        <td>Trace the path from every regulator's feedback tap to its actual load</td>
+                        <td>Drop between them is inside the load's tolerance</td>
+                        <td>Kelvin sense, or move the tap, or widen</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Via count sanity</td>
+                        <td>Vias per plane transition and per stitching area</td>
+                        <td>Ground via near every signal via on a fast net; stitching under &lambda;/10</td>
+                        <td>Adding the vias is nearly free and is the highest-value late change available</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Abuse</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What is done to it</th><th>What physically happens</th><th>Acceptable outcome</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>The buck run at the TPS564201's rated 4 A</strong> through its 0.508 mm output trace</td>
+                        <td>\(\Delta T = (4/0.531)^{1/0.44} = \mathbf{98\,^\circ C}\) above ambient. In a 40 &deg;C enclosure the copper reaches roughly 138 &deg;C, past FR4's typical 130&ndash;180 &deg;C glass transition, and the resistance has risen 39% which pushes it further.</td>
+                        <td>The trace does not open &mdash; copper is a poor fuse &mdash; but the laminate discolours and delaminates beneath it, and the 72 mV of drop puts a 1.8 V rail 4% low. <strong>Nothing warns you, because current is not a property the board file has.</strong> The fix is a wider trace or a documented current limit; either is fine, and the failure is that neither exists.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>The autorouted ignition board taken to EMC pre-compliance</strong></td>
+                        <td>F.Cu's 184 traces have no adjacent plane; their return currents spread through whatever copper they can find on B.Cu, between its 89 traces. Loop areas are orders of magnitude larger than the 0.1 mm dielectric a plane would have given, and each is an antenna.</td>
+                        <td><strong>Radiated emissions well above the limit, with no single culprit to find</strong>, because every net contributes. No amount of ferrites, shielding or rerouting fixes it; the geometry is set by which layers are empty. <strong>The DRC report says zero errors throughout.</strong> This is the most expensive kind of defect: cheap to prevent, impossible to patch.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>The buck's output loaded with a fast step</strong> while its 27.6 mm FB trace runs past L1</td>
+                        <td>The inductor's fringing field couples into the high-impedance feedback node. The loop cannot distinguish injected noise from a genuine output excursion, so it responds &mdash; modulating the duty cycle in step with the switching current it is supposed to be regulating.</td>
+                        <td>Output ripple with subharmonic content and jitter on the switch edges. <strong>Adding output capacitance does not help</strong>, because the disturbance is being commanded rather than filtered — which is exactly why this fault survives so many debugging sessions. Shorten FB or move it away from the magnetics.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>The LDO board's 3.3 V used as an ADC reference</strong></td>
+                        <td>41.5 mV of trace drop between the regulator's sense point and the connector, varying with load current. On a 12-bit converter one LSB is 0.81 mV, so the drop is 51 LSB — and it <em>moves</em> as the load changes.</td>
+                        <td>Readings that shift with system activity and no fault anywhere. <strong>The regulator is doing exactly what it was told</strong>: it holds 3.3 V at its own pin, which is where its feedback network is connected. A reference must be Kelvin-sensed at the point of use, or generated at the point of use.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Do this on your own board</h3>
+        <p>Everything above came out of the board files with two commands. No
+        licence, no plugin.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Step</th><th>Command</th></tr></thead>
+                <tbody>
+                    <tr><td>Plot every copper layer separately</td>
+                        <td class="mono">kicad-cli pcb export svg --mode-single --fit-page-to-board -l "In1.Cu,Edge.Cuts" -o in1.svg board.kicad_pcb</td></tr>
+                    <tr><td>Then look at each one</td>
+                        <td>An empty plane layer takes one second to see and is invisible everywhere else</td></tr>
+                    <tr><td>Measure the nets</td>
+                        <td class="mono">node tools/analyse-kicad-pcb.js board.kicad_pcb</td></tr>
+                    <tr><td>Read the output</td>
+                        <td>Track widths, via sizes, zones and which are filled, tracks per layer, and net lengths sorted longest first</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note"><span class="mono">tools/analyse-kicad-pcb.js</span>
+        in this repository is the script that produced every number in this
+        lesson. It parses the s-expression board file directly, so it works on
+        any KiCad version and needs nothing installed. Point it at your own
+        board and read the net-length list &mdash; on most boards something
+        surprising is near the top.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="rl-exercises"></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    if (typeof ExerciseWidget === 'undefined') return;
+    var host = document.getElementById('rl-exercises');
+    if (!host) return;
+
+    new ExerciseWidget('rl-exercises', {
+        exercises: [
+            {
+                id: 'ex1',
+                title: 'Re-size the buck output trace',
+                problem: 'The TPS564201 buck routes 1.8Vout as 18.6 mm of 0.508 mm 1 oz copper. Determine the width needed to hold a 20 C rise at the full 4 A rating, and separately the width needed to hold the IR drop to 1% of 1.8 V. State which governs and what you would actually do.',
+                hints: [
+                    'A = (I / (k dT^0.44))^(1/0.725) in mil^2, k = 0.048 external',
+                    'Width in mil = A / 1.378 for 1 oz',
+                    'For the drop: R needed = 0.018/4, then squares = R / 0.49 mOhm',
+                    'Length is fixed at 18.6 mm'
+                ],
+                answer: 'Thermal, 4 A at 20 C rise: 20^0.44 = 3.736, so k dT^0.44 = 0.048 x 3.736 = 0.1793. 4/0.1793 = 22.31. 22.31^(1/0.725) = 22.31^1.3793 = e^(1.3793 x 3.105) = e^4.283 = 72.5 mil^2. Width = 72.5/1.378 = 52.6 mil = 1.34 mm. IR drop, 1% of 1.8 V = 18 mV at 4 A: R needed = 0.018/4 = 4.5 mOhm. Squares = 4.5/0.49 = 9.18. Width = 18.6/9.18 = 2.03 mm. So the IR-drop requirement demands 2.03 mm and the thermal requirement 1.34 mm - the DROP governs, by 50%, and that is the normal situation on a low-voltage rail. At 1.8 V a millivolt is worth much more than it is at 12 V, and the thermal calculation that most designers run is the less demanding of the two. What I would actually do: not use a 2 mm trace. 2 mm across a small board is a pour, so the honest answer is to make the output a copper POUR from U1 to J2 rather than a trace, which costs nothing in area on a board this size and takes the resistance well below the requirement. Second: move J2 closer, because the drop is proportional to length and 18.6 mm is a placement decision rather than a physical necessity. Third and most important: write "4 A" on the schematic. The board as it stands is a perfectly good 2 A design and an inadequate 4 A one, and nothing anywhere records which it is meant to be.'
+            },
+            {
+                id: 'ex2',
+                title: 'Fix the feedback routing',
+                problem: 'On the buck, U1 is at x = 69.7 mm, L1 at x = 78.8 mm and the R2/R3 divider at x = 83.1 mm, all at about y = 33 mm. FB is routed 27.6 mm on the top layer. Propose two different fixes, give the approximate FB length each achieves, and state the trade-off each one makes.',
+                hints: [
+                    'The divider does not have to be at the output',
+                    'What does a sense trace carry, compared to what FB carries?',
+                    'What is on the bottom layer of this board?'
+                ],
+                answer: 'Fix A - move the divider to the IC. Place R2/R3 immediately beside U1 at x roughly 71 mm, and run a single SENSE trace from the output node at x = 83 back to the top of the divider. FB itself becomes the few millimetres from the divider tap to the U1 FB pin - call it 2-3 mm, a tenfold reduction. Trade-off: the sense trace is now the long one, but it is a fundamentally different signal. FB sits at the divider midpoint and is high impedance (typically tens of kilohms looking back), so it picks up everything. The sense trace connects to the output node, which is low impedance because it is clamped by the output capacitors, so noise coupled into it is shunted away. You have moved the long trace from the sensitive node to the insensitive one. This is the standard answer and it is what TI reference layouts do. Fix B - route FB on the bottom layer. Take FB down through a via at the divider, across on B.Cu directly beneath the GND pour, and back up at U1. Length stays about 14 mm but it now runs with a ground plane between it and the inductor, so the magnetic coupling is greatly reduced and it has a proper reference the whole way. Trade-off: two vias in a sensitive node, a hole cut in the ground pour at each, and the pour on this board is the only reference the top layer has - so you have improved one net by slightly degrading the plane. Acceptable on a 2-layer board, and clearly worse than fix A. Which to choose: fix A, always, if placement allows. It is free, it needs no vias, and it fixes the problem at its source rather than shielding a signal that should not have been long. Fix B is what you do when the divider genuinely cannot move.'
+            },
+            {
+                id: 'ex3',
+                title: 'What the DRC could never tell you',
+                problem: 'The autorouted ignition board scored 21 of 21 nets connected and zero DRC violations, and has two empty inner layers. Explain why no design rule check could have caught this, then propose three checks that WOULD catch it - and say which of the three could be automated.',
+                hints: [
+                    'What kind of statement is a design rule?',
+                    'Return-path continuity is a property of what, exactly?',
+                    'Which of your checks needs judgement and which needs only counting?'
+                ],
+                answer: 'Why DRC cannot catch it: a design rule is a statement about GEOMETRY between two objects that both exist - this clearance, that annular ring, this width, that hole size. Every rule is of the form "no two things may be closer than X" or "no thing may be smaller than Y". An EMPTY LAYER violates no such rule, because a rule needs two objects to relate and there is nothing there. More fundamentally, return-path continuity is not a property of any pair of objects at all; it is a property of the relationship between a trace and the copper on a DIFFERENT layer that the trace never touches. Nothing in the DRC data model expresses "this trace needs an unbroken plane beneath it", because DRC has no concept of beneath. Three checks that would catch it: (1) Plot every copper layer separately and look at them. Takes a minute, catches it instantly, needs no tooling. NOT automatable in the sense that it needs a person to look - but it needs nothing else. (2) Count copper area per layer and flag any layer below a threshold. An inner layer at under 5% coverage on a 4-layer board is either a mistake or a deliberate choice that should be documented. FULLY AUTOMATABLE, and about twenty lines of code against the board file. (3) For each signal layer, find the nearest layer that has a filled zone covering most of its area, and report the dielectric distance. Flag anything more than one dielectric away. AUTOMATABLE, and this is the direct machine encoding of Hartley rule - it is the check that should exist and generally does not. So two of the three automate cleanly, and the reason they are not in any standard toolchain is not difficulty; it is that DRC evolved from manufacturing constraints, where the question was always "can this be built" rather than "will this work". Those are different questions and the tooling has only ever answered the first.'
+            },
+            {
+                id: 'ex4',
+                title: 'Audit a board you have',
+                problem: 'Take any KiCad board you have and run the two commands in the section above. Report: the number of copper layers, which have filled zones, tracks per layer, the three longest nets, and the narrowest track carrying power. Then say which of the seven review questions in section 4 your board fails, and what it would cost to fix each.',
+                hints: [
+                    'kicad-cli pcb export svg with -l one layer at a time',
+                    'node tools/analyse-kicad-pcb.js board.kicad_pcb',
+                    'Be honest about the ones it fails - every board fails some'
+                ],
+                answer: 'There is no single right answer here, but there is a right METHOD, and the value is in doing it rather than reading it. What to look for, in the order the findings usually appear: (1) An inner layer with no filled zone, or a pour on a layer that also carries many tracks. This is the highest-value finding and the cheapest to fix before fabrication - it is a zone definition, not a re-route. (2) A high-impedance net near the top of the length list. FB, a crystal, a reference, a reset line, an ADC input. If one is there, ask what it passes on the way and whether the placement can move rather than the routing. (3) A power net whose width was set by the default net class rather than by a current calculation. Compute the rise at the source rated current and see whether you like the answer. (4) A regulator whose feedback taps at the IC while the load is centimetres away. Count the squares and multiply by the current. If your board fails none of the seven, either it is a genuinely careful design or the board is small enough that none of them bite - both are fine answers, and knowing which is the point. If it fails several, that is the normal result for a first board and every one of them is cheaper to fix now than after fabrication. The specific thing to resist is concluding that because DRC passed and the board works on the bench, none of this applies. The LDO in this lesson works perfectly on a bench and has 41 mV of uncorrectable error at its connector; the ignition controller passes every check and has no reference plane. Working is not the same as correct, and the gap only becomes visible when the product meets temperature, EMC or a customer.'
+            }
+        ]
+    });
+})();
+</script>
