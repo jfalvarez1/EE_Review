@@ -340,6 +340,17 @@
     </div>
 
     <div class="card">
+        <h3>Now design one yourself</h3>
+        <p>You have just watched a bias network being taken apart. Building one
+        is a different skill, and it is the one the rest of this module assumes
+        you have. Four resistors, five things they have to satisfy at once, and
+        no single correct answer &mdash; a range of good ones and a great many
+        bad ones.</p>
+
+        <div id="design-brief-m05l05"></div>
+    </div>
+
+    <div class="card">
         <h3>Verification Checklist</h3>
         <div id="checklist-container"></div>
     </div>
@@ -868,6 +879,230 @@
                    'resistor exist to prevent, and it is worth having watched it ' +
                    'once.' }
         ]
+    });
+})();
+</script>
+<script>
+/* A real design brief: five acceptance criteria, judged separately, with the
+ * physical consequence of each failure rather than "incorrect". Base current
+ * loading is deliberately left out of the arithmetic in the check and put into
+ * the stiffness criterion instead - that is exactly the approximation a
+ * designer makes, and the stiffness rule is what makes it safe. */
+(function () {
+    if (typeof DesignBriefWidget === 'undefined') return;
+
+    var VCC = 12, BETA = 150, VBE = 0.7, ITARGET = 0.002;
+
+    function mA(x) { return (x * 1000).toFixed(2) + ' mA'; }
+    function kohm(x) { return (x / 1000).toFixed(2) + ' kΩ'; }
+
+    new DesignBriefWidget('design-brief-m05l05', {
+        id: 'm05l05-bias-design',
+        title: 'Bias a common-emitter stage for 2 mA',
+        brief:
+            'Design the four-resistor bias network for an NPN common-emitter ' +
+            'stage. It has to put <strong>2&nbsp;mA</strong> through the ' +
+            'transistor, leave the collector near <strong>mid-supply</strong> ' +
+            'so the output can swing both ways, and keep working when the ' +
+            'transistor you actually get has a &beta; anywhere between 100 and ' +
+            '300. That last requirement is the one that separates a bias ' +
+            'network from four arbitrary resistors.' +
+            '<br><br>Enter any values you like &mdash; they do not have to be ' +
+            'E24, and there is more than one good answer.',
+        given: [
+            { label: 'Supply', value: '12 V' },
+            { label: 'Target I<sub>C</sub>', value: '2 mA' },
+            { label: '&beta;, worst case', value: '100 &ndash; 300' },
+            { label: 'V<sub>BE</sub>', value: '0.7 V' },
+            { label: 'Signal', value: 'small, AC-coupled' }
+        ],
+        inputs: [
+            { id: 'RE', label: 'R<sub>E</sub>, emitter to ground', unit: 'Ω',
+              placeholder: 'e.g. 820', hint: 'sets the current' },
+            { id: 'RC', label: 'R<sub>C</sub>, supply to collector', unit: 'Ω',
+              placeholder: 'e.g. 3k', hint: 'sets the collector voltage' },
+            { id: 'R1', label: 'R<sub>1</sub>, supply to base', unit: 'Ω',
+              placeholder: 'e.g. 56k', hint: 'upper divider arm' },
+            { id: 'R2', label: 'R<sub>2</sub>, base to ground', unit: 'Ω',
+              placeholder: 'e.g. 12k', hint: 'lower divider arm' }
+        ],
+        hints: [
+            'Start at the emitter, not the base. You have picked a current; ' +
+            'pick an emitter voltage; the resistor between them follows. How ' +
+            'much emitter voltage? Enough that a &plusmn;50&nbsp;mV spread in ' +
+            'V<sub>BE</sub> is a small fraction of it &mdash; a volt or more.',
+
+            'The collector resistor has to drop whatever is left of the supply ' +
+            'after the emitter and the transistor have taken their share, at ' +
+            'the same 2&nbsp;mA. Aim to leave the collector near half the ' +
+            'supply so the output can swing equally far up and down.',
+
+            'The base sits one V<sub>BE</sub> above the emitter. That fixes ' +
+            'the ratio R<sub>2</sub>/(R<sub>1</sub>+R<sub>2</sub>) = ' +
+            'V<sub>B</sub>/12 &mdash; but a ratio is only one equation and you ' +
+            'have two unknowns, so something else has to fix the scale.',
+
+            'That something is stiffness. The base draws ' +
+            'I<sub>C</sub>/&beta;, and that current flows in the ' +
+            'divider&rsquo;s Th&eacute;venin resistance R<sub>1</sub>&nbsp;||&nbsp;' +
+            'R<sub>2</sub>, dragging V<sub>B</sub> down by an amount that ' +
+            'depends on &beta;. Keep R<sub>1</sub>&nbsp;||&nbsp;R<sub>2</sub> ' +
+            'below about a tenth of &beta;R<sub>E</sub> and that error stays ' +
+            'under a percent or so. Now you have your second equation.'
+        ],
+        check: function (v) {
+            var VB = VCC * v.R2 / (v.R1 + v.R2);
+            var Rth = v.R1 * v.R2 / (v.R1 + v.R2);
+            var VE = VB - VBE;
+            var IE = VE / v.RE;
+            var VC = VCC - IE * v.RC;
+            var VCE = VC - VE;
+            var Idiv = VCC / (v.R1 + v.R2);
+            var stiffLimit = 0.1 * BETA * v.RE;
+
+            // How far the operating point actually moves across the beta
+            // spread, computed rather than asserted - it is the whole point of
+            // the stiffness rule and it deserves to be a number.
+            function ieAt(beta) {
+                // VB' = VB - IB*Rth, IB = IE/beta, IE = (VB' - VBE)/RE
+                return (VB - VBE) / (v.RE + Rth / beta);
+            }
+            var spread = Math.abs(ieAt(100) - ieAt(300)) / ieAt(150) * 100;
+
+            return [
+                { name: 'Collector current',
+                  pass: Math.abs(IE - ITARGET) <= 0.2e-3,
+                  got: mA(IE), want: '1.80 - 2.20 mA',
+                  why: 'The divider puts the base at ' + VB.toFixed(2) + '&nbsp;V, ' +
+                       'so the emitter sits at ' + VE.toFixed(2) + '&nbsp;V and ' +
+                       'R<sub>E</sub> passes ' + mA(IE) + '. ' +
+                       (IE > ITARGET
+                          ? 'Too much current means more drop across ' +
+                            'R<sub>C</sub> than you planned, and the collector ' +
+                            'heads for the bottom rail.'
+                          : 'Too little current means less g<sub>m</sub> and ' +
+                            'less gain, and a stage that is easily loaded.') +
+                       ' Adjust either the divider ratio or R<sub>E</sub> ' +
+                       '&mdash; they pull the same lever from opposite ends.',
+                  note: 'Set by V<sub>E</sub>/R<sub>E</sub> and nothing else, ' +
+                        'which is exactly the property you were designing for.' },
+
+                { name: 'Collector voltage leaves room to swing',
+                  pass: VC >= 5 && VC <= 7,
+                  got: VC.toFixed(2) + ' V', want: '5.0 - 7.0 V',
+                  why: VC > 7
+                        ? 'R<sub>C</sub> is too small, so the collector sits ' +
+                          'high and the output will clip on the way <em>up</em> ' +
+                          'long before it clips on the way down. You are ' +
+                          'throwing away half your swing and most of your gain.'
+                        : (VC < VE + 0.3
+                            ? 'The transistor is <strong>saturated</strong> ' +
+                              '&mdash; the collector is below the emitter, which ' +
+                              'is not an operating point at all. R<sub>C</sub> ' +
+                              'is asking for more voltage than the supply has.'
+                            : 'R<sub>C</sub> is too large, so the collector ' +
+                              'sits low and the output clips on the way ' +
+                              '<em>down</em> first. Symmetric swing wants the ' +
+                              'collector near mid-supply.'),
+                  note: 'V<sub>CE</sub> = ' + VCE.toFixed(2) + '&nbsp;V, so the ' +
+                        'output can move about ' + Math.min(VCE - 0.3, VCC - VC).toFixed(1) +
+                        '&nbsp;V in the tighter direction before it runs out.' },
+
+                { name: 'Emitter voltage big enough to swamp V<sub>BE</sub>',
+                  pass: VE >= 1.0,
+                  got: VE.toFixed(2) + ' V', want: '≥ 1.0 V',
+                  why: 'V<sub>BE</sub> is not a constant: it moves ' +
+                       '&plusmn;50&nbsp;mV part to part and &minus;2&nbsp;mV ' +
+                       'for every degree the die warms. Your emitter is only ' +
+                       'at ' + VE.toFixed(2) + '&nbsp;V, so that uncertainty ' +
+                       'is ' + (0.05 / VE * 100).toFixed(0) + '% of the voltage ' +
+                       'setting your current. Raise V<sub>E</sub> and the same ' +
+                       'millivolts become a smaller fraction &mdash; that is ' +
+                       'the entire mechanism by which emitter degeneration ' +
+                       'stabilises a bias point.',
+                  note: 'A &plusmn;50&nbsp;mV V<sub>BE</sub> spread costs you ' +
+                        'only ' + (0.05 / VE * 100).toFixed(1) + '% of current.' },
+
+                { name: 'Divider stiff enough for the &beta; spread',
+                  pass: Rth <= stiffLimit,
+                  got: kohm(Rth), want: '≤ ' + kohm(stiffLimit) + ' (0.1·βRᴇ)',
+                  why: 'R<sub>1</sub>&nbsp;||&nbsp;R<sub>2</sub> is ' + kohm(Rth) +
+                       ', and the base pulls I<sub>C</sub>/&beta; through it. ' +
+                       'Work it out across the data sheet&rsquo;s &beta; range ' +
+                       'and your collector current moves by <strong>' +
+                       spread.toFixed(0) + '%</strong> between a &beta; of 100 ' +
+                       'and a &beta; of 300. Lower both divider resistors ' +
+                       'keeping the same ratio, and that number falls in ' +
+                       'proportion.',
+                  note: 'Across &beta; = 100 to 300 the collector current moves ' +
+                        'only ' + spread.toFixed(1) + '%. That is what the rule ' +
+                        'bought you.' },
+
+                { name: 'Divider not wasting supply current',
+                  pass: Idiv <= 0.4e-3,
+                  got: (Idiv * 1e6).toFixed(0) + ' µA',
+                  want: '≤ 400 µA (a fifth of Iᴄ)',
+                  why: 'The divider burns ' + (Idiv * 1e6).toFixed(0) +
+                       '&nbsp;&micro;A continuously, whether or not there is a ' +
+                       'signal, which is ' + (Idiv / ITARGET * 100).toFixed(0) +
+                       '% of the current the stage itself uses. Stiffness and ' +
+                       'efficiency pull against each other here and there is no ' +
+                       'way round it &mdash; the usual compromise is a divider ' +
+                       'current somewhere between a tenth and a fifth of ' +
+                       'I<sub>C</sub>. If you cannot satisfy both, raise ' +
+                       'R<sub>E</sub>: it relaxes the stiffness limit ' +
+                       'proportionally.',
+                  note: 'Only ' + (Idiv / ITARGET * 100).toFixed(0) + '% of the ' +
+                        'stage current goes on biasing.' }
+            ];
+        },
+        approach: [
+            { step: 'Choose the emitter voltage first, not the base voltage.',
+              detail: 'You want it large enough that V<sub>BE</sub> ' +
+                      'uncertainty is negligible and small enough not to eat ' +
+                      'the swing. On a 12&nbsp;V supply, 1 to 2&nbsp;V is the ' +
+                      'conventional answer; take 1.5&nbsp;V. Then ' +
+                      'R<sub>E</sub> = 1.5&nbsp;V / 2&nbsp;mA = ' +
+                      '<strong>750&nbsp;&Omega;</strong>.' },
+            { step: 'Spend the rest of the supply on Rᴄ and headroom.',
+              detail: '12&nbsp;V less 1.5&nbsp;V at the emitter leaves ' +
+                      '10.5&nbsp;V to split between R<sub>C</sub> and the ' +
+                      'transistor. Half each is the usual choice, so drop ' +
+                      'about 6&nbsp;V across R<sub>C</sub>: ' +
+                      'R<sub>C</sub> = 6&nbsp;V / 2&nbsp;mA = ' +
+                      '<strong>3&nbsp;k&Omega;</strong>, putting the collector ' +
+                      'at 6&nbsp;V with V<sub>CE</sub> = 4.5&nbsp;V.' },
+            { step: 'The base ratio follows from the emitter.',
+              detail: 'V<sub>B</sub> = 1.5 + 0.7 = 2.2&nbsp;V, so ' +
+                      'R<sub>2</sub>/(R<sub>1</sub>+R<sub>2</sub>) = 2.2/12 = ' +
+                      '0.183. That is one equation and you still need a second ' +
+                      'to fix the actual values.' },
+            { step: 'Stiffness supplies the second equation.',
+              detail: 'The rule is R<sub>1</sub>&nbsp;||&nbsp;R<sub>2</sub> ' +
+                      '&le; 0.1&thinsp;&beta;R<sub>E</sub>, and at &beta; = 150 ' +
+                      'that is 11.3&nbsp;k&Omega;. Take 10&nbsp;k&Omega; for ' +
+                      'margin. Then R<sub>2</sub> = ' +
+                      'R<sub>th</sub>/(1&minus;0.183) = 12.2&nbsp;k&Omega; and ' +
+                      'R<sub>1</sub> = R<sub>th</sub>/0.183 = ' +
+                      '54.6&nbsp;k&Omega;.' },
+            { step: 'Then check the thing you did not design for.',
+              detail: 'The divider now burns 12&nbsp;V/66.8&nbsp;k&Omega; = ' +
+                      '180&nbsp;&micro;A, which is 9% of the stage current ' +
+                      '&mdash; acceptable. On a battery-powered design it might ' +
+                      'not be, and the fix is to raise R<sub>E</sub> (which ' +
+                      'relaxes the stiffness limit) and bypass it for signal so ' +
+                      'the gain does not suffer.' }
+        ],
+        solution:
+            'R<sub>E</sub> = 750&nbsp;&Omega;, R<sub>C</sub> = 3&nbsp;k&Omega;, ' +
+            'R<sub>1</sub> = 54.6&nbsp;k&Omega;, R<sub>2</sub> = ' +
+            '12.2&nbsp;k&Omega;. In E24 parts: 750, 3k0, 56k and 12k, which ' +
+            'gives V<sub>B</sub> = 2.12&nbsp;V, I<sub>C</sub> = 1.89&nbsp;mA ' +
+            'and V<sub>C</sub> = 6.3&nbsp;V &mdash; every criterion still met, ' +
+            'which is what the tolerances in the acceptance test are there to ' +
+            'confirm. If your answer differs from this one and still passes, ' +
+            'it is not a worse design; it is a different point on the same ' +
+            'trade between stiffness, headroom and quiescent current.'
     });
 })();
 </script>

@@ -388,6 +388,8 @@
             result</strong> &mdash; it is the single most common way a simulation lies to you.
         </div>
 
+        <div id="fault-find-m05l06"></div>
+
         <p><strong>What to run:</strong> a <strong>transient run</strong> of 5&nbsp;ms in steps of 10&nbsp;&micro;s; then an <strong>AC sweep</strong> from 10&nbsp;Hz to 10&nbsp;MHz.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(in)</span>, <span class="mono">V(out)</span>, <span class="mono">V(col)</span>.</p>
 
@@ -1218,6 +1220,130 @@ For the basic CE amplifier (no bypass cap), calculate it, then verify in Circuit
                    'and reports the response of a stage that is jammed against its ' +
                    'rail. Confirming the DC first is not a formality.' }
         ]
+    });
+})();
+</script>
+
+<script>
+/* A fault, a meter, and no free information.
+ *
+ * The readings below are the operating point of THIS circuit with R2 back at
+ * the wrong 10 kOhm - solved from the base loop with the transistor in
+ * saturation at VCE(sat) = 0.1 V, which gives VE = 1.11 V, VB = 1.86 V,
+ * VC = 1.21 V and IC = 1.80 mA. They are consistent with each other, which
+ * matters: an inconsistent set would let a reader diagnose it by spotting the
+ * inconsistency rather than by understanding the circuit. */
+(function () {
+    if (typeof FaultFindWidget === 'undefined') return;
+    new FaultFindWidget('fault-find-m05l06', {
+        id: 'm05l06-no-gain',
+        title: 'The amplifier has no gain',
+        symptom:
+            'Somebody hands you this board. The input is a clean 10&nbsp;mV ' +
+            'sine at 1&nbsp;kHz and you can see it on the base. The output is ' +
+            'a flat line &mdash; not a small signal, not a distorted one, ' +
+            'nothing. The supply is 12.0&nbsp;V and the board draws about ' +
+            '2&nbsp;mA, so it is not dead and nothing is shorted. Every ' +
+            'component reads plausible in circuit.' +
+            '<br><br>Six test points are available. Take the fewest you can ' +
+            'and still be certain, then commit.',
+        probes: [
+            { id: 'vin', label: 'V(in), amplitude', reading: '10.0 mV',
+              note: 'The source is alive and the coupling capacitor is passing ' +
+                    'it. Useful mainly for what it rules out: this is not a ' +
+                    'signal-path problem upstream of the transistor.' },
+            { id: 'vb', label: 'V(base), DC', reading: '1.86 V',
+              note: 'The design calls for 1.25&nbsp;V. Higher than it should ' +
+                    'be, which points at the divider &mdash; but not by itself ' +
+                    'enough, because a transistor that is drawing far too much ' +
+                    'base current would pull this <em>down</em>, not up.' },
+            { id: 've', label: 'V(emit), DC', reading: '1.11 V',
+              note: 'The design calls for 0.60&nbsp;V. So the emitter current ' +
+                    'is 1.11/600 = 1.85&nbsp;mA where 1.0&nbsp;mA was ' +
+                    'intended. The transistor is conducting, and conducting ' +
+                    'nearly twice as hard as it should.' },
+            { id: 'vc', label: 'V(col), DC', reading: '1.21 V',
+              note: 'The design calls for 6.1&nbsp;V, roughly mid-supply. This ' +
+                    'is the reading that decides it: the collector is only ' +
+                    '0.10&nbsp;V above the emitter, so V<sub>CE</sub> is ' +
+                    '0.1&nbsp;V and the transistor is <strong>saturated</strong>. ' +
+                    'A saturated transistor has no collector-current control ' +
+                    'left, so it has no gain.' },
+            { id: 'irc', label: 'I(RC), DC', reading: '1.80 mA',
+              note: '(12 &minus; 1.21)/6&nbsp;k&Omega;, so it agrees with the ' +
+                    'collector voltage and tells you nothing new. Worth ' +
+                    'noticing: a measurement that is implied by one you already ' +
+                    'have costs the same as one that is not.' },
+            { id: 'vout', label: 'V(out), amplitude', reading: '0.3 mV',
+              note: 'Confirms the symptom you were already told about. This is ' +
+                    'the probe that feels the most natural to take first and ' +
+                    'the one that carries the least information &mdash; you ' +
+                    'knew the output was flat before you picked up the meter.' }
+        ],
+        causes: [
+            { id: 'r2', text: 'R2 is the wrong value — 10 kΩ instead of 5.6 kΩ — ' +
+                              'so the base is biased too high and the transistor ' +
+                              'is saturated.',
+              correct: true,
+              why: 'The divider puts the base at 12 &times; 10/(47+10) = ' +
+                   '2.11&nbsp;V rather than 1.28&nbsp;V. That asks the emitter ' +
+                   'resistor for well over 2&nbsp;mA, and 2&nbsp;mA through ' +
+                   '6&nbsp;k&Omega; would need more than the whole supply. The ' +
+                   'transistor cannot deliver it, so it bottoms out at ' +
+                   'V<sub>CE(sat)</sub> and the collector ends up a tenth of a ' +
+                   'volt above the emitter, with no room to move in either ' +
+                   'direction. The chain V(base) too high &rarr; V(emit) too ' +
+                   'high &rarr; V(col) collapsed is the whole diagnosis, and ' +
+                   'V(col) alone is nearly enough.' },
+            { id: 'open-q', text: 'Q1 has failed open between base and emitter.',
+              correct: false,
+              why: 'Then no collector current would flow at all, so R<sub>C</sub> ' +
+                   'would drop nothing and V(col) would read the full ' +
+                   '12&nbsp;V. It reads 1.21. An open transistor and a ' +
+                   'saturated one both give you no output, and the collector ' +
+                   'voltage tells them apart instantly &mdash; one sits at the ' +
+                   'rail, the other at the emitter.' },
+            { id: 'cin', text: 'CIN is open, so the signal never reaches the base.',
+              correct: false,
+              why: 'Then every DC reading would be exactly on design &mdash; ' +
+                   'base 1.25&nbsp;V, emitter 0.60, collector 6.1 &mdash; and ' +
+                   'only the AC would be missing. All three DC readings are ' +
+                   'wrong, so the fault is in the bias, not the signal path. ' +
+                   'This is a good hypothesis to hold before you probe and a ' +
+                   'bad one to keep afterwards.' },
+            { id: 'rc-short', text: 'RC is short-circuited.',
+              correct: false,
+              why: 'Then the collector would sit at 12&nbsp;V, the supply, and ' +
+                   'the stage would have no load to develop a signal across. ' +
+                   'V(col) reads 1.21&nbsp;V, which is a long way from 12. ' +
+                   'Notice that this wrong answer and the open-transistor one ' +
+                   'predict the same collector voltage &mdash; a single ' +
+                   'reading can eliminate two hypotheses at once, which is what ' +
+                   'makes it a good probe.' },
+            { id: 'cout', text: 'COUT is short-circuited, so RLOAD is loading ' +
+                                'the collector at DC.',
+              correct: false,
+              why: 'That would pull V(col) down toward 3.8&nbsp;V, not to ' +
+                   '1.21, and it would leave the base and emitter exactly where ' +
+                   'the design put them. Both of those are wrong here. Worth ' +
+                   'trying in the simulator anyway, because it is a real fault ' +
+                   'with a distinctive signature: DC wrong at the output only, ' +
+                   'gain reduced but not gone.' }
+        ],
+        lesson:
+            'The general shape is worth keeping. <strong>Work forward through ' +
+            'the DC path in the order the circuit builds it up</strong> ' +
+            '&mdash; base, then emitter, then collector &mdash; because each ' +
+            'node is caused by the one before it, and the first node that is ' +
+            'wrong is at or after the fault. Here the base was already wrong, ' +
+            'so nothing downstream could be right, and the two probes after it ' +
+            'only confirmed how the error propagated. ' +
+            '<br><br>The other habit: <strong>V<sub>CE</sub>, not ' +
+            'V<sub>C</sub></strong>. A collector voltage on its own means ' +
+            'nothing until you know where the emitter is. Two tenths of a volt ' +
+            'between them is saturation whether the pair reads 1.2 and 1.1 or ' +
+            '9.2 and 9.0, and it is the single most common reason a stage that ' +
+            'simulates beautifully has no gain on the bench.'
     });
 })();
 </script>

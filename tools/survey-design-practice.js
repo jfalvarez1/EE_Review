@@ -33,6 +33,9 @@ const LESSONS = path.join(ROOT, 'lessons');
 const SIGNALS = {
     // A specification the reader must hit, not an example they watch.
     brief: [
+        // A DesignBriefWidget IS a specification with numbers and an
+        // acceptance test - the strongest possible signal, not a heuristic.
+        /new\s+DesignBriefWidget/,
         /\bdesign (?:a|an|the)\b/i,
         /\bspecif(?:y|ication)s?\b[^.]{0,60}\b(?:must|shall|target)/i,
         /\byour (?:design|circuit|board|amplifier|supply)\b/i,
@@ -42,6 +45,11 @@ const SIGNALS = {
     ],
     // A way to know whether the answer is right.
     check: [
+        // The two widgets that judge a reader's own numbers against what a
+        // correct build produces. These are the mechanism the rest of this
+        // list was only ever a proxy for.
+        /new\s+SimCheckWidget/,
+        /new\s+DesignBriefWidget/,
         /class="acceptance"/,
         /\bac-pass\b/,
         /\bpass criterion\b/i,
@@ -58,6 +66,9 @@ const SIGNALS = {
     ],
     // Find the fault from the symptom.
     diagnose: [
+        // Symptom, test points, commit to a cause - the reader pays for
+        // information with an action, which is what a bench actually costs.
+        /new\s+FaultFindWidget/,
         /\bdiagnos/i,
         /\btroubleshoot/i,
         /\bsymptom\b/i,

@@ -535,4 +535,189 @@
     };
 
     window.SimCheckWidget = SimCheckWidget;
+
+    /* ====================================================================
+     * FaultFindWidget - a symptom, a meter, and no free information
+     * ====================================================================
+     * Thirteen percent of lessons ever asked the reader to find a fault, and
+     * the ones that did handed over the cause in the next paragraph. That is
+     * not troubleshooting; it is reading about troubleshooting.
+     *
+     * On a bench, information costs something. You cannot see the whole
+     * circuit at once - you pick a node, you put a probe on it, you get one
+     * number, and that number either narrows the field or wastes a minute. The
+     * skill being taught is choosing the probe that splits the possibilities
+     * roughly in half, and stopping when you know rather than when you have
+     * measured everything.
+     *
+     * So this widget shows a symptom, offers a set of test points, and reveals
+     * one reading at a time on request. Then the reader must COMMIT to a
+     * diagnosis before anything is confirmed. It records how many probes it
+     * took, because that is the number a bench engineer is actually judged on,
+     * and it says what each unused probe would have told them - so a lucky
+     * guess still gets the reasoning.
+     *
+     *   new FaultFindWidget('host', {
+     *       id: 'buck-no-output',
+     *       title: 'The 3.3 V rail is at 0.4 V',
+     *       symptom: 'A board that worked yesterday...',
+     *       probes: [
+     *           { id:'vin', label:'V(IN) at the input cap', reading:'12.0 V',
+     *             note:'The input rail is fine.' }
+     *       ],
+     *       causes: [
+     *           { id:'fb', text:'The feedback divider is open', correct:true,
+     *             why:'An open upper divider resistor makes the...' }
+     *       ],
+     *       lesson: 'Optional closing paragraph.'
+     *   });
+     */
+    function FaultFindWidget(host, opts) {
+        this.host = typeof host === 'string' ? document.getElementById(host) : host;
+        if (!this.host) return;
+        this.o = opts || {};
+        this.id = this.o.id || (this.host.id || 'fault');
+        this.state = loadState('fault:' + this.id);
+        this.used = [];
+        this.render();
+    }
+
+    FaultFindWidget.prototype.render = function () {
+        var o = this.o, self = this, st = this.state;
+
+        var probeBtns = (o.probes || []).map(function (p, i) {
+            return '<button type="button" class="ff-probe" data-probe="' + i + '">' +
+                   p.label + '</button>';
+        }).join('');
+
+        var causeOpts = (o.causes || []).map(function (c, i) {
+            return '<label class="ff-cause"><input type="radio" name="ff-' +
+                   esc(self.id) + '" value="' + i + '"><span>' + c.text +
+                   '</span></label>';
+        }).join('');
+
+        this.host.className = 'fault-find' + (st.solved ? ' ff-solved' : '');
+        this.host.innerHTML =
+            '<div class="ff-head">' +
+                '<span class="ff-tag">Find the fault</span>' +
+                '<h4 class="ff-title">' + esc(o.title || 'Something is wrong') + '</h4>' +
+                (st.solved ? '<span class="ff-badge">Diagnosed in ' +
+                             st.probesUsed + ' probe' + (st.probesUsed === 1 ? '' : 's') +
+                             '</span>' : '') +
+            '</div>' +
+            '<div class="ff-symptom">' + (o.symptom || '') + '</div>' +
+            '<h5 class="ff-sub">Test points</h5>' +
+            '<p class="ff-lead">Each one costs you a measurement. Take as few as ' +
+            'you can and still be sure.</p>' +
+            '<div class="ff-probes">' + probeBtns + '</div>' +
+            '<div class="ff-readings"></div>' +
+            '<h5 class="ff-sub">Your diagnosis</h5>' +
+            '<div class="ff-causes">' + causeOpts + '</div>' +
+            '<div class="ff-actions">' +
+                '<button type="button" class="ff-commit primary">Commit to this</button>' +
+            '</div>' +
+            '<div class="ff-verdict"></div>';
+
+        this.host.querySelectorAll('.ff-probe').forEach(function (b) {
+            b.addEventListener('click', function () {
+                self.takeReading(parseInt(b.getAttribute('data-probe'), 10), b);
+            });
+        });
+        this.host.querySelector('.ff-commit')
+            .addEventListener('click', function () { self.commit(); });
+    };
+
+    FaultFindWidget.prototype.takeReading = function (i, btn) {
+        if (this.used.indexOf(i) !== -1) return;
+        this.used.push(i);
+        var p = this.o.probes[i];
+        btn.disabled = true;
+        btn.classList.add('ff-taken');
+        var d = document.createElement('div');
+        d.className = 'ff-reading';
+        d.innerHTML = '<span class="ff-reading-what">' + p.label + '</span>' +
+                      '<span class="ff-reading-val">' + p.reading + '</span>' +
+                      (p.note ? '<div class="ff-reading-note">' + p.note + '</div>' : '');
+        this.host.querySelector('.ff-readings').appendChild(d);
+    };
+
+    FaultFindWidget.prototype.commit = function () {
+        var o = this.o, self = this;
+        var picked = this.host.querySelector('input[name="ff-' + this.id + '"]:checked');
+        var box = this.host.querySelector('.ff-verdict');
+
+        if (!picked) {
+            box.innerHTML = '<div class="ff-msg ff-none">Choose a diagnosis first. ' +
+                            'Guessing and committing is part of it &mdash; you will ' +
+                            'find out either way, and being wrong here is cheaper ' +
+                            'than being wrong on a bench.</div>';
+            return;
+        }
+
+        var i = parseInt(picked.value, 10);
+        var chosen = o.causes[i];
+        var right = !!chosen.correct;
+        var n = this.used.length;
+
+        if (right && !this.state.solved) {
+            this.state.solved = true;
+            this.state.probesUsed = n;
+            this.state.at = new Date().toISOString().slice(0, 10);
+            saveState('fault:' + this.id, this.state);
+        }
+
+        // Show the probe count in the header straight away rather than waiting
+        // for the next page load, since it is the score the reader cares about.
+        if (right && !this.host.querySelector('.ff-badge')) {
+            var b = document.createElement('span');
+            b.className = 'ff-badge';
+            b.textContent = 'Diagnosed in ' + n + ' probe' + (n === 1 ? '' : 's');
+            this.host.querySelector('.ff-head').appendChild(b);
+        }
+
+        // Every probe's meaning, taken or not: a lucky guess still has to see
+        // the reasoning, and an unused probe is the more interesting lesson.
+        var rows = (o.probes || []).map(function (p, k) {
+            var taken = self.used.indexOf(k) !== -1;
+            return '<div class="ff-why-row' + (taken ? ' ff-was-taken' : '') + '">' +
+                   '<span class="ff-why-mark">' + (taken ? '&#9679;' : '&#9675;') + '</span>' +
+                   '<div><strong>' + p.label + '</strong> &mdash; ' +
+                   '<span class="mono">' + p.reading + '</span>' +
+                   (p.note ? '<div class="ff-reading-note">' + p.note + '</div>' : '') +
+                   '</div></div>';
+        }).join('');
+
+        box.innerHTML =
+            (right
+                ? '<div class="ff-msg ff-right"><strong>That is the fault.</strong> ' +
+                  'You found it in <strong>' + n + '</strong> probe' +
+                  (n === 1 ? '' : 's') +
+                  (n <= 2 ? ' &mdash; which is efficient. ' : '. ') +
+                  chosen.why + '</div>'
+                : '<div class="ff-msg ff-wrong"><strong>Not this one.</strong> ' +
+                  chosen.why + ' Look again at the readings below and try ' +
+                  'another.</div>') +
+            '<h5 class="ff-sub">What every test point was telling you</h5>' +
+            '<div class="ff-whys">' + rows + '</div>' +
+            (right && o.lesson ? '<div class="ff-lesson">' + o.lesson + '</div>' : '');
+
+        this.host.classList.toggle('ff-solved', right);
+    };
+
+    FaultFindWidget.completed = function () {
+        var out = [];
+        try {
+            for (var i = 0; i < localStorage.length; i++) {
+                var k = localStorage.key(i);
+                if (k && k.indexOf('design:fault:') === 0) {
+                    var s = JSON.parse(localStorage.getItem(k) || '{}');
+                    if (s.solved) out.push({ id: k.slice(13), at: s.at || null,
+                                             probesUsed: s.probesUsed });
+                }
+            }
+        } catch (e) { /* ignore */ }
+        return out;
+    };
+
+    window.FaultFindWidget = FaultFindWidget;
 })();
