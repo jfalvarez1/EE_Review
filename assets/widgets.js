@@ -243,16 +243,70 @@ class CalculatorWidget extends BaseWidget {
 class ExerciseWidget extends BaseWidget {
     constructor(container, options = {}) {
         super(container, options);
+
+        // 75 lessons call this with a LIST:
+        //
+        //     new ExerciseWidget('pack-exercises', { exercises: [ {...}, {...} ] })
+        //
+        // The widget had no concept of `exercises`, so every one of those
+        // rendered a SINGLE exercise with an empty question and no content -
+        // four worked problems collapsing into one blank box. Handle the list
+        // by building one child widget per entry, which is what the calling
+        // code plainly means.
+        if (Array.isArray(options.exercises)) {
+            this.container.innerHTML = '';
+            this.children = options.exercises.map((ex, i) => {
+                const slot = document.createElement('div');
+                slot.className = 'exercise-slot';
+                this.container.appendChild(slot);
+                const opts = Object.assign({}, ex);
+                if (!opts.id) {
+                    opts.id = (options.id || this.container.id || 'ex') + '-' + (ex.id || i);
+                }
+                return new ExerciseWidget(slot, opts);
+            });
+            this.isList = true;
+            return;
+        }
+
         this.exerciseId = options.id || 'ex-' + Math.random().toString(36).substr(2, 9);
-        this.type = options.type || 'numeric'; // 'numeric' or 'choice'
-        this.question = options.question || '';
-        this.expected = options.expected; // For numeric
+
+        // The course writes exercises in two shapes, and the widget only ever
+        // read one of them:
+        //
+        //   {question, expected, unit, hint, solution}   - a numeric drill
+        //   {title, problem, hints: [...], answer}       - a worked problem
+        //
+        // The second shape left `question` empty, so 33 lessons rendered an
+        // exercise with a BLANK question, an input box expecting a number that
+        // was never specified, and hint and answer buttons hidden behind a
+        // `display:none` that only lifts once the exercise is solved - which it
+        // could never be. That is what "the practice exercises are not working"
+        // looked like from the outside.
+        //
+        // Both shapes are now read, and a problem with no numeric answer and no
+        // choices becomes a WORKED exercise: no input, hint and answer
+        // available immediately, because reading the derivation IS the exercise.
+        this.title = options.title || '';
+        this.question = options.question || options.problem || '';
+
+        const hints = options.hints;
+        this.hints = Array.isArray(hints) ? hints.filter(Boolean)
+                   : (options.hint ? [options.hint] : []);
+        this.hint = this.hints[0] || '';
+
+        this.solution = options.solution || options.answer || '';
+        this.explanation = options.explanation || '';
+
+        this.expected = options.expected;
         this.tolerance = options.tolerance || 0.05;
         this.unit = options.unit || '';
-        this.choices = options.choices || []; // For multiple choice
-        this.hint = options.hint || '';
-        this.solution = options.solution || '';
-        this.explanation = options.explanation || '';
+        this.choices = options.choices || [];
+
+        // Nothing to check against means nothing to type into.
+        const checkable = this.expected !== undefined || this.choices.length > 0;
+        this.type = options.type || (checkable ? 'numeric' : 'worked');
+
         this.init();
     }
 
@@ -260,7 +314,10 @@ class ExerciseWidget extends BaseWidget {
         const state = AD.getExerciseState(this.exerciseId);
 
         let inputHtml;
-        if (this.type === 'numeric') {
+        if (this.type === 'worked') {
+            // No input: the reader works it on paper and then reads the answer.
+            inputHtml = '';
+        } else if (this.type === 'numeric') {
             inputHtml = `
                 <div class="exercise-input">
                     <input type="text" id="${this.exerciseId}-answer" placeholder="Enter your answer${this.unit ? ' (' + this.unit + ')' : ''}">
@@ -281,28 +338,44 @@ class ExerciseWidget extends BaseWidget {
             inputHtml += `<button class="exercise-check primary" style="margin-top:10px;">Check</button></div>`;
         }
 
+        // A worked exercise has nothing to solve, so its hint and answer must be
+        // reachable from the start. Hiding them behind `solved` made them
+        // permanently unreachable.
+        const actionsVisible = (this.type === 'worked' || state.solved) ? 'block' : 'none';
+
+        const hintList = this.hints.length > 1
+            ? '<ol>' + this.hints.map(h => `<li>${h}</li>`).join('') + '</ol>'
+            : this.hints[0] || '';
+
+        const hintLabel = this.hints.length > 1
+            ? `Show ${this.hints.length} hints` : 'Show Hint';
+        const solLabel = this.type === 'worked' ? 'Show Answer' : 'Show Solution';
+
         this.container.innerHTML = `
-            <div class="exercise ${state.solved ? 'solved' : ''}" data-id="${this.exerciseId}">
+            <div class="exercise ${state.solved ? 'solved' : ''}${this.type === 'worked' ? ' exercise-worked' : ''}" data-id="${this.exerciseId}">
+                ${this.title ? `<div class="exercise-title">${this.title}</div>` : ''}
                 <div class="exercise-question">${this.question}</div>
                 ${inputHtml}
                 <div class="exercise-feedback" id="${this.exerciseId}-feedback"></div>
-                <div class="exercise-actions" style="margin-top:10px; display:${state.solved ? 'block' : 'none'}">
-                    <button class="exercise-hint" style="${this.hint ? '' : 'display:none'}">Show Hint</button>
-                    <button class="exercise-solution" style="${this.solution ? '' : 'display:none'}">Show Solution</button>
+                <div class="exercise-actions" style="margin-top:10px; display:${actionsVisible}">
+                    <button class="exercise-hint" style="${this.hints.length ? '' : 'display:none'}">${hintLabel}</button>
+                    <button class="exercise-solution" style="${this.solution ? '' : 'display:none'}">${solLabel}</button>
                 </div>
                 <div class="exercise-hint-text" id="${this.exerciseId}-hint" style="display:none">
-                    ${this.hint}
+                    ${hintList}
                 </div>
                 <div class="exercise-solution-text" id="${this.exerciseId}-solution" style="display:none">
-                    <strong>Solution:</strong> ${this.solution}
+                    <strong>${this.type === 'worked' ? 'Answer' : 'Solution'}:</strong> ${this.solution}
                     ${this.explanation ? `<br><em>${this.explanation}</em>` : ''}
                 </div>
             </div>
         `;
 
-        // Bind events
+        // Bind events. A worked exercise renders no Check button, so this must
+        // tolerate its absence rather than throwing and killing the rest of the
+        // handler - which would take the hint and answer buttons with it.
         const checkBtn = this.container.querySelector('.exercise-check');
-        checkBtn.addEventListener('click', () => this.checkAnswer());
+        if (checkBtn) checkBtn.addEventListener('click', () => this.checkAnswer());
 
         const hintBtn = this.container.querySelector('.exercise-hint');
         if (hintBtn) {

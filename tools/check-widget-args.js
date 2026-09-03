@@ -98,8 +98,56 @@ function arrayBody(call, key) {
     return call.slice(open + 1, i);
 }
 
+// ExerciseWidget reads specific field names off each exercise, and the course
+// writes them two ways:
+//
+//   {question, expected, unit, hint, solution}   a numeric drill
+//   {title, problem, hints: [...], answer}       a worked problem
+//
+// ...and 75 lessons hand it a LIST under `exercises:` rather than a single
+// exercise. For a long time it read only the first shape and had no concept of
+// the list, so those 75 rendered ONE exercise with a blank question and hint
+// and answer buttons hidden behind a `solved` flag that could never be set.
+// These assertions fail if any of that support is removed again.
+function exerciseSupport() {
+    const at = widgetSrc.indexOf('class ExerciseWidget');
+    if (at < 0) return { list: false, alt: false, worked: false };
+    let end = widgetSrc.indexOf('\nclass ', at + 10);
+    if (end < 0) end = widgetSrc.length;
+    const body = widgetSrc.slice(at, end);
+    return {
+        list:   /Array\.isArray\(\s*options\.exercises\s*\)/.test(body),
+        alt:    /options\.problem/.test(body) && /options\.answer/.test(body)
+                && /options\.hints/.test(body),
+        worked: /'worked'/.test(body)
+    };
+}
+
+const EX = exerciseSupport();
+
 const files = walk(LESSONS, []).sort();
 const findings = [];
+
+if (!EX.list) {
+    findings.push({
+        file: 'assets/widgets.js', widget: 'ExerciseWidget', count: 0,
+        problem: 'no longer handles `exercises: [...]`; the 75 lessons that pass a list ' +
+                 'will each render one blank exercise'
+    });
+}
+if (!EX.alt) {
+    findings.push({
+        file: 'assets/widgets.js', widget: 'ExerciseWidget', count: 0,
+        problem: 'no longer reads problem/hints/answer; those lessons render an empty question'
+    });
+}
+if (!EX.worked) {
+    findings.push({
+        file: 'assets/widgets.js', widget: 'ExerciseWidget', count: 0,
+        problem: 'no longer supports the worked type; exercises with no numeric answer ' +
+                 'get an input box and unreachable hints'
+    });
+}
 
 files.forEach(file => {
     const src = fs.readFileSync(file, 'utf8');
