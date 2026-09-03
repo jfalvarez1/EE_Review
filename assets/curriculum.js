@@ -2543,6 +2543,18 @@ const CURRICULUM = {
                     title: 'Amplifier Classes A to H',
                     description: 'Conduction angle decides efficiency, distortion and heatsink size',
                     topics: ['25% and 78.5% derived', 'Worst heat at 64% of swing', 'Why class C needs a tank', 'Class G, H and envelope tracking']
+                },
+                {
+                    id: 3,
+                    title: 'The Audio Signal Chain',
+                    description: 'Every block, why it is in that order, and where the gain goes',
+                    topics: ['dBu vs dBV vs dBFS', 'The first stage sets the noise floor', 'Headroom and dynamic range', 'Where the volume control belongs']
+                },
+                {
+                    id: 4,
+                    title: 'Design: A Microphone Preamplifier',
+                    description: 'A noise budget in nV/rtHz, taken to a topology and a part',
+                    topics: ['-130.8 dBu is the floor at 150 ohm', 'Ropt = en/in', 'Why phantom power is free', 'Gain inside the loop, not at the input']
                 }
             ]
         }
