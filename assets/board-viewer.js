@@ -293,10 +293,35 @@
             for (var i = 0; i < board.nets.length; i++) {
                 if (board.nets[i].name === net) { info = board.nets[i]; break; }
             }
-            readout.textContent = info
-                ? net + ' — ' + info.len.toFixed(1) + ' mm of track in ' +
-                  info.segs + ' segments, on ' + (info.layers.join(' + ') || 'no layer')
-                : net;
+            if (!info) { readout.textContent = net; return; }
+
+            // A net that is mostly a POUR has very little track, so reporting
+            // only its track length badly understates it - GND on a four-layer
+            // board came out as "15 mm in 15 segments" while carrying two
+            // filled planes. Say where the copper actually is.
+            var planeLayers = board.zones
+                .filter(function (z) { return z.net === net; })
+                .map(function (z) { return z.layer; });
+            var seen = {}, planes = [];
+            planeLayers.forEach(function (l) { if (!seen[l]) { seen[l] = 1; planes.push(l); } });
+
+            var parts = [];
+            if (info.segs) {
+                parts.push(info.len.toFixed(1) + ' mm of track in ' + info.segs +
+                           ' segment' + (info.segs === 1 ? '' : 's') +
+                           ' on ' + info.layers.join(' + '));
+            }
+            if (planes.length) {
+                parts.push('a filled plane on ' + planes.join(' + '));
+            }
+            var vias = 0;
+            for (var v = 0; v < board.vias.length; v++) {
+                if (board.vias[v].net === net) vias++;
+            }
+            if (vias) parts.push(vias + ' via' + (vias === 1 ? '' : 's'));
+
+            readout.textContent = net + ' — ' +
+                (parts.length ? parts.join(', ') : 'pads only, not routed');
         }
 
         grid.addEventListener('mouseover', function (e) {

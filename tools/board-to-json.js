@@ -164,7 +164,11 @@ const zones = [];
 kids(tree, 'zone').forEach(z => {
     const layer = (kid(z, 'layer') || [])[1] ||
                   ((kid(z, 'layers') || []).slice(1)[0]) || '';
-    const net = (kid(z, 'net_name') || [])[1] || '';
+    // KiCad 9 writes (net 5) plus (net_name "GND"); KiCad 10 writes (net "GND")
+    // and no net_name at all. Reading only net_name left every KiCad 10 plane
+    // unattributed, so a ground pour did not light up when GND was selected -
+    // which is exactly the thing the figure exists to show.
+    const net = nameOf(z) || (kid(z, 'net_name') || [])[1] || '';
     const polys = [];
     kids(z, 'filled_polygon').forEach(fp => {
         const pts = kid(fp, 'pts');

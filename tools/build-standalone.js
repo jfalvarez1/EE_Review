@@ -118,6 +118,7 @@ assetBytes += inlineStylesheet('assets/styles.css');
     'assets/schematic-svg.js',
     'assets/schematic-normalize.js',
     'assets/checkpoints.js',
+    'assets/board-viewer.js',
     'assets/learning-path.js',
     'assets/curriculum.js',
     'assets/exercises.js'
@@ -159,12 +160,26 @@ const shim = `<script>
     'use strict';
     var LESSONS = window.EMBEDDED_LESSONS;
     if (!LESSONS) return;
+    var BOARDS = window.EMBEDDED_BOARDS || {};
     var Real = window.XMLHttpRequest;
 
+    // Two kinds of thing are fetched by XHR: lesson fragments, and the board
+    // data the interactive layout figures draw from. Both are embedded, so
+    // both are answered here. Anything else falls through to the real
+    // XMLHttpRequest untouched.
     function keyFor(url) {
         if (!url) return null;
-        var m = /lessons\\/(module-\\d+\\/lesson-\\d+)(?:\\.html)?/.exec(String(url));
-        return m ? m[1] : null;
+        var s = String(url);
+        var m = /lessons\\/(module-\\d+\\/lesson-\\d+)(?:\\.html)?/.exec(s);
+        if (m) return m[1];
+        var b = /docs\\/data\\/boards\\/([A-Za-z0-9_.-]+)\\.json/.exec(s);
+        if (b) return 'board:' + b[1];
+        return null;
+    }
+
+    function bodyFor(key) {
+        if (key.indexOf('board:') === 0) return BOARDS[key.slice(6)];
+        return LESSONS[key];
     }
 
     window.XMLHttpRequest = function () {
@@ -174,19 +189,20 @@ const shim = `<script>
 
         xhr.open = function (method, url) {
             served = keyFor(url);
-            if (served && LESSONS[served] !== undefined) return;
+            if (served && bodyFor(served) !== undefined) return;
             return open.apply(xhr, arguments);
         };
 
         xhr.send = function () {
-            if (!served || LESSONS[served] === undefined) return send.apply(xhr, arguments);
+            var body = served && bodyFor(served);
+            if (body === undefined || body === null) return send.apply(xhr, arguments);
             // Shadow the prototype getters with own properties.
             try {
                 Object.defineProperty(xhr, 'readyState', { value: 4, configurable: true });
                 Object.defineProperty(xhr, 'status', { value: 200, configurable: true });
-                Object.defineProperty(xhr, 'responseText', { value: LESSONS[served], configurable: true });
+                Object.defineProperty(xhr, 'responseText', { value: body, configurable: true });
             } catch (e) { /* older engines: fall back to plain assignment */
-                xhr.readyState = 4; xhr.status = 200; xhr.responseText = LESSONS[served];
+                xhr.readyState = 4; xhr.status = 200; xhr.responseText = body;
             }
             // Asynchronous, like the real thing, so callers that assign
             // onreadystatechange after send() still see the event.
@@ -212,7 +228,26 @@ const payload = JSON.stringify(lessons)
     .replace(/<\/script/gi, '<\\/script')
     .replace(/<!--/g, '<\\u0021--');
 
-const embed = '<script>window.EMBEDDED_LESSONS = ' + payload + ';</script>\n';
+// The interactive layout figures fetch their board data the same way lessons
+// are fetched, so it has to travel with the file or those figures come up
+// blank offline. These are small - a few hundred kB in total - and there is no
+// point shipping a "whole course" that is missing its board viewer.
+const boards = {};
+const BOARD_DIR = path.join(ROOT, 'docs', 'data', 'boards');
+let boardBytes = 0;
+if (fs.existsSync(BOARD_DIR)) {
+    fs.readdirSync(BOARD_DIR).filter(f => f.endsWith('.json')).forEach(f => {
+        const text = fs.readFileSync(path.join(BOARD_DIR, f), 'utf8');
+        boards[f.replace(/\.json$/, '')] = text;
+        boardBytes += Buffer.byteLength(text);
+    });
+}
+const boardPayload = JSON.stringify(boards)
+    .replace(/<\/script/gi, '<\\/script')
+    .replace(/<!--/g, '<\\u0021--');
+
+const embed = '<script>window.EMBEDDED_LESSONS = ' + payload + ';</script>\n' +
+              '<script>window.EMBEDDED_BOARDS = ' + boardPayload + ';</script>\n';
 
 const anchor = '<script>\n' + read('assets/curriculum.js');
 if (html.indexOf(anchor) === -1) {
