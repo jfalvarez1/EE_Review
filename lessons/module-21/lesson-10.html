@@ -1,0 +1,598 @@
+<!-- Module 21, Lesson 10: Receiver and Transmitter Architectures -->
+<div class="lesson-content" data-module="21" data-lesson="10">
+
+    <div class="card">
+        <h2>Receiver and Transmitter Architectures</h2>
+        <p>The previous three lessons gave you the three currencies a radio trades
+        in: <strong>noise</strong>, which the first stage sets;
+        <strong>linearity</strong>, which the last stage sets; and <strong>phase
+        noise</strong>, which no stage can recover from. An architecture is a
+        decision about how to spend them, and there are only a handful of
+        distinct answers. This lesson is the map.</p>
+
+        <div class="notice">
+            <strong>There is no best architecture.</strong> Each one takes a hard
+            problem and converts it into a different hard problem. Superheterodyne
+            trades an image problem for a filtering problem; direct conversion
+            trades the image away and gets DC offset instead. Knowing which
+            problem you would rather have, for <em>your</em> band and
+            <em>your</em> integration budget, is the whole skill.
+        </div>
+
+        <div class="analogy">
+            <span class="analogy-label">Why translate at all</span>
+            <p>Building a sharp, tunable filter at 2.4&nbsp;GHz is like building a
+            <strong>sieve that can change its hole size while spinning at
+            speed</strong>. Building the same sharp filter at a fixed 10.7&nbsp;MHz
+            is easy &mdash; you can buy one for pennies, and it never has to
+            change.</p>
+            <p>So instead of moving the sieve, the superheterodyne moves the
+            <em>material</em>: shift whichever channel you want down to the one
+            fixed frequency where the good filter already lives. That is the whole
+            idea, and it is why it dominated radio for eighty years.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> the
+            translation is symmetric. Two different input frequencies land on the
+            same output, and the receiver cannot tell them apart afterwards. That
+            second one is the <em>image</em>, and every consequence of the
+            superheterodyne architecture flows from having to deal with it.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. The image, and why it exists</h3>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ f_{IF} = |f_{RF} - f_{LO}| \]
+                <span class="drv-why">The absolute value is the whole problem.
+                Both \(f_{LO}+f_{IF}\) and \(f_{LO}-f_{IF}\) produce the same
+                \(f_{IF}\).</span>
+            </div>
+            <div class="drv-step">
+                \[ f_{image} = f_{RF} \pm 2f_{IF} \]
+                <span class="drv-why">The unwanted input sits \(2f_{IF}\) away from
+                the wanted one, on the other side of the LO. Whatever is there —
+                another service, a spurious emission, thermal noise — lands
+                directly on top of your channel.</span>
+            </div>
+        </div>
+
+        <p><strong>Example.</strong> Receiving 100.1&nbsp;MHz FM with a
+        10.7&nbsp;MHz IF and high-side injection: \(f_{LO} = 110.8\)&nbsp;MHz, and
+        the image is at \(110.8 + 10.7 = 121.5\)&nbsp;MHz. Anything transmitting
+        at 121.5&nbsp;MHz &mdash; which is the international aviation distress
+        frequency &mdash; arrives in your FM channel unless the front end rejects
+        it.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>IF choice</th><th>Image rejection</th><th>Channel filtering</th><th>Verdict</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>High IF</strong></td><td class="t-ok">Easy — the image is far away, so a broad preselector rejects it</td><td class="t-warn">Hard — a narrow channel filter at a high frequency needs enormous Q</td><td>Good for image, bad for selectivity</td></tr>
+                    <tr><td><strong>Low IF</strong></td><td class="t-warn">Hard — the image is close to the wanted signal, needing a sharp preselector</td><td class="t-ok">Easy — a cheap crystal or ceramic filter does it</td><td>Good for selectivity, bad for image</td></tr>
+                    <tr><td><strong>Double conversion</strong></td><td class="t-ok">High first IF handles the image</td><td class="t-ok">Low second IF handles the channel</td><td>Both — at the cost of a second LO, a second mixer, and a whole new set of spurious products</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note">That table is the entire argument that produced double
+        conversion, and it is why every serious communications receiver from the
+        1930s to the 1990s had two IFs. It is also why modern integrated radios do
+        not: two IFs means two filters that cannot be integrated, and the whole
+        thrust of the last thirty years has been to get the filters onto the
+        chip.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. The four architectures</h3>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th></th><th>Superheterodyne</th><th>Direct conversion (zero-IF)</th><th>Low-IF</th><th>Direct RF sampling</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>How</strong></td><td>Mix to a fixed IF, filter, then demodulate</td><td>Mix straight to baseband, \(f_{LO}=f_{RF}\)</td><td>Mix to an IF of one or two channel widths</td><td>Sample the RF directly with a fast ADC</td></tr>
+                    <tr><td><strong>Image</strong></td><td class="t-warn">At \(f_{RF}\pm2f_{IF}\); needs a preselector</td><td class="t-ok">None — the image is the signal's own mirror</td><td class="t-warn">The adjacent channel; needs complex (I/Q) filtering</td><td class="t-ok">None</td></tr>
+                    <tr><td><strong>DC offset</strong></td><td class="t-ok">Irrelevant — the signal is not at DC</td><td class="t-bad">The central problem. LO leaks to the antenna, reflects, and self-mixes to DC.</td><td class="t-ok">Avoided — that is the point of low-IF</td><td class="t-ok">Irrelevant</td></tr>
+                    <tr><td><strong>1/f noise</strong></td><td class="t-ok">Irrelevant</td><td class="t-bad">Lands in the channel</td><td class="t-ok">Avoided</td><td class="t-ok">Irrelevant</td></tr>
+                    <tr><td><strong>IIP2</strong></td><td class="t-ok">Not critical</td><td class="t-bad">Critical — \(f_1-f_2\) lands at DC</td><td class="t-warn">Moderately important</td><td>Depends on the ADC</td></tr>
+                    <tr><td><strong>I/Q imbalance</strong></td><td class="t-ok">Not applicable</td><td class="t-warn">Degrades EVM</td><td class="t-bad">Directly sets image rejection — 1&deg; and 1% gives about 40 dB</td><td class="t-ok">Digital, so exact</td></tr>
+                    <tr><td><strong>Integration</strong></td><td class="t-bad">Needs off-chip IF filters</td><td class="t-ok">Fully integrable — baseband filters are RC</td><td class="t-ok">Fully integrable</td><td class="t-warn">Needs a very fast, very clean ADC</td></tr>
+                    <tr><td><strong>Power</strong></td><td>Moderate</td><td class="t-ok">Low</td><td class="t-ok">Low</td><td class="t-bad">High — the ADC dominates</td></tr>
+                    <tr><td><strong>Where it lives now</strong></td><td>Test equipment, base stations, high-performance HF/VHF</td><td>Almost every phone, Wi-Fi and BLE chip</td><td>Bluetooth, GNSS, narrowband IoT</td><td>Base stations, SDR, radar, high-end instruments</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="warn">
+            <strong>Why direct conversion won consumer radio.</strong> Not because
+            it is better &mdash; it is worse on almost every axis in that table.
+            It won because its problems are <em>on-chip problems</em>. DC offset
+            can be cancelled by a servo loop; IIP2 can be calibrated; I/Q imbalance
+            can be corrected in DSP. An IF filter cannot be integrated at any
+            price. When the dominant cost is the bill of materials, an architecture
+            whose weaknesses are solvable in silicon beats one whose strengths
+            require external ceramic.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Interactive: image, spurs and the IF choice</h3>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="ar-frf">Wanted signal</label>
+                <input type="range" id="ar-frf" min="50" max="2500" step="5" value="915">
+                <span class="range-value" id="ar-frf-val">915 MHz</span>
+            </div>
+            <div class="c4">
+                <label for="ar-fif">Intermediate frequency</label>
+                <input type="range" id="ar-fif" min="0" max="300" step="1" value="45">
+                <span class="range-value" id="ar-fif-val">45 MHz</span>
+            </div>
+            <div class="c4">
+                <label for="ar-side">LO injection</label>
+                <select id="ar-side">
+                    <option value="high" selected>High side (f_LO = f_RF + f_IF)</option>
+                    <option value="low">Low side (f_LO = f_RF − f_IF)</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="ar-presel">Preselector bandwidth</label>
+                <input type="range" id="ar-presel" min="1" max="400" step="1" value="40">
+                <span class="range-value" id="ar-presel-val">40 MHz</span>
+            </div>
+            <div class="c4">
+                <label for="ar-order">Preselector order</label>
+                <input type="range" id="ar-order" min="1" max="8" step="1" value="3">
+                <span class="range-value" id="ar-order-val">3 poles</span>
+            </div>
+            <div class="c4">
+                <label for="ar-iq">I/Q imbalance (for low-IF)</label>
+                <input type="range" id="ar-iq" min="1" max="50" step="1" value="10">
+                <span class="range-value" id="ar-iq-val">1.0° / 1.0%</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="ar-canvas" width="900" height="330"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">LO frequency</div><div class="v mono" id="ar-flo">&mdash;</div></div>
+            <div class="box"><div class="k">Image frequency</div><div class="v mono" id="ar-fimg">&mdash;</div></div>
+            <div class="box"><div class="k">Image rejection from the preselector</div><div class="v mono" id="ar-rej">&mdash;</div></div>
+            <div class="box"><div class="k">Channel filter Q needed at IF</div><div class="v mono" id="ar-q">&mdash;</div></div>
+            <div class="box"><div class="k">Half-IF spur at</div><div class="v mono" id="ar-half">&mdash;</div></div>
+            <div class="box"><div class="k">Image rejection from I/Q matching</div><div class="v mono" id="ar-iqrej">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="ar-note"></p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. Direct conversion's three problems, and their fixes</h3>
+
+        <h4>DC offset</h4>
+        <p>The LO runs at exactly the received frequency, so any leakage from the
+        LO port to the RF port &mdash; through the substrate, the package, or
+        radiation from the antenna and back &mdash; mixes with itself and produces
+        a DC term. Because it is at DC and the wanted signal is also at DC, it
+        cannot be filtered without removing signal.</p>
+        <ul>
+            <li>Static offset (fixed leakage) is calibrated out at
+            manufacture.</li>
+            <li><strong>Dynamic offset is the hard one:</strong> the LO radiates
+            from the antenna, reflects off a moving object, and returns with a
+            changing phase &mdash; so the offset changes as the environment
+            changes. A servo loop with a high-pass corner well below the channel
+            handles it, at the cost of not being able to use modulation schemes
+            with energy at DC.</li>
+            <li>This is why direct-conversion systems avoid DC-heavy modulation,
+            and why OFDM standards leave the centre subcarrier
+            <strong>unused</strong> &mdash; that null exists specifically so a
+            zero-IF receiver can high-pass its own offset away.</li>
+        </ul>
+
+        <h4>Flicker (1/f) noise</h4>
+        <p>The baseband signal sits from DC upward, exactly where MOS devices are
+        noisiest. Mitigations: use larger devices, use passive (switching) mixers
+        which have far lower flicker than active ones, and choose a modulation
+        whose energy is not at DC. This is a genuine disadvantage with no complete
+        cure, and it is why zero-IF is a poor choice for very narrowband
+        signals.</p>
+
+        <h4>Second-order distortion</h4>
+        <p>A strong AM-modulated interferer produces \(f_1-f_2\) at low frequency
+        &mdash; effectively its own envelope, demodulated &mdash; landing in the
+        channel. Hence <strong>IIP2 is a headline specification for zero-IF
+        receivers and essentially irrelevant for superheterodyne ones</strong>.
+        Fixes: differential balance throughout, and an on-chip IIP2 calibration
+        loop, which most modern transceivers have.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ IRR \approx -10\log_{10}\left[\frac{\epsilon^2
+                   + \theta^2}{4}\right] \]
+                <span class="drv-why">Image rejection ratio of a low-IF or
+                image-reject receiver, for a gain error \(\epsilon\) (as a
+                fraction) and a phase error \(\theta\) (in radians). For 1% and
+                1&deg; (0.01745 rad): \(-10\log[(10^{-4}+3.05\times10^{-4})/4]
+                = 41\) dB.</span>
+            </div>
+        </div>
+
+        <p class="fig-note">41&nbsp;dB is what careful analogue matching achieves,
+        and it is not enough for a demanding standard. That is why modern low-IF
+        receivers <em>calibrate</em> I/Q imbalance digitally and reach 60&ndash;70
+        dB &mdash; a purely computational fix to an analogue matching problem,
+        which is the recurring theme of modern radio design.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. Transmitters</h3>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Architecture</th><th>How</th><th>The problem it has</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Direct up-conversion</strong></td>
+                        <td>I/Q modulator at the output frequency, straight into the PA</td>
+                        <td><strong>LO pulling.</strong> The PA output is at the same frequency as the LO and is enormously stronger, so it drags the VCO. Mitigated by running the VCO at 2&times; or 2/3&times; the output and dividing, so no strong signal exists at the VCO's own frequency.</td></tr>
+                    <tr><td>Two-step up-conversion</td>
+                        <td>Modulate at an IF, then mix up</td>
+                        <td>No pulling, but needs an image filter after the second mixer</td></tr>
+                    <tr><td>Offset-PLL (translational loop)</td>
+                        <td>The modulated IF is fed into a PLL's phase detector; the VCO tracks it</td>
+                        <td>Constant-envelope only — the loop tracks phase, not amplitude. Was standard for GSM; useless for anything with amplitude modulation.</td></tr>
+                    <tr><td>Polar</td>
+                        <td>Split the signal into amplitude and phase; phase-modulate the LO and amplitude-modulate the supply</td>
+                        <td>Very efficient, but needs precise delay matching between the two paths — a few nanoseconds of mismatch wrecks the spectrum</td></tr>
+                    <tr><td>Direct RF DAC</td>
+                        <td>Synthesise the RF digitally and convert it directly</td>
+                        <td>Power, and DAC linearity. Increasingly used in base stations and instruments.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="notice">
+            <strong>What changed in industry.</strong> Three things have reshaped
+            radio architecture since 2010. <strong>Direct RF sampling</strong>
+            moved from instruments into base stations as GSPS converters became
+            affordable, removing the mixer and the IF chain entirely. <strong>Massive
+            MIMO and beamforming</strong> made the count of transceiver chains the
+            dominant cost, which favours whatever integrates best rather than
+            whatever performs best per chain. And <strong>digital
+            predistortion</strong> became standard, which changed what the analogue
+            PA has to be: it no longer needs to be linear, it needs to be
+            <em>repeatable and characterisable</em>, so its non-linearity can be
+            inverted digitally. That is a different specification for the same
+            component, and it is why modern PAs are designed for efficiency and
+            memory-effect behaviour rather than for raw IP3.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="acceptance">
+        <h3>5. Acceptance tests</h3>
+
+        <h4>Performance</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Test</th><th>Condition</th><th>Pass criterion</th><th>If it fails</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Image rejection</td>
+                        <td>Inject at the image frequency at a known level</td>
+                        <td>Meets the standard's requirement, typically 40&ndash;60 dB</td>
+                        <td>Superhet: sharpen the preselector or raise the IF. Low-IF: calibrate I/Q.</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Half-IF spur</td>
+                        <td>Inject at \(f_{LO}\pm f_{IF}/2\)</td>
+                        <td>Rejected to spec</td>
+                        <td>A second-order product of the input mixing with a second harmonic of the LO. Needs preselector attenuation and mixer balance — it is not fixed by anything after the mixer.</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> DC offset (zero-IF)</td>
+                        <td>No signal, measure the baseband DC over temperature and with the antenna moved</td>
+                        <td>Within the ADC's input range with margin, and the servo tracks the change</td>
+                        <td>A <em>changing</em> offset is the real test. A static one calibrates out; a dynamic one needs the servo.</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> IIP2 (zero-IF)</td>
+                        <td>Two closely spaced tones out of band, measure the product at baseband</td>
+                        <td>Meets the standard, typically +40 dBm or better</td>
+                        <td>Front-end balance, and the on-chip IIP2 calibration if the part has one</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> LO leakage (TX)</td>
+                        <td>Measure carrier feedthrough with no modulation</td>
+                        <td>Below the standard's limit</td>
+                        <td>I/Q DC offset in the modulator. Almost always calibrated rather than designed out.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Abuse</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What is done to it</th><th>What physically happens</th><th>Acceptable outcome</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A strong transmitter sits exactly on the image frequency</strong> of a superhet with only 30 dB of preselector rejection</td>
+                        <td>The interferer arrives in the IF attenuated by 30 dB but otherwise intact, superimposed on the wanted channel. If it is 50 dB stronger than the wanted signal it wins by 20 dB.</td>
+                        <td><strong>The channel is unusable and no processing recovers it</strong>, because the two signals are at identical IF frequencies and are genuinely indistinguishable after the mixer. The only fixes are upstream: a sharper preselector, a different IF so the image lands somewhere quiet, or an image-reject mixer. This is why frequency planning is a real engineering task and not an arbitrary choice.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A zero-IF receiver held against a metal surface</strong>, or a hand moved near the antenna</td>
+                        <td>LO leaking from the antenna reflects off the moving object and returns with a time-varying phase. Self-mixing produces a DC offset that <em>changes as the object moves</em> — an offset the factory calibration cannot know about.</td>
+                        <td><strong>The baseband wanders, and if it exceeds the ADC's range the receiver goes deaf until it recovers.</strong> This is the defining weakness of zero-IF and the reason a DC servo loop is mandatory rather than optional. It also means the high-pass corner is a real design parameter: too low and it cannot track the wander, too high and it removes signal.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A direct up-conversion transmitter run at full PA output with the VCO at the output frequency</strong></td>
+                        <td>The PA's output couples back to the VCO through the substrate, the supply and the package. Being far stronger than the VCO's own oscillation, it pulls the VCO toward its own frequency — and since the PA output <em>is</em> the VCO output, the loop is positive.</td>
+                        <td><strong>The synthesiser loses lock, or locks to a shifted frequency, whenever the PA transmits at full power.</strong> The symptom is bizarre: the radio works at low power and fails at high power, and the spectrum shows the carrier moving. The structural fix is to never run the VCO at the transmit frequency — use 2&times; and divide, or 2/3&times; and mix — which is why almost every integrated transceiver does exactly that.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A polar transmitter with 5 ns of delay mismatch</strong> between its amplitude and phase paths</td>
+                        <td>The two components recombine misaligned, so the reconstructed signal is not the intended one. The error appears as wideband spectral regrowth — energy spread into adjacent channels — even though both paths individually are clean.</td>
+                        <td><strong>The spectral mask fails and no amount of PA linearity helps</strong>, because the PA is faithfully amplifying a signal that is already wrong. Polar architectures need delay matching to a fraction of the modulation bandwidth's reciprocal, which is a calibration rather than a design margin. This is the cost of polar's efficiency, and the reason it is used where efficiency is worth that trouble and avoided where it is not.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="ar-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="ar-exercises"></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var canvas = document.getElementById('ar-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var TEK = AD.TEK_COLORS;
+
+    function val(id, d) { var e = document.getElementById(id); return e ? e.value : d; }
+
+    function update() {
+        var frf = AD.num('ar-frf');
+        var fif = AD.num('ar-fif');
+        var high = val('ar-side', 'high') === 'high';
+        var bw = AD.num('ar-presel');
+        var order = AD.num('ar-order');
+        var iq = AD.num('ar-iq') / 10;      // degrees, and percent, together
+
+        AD.setText('ar-frf-val', frf + ' MHz');
+        AD.setText('ar-fif-val', fif + ' MHz');
+        AD.setText('ar-presel-val', bw + ' MHz');
+        AD.setText('ar-order-val', order + (order === 1 ? ' pole' : ' poles'));
+        AD.setText('ar-iq-val', iq.toFixed(1) + '° / ' + iq.toFixed(1) + '%');
+
+        var flo = high ? frf + fif : frf - fif;
+        var fimg = high ? frf + 2 * fif : frf - 2 * fif;
+        var fhalf = high ? frf + fif / 2 : frf - fif / 2;
+
+        // Preselector rejection at the image: an n-pole filter centred on frf
+        // rolls off at 6n dB/octave beyond its corner.
+        var offset = Math.abs(fimg - frf);
+        var octaves = Math.log2(Math.max(1e-6, offset / (bw / 2)));
+        var rej = offset <= bw / 2 ? 0 : 6 * order * octaves;
+
+        // Channel filter Q needed for a 200 kHz channel at this IF.
+        var qNeeded = fif > 0 ? fif / 0.2 : Infinity;
+
+        // I/Q image rejection.
+        var eps = iq / 100;                       // gain error, fraction
+        var th = iq * Math.PI / 180;              // phase error, radians
+        var irr = -10 * Math.log10((eps * eps + th * th) / 4);
+
+        AD.setText('ar-flo', flo.toFixed(1) + ' MHz  (' + (high ? 'high' : 'low') + ' side)');
+        AD.setText('ar-fimg', fif === 0 ? 'none — zero-IF has no image'
+                                        : fimg.toFixed(1) + ' MHz  (' +
+                                          (2 * fif) + ' MHz away)');
+        AD.setText('ar-rej', fif === 0 ? 'n/a' : rej.toFixed(0) + ' dB');
+        AD.setText('ar-q', fif === 0 ? 'n/a — baseband RC filtering'
+                                     : 'Q ≈ ' + qNeeded.toFixed(0) +
+                                       ' for a 200 kHz channel');
+        AD.setText('ar-half', fif === 0 ? 'n/a' : fhalf.toFixed(1) + ' MHz');
+        AD.setText('ar-iqrej', irr.toFixed(1) + ' dB  (analogue matching alone)');
+
+        // ---- spectrum picture --------------------------------------------
+        var w = canvas.width, h = canvas.height;
+        var ml = 50, mr = 40, mt = 60, mb = 60;
+        var pw = w - ml - mr, ph = h - mt - mb;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        var span = Math.max(4 * fif, bw * 2, 60);
+        var fLo2 = Math.min(frf, fimg, flo) - span * 0.35;
+        var fHi2 = Math.max(frf, fimg, flo) + span * 0.35;
+        var X = function (f) { return ml + (f - fLo2) / (fHi2 - fLo2) * pw; };
+
+        // preselector response
+        ctx.save();
+        ctx.strokeStyle = 'rgba(110,231,255,0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (var i = 0; i <= 400; i++) {
+            var f = fLo2 + (fHi2 - fLo2) * i / 400;
+            var off = Math.abs(f - frf);
+            var att = off <= bw / 2 ? 0 : 6 * order * Math.log2(off / (bw / 2));
+            var y = mt + Math.min(ph, att / 80 * ph);
+            if (i === 0) ctx.moveTo(X(f), y); else ctx.lineTo(X(f), y);
+        }
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(110,231,255,0.30)';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('preselector', ml + 4, mt + 12);
+        ctx.restore();
+
+        function marker(f, colour, label, sub, tall) {
+            if (f < fLo2 || f > fHi2) return;
+            ctx.save();
+            ctx.strokeStyle = colour;
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(X(f), mt + ph);
+            ctx.lineTo(X(f), mt + ph - (tall ? ph * 0.85 : ph * 0.55));
+            ctx.stroke();
+            ctx.fillStyle = colour;
+            ctx.font = 'bold 11px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(label, X(f), mt + ph - (tall ? ph * 0.85 : ph * 0.55) - 8);
+            ctx.font = '10px monospace';
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.fillText(sub, X(f), mt + ph + 18);
+            ctx.restore();
+        }
+
+        marker(frf, TEK.ch4, 'WANTED', frf.toFixed(0) + ' MHz', true);
+        marker(flo, TEK.ch1, 'LO', flo.toFixed(0) + ' MHz', true);
+        if (fif > 0) {
+            marker(fimg, TEK.ref, 'IMAGE', fimg.toFixed(0) + ' MHz', false);
+            marker(fhalf, TEK.math, '½IF spur', fhalf.toFixed(0) + ' MHz', false);
+        }
+
+        ctx.save();
+        ctx.fillStyle = TEK.text;
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(fif === 0
+            ? 'Zero-IF: the LO sits on the signal, so there is no image to reject'
+            : 'The image sits ' + (2 * fif) + ' MHz from the wanted signal, on the far side of the LO',
+            ml, mt - 32);
+        ctx.font = '11px monospace';
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillText(fif === 0
+            ? 'and DC offset, 1/f noise and IIP2 become the problems instead'
+            : 'preselector gives ' + rej.toFixed(0) + ' dB there',
+            ml, mt - 16);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = TEK.text;
+        ctx.fillText('frequency (MHz)', ml + pw / 2, h - 12);
+        ctx.restore();
+
+        // ---- verdict ------------------------------------------------------
+        var verdict;
+        if (fif === 0) {
+            verdict = 'Zero-IF. The image problem vanishes entirely — the LO is on the ' +
+                      'signal, so there is no second input frequency that maps to the same ' +
+                      'output. In exchange you inherit DC offset from LO self-mixing, 1/f ' +
+                      'noise landing in the channel, and a hard IIP2 requirement. All three ' +
+                      'are on-chip problems, which is exactly why this architecture won ' +
+                      'consumer radio.';
+        } else if (rej < 20) {
+            verdict = 'Only ' + rej.toFixed(0) + ' dB of image rejection: the image at ' +
+                      fimg.toFixed(0) + ' MHz is inside or barely outside the preselector. ' +
+                      'Raise the IF to move the image further out, narrow the preselector, ' +
+                      'or add poles. Note the leverage — image offset is 2×f_IF, so doubling ' +
+                      'the IF doubles the offset and buys ' + (6 * order).toFixed(0) +
+                      ' dB per octave.';
+        } else if (qNeeded > 5000) {
+            verdict = 'The image is well rejected (' + rej.toFixed(0) + ' dB), but look at ' +
+                      'the channel filter: a 200 kHz channel at a ' + fif + ' MHz IF needs a ' +
+                      'Q of ' + qNeeded.toFixed(0) + '. That is crystal-filter territory and ' +
+                      'it cannot be integrated. This is precisely the trade that produced ' +
+                      'double conversion — a high first IF for the image, a low second IF ' +
+                      'for the channel.';
+        } else {
+            verdict = 'A workable compromise: ' + rej.toFixed(0) + ' dB of image rejection ' +
+                      'and a channel filter Q of ' + qNeeded.toFixed(0) + ' at ' + fif +
+                      ' MHz, which a ceramic or SAW filter can deliver. Move the IF slider ' +
+                      'in either direction and watch the two requirements pull against each ' +
+                      'other — that tension IS the architecture decision.';
+        }
+
+        AD.setText('ar-note', verdict);
+    }
+
+    ['ar-frf', 'ar-fif', 'ar-presel', 'ar-order', 'ar-iq'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    var s = document.getElementById('ar-side');
+    if (s) s.addEventListener('change', update);
+    update();
+
+    if (typeof ChecklistWidget !== 'undefined') {
+        new ChecklistWidget('ar-checklist', {
+            title: 'Architecture Checklist',
+            items: [
+                {id: 'choose', text: 'Architecture chosen deliberately, with its weaknesses named and budgeted', category: 'Selection'},
+                {id: 'plan', text: 'Frequency plan checked: image, half-IF, and LO harmonic spurs all land somewhere quiet', category: 'Selection'},
+                {id: 'if', text: 'IF chosen from BOTH the image requirement and the available channel filters', category: 'Selection'},
+                {id: 'filters', text: 'Every filter in the plan is a part that exists and can be bought', category: 'Selection'},
+                {id: 'presel', text: 'Preselector rejection at the image computed, not assumed', category: 'Superhet'},
+                {id: 'halfif', text: 'Half-IF spur checked - it is a second-order product and needs mixer balance', category: 'Superhet'},
+                {id: 'dcservo', text: 'DC offset servo designed, with its high-pass corner justified against the modulation', category: 'Zero-IF'},
+                {id: 'iip2', text: 'IIP2 specified and verified; calibration used if the part supports it', category: 'Zero-IF'},
+                {id: 'flicker', text: '1/f noise corner checked against the lowest signal frequency in the channel', category: 'Zero-IF'},
+                {id: 'iq', text: 'I/Q imbalance budget set; digital calibration if better than ~40 dB is needed', category: 'Low-IF'},
+                {id: 'pulling', text: 'VCO never runs at the transmit frequency; 2x-and-divide or offset used', category: 'Transmit'},
+                {id: 'leak', text: 'LO leakage and carrier feedthrough measured and calibrated', category: 'Transmit'},
+                {id: 'delay', text: 'For polar or ET, amplitude and phase path delays matched and calibrated', category: 'Transmit'}
+            ]
+        });
+    }
+
+    if (typeof ExerciseWidget !== 'undefined') {
+        new ExerciseWidget('ar-exercises', {
+            exercises: [
+                {
+                    id: 'ex1',
+                    title: 'Plan a frequency',
+                    problem: 'Design the IF for a 915 MHz ISM receiver with a 200 kHz channel. The preselector is a 3-pole filter with 26 MHz bandwidth (the ISM band). Consider IFs of 455 kHz, 10.7 MHz and 45 MHz: for each give the image frequency, the preselector rejection at the image, and the channel filter Q required. Recommend one.',
+                    hints: [
+                        'Image is 2 x f_IF from the wanted signal',
+                        'A 3-pole filter rolls off at 18 dB/octave beyond its corner, which is 13 MHz from centre here',
+                        'Channel filter Q = f_IF / channel bandwidth',
+                        'Ask which filters you can actually buy'
+                    ],
+                    answer: '455 kHz: image at 915 + 0.91 = 915.91 MHz, only 0.91 MHz from the wanted signal - deep inside the 26 MHz preselector, so rejection is essentially ZERO. Channel Q = 455/0.2 = 2275, easily done with a cheap ceramic filter. Verdict: unusable image, trivial channel filtering. 10.7 MHz: image at 915 + 21.4 = 936.4 MHz, which is 21.4 MHz from centre, i.e. 21.4/13 = 1.65 corners = 0.72 octaves beyond. Rejection = 18 x 0.72 = 13 dB. Channel Q = 10700/200 = 53.5 - very easy, and 10.7 MHz ceramic filters are the cheapest filters in existence. Verdict: marginal image rejection. 45 MHz: image at 915 + 90 = 1005 MHz, 90 MHz from centre, 90/13 = 6.9 corners = 2.79 octaves. Rejection = 18 x 2.79 = 50 dB. Channel Q = 45000/200 = 225, which is a SAW filter - available, but more expensive than ceramic. Verdict: good image rejection, buyable channel filter. Recommendation: 45 MHz. It is the only one of the three with usable image rejection from the given preselector, and a 45 MHz SAW filter with a 200 kHz bandwidth is a real, purchasable part. If cost demanded 10.7 MHz you would need a much sharper preselector - and a sharper preselector at 915 MHz means a SAW there instead, which just moves the cost. Note the general shape of the answer: the image requirement pushes the IF UP and the channel filter requirement pushes it DOWN, and the right IF is where both are satisfiable by parts that exist.'
+                },
+                {
+                    id: 'ex2',
+                    title: 'How good does I/Q matching have to be?',
+                    problem: 'A low-IF Bluetooth receiver needs 30 dB of image rejection. Using IRR = -10 log[(eps^2 + theta^2)/4], find the matching required if the error is entirely gain, entirely phase, or split equally. Then say what happens if the standard demanded 60 dB instead.',
+                    hints: [
+                        'Set IRR = 30 dB and solve for the bracket',
+                        'theta is in radians; convert to degrees at the end',
+                        'For the split case, set eps = theta and solve'
+                    ],
+                    answer: '30 dB: 10^(-30/10) = 1e-3 = (eps^2 + theta^2)/4, so eps^2 + theta^2 = 4e-3. Gain only: eps = sqrt(4e-3) = 0.0632, i.e. 6.3% gain mismatch, or 0.56 dB. Phase only: theta = 0.0632 rad = 3.6 degrees. Split equally: eps = theta = sqrt(2e-3) = 0.0447, i.e. 4.5% and 2.6 degrees. All of these are achievable with careful analogue design and reasonable layout symmetry - 30 dB is a comfortable target. 60 dB: 10^(-6) = (eps^2+theta^2)/4, so eps^2 + theta^2 = 4e-6. Gain only: eps = 0.002 = 0.2%, or 0.017 dB. Phase only: theta = 0.002 rad = 0.115 degrees. Split: 0.14% and 0.081 degrees. These are NOT achievable by analogue matching. A tenth of a degree of phase match across a channel bandwidth, over process, voltage and temperature, is beyond what layout symmetry delivers. This is why every modern low-IF and image-reject receiver calibrates I/Q imbalance digitally: measure the residual image with a known test tone, compute the correction coefficients, and apply them in DSP. The analogue path is designed to be good enough that the correction is small and stable, and the digital path does the rest. The general lesson: analogue matching gets you 30-40 dB, and every dB beyond that is computation.'
+                },
+                {
+                    id: 'ex3',
+                    title: 'Why the centre subcarrier is empty',
+                    problem: 'Explain why OFDM standards such as Wi-Fi and LTE leave the centre subcarrier unused, connect it to the direct-conversion DC offset problem, and say what a designer using a non-OFDM modulation must do instead.',
+                    hints: [
+                        'In a zero-IF receiver, what frequency does the centre of the channel land on?',
+                        'What is at that frequency besides signal?',
+                        'A servo loop is a high-pass filter - what does it remove?'
+                    ],
+                    answer: 'In a direct-conversion receiver the LO sits at the centre of the channel, so the centre of the channel maps to DC at baseband. That is also exactly where the LO self-mixing offset lands, where the device 1/f noise is largest, and where second-order intermodulation products from out-of-band interferers appear. Three separate impairments, all at DC. The standard defence is a DC servo: a feedback loop that high-passes the baseband, removing the offset and tracking it as it changes. But a high-pass filter removes signal energy at DC too - so if the modulation puts information there, the servo destroys it. OFDM solves this structurally by simply not using the centre subcarrier. The null is deliberate: it means a zero-IF receiver can high-pass its own offset away without losing any data at all, and it is one of the reasons OFDM and direct conversion became the dominant pairing in consumer radio. The two technologies fit each other. What a non-OFDM designer must do: (1) Choose a modulation with little energy near DC - GFSK and MSK have a spectral null at the carrier for the same reason, which is why Bluetooth Classic and GSM tolerated zero-IF reasonably well. (2) Or use low-IF instead, moving the channel away from DC entirely and accepting an image problem that I/Q calibration can handle. This is what Bluetooth chips actually do. (3) Or use a superheterodyne, where DC is nowhere near the signal - which is what test equipment does, at the cost of external filters. The choice of modulation and the choice of architecture are not independent decisions, and treating them as such is how a design ends up with an unsolvable DC problem.'
+                },
+                {
+                    id: 'ex4',
+                    title: 'Diagnose the failure',
+                    problem: 'A 2.4 GHz transmitter works perfectly in low-power test mode. At full PA output the spectrum analyser shows the carrier wandering by tens of kHz and the modulation smearing. Turning the PA down by 10 dB fixes it. Name the mechanism, explain why the symptom depends on power, and give the structural fix.',
+                    hints: [
+                        'What frequency is the PA output at, relative to the VCO?',
+                        'Consider coupling paths between the PA and the VCO on a small integrated die',
+                        'Why would the effect be threshold-like rather than gradual?'
+                    ],
+                    answer: 'Mechanism: LO pulling. In a direct up-conversion transmitter the PA output is at the same frequency as the VCO. The PA output is enormously stronger - perhaps 60-80 dB above the VCO oscillation amplitude at the VCO node - and couples back through the substrate, the shared supply, the package bond wires and the board. An injected signal near an oscillator frequency pulls it: the oscillator partially locks toward the injected signal. Since the injected signal IS the amplified oscillator output, the loop is positive and the frequency wanders. Why it depends on power: injection locking has a threshold. The locking range widens with the square root of the injected power ratio, so below some PA output the injected level is too small to disturb the VCO measurably, and above it the pulling becomes severe rapidly. That threshold behaviour is exactly what "works at low power, fails at high power" looks like. It also explains why the smearing appears on modulation: the pulling varies with the instantaneous PA output, so an amplitude-modulated signal frequency-modulates the VCO. Structural fix: never run the VCO at the transmit frequency. Two standard approaches. (1) Run the VCO at 2x the output and divide by 2 - the divider output drives the modulator, and there is no strong signal anywhere at 4.8 GHz to pull the VCO. This is the most common solution and is why so many transceivers have a VCO at twice the band. (2) Run the VCO at 2/3 or 4/3 of the output and mix to get there, so again no strong signal exists at the VCO frequency. Palliative measures - better supply decoupling, guard rings, physical separation, a shield - all help and are all worth doing, but none of them address the fact that a very strong signal exists at exactly the frequency the VCO is trying to hold. Only changing the frequency plan does that.'
+                }
+            ]
+        });
+    }
+})();
+</script>

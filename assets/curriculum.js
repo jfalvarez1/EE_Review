@@ -1999,6 +1999,18 @@ const CURRICULUM = {
                     title: 'Linearity: Compression, IP3 and Intermodulation',
                     description: 'Why the LAST stage decides linearity when the FIRST decides noise',
                     topics: ['Where the products come from', 'P1dB and IP3', 'The cascade, backwards from Friis', 'SFDR', 'Blocking and spectral regrowth']
+                },
+                {
+                    id: 9,
+                    title: 'Oscillators and Phase Noise',
+                    description: 'Leeson, loaded Q, and why a noisy LO ruins a receiver it never tunes to',
+                    topics: ['Leeson equation and its three regions', 'Loaded Q enters squared', 'Reciprocal mixing', 'Crystals and the five-times rule', 'Phase noise to jitter']
+                },
+                {
+                    id: 10,
+                    title: 'Receiver and Transmitter Architectures',
+                    description: 'Superhet, zero-IF, low-IF and direct sampling - which hard problem you prefer',
+                    topics: ['The image and frequency planning', 'DC offset, 1/f and IIP2', 'I/Q imbalance and image rejection', 'LO pulling', 'What changed in industry']
                 }
             ]
         },
