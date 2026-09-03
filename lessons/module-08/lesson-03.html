@@ -163,9 +163,11 @@
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
                     <tr><td class="mono">VIN</td><td>Voltage source</td><td>10&nbsp;mV DC</td><td>from <span class="mono">input</span> to ground</td></tr>
-                    <tr><td class="mono">VCLK</td><td>Voltage source</td><td>pulse -1&nbsp;V to 1&nbsp;V, period 50&nbsp;&micro;s</td><td>from <span class="mono">clk</span> to ground</td></tr>
-                    <tr><td class="mono">E_AMP</td><td>Controlled source</td><td>100</td><td>output <span class="mono">amp</span> to ground, sensing <span class="mono">mod</span> to ground</td></tr>
-                    <tr><td class="mono">VOFFSET</td><td>Voltage source</td><td>100&nbsp;&micro;V DC</td><td>from <span class="mono">amp_out</span> to <span class="mono">amp</span></td></tr>
+                    <tr><td class="mono">VCLK</td><td>Voltage source</td><td>pulse 0&nbsp;V to 5&nbsp;V, 50% duty, period 50&nbsp;&micro;s &mdash; a 20&nbsp;kHz chop</td><td>from <span class="mono">clk</span> to ground</td></tr>
+                    <tr><td class="mono">SW_MOD</td><td>DPDT Switch</td><td>DPDT Switch &mdash; <strong>the modulator</strong></td><td>pins <span class="mono">input</span>, ground, <span class="mono">mod_p</span>, <span class="mono">mod_n</span>, <span class="mono">clk</span> <em>(swaps which input goes to which output every half cycle)</em></td></tr>
+                    <tr><td class="mono">VOFFSET</td><td>Voltage source</td><td>100&nbsp;&micro;V DC &mdash; the amplifier's <strong>input</strong> offset</td><td>from <span class="mono">mod_p</span> to <span class="mono">amp_p</span></td></tr>
+                    <tr><td class="mono">E_AMP</td><td>VCVS</td><td>gain 100</td><td>output <span class="mono">amp_out</span> to ground, sensing <span class="mono">amp_p</span> to <span class="mono">mod_n</span></td></tr>
+                    <tr><td class="mono">SW_DEMOD</td><td>DPDT Switch</td><td>DPDT Switch &mdash; <strong>the demodulator</strong></td><td>pins <span class="mono">amp_out</span>, ground, <span class="mono">demod</span>, <span class="mono">demod_n</span>, <span class="mono">clk</span> <em>(the same clock &mdash; that is what unwinds the signal and leaves the offset chopped)</em></td></tr>
                     <tr><td class="mono">R_LPF</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">demod</span> and <span class="mono">output</span></td></tr>
                     <tr><td class="mono">C_LPF</td><td>Capacitor</td><td>100&nbsp;nF</td><td>between <span class="mono">output</span> and ground</td></tr>
                 </tbody>
@@ -173,11 +175,14 @@
         </div>
 
         <p><strong>What to run:</strong> a <strong>transient run</strong> of 1&nbsp;ms in steps of 1&nbsp;&micro;s.</p>
-        <p><strong>What to watch:</strong> <span class="mono">V(input)</span>, <span class="mono">V(mod)</span>, <span class="mono">V(amp_out)</span>, <span class="mono">V(demod)</span>, <span class="mono">V(output)</span>.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(mod_p,mod_n)</span>, <span class="mono">V(amp_out)</span>, <span class="mono">V(demod)</span>, <span class="mono">V(demod_n)</span>, <span class="mono">V(output)</span> &mdash; watch the two demodulator poles together, because they are complements and seeing them cross is the clearest picture of what chopping does.</p>
+        <p>Follow the two signals separately, because they take different routes through the same circuit. <strong>The 10&nbsp;mV input is chopped twice</strong> &mdash; once going in, once coming out &mdash; and two inversions are none, so it arrives at the filter as DC and passes straight through: 1.000&nbsp;V at the output. <strong>The 100&nbsp;&micro;V offset is chopped once</strong>, because it enters after the modulator, so it leaves the demodulator as a 10&nbsp;mV square wave at 20&nbsp;kHz. The filter corners at 1/(2&pi;&nbsp;&times;&nbsp;10&nbsp;k&nbsp;&times;&nbsp;100&nbsp;nF) = 159&nbsp;Hz, so what survives is 10&nbsp;mV &times; 159/20000 = <strong>80&nbsp;&micro;V</strong>. That is a 125-fold improvement, and notice what sets it: a ratio of two frequencies, not anything about the amplifier. Chop faster or filter harder and it improves again.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m08l03-chopper"></div>
     </div>
 
     <div class="card">
@@ -479,6 +484,114 @@
         unit: 'kHz',
         solution: 'Max BW = 50 kHz / 10 = 5 kHz',
         explanation: 'Keeping signal bandwidth well below the chopper frequency ensures adequate attenuation of chopper ripple and prevents aliasing.'
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m08l03-chopper', {
+        id: 'm08l03-chopper',
+        title: 'Two signals, one circuit, different routes',
+        intro: 'A chopper is worth checking numerically because its result sounds like ' +
+               'magic and is not: the signal and the offset go through exactly the same ' +
+               'components and come out a thousand times apart, purely because one of ' +
+               'them gets chopped twice and the other once. Measure the offset with the ' +
+               'chopping defeated first, so you know what it was worth.',
+        probes: [
+            { id: 'sig', label: 'V(output) — the amplified signal',
+              expect: '1.000', unit: 'V', tol: 0.01,
+              why: '10&nbsp;mV &times; 100. The input is inverted going into the amplifier ' +
+                   'and inverted again coming out, and two inversions are none &mdash; so ' +
+                   'as far as the signal is concerned the choppers are not there at all. ' +
+                   '<strong>It arrives at the filter as DC and the filter does nothing to ' +
+                   'it.</strong>' },
+            { id: 'ampsq', label: 'Peak-to-peak amplitude of V(amp_out)',
+              expect: '2.02', unit: 'V', tol: 0.05,
+              why: 'This is where the trick is visible. Inside the amplifier the signal is ' +
+                   'a &plusmn;1&nbsp;V square wave at 20&nbsp;kHz &mdash; 2&nbsp;V ' +
+                   'peak-to-peak &mdash; because the modulator has turned DC into AC. The ' +
+                   'extra 20&nbsp;mV is the offset, sitting as a DC shift on top of it. ' +
+                   '<strong>The chopper has separated them in frequency</strong>: the ' +
+                   'signal is now at 20&nbsp;kHz and the offset is at DC, which is the ' +
+                   'opposite of how they arrived.' },
+            { id: 'ripple', label: 'Peak-to-peak ripple on V(output)',
+              expect: '80', unit: '&micro;V', tol: 20,
+              why: 'The offset, and all that is left of it. 100&nbsp;&micro;V &times; 100 ' +
+                   'is 10&nbsp;mV, but it enters <em>after</em> the modulator so it is ' +
+                   'chopped only once, arriving at the filter as a 20&nbsp;kHz square wave. ' +
+                   'The filter corners at 1/(2&pi;&nbsp;&times;&nbsp;10&nbsp;k&nbsp;&times;' +
+                   '&nbsp;100&nbsp;nF) = 159&nbsp;Hz, so it is attenuated by ' +
+                   '20000/159 = 126: <strong>10&nbsp;mV becomes 80&nbsp;&micro;V</strong>.' },
+            { id: 'dcoff', label: 'DC error in V(output) — how far it sits from 1.000 V',
+              expect: '0', unit: 'V', tol: 0.001,
+              why: 'None, and this is the real result. The offset is not merely attenuated, ' +
+                   'it has been <strong>moved out of DC entirely</strong> &mdash; a square ' +
+                   'wave has no DC component when its duty cycle is exactly 50%. What ' +
+                   'survives is ripple, not error, and ripple averages away while an offset ' +
+                   'does not. <strong>That is why chopper amplifiers are specified in ' +
+                   'nanovolts of offset where an ordinary op-amp is specified in ' +
+                   'millivolts</strong>, and why the specification that replaces it is ' +
+                   'output ripple at the chop frequency.' },
+            { id: 'fc', label: '−3 dB corner of the output filter',
+              expect: '159', unit: 'Hz', tol: 8,
+              why: '1/(2&pi;RC). Worth stating explicitly because it is the whole price of ' +
+                   'the technique: <strong>the signal bandwidth has to end well below the ' +
+                   'chop frequency</strong>, or the filter cannot separate them. A chopper ' +
+                   'buys DC precision and pays for it in bandwidth, which is why they are ' +
+                   'found in thermocouple and bridge front ends and never in audio.' }
+        ],
+        experiments: [
+            { action: 'Defeat the chopping: hold VCLK at a constant 5 V so neither switch ' +
+                      'ever flips.',
+              expect: 'V(output) becomes <strong>1.010 V</strong> — the signal plus a full ' +
+                      '10 mV of offset error, with no ripple at all.',
+              why: 'This is the amplifier you would have had. 1% error on a 10&nbsp;mV ' +
+                   'measurement, permanent, indistinguishable from signal, and it drifts ' +
+                   'with temperature. Run this case first and the rest of the lesson has a ' +
+                   'number to be measured against. Note also that it looks <em>cleaner</em> ' +
+                   'on a scope: no ripple. <strong>The chopped version is visibly noisier ' +
+                   'and a hundred times more accurate</strong>, which is a useful thing to ' +
+                   'have seen once.' },
+            { action: 'Chop four times faster: make VCLK\'s period 12.5 µs, 80 kHz.',
+              expect: 'The ripple drops to about <strong>20 µV</strong>.',
+              why: 'Four times the separation between the chop frequency and the filter ' +
+                   'corner is four times the attenuation, because the filter is falling at ' +
+                   '6&nbsp;dB per octave up there. <strong>The rejection is a ratio of two ' +
+                   'frequencies and contains nothing about the amplifier</strong>, so you ' +
+                   'improve it by chopping faster or filtering harder, not by buying a ' +
+                   'better op-amp. What eventually stops you is charge injection: real ' +
+                   'switches dump a little charge at every transition, and that error grows ' +
+                   'with frequency while the offset rejection also grows. Real parts land ' +
+                   'between 10&nbsp;kHz and a few hundred kHz for exactly this reason.' },
+            { action: 'Make the chop asymmetric: 60% duty instead of 50%.',
+              expect: 'A DC error reappears in V(output), around <strong>2 mV</strong>.',
+              why: 'The reason the offset vanished from DC was that a symmetric square wave ' +
+                   'has no DC component. Break the symmetry and it has one: at 60/40 the ' +
+                   'chopped offset averages to 0.2&nbsp;&times;&nbsp;10&nbsp;mV = ' +
+                   '2&nbsp;mV, and no amount of filtering removes it because it is now at ' +
+                   'DC where the signal is. <strong>Clock symmetry is a precision ' +
+                   'specification in a chopper</strong>, which is not obvious and is why ' +
+                   'these parts divide an internal oscillator by two to generate their ' +
+                   'chop clock rather than using it directly.' },
+            { action: 'Add a second offset of 100 µV in series with the input, before the ' +
+                      'modulator.',
+              expect: 'It passes straight through: <strong>V(output) shifts by 10 mV</strong> ' +
+                      'and stays there.',
+              why: 'The most important limitation of the technique, and the one that decides ' +
+                   'where you put the switches. Chopping cancels errors that arise ' +
+                   '<em>between</em> the two modulators and nothing else. An offset ahead of ' +
+                   'the first one is chopped twice, exactly like the signal, and is ' +
+                   'therefore indistinguishable from it &mdash; forever. <strong>This is why ' +
+                   'thermocouple junctions, connector corrosion and the leads themselves are ' +
+                   'what limits a chopper-stabilised measurement</strong>, not the ' +
+                   'amplifier, and why the input switches sit as close to the sensor as the ' +
+                   'package allows.' }
+        ]
     });
 })();
 </script>
