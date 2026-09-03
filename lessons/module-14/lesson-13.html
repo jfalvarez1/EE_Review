@@ -1,0 +1,638 @@
+<!-- Module 14, Lesson 13: Design — An Analog Power Sequencer -->
+<div class="lesson-content" data-module="14" data-lesson="13">
+
+    <div class="card">
+        <h2>Design: An Analog Power Sequencer</h2>
+        <p>A modern processor or FPGA has three to six rails and a datasheet page
+        that says which order they must arrive in, how close together, and what
+        happens if you get it wrong. That page is a specification, and this lesson
+        turns it into a circuit &mdash; three ways, with the tolerance analysis that
+        decides between them.</p>
+
+        <div class="kv">
+            <div class="box"><div class="k">Rail 1</div><div class="v mono">1.2 V core — first</div></div>
+            <div class="box"><div class="k">Rail 2</div><div class="v mono">3.3 V I/O — 10 ms later</div></div>
+            <div class="box"><div class="k">Rail 3</div><div class="v mono">5 V analog — 10 ms after that</div></div>
+            <div class="box"><div class="k">Shutdown</div><div class="v mono">Strict reverse order</div></div>
+            <div class="box"><div class="k">Constraint</div><div class="v mono">I/O never more than 0.5 V above core</div></div>
+            <div class="box"><div class="k">Trigger</div><div class="v mono">A power-state signal, not a timer</div></div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. Why the order matters, physically</h3>
+        <p>The rule is not arbitrary and it is not about inrush. It is about the
+        structures inside the die that exist to protect the pins.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \text{Every I/O pin has an ESD diode to its own I/O rail} \]
+                <span class="drv-why">Standard practice, and the reason a pin can
+                survive being touched.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{If the I/O rail is up while the core is at 0 V} \]
+                <span class="drv-why">Internal level shifters and shared wells now
+                have a forward-biased path from the powered rail into the unpowered
+                one. Current flows where the designer never intended it to.</span>
+            </div>
+            <div class="drv-step">
+                \[ \Longrightarrow \text{CMOS latch-up} \]
+                <span class="drv-why">The parasitic PNPN structure between an n-well
+                PMOS and a substrate NMOS is an SCR. Trigger it and it becomes a
+                low-impedance path from supply to ground that STAYS ON until power
+                is removed — and if the supply can deliver enough current, the die
+                is destroyed before anyone notices.</span>
+            </div>
+        </div>
+
+        <div class="analogy">
+            <span class="analogy-label">Why reverse order on the way down</span>
+            <p>Powering up in the wrong order is like <strong>filling the upper
+            floors of a building before the lower ones</strong> &mdash; the water has
+            to find its way down through structures that were built for a different
+            purpose, and something gives.</p>
+            <p>Shutdown is the same problem read backwards. If the core rail
+            collapses first, the I/O rail is momentarily high against a dead core
+            &mdash; exactly the forbidden state, arrived at from the other direction.
+            That is why the shutdown order is the reverse of the start-up order and
+            not simply "everything off at once": <em>at once</em> is not achievable,
+            and whichever rail happens to have the least capacitance wins.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> water finds
+            its own level and charge does not &mdash; the actual mechanism is a
+            forward-biased junction and a latching parasitic SCR, which has no
+            hydraulic analogue and behaves very differently once triggered. The
+            picture is right about ordering and says nothing about why the fault
+            persists.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. Method 1 &mdash; RC delay on the enable pin</h3>
+        <p>The cheapest thing that could work: an RC from the previous rail to the
+        next regulator's enable pin. Two components per rail.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ V_{EN}(t) = V\left(1 - e^{-t/RC}\right) \]
+            </div>
+            <div class="drv-step">
+                \[ t_{delay} = RC\ln\!\frac{1}{1 - V_{th}/V} \]
+            </div>
+            <div class="drv-step">
+                \[ V = 3.3\,\mathrm{V},\; V_{th} = 1.2\,\mathrm{V} \;\Longrightarrow\; t = 0.452\,RC \]
+            </div>
+            <div class="drv-step">
+                \[ RC = \frac{10\,\mathrm{ms}}{0.452} = 22.1\,\mathrm{ms} \;\Rightarrow\; C = 100\,\mathrm{nF},\ R = 221\,\mathrm{k}\Omega \]
+            </div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">And now the tolerance, which is the whole story</span>
+            <p>The enable threshold on a regulator is not 1.2 V. It is
+            <em>specified</em> as a range, typically 0.8 V to 1.6 V. Put that spread
+            through the same RC:</p>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>Enable threshold</th><th>Actual delay</th><th>Against a 10 ms target</th></tr></thead>
+                    <tbody>
+                        <tr><td>0.8 V (minimum)</td><td>6.1 ms</td><td>&minus;39%</td></tr>
+                        <tr><td>1.2 V (typical)</td><td>10.0 ms</td><td>nominal</td></tr>
+                        <tr><td>1.6 V (maximum)</td><td>14.7 ms</td><td>+47%</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p>A <strong>2.4:1 spread</strong> from one component's datasheet
+            tolerance alone, before adding the resistor, the capacitor, or
+            temperature. And it is worse than it looks: the delays are measured from
+            when the <em>previous</em> rail started rising, not from when it was
+            valid, so the error accumulates down a chain of three.</p>
+        </div>
+
+        <p><strong>When it is still the right answer:</strong> when the requirement
+        is an <em>ordering</em> rather than a <em>timing</em> &mdash; "3.3 V after
+        1.2 V, at least 1 ms apart, no maximum" &mdash; and the RC is sized so even
+        the fastest corner satisfies the minimum. Many datasheets are written exactly
+        that way, and then two components is the correct engineering answer.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. Method 2 &mdash; a comparator on the previous rail</h3>
+        <p>Instead of timing a delay, <em>measure the thing you actually care
+        about</em>: whether the previous rail is up. The next regulator is enabled
+        when the previous one crosses a threshold.</p>
+
+        <div id="seq-diagram"></div>
+        <p class="fig-note">One stage of the chain. R1 and R2 set the fraction of the
+        previous rail at which the next one is released; the comparator's own
+        reference sets the accuracy. Repeat it per rail and the enables cascade.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ V_{trip} = V_{ref}\left(1 + \frac{R_1}{R_2}\right) \]
+                <span class="drv-why">Set to about 90% of the previous rail. Now the
+                threshold accuracy is the reference's — 1% or better — instead of a
+                regulator enable pin's 2:1.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{Add hysteresis: } R_h \text{ from output to the + input} \]
+                <span class="drv-why">Without it, supply noise around the trip point
+                makes the comparator chatter and the downstream regulator start and
+                stop. 50–100 mV is plenty.</span>
+            </div>
+            <div class="drv-step">
+                \[ t_{delay} \text{ now depends on the RAIL's ramp, not on an RC} \]
+                <span class="drv-why">Which is the point: if the previous rail is
+                slow because it is heavily loaded, the next one waits. An RC timer
+                does not know that and fires anyway.</span>
+            </div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">The property that makes this worth the parts</span>
+            <p>An RC delay answers "has enough time passed?" A comparator answers
+            "is the rail actually up?" Those are the same question only when nothing
+            unusual happens. On a cold start into a large load, into a partially
+            charged bulk capacitor, or when a regulator is in current limit, they are
+            different questions and only the second one has the right answer.</p>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. Method 3 &mdash; a sequencer IC, and when to stop building</h3>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th></th><th>RC on enable</th><th>Comparator chain</th><th>Sequencer IC</th></tr></thead>
+                <tbody>
+                    <tr><td>Parts per rail</td><td>2</td><td>5&ndash;6</td><td>0 (one IC total)</td></tr>
+                    <tr><td>Timing accuracy</td><td>2:1 or worse</td><td>Set by the reference, ~1%</td><td>Programmable, ~1%</td></tr>
+                    <tr><td>Knows the rail is up</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+                    <tr><td>Reverse order on shutdown</td><td>Not really</td><td>Possible, more parts</td><td>Yes, built in</td></tr>
+                    <tr><td>Fault handling</td><td>None</td><td>What you build</td><td>Shuts the whole chain down on any rail fault</td></tr>
+                    <tr><td>Telemetry</td><td>None</td><td>None</td><td>PMBus: which rail failed, and when</td></tr>
+                    <tr><td>Use when</td><td>2 rails, order-only requirement</td><td>3&ndash;4 rails, cost sensitive</td><td>4+ rails, or a fault must shut everything</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="notice">
+            <strong>The argument for the IC is usually the fault case, not the
+            sequence.</strong> Getting three rails up in order is easy. Getting them
+            all <em>down</em>, in reverse, within microseconds, because rail two just
+            went into current limit &mdash; that is what a discrete chain does badly
+            and a sequencer does as its main job. If a rail failing while the others
+            stay up would damage the device, the IC has already paid for itself.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Interactive: the timing, with tolerances</h3>
+        <p>The solid traces are nominal; the shaded bands are the corner-to-corner
+        spread. The verdict is whether the required order is guaranteed at
+        <em>every</em> corner, not just at typical.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="sq-method">Method</label>
+                <select id="sq-method">
+                    <option value="rc" selected>RC on the enable pin</option>
+                    <option value="comp">Comparator on the previous rail</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="sq-delay">Target delay between rails</label>
+                <input type="range" id="sq-delay" min="1" max="50" step="1" value="10">
+                <span class="range-value" id="sq-delay-val">10 ms</span>
+            </div>
+            <div class="c4">
+                <label for="sq-vthmin">Enable threshold, minimum</label>
+                <input type="range" id="sq-vthmin" min="0.3" max="1.5" step="0.05" value="0.8">
+                <span class="range-value" id="sq-vthmin-val">0.80 V</span>
+            </div>
+            <div class="c4">
+                <label for="sq-vthmax">Enable threshold, maximum</label>
+                <input type="range" id="sq-vthmax" min="0.5" max="2.5" step="0.05" value="1.6">
+                <span class="range-value" id="sq-vthmax-val">1.60 V</span>
+            </div>
+            <div class="c6">
+                <label for="sq-ramp">Regulator ramp time (soft start)</label>
+                <input type="range" id="sq-ramp" min="0.2" max="10" step="0.2" value="2">
+                <span class="range-value" id="sq-ramp-val">2.0 ms</span>
+            </div>
+            <div class="c6">
+                <label for="sq-minsep">Minimum separation the device requires</label>
+                <input type="range" id="sq-minsep" min="0" max="20" step="0.5" value="1">
+                <span class="range-value" id="sq-minsep-val">1.0 ms</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="sq-canvas" width="900" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Delay, fast corner</div><div class="v mono" id="sq-fast">&mdash;</div></div>
+            <div class="box"><div class="k">Delay, nominal</div><div class="v mono" id="sq-nom">&mdash;</div></div>
+            <div class="box"><div class="k">Delay, slow corner</div><div class="v mono" id="sq-slow">&mdash;</div></div>
+            <div class="box"><div class="k">Spread</div><div class="v mono" id="sq-spread">&mdash;</div></div>
+            <div class="box"><div class="k">Worst-case separation</div><div class="v mono" id="sq-sep">&mdash;</div></div>
+            <div class="box"><div class="k">Verdict</div><div class="v mono" id="sq-verdict">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="sq-note"></p>
+
+        <div class="checkpoint" data-kind="design" data-answer="c">
+            <p class="cp-q">Your RC-delayed sequencer works on every board you build.
+            A production batch arrives where the 3.3 V rail sometimes comes up
+            <em>before</em> the 1.2 V rail. Nothing in the design changed. What is
+            the most likely cause?</p>
+            <ol class="cp-options">
+                <li data-k="a">The RC components are out of tolerance
+                    <div class="cp-why">1% resistors and 10% capacitors cannot
+                    produce an ordering inversion from a 10 ms nominal delay. The
+                    numbers do not reach.</div></li>
+                <li data-k="b">The 3.3 V regulator is faster than it used to be
+                    <div class="cp-why">Ramp rate affects when a rail becomes
+                    <em>valid</em>, not when it is <em>enabled</em>. It cannot make
+                    an enabled-later rail start earlier.</div></li>
+                <li data-k="c">The 1.2 V regulator's soft-start is now slower than the RC delay
+                    <div class="cp-why">Right, and it is the classic one. The RC
+                    times from when the <em>first regulator is enabled</em>, not from
+                    when its rail is up. If the 1.2 V rail is heavily loaded — or a
+                    second-source part has a longer soft-start, or its output
+                    capacitance grew — then the 1.2 V rail may still be ramping when
+                    the RC releases the 3.3 V one. The delay was measured against the
+                    wrong event all along, and it worked only because the two happened
+                    to be close. This is exactly the failure a comparator cannot have,
+                    because it measures the rail rather than the clock.</div></li>
+                <li data-k="d">Board-to-board capacitance variation
+                    <div class="cp-why">A contributor to the ramp time, and the
+                    mechanism above is the reason it matters. Naming the mechanism is
+                    the answer; naming a contributor is not.</div></li>
+            </ol>
+            <div class="cp-then">
+                <p>Increase the soft-start slider above until the bands overlap and
+                watch the verdict fail. Then switch the method to comparator and
+                watch it become impossible by construction.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>5. Shutdown, which is where the discharge circuit connects</h3>
+        <p>Coming down is harder than going up, because you no longer control the
+        energy &mdash; the rails coast down on their own bulk capacitance, at rates
+        set by their loads.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \frac{dV}{dt} = \frac{I_{load}}{C_{bulk}} \]
+                <span class="drv-why">A lightly loaded rail with a lot of
+                capacitance falls slowly; a heavily loaded one collapses. Nothing
+                about that ordering is under your control.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{1.2 V core: heavily loaded, little capacitance} \Rightarrow \text{falls FIRST} \]
+                <span class="drv-why">Which is precisely the forbidden state: I/O up
+                against a dead core. The natural shutdown order is usually the wrong
+                one.</span>
+            </div>
+        </div>
+
+        <p>So shutdown needs the same active intervention as start-up, in reverse:
+        disable in reverse order, and <strong>discharge each rail deliberately</strong>
+        so it falls when you say rather than when its load decides. That is the
+        circuit from the previous lesson, and this is why it exists &mdash; the
+        discharge FET's enable comes from the sequencer, and its gate drive comes
+        from a rail that has not been turned off yet.</p>
+
+        <div class="notice">
+            <strong>The two lessons compose.</strong> The sequencer decides the
+            order; the discharge circuits make the falling edges happen on
+            <em>schedule</em> rather than on <em>load</em>. Neither works properly
+            without the other, and a design that sequences the enables but lets the
+            rails coast down has solved half the problem &mdash; the easier half.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="acceptance">
+        <h3>6. Acceptance tests</h3>
+
+        <h4>Performance</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Test</th><th>Condition</th><th>Pass criterion</th><th>If it fails</th></tr></thead>
+                <tbody>
+                    <tr><td>Start-up order</td><td>Scope all three rails, cold start, 20 cycles</td>
+                        <td>1.2 V valid before 3.3 V enabled, every time; separation &ge; the datasheet minimum</td>
+                        <td>Timing referenced to the wrong event &mdash; see the checkpoint</td></tr>
+                    <tr><td>Start-up, full load</td><td>Same, with every rail at maximum current</td>
+                        <td>Same order, and no rail fails to reach regulation</td>
+                        <td>Soft-start into a heavy load takes longer than the RC allows</td></tr>
+                    <tr><td>Shutdown order</td><td>Scope all three, normal power-down</td>
+                        <td>5 V down before 3.3 V before 1.2 V; I/O never more than 0.5 V above core</td>
+                        <td>The rails are coasting on their own capacitance. Add discharge.</td></tr>
+                    <tr><td>Brown-out</td><td>Input dipped to 80% for 50 ms, then restored</td>
+                        <td>Either rides through cleanly or performs a full ordered restart &mdash; never a partial one</td>
+                        <td>No UVLO, or a UVLO without hysteresis chattering at the threshold</td></tr>
+                    <tr><td>Rapid cycling</td><td>Off/on every 200 ms, 1000 cycles</td>
+                        <td>Correct order on every cycle; nothing latches</td>
+                        <td>Rails have not fully discharged before the next start &mdash; a pre-biased restart</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Abuse</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What is done to it</th><th>What physically happens</th><th>Acceptable outcome</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>3.3 V rail forced up first</strong>, core held at 0</td>
+                        <td>Internal level shifters forward-bias into the unpowered core. Current flows through structures never designed to carry it, and the parasitic PNPN between an n-well PMOS and the substrate NMOS can trigger.</td>
+                        <td><strong>CMOS latch-up: a low-impedance path from 3.3 V to ground that stays on until power is removed.</strong> If the 3.3 V regulator can deliver an amp, the die reaches its fusing temperature in milliseconds. If it current-limits, the part gets hot and survives, and you have a board that works after a power cycle and nobody knows why. Series resistance in the offending path or a current-limited rail turns destruction into a puzzle; correct sequencing prevents both.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>10 V applied to the enable input</strong> expecting 3.3</td>
+                        <td>The enable pin is usually rated to its own supply plus 0.3 V. Above that, its ESD diode conducts into the regulator's \(V_{IN}\) or \(V_{OUT}\) node. Through a typical 100 k&Omega; series resistor that is only \((10-3.6)/100\mathrm{k} = 64\,\mu\mathrm{A}\).</td>
+                        <td><strong>Nothing happens</strong>, and that is worth knowing: the high impedance an enable pin already needs makes it accidentally robust. Contrast with a gate driven through 100 &Omega;, where the same 10 V is 60 mA and destroys the controller. <em>The same abuse, three orders of magnitude apart in consequence, because of one resistor.</em></td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>One rail shorted</strong> while the others are up</td>
+                        <td>That regulator current-limits or hiccups. The others carry on, so the device sits with two of three rails present &mdash; which is a state the datasheet forbids and which no amount of start-up sequencing addressed.</td>
+                        <td>Any rail's power-good going false must shut the <strong>whole chain</strong> down in reverse order. A discrete comparator chain does not do this unless you build it; a sequencer IC does it as its main function. This single row is usually the argument for the IC.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Power cycled every 50 ms</strong> for an hour</td>
+                        <td>Rails do not fully discharge between cycles. The next start-up begins with charge already on the output capacitors, so a synchronous buck sinks current to pull its output down to the soft-start ramp.</td>
+                        <td>Discharge circuits sized so every rail is below 0.2 V before the next enable. <strong>Without them the low-side FET carries reverse current with nowhere to send it</strong>, and pre-biased start-up is a documented failure mode with its own section in most controller datasheets.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Enable left floating</strong></td>
+                        <td>A high-impedance CMOS input with nothing driving it. Leakage and coupling decide the state, and the intermediate state is the worst one: a regulator in linear mode rather than switching.</td>
+                        <td>A pull-down on every enable, so the default state is off. <strong>The same rule as a MOSFET gate, for the same reason</strong> &mdash; a floating input is a coin toss made at the factory.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="ac-consequence">
+            <strong>The comparison worth extracting from row two.</strong> Ten volts
+            into an enable pin behind 100 k&Omega; is 64 &micro;A and nothing happens.
+            Ten volts into a FET gate behind 100 &Omega; is 60 mA and the controller
+            dies. Same abuse, same voltage, three orders of magnitude apart &mdash;
+            and the only difference is a resistor chosen for a different reason. When
+            you size a series resistor, you are choosing what survives.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>7. Build it in Circuit Toy</h3>
+        <p>The gallery has the pieces:
+        <span class="mono">Comparator with hysteresis</span>,
+        <span class="mono">Window comparator (OV/UV detection)</span> and
+        <span class="mono">Voltage Divider</span> for the sensing chain, plus
+        <span class="mono">Buck Converter</span> for the rails themselves.</p>
+        <ol class="lab-steps">
+            <li class="lab-step">Build the RC-delay version: a 3.3 V step through
+                221 k&Omega; and 100 nF into a comparator whose reference is 1.2 V.
+                Measure the delay and confirm 0.452 RC.</li>
+            <li class="lab-step">Now move the reference to 0.8 V and then 1.6 V
+                without changing the RC. The delay should go 6.1, 10.0, 14.7 ms
+                &mdash; the tolerance table in section 2, measured.</li>
+            <li class="lab-step">Open <span class="mono">Comparator with hysteresis</span>
+                and confirm the two trip points differ by the amount the feedback
+                resistor sets. Then remove the hysteresis and inject noise on the
+                input to see the chatter it prevents.</li>
+            <li class="lab-step">Finally build the comparator-on-the-rail version and
+                slow the first rail's ramp down. The RC version fires anyway; the
+                comparator version waits. That difference is the checkpoint, made
+                visible.</li>
+        </ol>
+    </div>
+
+    <div class="card">
+        <h3>What to carry forward</h3>
+        <div class="kv">
+            <div class="box"><div class="k">Sequencing prevents latch-up</div>
+                <div class="v">Not inrush. A parasitic SCR that stays on until power is removed.</div></div>
+            <div class="box"><div class="k">An RC times the wrong event</div>
+                <div class="v">From enable, not from valid. 2.4:1 spread from the threshold tolerance alone.</div></div>
+            <div class="box"><div class="k">A comparator measures the rail</div>
+                <div class="v">"Is it up?" rather than "has time passed?" — different questions when anything is unusual.</div></div>
+            <div class="box"><div class="k">Shutdown is the harder half</div>
+                <div class="v">Rails coast on their own capacitance, and the natural order is usually the forbidden one.</div></div>
+            <div class="box"><div class="k">Any rail's fault shuts the chain</div>
+                <div class="v">This is the argument for a sequencer IC, not the sequence itself.</div></div>
+            <div class="box"><div class="k">A series resistor chooses what survives</div>
+                <div class="v">100 kΩ makes 10 V harmless. 100 Ω makes it fatal.</div></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var canvas = document.getElementById('sq-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+
+    function update() {
+        var method = document.getElementById('sq-method').value;
+        var target = AD.num('sq-delay') / 1000;
+        var vthMin = AD.num('sq-vthmin');
+        var vthMax = Math.max(AD.num('sq-vthmax'), vthMin + 0.05);
+        var ramp = AD.num('sq-ramp') / 1000;
+        var minSep = AD.num('sq-minsep') / 1000;
+        var V = 3.3;
+
+        AD.setText('sq-delay-val', (target * 1000).toFixed(0) + ' ms');
+        AD.setText('sq-vthmin-val', vthMin.toFixed(2) + ' V');
+        AD.setText('sq-vthmax-val', vthMax.toFixed(2) + ' V');
+        AD.setText('sq-ramp-val', (ramp * 1000).toFixed(1) + ' ms');
+        AD.setText('sq-minsep-val', (minSep * 1000).toFixed(1) + ' ms');
+
+        var vthNom = (vthMin + vthMax) / 2;
+        var kOf = function (vth) { return Math.log(1 / (1 - vth / V)); };
+        var fast, nom, slow;
+
+        // A rail is VALID at the device's power-good threshold, conventionally
+        // 90% of nominal - not at 100%, which it approaches asymptotically.
+        // Measuring separation from 100% would make every scheme fail.
+        var tValid = 0.9 * ramp;
+
+        if (method === 'rc') {
+            // RC sized so the NOMINAL threshold gives the target delay, then
+            // the real threshold spread applied to that same RC. Timed from
+            // when the FIRST regulator was enabled, which is the flaw.
+            var RC = target / kOf(vthNom);
+            fast = RC * kOf(vthMin);
+            nom = target;
+            slow = RC * kOf(vthMax);
+        } else {
+            // A comparator set slightly ABOVE the validity threshold, then a
+            // deliberate delay for the required separation. Ordering is
+            // guaranteed by construction - the next rail cannot be enabled
+            // before the previous one has crossed the trip point, because
+            // crossing it is what enables it. The remaining tolerance is on
+            // the added delay only, and that delay is referenced to a clean
+            // edge rather than to a regulator's enable pin, so 10% covers it.
+            var tTrip = 0.95 * ramp;
+            nom = tTrip + target;
+            fast = tTrip + target * 0.9;
+            slow = tTrip + target * 1.1;
+        }
+
+        // The separation that matters: between the previous rail being valid
+        // and the next one being enabled, at the worst corner.
+        var sepWorst = fast - tValid;
+        var ok = sepWorst >= minSep;
+
+        AD.setText('sq-fast', (fast * 1000).toFixed(1) + ' ms');
+        AD.setText('sq-nom', (nom * 1000).toFixed(1) + ' ms');
+        AD.setText('sq-slow', (slow * 1000).toFixed(1) + ' ms');
+        AD.setText('sq-spread', (slow / fast).toFixed(2) + ' : 1');
+        AD.setText('sq-sep', (sepWorst * 1000).toFixed(1) + ' ms');
+        AD.setText('sq-verdict', ok ? 'ORDER GUARANTEED' : 'ORDER NOT GUARANTEED');
+
+        // ---- timing diagram ---------------------------------------------
+        var w = canvas.width, h = canvas.height;
+        var ml = 70, mr = 20, mt = 26, mb = 44;
+        var pw = w - ml - mr, ph = h - mt - mb;
+        var tMax = Math.max(slow + ramp, target * 2) * 1.15;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+        var X = function (t) { return ml + (t / tMax) * pw; };
+
+        // Two rails: the first starts at 0, the second at the delay.
+        var rails = [
+            { name: '1.2 V core', start: 0, startFast: 0, startSlow: 0, y: mt + ph * 0.25, c: 'rgba(52,211,153,0.95)' },
+            { name: '3.3 V I/O', start: nom, startFast: fast, startSlow: slow, y: mt + ph * 0.72, c: 'rgba(110,231,255,0.95)' }
+        ];
+
+        rails.forEach(function (r) {
+            var amp = ph * 0.2;
+            // The corner-to-corner band.
+            if (r.startSlow > r.startFast) {
+                ctx.fillStyle = r.c.replace('0.95', '0.15');
+                ctx.fillRect(X(r.startFast), r.y - amp, X(r.startSlow + ramp) - X(r.startFast), amp);
+            }
+            // Nominal ramp.
+            ctx.strokeStyle = r.c; ctx.lineWidth = 2.4;
+            ctx.beginPath();
+            ctx.moveTo(X(0), r.y);
+            ctx.lineTo(X(r.start), r.y);
+            ctx.lineTo(X(r.start + ramp), r.y - amp);
+            ctx.lineTo(X(tMax), r.y - amp);
+            ctx.stroke();
+            ctx.fillStyle = r.c;
+            ctx.font = '11px ui-monospace, monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(r.name, ml + 6, r.y - amp - 6);
+        });
+
+        // The moment the first rail is VALID (90% of nominal), and the earliest
+        // the second one starts.
+        ctx.strokeStyle = 'rgba(52,211,153,0.6)';
+        ctx.setLineDash([4, 4]); ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(X(tValid), mt); ctx.lineTo(X(tValid), mt + ph); ctx.stroke();
+        ctx.strokeStyle = ok ? 'rgba(110,231,255,0.6)' : 'rgba(251,113,133,0.9)';
+        ctx.beginPath(); ctx.moveTo(X(fast), mt); ctx.lineTo(X(fast), mt + ph); ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(52,211,153,0.85)';
+        ctx.fillText('core valid (90%)', X(tValid), mt + ph + 16);
+        ctx.fillStyle = ok ? 'rgba(110,231,255,0.85)' : 'rgba(251,113,133,0.95)';
+        ctx.fillText('I/O enabled, fast corner', X(fast), mt + ph + 30);
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText('time →', ml + pw / 2, h - 8);
+
+        var note;
+        if (method === 'rc') {
+            note = 'An RC sized for ' + (target * 1000).toFixed(0) + ' ms at the typical threshold ' +
+                   'actually fires anywhere between ' + (fast * 1000).toFixed(1) + ' and ' +
+                   (slow * 1000).toFixed(1) + ' ms — a ' + (slow / fast).toFixed(1) +
+                   ':1 spread from the enable threshold tolerance alone, before the resistor, the ' +
+                   'capacitor or temperature. ' +
+                   (ok
+                        ? 'It still clears the ' + (minSep * 1000).toFixed(1) + ' ms minimum at the fast ' +
+                          'corner, with ' + (sepWorst * 1000).toFixed(1) + ' ms to spare — so this is a ' +
+                          'defensible two-component solution. Now raise the soft-start time and watch ' +
+                          'that margin vanish.'
+                        : 'At the fast corner the I/O rail is enabled ' +
+                          Math.abs(sepWorst * 1000).toFixed(1) + ' ms ' +
+                          (sepWorst < 0 ? 'BEFORE' : 'after') + ' the core rail is valid, which ' +
+                          (sepWorst < 0 ? 'violates the ordering requirement outright' :
+                           'does not meet the required separation') +
+                          '. Either lengthen the RC until the FAST corner clears the minimum — ' +
+                          'accepting a much longer typical delay — or switch method.');
+        } else {
+            note = 'The comparator trips at 95% of the previous rail — above the 90% at which the ' +
+                   'device considers it valid — and the required separation is then added ' +
+                   'deliberately. Total ' + (nom * 1000).toFixed(1) + ' ms, spread ' +
+                   (slow / fast).toFixed(2) + ':1 against the RC method’s ' +
+                   (kOf(vthMax) / kOf(vthMin)).toFixed(1) + ':1, because the remaining tolerance ' +
+                   'is on the added delay alone rather than on a regulator’s enable threshold. ' +
+                   'More importantly the ORDERING is guaranteed by construction: the second rail ' +
+                   'cannot be enabled before the first has crossed the trip point, because ' +
+                   'crossing it is what enables it. Slide the soft-start time and watch the whole ' +
+                   'diagram move together — the behaviour an RC cannot have, because an RC does ' +
+                   'not know the rail exists.';
+        }
+        AD.setText('sq-note', note);
+    }
+
+    ['sq-method', 'sq-delay', 'sq-vthmin', 'sq-vthmax', 'sq-ramp', 'sq-minsep'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', update);
+    });
+    update();
+
+    // ================================================ one sequencing stage
+    (function schematic() {
+        var host = document.getElementById('seq-diagram');
+        if (!host || typeof ComponentModels === 'undefined') return;
+
+        host.innerHTML = ComponentModels.diagram({
+            width: 640, height: 300,
+            title: 'One stage: the next rail is enabled when the previous one is up',
+            parts: [
+                { key: 'port',       x: 40,  y: 60,  rotate: 180, label: 'RAIL n (1.2 V)', labelPos: 'top' },
+                { key: 'resistor',   x: 150, y: 105, rotate: 90, label: 'R1', labelPos: 'right' },
+                { key: 'resistor',   x: 150, y: 195, rotate: 90, label: 'R2', labelPos: 'right' },
+                { key: 'ground',     x: 150, y: 240 },
+                { key: 'comparator', x: 320, y: 150, label: 'U1', labelPos: 'top' },
+                { key: 'port',       x: 215, y: 160, rotate: 180, label: 'Vref', labelPos: 'bottom' },
+                { key: 'resistor',   x: 430, y: 150, label: 'Rh', labelPos: 'top' },
+                { key: 'port',       x: 530, y: 150, label: 'EN of rail n+1', labelPos: 'top' }
+            ],
+            wires: [
+                [[55, 60], [150, 60], [150, 80]],
+                [[150, 130], [150, 170]],
+                [[150, 220], [150, 230]],
+                [[150, 150], [150, 140], [285, 140]],
+                [[230, 160], [285, 160]],
+                [[355, 150], [405, 150]],
+                [[455, 150], [515, 150]]
+            ],
+            dots: [[150, 150]],
+            texts: [
+                { x: 150, y: 268, text: 'divider sets the trip point', size: 10, anchor: 'middle' },
+                { x: 430, y: 190, text: 'Rh adds hysteresis so supply', size: 10, anchor: 'middle' },
+                { x: 430, y: 206, text: 'noise cannot make it chatter', size: 10, anchor: 'middle' }
+            ]
+        });
+    })();
+})();
+</script>

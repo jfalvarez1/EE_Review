@@ -1457,6 +1457,12 @@ const CURRICULUM = {
                     title: 'Design: Discharging a Rail to a Deadline',
                     description: 'A spec with a number in it, taken end to end to real parts',
                     topics: ['R = t/(C·ln(V0/Vf))', 'Energy has no R in it', 'Gate drive from a rail that outlives it', 'Cmax and hot is the corner']
+                },
+                {
+                    id: 13,
+                    title: 'Design: An Analog Power Sequencer',
+                    description: 'Three ways to order the rails, and the tolerance analysis that chooses between them',
+                    topics: ['Sequencing prevents latch-up', 'An RC times the wrong event', 'A comparator measures the rail', 'Shutdown is the harder half']
                 }
             ]
         },
