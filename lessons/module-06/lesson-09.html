@@ -132,6 +132,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="sim-check-m06l09"></div>
     </div>
 
     <div class="card">
@@ -364,3 +366,112 @@
 })();
 </script>
 
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('sim-check-m06l09', {
+        id: 'm06l09-mirrors',
+        title: 'Does the mirror actually copy, and how well?',
+        intro: 'A current mirror is judged on one number: how close the output ' +
+               'current stays to the reference when the output voltage moves. The ' +
+               'operating point below barely separates the simple mirror from the ' +
+               'cascode &mdash; both look fine. The difference only appears when you ' +
+               'move the load, which is what the perturbations do.',
+        probes: [
+            { id: 'vref', label: 'Diode-connected gate, DC', node: 'V(nref1)',
+              unit: 'V', record: true,
+              why: 'This is V<sub>GS</sub> at 200&nbsp;&micro;A for whatever NMOS ' +
+                   'your simulator has &mdash; threshold plus overdrive. Expect ' +
+                   'somewhere around 1 to 2&nbsp;V. Write it down, because it is ' +
+                   'also the drain voltage M1 is sitting at, and the mismatch ' +
+                   'between that and M2&rsquo;s drain voltage is the entire error ' +
+                   'budget of a simple mirror.' },
+            { id: 'vout1', label: 'Simple mirror output', node: 'V(nout1)',
+              expect: '1.05', unit: 'V', tol: 0.25,
+              why: 'If the mirror copies its 200&nbsp;&micro;A, then ' +
+                   '200&nbsp;&micro;A through the 20&nbsp;k&Omega; load drops ' +
+                   '4.0&nbsp;V from the 5&nbsp;V rail, leaving 1.0&nbsp;V. Reading ' +
+                   'a little above 1&nbsp;V means the copy is slightly short, which ' +
+                   'is expected: M2&rsquo;s drain sits at 1&nbsp;V while ' +
+                   'M1&rsquo;s sits at V<sub>GS</sub>, and channel-length ' +
+                   'modulation makes the one with less drain voltage pass less ' +
+                   'current.' },
+            { id: 'vout2', label: 'Cascode mirror output', node: 'V(nout2)',
+              expect: '1.05', unit: 'V', tol: 0.25,
+              why: 'Same arithmetic, same answer &mdash; at this one operating point ' +
+                   'the cascode buys you almost nothing you can see. That is worth ' +
+                   'noticing before the perturbations, because it is why cascodes ' +
+                   'get left out of designs by people who only ever checked the ' +
+                   'operating point.' },
+            { id: 'match', label: 'V(nout1) − V(nout2)',
+              expect: '0.00', unit: 'V', tol: 0.15,
+              why: 'Both mirrors are copying the same 200&nbsp;&micro;A into the ' +
+                   'same 20&nbsp;k&Omega;, so at this load they should agree to ' +
+                   'within a few tens of millivolts. A large difference here means ' +
+                   'one of the two is not in saturation &mdash; check that ' +
+                   'V<sub>BIAS</sub> = 1.8&nbsp;V is high enough to keep M1C and M2C ' +
+                   'out of triode, given the V<sub>GS</sub> you recorded in row 1.' }
+        ],
+        experiments: [
+            { action: 'Move the output voltage. Change both RLOAD resistors from ' +
+                      '20 kΩ to 5 kΩ, which lifts the outputs toward 4 V.',
+              expect: 'The <strong>simple</strong> mirror&rsquo;s current rises by ' +
+                      'something like 5–15%. The <strong>cascode</strong>&rsquo;s ' +
+                      'moves by well under 1%. Compute each current as ' +
+                      '(5 − V<sub>out</sub>)/5 kΩ and compare with 200 µA.',
+              why: 'This is the measurement the whole lesson exists for. A simple ' +
+                   'mirror&rsquo;s output impedance is r<sub>o</sub>, a few hundred ' +
+                   'k&Omega;, so three volts of output swing moves the current ' +
+                   'appreciably. The cascode&rsquo;s is roughly ' +
+                   'g<sub>m</sub>r<sub>o</sub> &times; r<sub>o</sub> &mdash; tens ' +
+                   'of megohms &mdash; because M4C shields M2C&rsquo;s drain from ' +
+                   'the output node entirely. You have just measured a two-order-of-' +
+                   'magnitude improvement that cost one extra transistor per branch.' },
+            { action: 'Find the cascode’s price. Change RLOAD2 to 24 kΩ, pulling ' +
+                      'V(nout2) down toward 0.2 V.',
+              expect: 'The cascode <strong>falls out of regulation</strong>: its ' +
+                      'output current drops well below 200 µA and V(nout2) sits ' +
+                      'higher than the 0.2 V the arithmetic predicts. Do the same to ' +
+                      'RLOAD1 and the simple mirror keeps working.',
+              why: 'Output compliance. A simple mirror needs only V<sub>ov</sub> ' +
+                   '&mdash; a couple of hundred millivolts &mdash; across its output ' +
+                   'transistor. The cascode has two devices stacked, so it needs ' +
+                   'roughly two overdrives plus whatever V<sub>BIAS</sub> forces, ' +
+                   'and below that the bottom device leaves saturation and the ' +
+                   'shielding stops working. On a 5&nbsp;V rail that is an ' +
+                   'acceptable tax; on a 1.2&nbsp;V rail it is most of your headroom, ' +
+                   'which is why low-voltage designs use wide-swing cascode biasing ' +
+                   'instead of a fixed V<sub>BIAS</sub>.' },
+            { action: 'Inject an error at the reference: change IREF1 from 200 µA to ' +
+                      '260 µA and leave IREF2 alone.',
+              expect: 'V(nout1) drops to about <strong>0 V</strong> — the mirror ' +
+                      'wants to pass 260 µA, which through 20 kΩ would need 5.2 V ' +
+                      'from a 5 V rail, so M2 is dragged into triode and stops ' +
+                      'behaving like a current source at all.',
+              why: 'A mirror is only a current source while its output transistor ' +
+                   'is in saturation, and that condition is set by the <em>load</em>, ' +
+                   'not by the mirror. Ask for more current than the load can drop ' +
+                   'and the mirror quietly stops being one. Nothing warns you: the ' +
+                   'operating point converges, the schematic looks right, and the ' +
+                   'output impedance you were relying on has collapsed to ' +
+                   'R<sub>DS(on)</sub>.' },
+            { action: 'Mismatch the pair deliberately. If your simulator lets you ' +
+                      'set W/L or K per device, make M2 10% larger than M1.',
+              expect: 'The output current moves by <strong>very nearly the same ' +
+                      '10%</strong>, and the cascode does not save you.',
+              why: 'Worth doing because it separates two error mechanisms that get ' +
+                   'confused. The cascode fixes errors caused by ' +
+                   '<em>drain voltage</em> difference. It does nothing at all about ' +
+                   'errors caused by the two transistors not being the same ' +
+                   'transistor. On silicon that second term is handled by geometry ' +
+                   '&mdash; common-centroid layout, identical orientation, dummy ' +
+                   'devices at the edges &mdash; and it is the reason a mirror on a ' +
+                   'PCB built from two discrete parts is worth perhaps 5% while the ' +
+                   'same circuit inside an IC is worth 0.1%.' }
+        ]
+    });
+})();
+</script>
