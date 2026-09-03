@@ -136,7 +136,7 @@
             <table>
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
-                    <tr><td class="mono">M1</td><td>Transistor (MOSFET)</td><td><span class="mono">PMOS</span></td><td>drain <span class="mono">vdd</span>, gate <span class="mono">gate</span>, source <span class="mono">out</span></td></tr>
+                    <tr><td class="mono">M1</td><td>Transistor (MOSFET)</td><td><span class="mono">PMOS</span></td><td>drain <span class="mono">out</span>, gate <span class="mono">gate</span>, source <span class="mono">vdd</span></td></tr>
                     <tr><td class="mono">M2</td><td>Transistor (MOSFET)</td><td><span class="mono">NMOS</span></td><td>drain <span class="mono">out</span>, gate <span class="mono">gate</span>, source ground</td></tr>
                     <tr><td class="mono">VDD</td><td>Voltage source</td><td>3.30&nbsp;V DC</td><td>from <span class="mono">vdd</span> to ground</td></tr>
                     <tr><td class="mono">VGATE</td><td>Voltage source</td><td>1.65&nbsp;V DC, sine 1.50&nbsp;V amplitude at 1&nbsp;kHz, offset 1.65&nbsp;V</td><td>from <span class="mono">gate</span> to ground</td></tr>
@@ -151,6 +151,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="sim-check-m07l03"></div>
     </div>
 
     <div class="card">
@@ -300,6 +302,118 @@
         unit: 'V',
         solution: 'Swing = 3.3V - 2×50mV = 3.3 - 0.1 = 3.2V p-p',
         explanation: 'The output can swing from 50mV to 3.25V, giving 3.2V total swing. This is 97% of the supply!'
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('sim-check-m07l03', {
+        id: 'm07l03-rail-to-rail',
+        title: 'How close to the rail is rail-to-rail?',
+        intro: '&ldquo;Rail-to-rail&rdquo; is a claim about topology, not a promise ' +
+               'about voltage. A common-drain follower loses a threshold at each ' +
+               'end no matter what you do; a common-<em>source</em> pair like this ' +
+               'one loses only I &times; R<sub>DS(on)</sub>, which goes to zero as ' +
+               'the load current does. Measure how much you actually lose, and then ' +
+               'find out what it costs.',
+        probes: [
+            { id: 'vhigh', label: 'V(out) with VGATE at 0 V', node: 'V(out)',
+              unit: 'V', record: true,
+              why: 'The PMOS is fully on and the NMOS is off, so the output is the ' +
+                   '3.3&nbsp;V rail divided between R<sub>DS(on)</sub> and the ' +
+                   '1&nbsp;k&Omega; load. Expect somewhere around 3.0 to 3.25&nbsp;V. ' +
+                   'The gap to 3.3 is the entire honest content of the phrase ' +
+                   '&ldquo;rail-to-rail&rdquo;: it is a loss that shrinks with load ' +
+                   'current rather than a fixed threshold you can never get back.' },
+            { id: 'vlow', label: 'V(out) with VGATE at 3.3 V', node: 'V(out)',
+              expect: '0.00', unit: 'V', tol: 0.05,
+              why: 'Essentially zero, and for a reason that is worth spotting: the ' +
+                   'NMOS and the 1&nbsp;k&Omega; load are pulling the same way, so ' +
+                   'there is no current to drop a voltage across ' +
+                   'R<sub>DS(on)</sub>. The bottom rail is clean and the top one is ' +
+                   'not, and that asymmetry is entirely the load&rsquo;s doing, not ' +
+                   'the circuit&rsquo;s &mdash; which is what experiment 1 shows.' },
+            { id: 'rdson', label: 'PMOS R<sub>DS(on)</sub> = 1000 × (3.3 − V<sub>high</sub>) ÷ V<sub>high</sub>',
+              unit: 'Ω', record: true,
+              why: 'Your own measurement of the device, extracted from a divider ' +
+                   'you can see. If V<sub>high</sub> came out at 3.1&nbsp;V, that is ' +
+                   '65&nbsp;&Omega;. Data sheets quote this number at a stated ' +
+                   'V<sub>GS</sub>, and here V<sub>GS</sub> is the full 3.3&nbsp;V ' +
+                   '&mdash; halve the supply and you would find it more than ' +
+                   'doubles, because the channel conductance is proportional to ' +
+                   'overdrive.' },
+            { id: 'swing', label: 'Peak-to-peak output on the transient run',
+              unit: 'V', record: true,
+              why: 'With VGATE swinging 1.5&nbsp;V around 1.65&nbsp;V, the gate ' +
+                   'never quite reaches either rail, so neither device is ever ' +
+                   'fully on. Compare this with the two DC readings above: the ' +
+                   'transient swing will be smaller, and the difference is the ' +
+                   'headroom you lose by driving the output stage from a signal ' +
+                   'that does not itself reach the rails. In a real op-amp the ' +
+                   'stage before this one has to swing further than the output ' +
+                   'does, which is one of the hard parts of designing a ' +
+                   'rail-to-rail part.' }
+        ],
+        experiments: [
+            { action: 'Move the load to the other rail: connect RLOAD between out ' +
+                      'and vdd instead of out and ground.',
+              expect: 'The picture flips exactly. Now V(out) reaches ' +
+                      '<strong>3.300 V</strong> cleanly at the top and falls short ' +
+                      'of zero at the bottom, by an amount that gives you the ' +
+                      '<strong>NMOS</strong> R<sub>DS(on)</sub> the same way.',
+              why: 'Proof that the loss is not a property of the output stage but of ' +
+                   'where the current has to come from. The device that is sourcing ' +
+                   'or sinking the load current drops I&times;R<sub>DS(on)</sub>; ' +
+                   'the one that is merely holding a node against a load pulling ' +
+                   'the same way drops nothing. Doing both measurements gets you ' +
+                   'both transistors&rsquo; on-resistances out of one circuit, and ' +
+                   'in a CMOS process they are usually different by two or three ' +
+                   'times because holes are slower than electrons.' },
+            { action: 'Load it harder: change RLOAD to 100 Ω.',
+              expect: 'The top-rail loss grows roughly <strong>ten times</strong>. ' +
+                      'If R<sub>DS(on)</sub> was 65 Ω you now lose about 1.3 V, and ' +
+                      '"rail-to-rail" starts to look like a marketing term.',
+              why: 'This is the specification that matters and the one most often ' +
+                   'missed: every rail-to-rail data sheet quotes its output swing ' +
+                   '<em>at a stated load current</em>, and the number gets much ' +
+                   'worse at higher current. A part that swings to within ' +
+                   '20&nbsp;mV of the rail at 100&nbsp;&micro;A may only manage ' +
+                   '400&nbsp;mV at 10&nbsp;mA. If you read only the headline you ' +
+                   'will design a circuit that works on the bench and fails when ' +
+                   'someone connects the real load.' },
+            { action: 'Sweep VGATE slowly from 0 to 3.3 V and watch the current in ' +
+                      'the supply, not the output.',
+              expect: 'A <strong>sharp spike of current</strong> somewhere in the ' +
+                      'middle of the transition, where both devices are on at once.',
+              why: 'Shoot-through. Between the two thresholds there is a window ' +
+                   'where the PMOS has not turned off and the NMOS has turned on, ' +
+                   'and the pair is a low-resistance path from V<sub>DD</sub> to ' +
+                   'ground. In a digital inverter this is the dominant dynamic power ' +
+                   'term after C&middot;V&sup2;f, and it is why fast edges save ' +
+                   'energy: the faster you cross the window, the less time you spend ' +
+                   'in it. In an <em>analog</em> output stage it is worse, because ' +
+                   'the stage may sit in that window permanently &mdash; which is ' +
+                   'exactly why real rail-to-rail output stages bias the two ' +
+                   'devices separately rather than tying their gates together as ' +
+                   'this simplified one does.' },
+            { action: 'Inject a disturbance on the supply: add 100 mV of ripple at ' +
+                      '10 kHz to VDD, with VGATE at a fixed 1.65 V.',
+              expect: 'The ripple appears at the output, attenuated but clearly ' +
+                      'present.',
+              why: 'Power-supply rejection, or the lack of it. The PMOS&rsquo;s ' +
+                   'source is on V<sub>DD</sub> and its gate is not, so supply ' +
+                   'movement is gate-source movement, which is signal. A ' +
+                   'common-source output stage has essentially no intrinsic PSRR ' +
+                   '&mdash; whatever rejection a real op-amp has is supplied by the ' +
+                   'feedback loop around it, and it falls off at 20&nbsp;dB/decade ' +
+                   'like everything else the loop does. This is the concrete reason ' +
+                   'a decoupling capacitor next to the part is not superstition.' }
+        ]
     });
 })();
 </script>
