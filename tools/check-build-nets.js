@@ -78,7 +78,10 @@ const isGround = n => /^(?:ground|gnd|agnd|dgnd|0)$/i.test(n);
  * is correct rather than dangling. Treating rails like ground removed
  * two-thirds of this checker's first run.
  */
-const isRail = n => /^(?:v?cc|vdd|vee|vss|vbb|vbat|vbus|avdd|dvdd|avss|dvss|v\+|v-)$/i.test(n);
+// Note "vcc" and not "v?cc": a bare "cc" is USB-C's Configuration Channel, a
+// signal pin with pull-ups on it, and treating it as a supply rail hid a real
+// finding in module 25.
+const isRail = n => /^(?:vcc|vdd|vee|vss|vbb|vbat|vbus|avdd|dvdd|avss|dvss|v\+|v-)$/i.test(n);
 
 /**
  * Node names out of one Connect cell.

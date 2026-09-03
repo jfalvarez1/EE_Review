@@ -624,20 +624,25 @@
     <table>
         <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
         <tbody>
-            <tr><td class="mono">Vbus</td><td>Voltage source</td><td>set by <span class="mono">Vbus</span></td><td>from <span class="mono">bus</span> to ground</td></tr>
-            <tr><td class="mono">Rsense</td><td>Resistor</td><td></td><td>between <span class="mono">bus</span> and <span class="mono">sns</span></td></tr>
-            <tr><td class="mono">M1</td><td>Transistor (MOSFET)</td><td><span class="mono">NMOS</span></td><td>drain <span class="mono">sns</span>, gate <span class="mono">out</span>, source <span class="mono">gate</span></td></tr>
-            <tr><td class="mono">Igate</td><td>Current source</td><td>set by <span class="mono">Igate</span></td><td>from ground to <span class="mono">gate</span></td></tr>
+            <tr><td class="mono">Vbus</td><td>Voltage source</td><td>12&nbsp;V DC</td><td>from <span class="mono">bus</span> to ground</td></tr>
+            <tr><td class="mono">Rsense</td><td>Resistor</td><td>10&nbsp;m&Omega;</td><td>between <span class="mono">bus</span> and <span class="mono">sns</span></td></tr>
+            <tr><td class="mono">M1</td><td>Transistor (MOSFET)</td><td><span class="mono">NMOS</span></td><td>drain <span class="mono">sns</span>, gate <span class="mono">gate</span>, source <span class="mono">out</span> <em>(gate and source were swapped, which ties the gate to the output it is meant to control)</em></td></tr>
+            <tr><td class="mono">Igate</td><td>Current source</td><td>10&nbsp;&micro;A DC</td><td>from ground to <span class="mono">gate</span></td></tr>
+            <tr><td class="mono">C_gate</td><td>Capacitor</td><td>10&nbsp;nF &mdash; sets the ramp rate with I<sub>gate</sub></td><td>between <span class="mono">gate</span> and ground</td></tr>
             <tr><td class="mono">D_gate</td><td>Diode</td><td><span class="mono">Diode</span></td><td>anode <span class="mono">gate</span>, cathode <span class="mono">gate_max</span></td></tr>
             <tr><td class="mono">V_gate_max</td><td>Voltage source</td><td>10&nbsp;V</td><td>from <span class="mono">gate_max</span> to ground</td></tr>
             <tr><td class="mono">E_sense</td><td>Controlled source</td><td>1000 ; Amplified sense voltage</td><td>output <span class="mono">sense_v</span> to ground, sensing <span class="mono">bus</span> to <span class="mono">sns</span></td></tr>
-            <tr><td class="mono">Cload</td><td>Capacitor</td><td></td><td>between <span class="mono">out</span> and ground</td></tr>
-            <tr><td class="mono">Rload</td><td>Resistor</td><td></td><td>between <span class="mono">out</span> and ground</td></tr>
+            <tr><td class="mono">Cload</td><td>Capacitor</td><td>1&nbsp;mF &mdash; the downstream board's bulk capacitance</td><td>between <span class="mono">out</span> and ground</td></tr>
+            <tr><td class="mono">Rload</td><td>Resistor</td><td>10&nbsp;&Omega;</td><td>between <span class="mono">out</span> and ground</td></tr>
         </tbody>
     </table>
 </div>
 
-<p><strong>What to run:</strong> a <strong>transient run</strong> of 20&nbsp;ms in steps of 0&nbsp;s.</p>
+<p><strong>What to run:</strong> a <strong>transient run</strong> of 20&nbsp;ms in steps of 10&nbsp;&micro;s.</p>
+<p><strong>What to watch:</strong> <span class="mono">V(gate)</span>, <span class="mono">V(out)</span>, <span class="mono">V(sense_v)</span>, <span class="mono">I(Rsense)</span>.</p>
+<p>The gate ramps at I<sub>gate</sub>/C<sub>gate</sub> = 10&nbsp;&micro;A/10&nbsp;nF = <strong>1000&nbsp;V/s</strong>, and the output follows it a threshold behind, so V(out) ramps at the same rate. Charging 1&nbsp;mF at 1000&nbsp;V/s draws <strong>1.0&nbsp;A, held flat for the entire 12&nbsp;ms ramp</strong> &mdash; which is the point of a hot-swap controller: it converts an unbounded inrush into a current you chose. V(sense_v) reads 10&nbsp;V per amp through the 10&nbsp;m&Omega; shunt, and it is what a real controller compares against its trip threshold.</p>
+
+        <div id="m25l18-hotswap"></div>
             </section>
 
             <section>
@@ -794,3 +799,106 @@
 
     
 </div>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m25l18-hotswap', {
+        id: 'm25l18-hotswap',
+        title: 'An inrush current you chose',
+        intro: 'Everything in this circuit follows from one number you set: how fast the ' +
+               'gate is allowed to rise. Check that first, then check that the output ' +
+               'follows it, and only then look at the current &mdash; because the current ' +
+               'is not something the circuit measures and limits, it is something the ' +
+               'ramp rate <em>defines</em>.',
+        probes: [
+            { id: 'slew', label: 'Slope of V(gate) during the ramp',
+              expect: '1000', unit: 'V/s', tol: 50,
+              why: 'I<sub>gate</sub>/C<sub>gate</sub> = 10&nbsp;&micro;A/10&nbsp;nF. A ' +
+                   'constant current into a capacitor is the simplest ramp generator there ' +
+                   'is, and it is why hot-swap controllers specify a gate current in ' +
+                   'microamps rather than a slew rate directly &mdash; you pick the ' +
+                   'capacitor.' },
+            { id: 'outslew', label: 'Slope of V(out) during the ramp',
+              expect: '1000', unit: 'V/s', tol: 100,
+              why: 'The same, because the MOSFET is a source follower here: the source sits ' +
+                   'one V<sub>GS</sub> below the gate and tracks it. <strong>If this slope ' +
+                   'is different from the gate slope, the FET is not following</strong> ' +
+                   '&mdash; usually because the gate has already reached the clamp and the ' +
+                   'ramp is over.' },
+            { id: 'inrush', label: 'I(Rsense) during the ramp',
+              expect: '1.0', unit: 'A', tol: 0.15,
+              why: 'C<sub>load</sub>&nbsp;&times;&nbsp;dV/dt = 1&nbsp;mF&nbsp;&times;&nbsp;' +
+                   '1000&nbsp;V/s. <strong>Flat</strong>, for the whole 12&nbsp;ms, which ' +
+                   'is the thing worth noticing: a constant dV/dt into a fixed capacitance ' +
+                   'is a constant current, so the controller produces a current limit ' +
+                   'without measuring current at all. Compare with what happens without it ' +
+                   '&mdash; 1&nbsp;mF connected directly to 12&nbsp;V is limited only by the ' +
+                   'connector and the source, which is hundreds of amps for a few hundred ' +
+                   'microseconds.' },
+            { id: 'sensev', label: 'V(sense_v) during the ramp',
+              expect: '10.0', unit: 'V', tol: 1.5,
+              why: '1&nbsp;A &times; 10&nbsp;m&Omega; &times; 1000. The shunt drops ' +
+                   '10&nbsp;mV, which is far too small to compare against anything, so the ' +
+                   'amplifier exists to turn it into volts. <strong>10&nbsp;V per amp is ' +
+                   'the scaling the trip threshold is expressed in</strong>, and getting it ' +
+                   'wrong by a factor of ten is how a protection circuit ends up either ' +
+                   'useless or unable to start.' },
+            { id: 'ramptime', label: 'Time for V(out) to reach 12 V',
+              expect: '12', unit: 'ms', tol: 2,
+              why: '12&nbsp;V at 1000&nbsp;V/s. Worth stating because it is the constraint ' +
+                   'that fights the current limit: <strong>a gentler ramp means less inrush ' +
+                   'and a longer time in the linear region</strong>, and the linear region ' +
+                   'is where the FET is dissipating. The two requirements pull in opposite ' +
+                   'directions and the next experiment is where that bites.' }
+        ],
+        experiments: [
+            { action: 'Compute the FET\'s dissipation at the mid-point of the ramp, when ' +
+                      'V(out) is 6 V.',
+              expect: '<strong>About 10 W</strong>, in a device that dissipates milliwatts ' +
+                      'once it is on.',
+              why: 'Halfway up, the FET has 6&nbsp;V across it and is passing the ' +
+                   '1&nbsp;A of charging current plus 0.6&nbsp;A of load: roughly ' +
+                   '<strong>10&nbsp;W at the worst point</strong>, for a few milliseconds. ' +
+                   'Fully on it drops millivolts. <strong>A hot-swap FET is chosen by its ' +
+                   'safe operating area during the ramp, not by its R<sub>DS(on)</sub></strong>, ' +
+                   'and this is the specification people skip &mdash; the part is comfortably ' +
+                   'rated for the steady current and fails during the two milliseconds ' +
+                   'nobody costed.' },
+            { action: 'Slow the ramp down: make C_gate 100 nF instead of 10 nF.',
+              expect: 'Inrush drops to <strong>0.1 A</strong> and the ramp takes ' +
+                      '<strong>120 ms</strong>.',
+              why: 'Ten times gentler on the supply and ten times longer in the linear ' +
+                   'region. The peak power is a tenth, but it lasts ten times as long, so ' +
+                   '<strong>the ENERGY the FET absorbs is unchanged</strong> &mdash; it is ' +
+                   '&frac12;CV&sup2;, and it depends only on the load capacitance and the ' +
+                   'bus voltage. Slowing the ramp trades peak power for pulse width along a ' +
+                   'SOA curve, and whether that helps depends entirely on where the curve ' +
+                   'bends for your part. It is not a free improvement, which is the ' +
+                   'non-obvious half.' },
+            { action: 'Double the load capacitance to 2 mF, leaving the ramp alone.',
+              expect: 'Inrush doubles to <strong>2 A</strong>; the ramp time does not ' +
+                      'change.',
+              why: 'I = C&nbsp;dV/dt with dV/dt fixed. This is the failure mode of a ' +
+                   'hot-swap design that worked: someone adds a board downstream, the bulk ' +
+                   'capacitance goes up, and the inrush goes up with it in exact proportion ' +
+                   'while every visible symptom stays the same until the trip threshold is ' +
+                   'crossed. <strong>The controller is protecting against a capacitance it ' +
+                   'was told about at design time</strong> and has no way to discover the ' +
+                   'real one.' },
+            { action: 'Remove D_gate and V_gate_max, then re-run.',
+              expect: 'V(gate) keeps rising past 10 V and does not stop.',
+              why: 'Nothing bad happens to the output &mdash; the FET is fully on long ' +
+                   'before 10&nbsp;V and the extra gate drive changes nothing about V(out). ' +
+                   'The clamp is there for the transistor: gate oxide breaks down somewhere ' +
+                   'around 20&nbsp;V on a typical part, and it fails permanently and ' +
+                   'without warning. <strong>The clamp protects against a condition that ' +
+                   'produces no visible symptom right up until the device is destroyed</strong>, ' +
+                   'which is why it is easy to leave out of a prototype that works.' }
+        ]
+    });
+})();
+</script>
