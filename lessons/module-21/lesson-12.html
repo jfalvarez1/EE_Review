@@ -1,0 +1,650 @@
+<!-- Module 21, Lesson 12: Modern Power Amplifiers: Doherty, Envelope Tracking and DPD -->
+<div class="lesson-content" data-module="21" data-lesson="12">
+
+    <div class="card">
+        <h2>Modern Power Amplifiers: Doherty, Envelope Tracking and DPD</h2>
+        <p>The linearity lesson ended on a number: a class AB amplifier that is
+        55% efficient at its compression point runs at under 20% when backed off
+        far enough to pass a spectral mask with a 9&nbsp;dB PAPR signal. It burns
+        four times more power than it delivers, and that is the
+        <em>normal</em> operating condition, not a corner case.</p>
+
+        <p>Every technique in this lesson exists to attack that one number, and
+        each does it in a completely different way. Doherty changes the
+        <strong>load</strong> the device sees. Envelope tracking changes the
+        <strong>supply</strong>. Digital predistortion changes the
+        <strong>signal</strong> so the device can be driven harder. They compose,
+        and modern infrastructure uses all three at once.</p>
+
+        <div class="analogy">
+            <span class="analogy-label">Three ways to stop wasting fuel</span>
+            <p>A car engine sized for the steepest hill spends most of its life
+            barely loaded, throttled down, and inefficient. There are three
+            distinct fixes.</p>
+            <p>Fit a <strong>small engine plus a second one that only starts on
+            the hills</strong> &mdash; that is Doherty. Fit a
+            <strong>variable-displacement engine that shrinks to match the
+            load</strong> &mdash; that is envelope tracking. Or
+            <strong>reshape the route</strong> so the same engine can be driven
+            closer to full throttle without breaking the speed limit &mdash;
+            that is digital predistortion.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> an
+            engine's load changes over minutes. A modern PA's envelope changes in
+            <em>nanoseconds</em>, and that is the whole engineering problem: the
+            second engine must start and stop in a nanosecond, and the supply
+            modulator must slew tens of volts at a hundred megahertz.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. Why backoff costs so much</h3>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \eta_{class\,B}(v) = \frac{\pi}{4}\,v,
+                   \qquad v = \frac{V_{out}}{V_{max}} = \sqrt{\frac{P_{out}}{P_{max}}} \]
+                <span class="drv-why">A class B stage's efficiency is
+                proportional to the output <em>voltage</em>, not the power. So
+                it falls as the square root of the power ratio, which is far
+                slower than the power falls — and that is exactly the
+                problem.</span>
+            </div>
+            <div class="drv-step">
+                \[ 6\ \mathrm{dB\ backoff}: v = 0.501 \Rightarrow \eta = 39.3\%;
+                   \qquad 9\ \mathrm{dB}: v = 0.355 \Rightarrow \eta = 27.9\% \]
+                <span class="drv-why">Against a 78.5% peak. Half the efficiency
+                at 6 dB, a third at 9 dB — and modern OFDM signals need 8&ndash;12
+                dB.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Signal</th><th>PAPR</th><th>Class B &eta; at that backoff</th></tr></thead>
+                <tbody>
+                    <tr><td>GSM (GMSK, constant envelope)</td><td class="t-ok">0 dB</td><td class="t-ok">78.5%</td></tr>
+                    <tr><td>EDGE (8PSK)</td><td>3.2 dB</td><td>54.3%</td></tr>
+                    <tr><td>WCDMA</td><td>3.5&ndash;7 dB</td><td>52.5&ndash;35.1%</td></tr>
+                    <tr><td>LTE 20 MHz OFDM</td><td>7&ndash;9 dB</td><td class="t-warn">35.1&ndash;27.9%</td></tr>
+                    <tr><td>802.11ax, 5G NR</td><td class="t-bad">10&ndash;12 dB</td><td class="t-bad">24.8&ndash;19.7%</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note">The first row is why GSM base stations could use
+        simple class AB amplifiers and everything since cannot. Constant-envelope
+        modulation lets the PA sit at compression permanently; the moment the
+        modulation carries amplitude information, the amplifier has to be linear
+        over the whole envelope range, and linear means backed off.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. Doherty: change the load, not the device</h3>
+
+        <p>Two amplifiers and a quarter-wave line. The <em>main</em> amplifier is
+        biased class AB and runs all the time. The <em>peaking</em> amplifier is
+        biased class C, so it is off until the drive exceeds a threshold. They
+        combine through a quarter-wave impedance inverter, and the trick is what
+        that inverter does when the peaking amplifier wakes up.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ Z_{in} = \frac{Z_0^2}{Z_L} \]
+                <span class="drv-why">The quarter-wave transformer from lesson 6,
+                doing the one job nothing else can: as the peaking amplifier
+                injects current into the combining node it <em>raises</em> the
+                impedance there, and the inverter turns that into a
+                <em>falling</em> impedance at the main amplifier.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{Low power: main sees } 2R_{opt};
+                   \qquad \text{Full power: main sees } R_{opt} \]
+                <span class="drv-why">Twice the load means the main amplifier
+                reaches its full voltage swing at <strong>half the current</strong>
+                — so it saturates, and hits its efficiency peak, at 6 dB below the
+                system's maximum power. That is the entire idea.</span>
+            </div>
+            <div class="drv-step">
+                \[ \eta_{Doherty}(v) = \begin{cases}
+                   \dfrac{\pi}{4}(2v) & v \le 0.5 \\[8pt]
+                   \dfrac{\pi}{4}\dfrac{2v^{2}}{3v-1} & v > 0.5
+                   \end{cases} \]
+                <span class="drv-why">Two peaks at \(\pi/4\), one at
+                \(v = 0.5\) — the 6 dB backoff point — and one at full power,
+                with a dip to 70.7% between them. Compare with class B's single
+                peak: at 6 dB backoff Doherty gives 78.5% where class B gives
+                39.3%, <strong>exactly double</strong>.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Variant</th><th>Efficiency peak at</th><th>For</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Symmetric</strong> (equal devices)</td><td>6 dB backoff</td><td>The classic. Matches WCDMA-era PAPR.</td></tr>
+                    <tr><td><strong>Asymmetric</strong> (peaking device larger)</td><td>7&ndash;9 dB</td><td>LTE and 5G, where the PAPR is higher. The uneven split moves the first peak further out.</td></tr>
+                    <tr><td><strong>Three-way / N-way</strong></td><td>9&ndash;12 dB, multiple peaks</td><td>High-PAPR 5G. More peaks, more complexity, narrower bandwidth.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="warn">
+            <strong>What Doherty costs.</strong> The quarter-wave inverter is a
+            <em>quarter wave at one frequency</em>, so a classical Doherty is
+            narrowband &mdash; typically 5&ndash;15% fractional bandwidth, which
+            is a genuine problem for a 5G radio expected to cover several hundred
+            megahertz. It is also non-linear by construction: the class C peaking
+            amplifier turning on is a hard discontinuity in the transfer
+            characteristic. <strong>A Doherty amplifier essentially requires
+            digital predistortion to meet any modern spectral mask</strong>, which
+            is why the two technologies arrived together.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Interactive: three efficiency strategies against backoff</h3>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="pa-papr">Signal PAPR</label>
+                <input type="range" id="pa-papr" min="0" max="14" step="1" value="9">
+                <span class="range-value" id="pa-papr-val">9 dB</span>
+            </div>
+            <div class="c4">
+                <label for="pa-psat">Saturated output power</label>
+                <input type="range" id="pa-psat" min="20" max="200" step="5" value="100">
+                <span class="range-value" id="pa-psat-val">100 W</span>
+            </div>
+            <div class="c4">
+                <label for="pa-mod">ET modulator efficiency</label>
+                <input type="range" id="pa-mod" min="60" max="95" step="1" value="88">
+                <span class="range-value" id="pa-mod-val">88 %</span>
+            </div>
+            <div class="c4">
+                <label for="pa-dpd">DPD backoff recovered</label>
+                <input type="range" id="pa-dpd" min="0" max="5" step="1" value="3">
+                <span class="range-value" id="pa-dpd-val">3 dB</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="pa-canvas" width="900" height="340"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Average output power</div><div class="v mono" id="pa-avg">&mdash;</div></div>
+            <div class="box"><div class="k">Class B / AB efficiency</div><div class="v mono" id="pa-eb">&mdash;</div></div>
+            <div class="box"><div class="k">Doherty efficiency</div><div class="v mono" id="pa-ed">&mdash;</div></div>
+            <div class="box"><div class="k">Envelope tracking efficiency</div><div class="v mono" id="pa-ee">&mdash;</div></div>
+            <div class="box"><div class="k">DC power: class B vs best</div><div class="v mono" id="pa-dc">&mdash;</div></div>
+            <div class="box"><div class="k">Heat saved</div><div class="v mono" id="pa-heat">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="pa-note"></p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. Envelope tracking: change the supply</h3>
+
+        <p>The waste in a linear amplifier is \((V_{DD} - v_{out})\times i\)
+        dissipated in the device. Envelope tracking removes it at the source: a
+        fast supply modulator moves \(V_{DD}\) up and down with the signal's
+        envelope, so the device always has just enough headroom and never much
+        more.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \eta_{system} = \eta_{PA} \times \eta_{modulator} \]
+                <span class="drv-why">The PA now sits near compression at every
+                power level, so \(\eta_{PA}\) stays near its peak instead of
+                falling with backoff. But everything passes through the
+                modulator, so its efficiency multiplies directly — an 85%
+                modulator caps the whole system at 85% of whatever the PA
+                achieves.</span>
+            </div>
+            <div class="drv-step">
+                \[ BW_{ET} \approx 3\ldots5 \times BW_{signal} \]
+                <span class="drv-why">The envelope of a modulated signal has
+                several times the bandwidth of the signal itself. A 20 MHz LTE
+                carrier needs a supply modulator good to 60&ndash;100 MHz,
+                <em>at tens of volts and amps</em>. That requirement is the whole
+                difficulty, and it is why ET scaled to handsets years before it
+                reached wide-bandwidth infrastructure.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th></th><th>Doherty</th><th>Envelope tracking</th></tr></thead>
+                <tbody>
+                    <tr><td>What it changes</td><td>The load impedance</td><td>The supply voltage</td></tr>
+                    <tr><td>Efficiency shape</td><td>Two peaks, a dip between</td><td class="t-ok">Roughly flat across backoff</td></tr>
+                    <tr><td>Bandwidth limit</td><td class="t-warn">The &lambda;/4 inverter, 5&ndash;15%</td><td class="t-warn">The modulator's slew rate</td></tr>
+                    <tr><td>Added components</td><td>A second PA and a combiner &mdash; all passive</td><td>A fast, efficient, high-current supply</td></tr>
+                    <tr><td>Where it dominates</td><td>Base stations, high power</td><td>Handsets, and increasingly infrastructure</td></tr>
+                    <tr><td>Needs DPD?</td><td class="t-bad">Essentially always</td><td>Usually</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. Digital predistortion: change the signal</h3>
+
+        <p>If the amplifier's distortion is <em>known</em>, apply its inverse to
+        the signal before amplifying. The distortion then cancels, and the
+        amplifier can be driven several dB harder for the same spectral mask.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ y = f(x) \quad\Rightarrow\quad
+                   \text{transmit } f^{-1}(x) \text{ so that } y \approx x \]
+                <span class="drv-why">Simple in principle. Hard in practice
+                because \(f\) is not a memoryless function: the PA's response
+                depends on what it was doing microseconds ago, through thermal
+                and bias-network time constants. Those are the
+                <strong>memory effects</strong>, and a memoryless predistorter
+                cannot correct them.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What DPD needs</th><th>Why</th></tr></thead>
+                <tbody>
+                    <tr><td>An <strong>observation receiver</strong> with 3&ndash;5&times; the signal bandwidth</td>
+                        <td>It must see the distortion products in the adjacent channels — which is the very energy it is trying to remove, and it lives outside the signal band</td></tr>
+                    <tr><td>A <strong>memory-polynomial</strong> or Volterra model</td>
+                        <td>Because the PA has memory. A simple AM-AM/AM-PM lookup handles the memoryless part and leaves the rest.</td></tr>
+                    <tr><td>Continuous <strong>adaptation</strong></td>
+                        <td>The PA's characteristic moves with temperature, supply, ageing and VSWR. A coefficient set trained once is wrong within minutes.</td></tr>
+                    <tr><td>A PA that is <strong>repeatable</strong>, not linear</td>
+                        <td>The most important consequence. DPD can invert any well-behaved non-linearity, so the analogue design goal shifts from linearity to <em>predictability and efficiency</em>.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="notice">
+            <strong>This changed what a PA is for.</strong> Before DPD, a power
+            amplifier was specified on IP3 and ACPR &mdash; on how linear it was.
+            With DPD in the system, those matter far less than efficiency,
+            thermal stability and how well the device's behaviour can be
+            modelled. A PA with strong but <em>smooth and stable</em> compression
+            beats one that is more linear but has hysteresis or long thermal
+            tails, because the first can be inverted and the second cannot. That
+            is a different component specification for the same job, and it is
+            why modern PA datasheets lead with efficiency at backoff.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>5. The devices: what changed in industry</h3>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Technology</th><th>Supply</th><th>Frequency</th><th>Power density</th><th>Where it is</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Si LDMOS</strong></td><td>28&ndash;50 V</td><td>to ~3.5 GHz</td><td>~1 W/mm</td>
+                        <td>Owned base stations for two decades. Cheap, mature, and running out of frequency headroom.</td></tr>
+                    <tr><td><strong>GaN on SiC</strong></td><td>28&ndash;50 V, up to 100 V</td><td>to ~100 GHz</td><td class="t-ok">5&ndash;10 W/mm</td>
+                        <td><strong>The change.</strong> Five to ten times the power per millimetre of gate, so a device is physically smaller for the same power — which means lower parasitic capacitance, which means more bandwidth. Now dominant in base stations, radar and satcom.</td></tr>
+                    <tr><td><strong>GaAs pHEMT / HBT</strong></td><td>3&ndash;5 V</td><td>to ~100 GHz</td><td>~1 W/mm</td>
+                        <td>Handset PAs and low-noise front ends. Excellent at low voltage, which is what a battery gives you.</td></tr>
+                    <tr><td><strong>Si CMOS / SOI</strong></td><td>1&ndash;3.5 V</td><td>to ~6 GHz</td><td>low</td>
+                        <td>Integration. A CMOS PA is worse than a GaAs one and comes free on the die that was going to be there anyway.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note">Why GaN's power density is the whole story: for a
+        given output power you need a certain total gate width, and gate width
+        brings capacitance. Ten times the power per millimetre means a tenth of
+        the periphery, a tenth of the capacitance, and therefore a far easier
+        matching problem and much more bandwidth. GaN did not merely make
+        amplifiers more efficient &mdash; it made <em>wideband</em> Doherty
+        amplifiers possible, which is what a multi-band 5G radio needs and what
+        LDMOS could not deliver.</p>
+
+        <div class="notice">
+            <strong>Three more shifts worth knowing.</strong>
+            <strong>Massive MIMO</strong> replaced a few large amplifiers with 64
+            or 256 small ones, which changed the economics completely: per-chain
+            cost and integration now matter more than per-chain performance.
+            <strong>Digital predistortion moved on-chip</strong>, into the
+            transceiver, so it is no longer a separate FPGA.
+            And <strong>load-modulated balanced amplifiers</strong> and other
+            Doherty alternatives are being pursued specifically to escape the
+            &lambda;/4 bandwidth limit &mdash; the one thing about the classical
+            Doherty that GaN did not fix.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="acceptance">
+        <h3>6. Acceptance tests</h3>
+
+        <h4>Performance</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Test</th><th>Condition</th><th>Pass criterion</th><th>If it fails</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Efficiency at backoff</td>
+                        <td>Modulated signal at the real PAPR, at the average power the system uses</td>
+                        <td>Meets the thermal and power budget <em>there</em>, not at saturation</td>
+                        <td>A datasheet efficiency at P<sub>sat</sub> tells you almost nothing about the operating point</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> ACPR with DPD active and inactive</td>
+                        <td>Full modulated signal, rated average power</td>
+                        <td>Passes the mask with DPD; the improvement is 15&ndash;25 dB</td>
+                        <td>Less than ~10 dB of DPD improvement usually means memory effects the model cannot reach — look at the bias network's time constants</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> DPD convergence</td>
+                        <td>Cold start, then a step in average power, then a temperature ramp</td>
+                        <td>Re-converges within the system's allowed time, every time</td>
+                        <td>An adaptation loop that converges on the bench and not in the field is the classic DPD failure</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Doherty across the band</td>
+                        <td>Efficiency and ACPR at the band edges, not just centre</td>
+                        <td>Backoff efficiency holds across the whole band</td>
+                        <td>The &lambda;/4 inverter is the bandwidth limit. Band-edge degradation is expected and must be budgeted, not discovered.</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> ET alignment</td>
+                        <td>Sweep the delay between the envelope path and the RF path</td>
+                        <td>A clear optimum, and the system sits on it over temperature</td>
+                        <td>Envelope-to-RF misalignment produces spectral regrowth that looks exactly like PA non-linearity and does not respond to DPD</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Abuse</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What is done to it</th><th>What physically happens</th><th>Acceptable outcome</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A Doherty amplifier operated 300 MHz off its design frequency</strong></td>
+                        <td>The impedance inverter is no longer a quarter wave, so the load modulation is wrong: the main amplifier does not see \(2R_{opt}\) at backoff and the peaking amplifier's contribution combines out of phase.</td>
+                        <td><strong>The backoff efficiency peak disappears and the amplifier reverts to something worse than plain class AB</strong> — worse, because it is now two devices sharing a badly matched load. Nothing is damaged. This is why a Doherty's bandwidth is a headline specification and why so much research goes into escaping it.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>DPD trained at 25 &deg;C, then the amplifier runs at 85 &deg;C</strong></td>
+                        <td>The device's gain, compression point and phase response all shift with junction temperature. The stored predistortion coefficients now invert an amplifier that no longer exists, so they <em>add</em> distortion rather than removing it.</td>
+                        <td><strong>ACPR can end up worse than with DPD switched off entirely.</strong> This is the argument for continuous adaptation rather than factory calibration, and it is why a DPD system needs its observation receiver running all the time, not just at start-up.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>An ET modulator asked for 100 MHz of envelope bandwidth when it is good to 40</strong></td>
+                        <td>The supply cannot follow the envelope's fast excursions, so on peaks the device is left with insufficient headroom and clips.</td>
+                        <td><strong>Clipping on the peaks, which is spectral regrowth</strong> — and it is not correctable by DPD, because the distortion is caused by the supply rather than by the device's transfer characteristic. Either reduce the signal bandwidth, use a slower "average power tracking" scheme, or specify a faster modulator. Diagnosing it as PA non-linearity and adding DPD effort is the trap.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A GaN PA presented with a 5:1 VSWR at an unlucky phase</strong> while at full power</td>
+                        <td>GaN's high power density means a small die dissipating a great deal, so the thermal time constant is short. A mismatch that moves the load line can push the device past its safe operating area in microseconds — far faster than any thermal protection responds.</td>
+                        <td><strong>GaN is less forgiving of mismatch than LDMOS precisely because it is smaller for the same power.</strong> The defences are a circulator or isolator at the output, a directional coupler with fast foldback, and choosing a device with a stated ruggedness rating at all phase angles. This is a real trade against GaN's advantages and it belongs in the decision.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="pa-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="pa-exercises"></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var canvas = document.getElementById('pa-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var TEK = AD.TEK_COLORS;
+    var ETA_MAX = Math.PI / 4;      // 78.5%, ideal class B
+
+    function etaClassB(v) { return ETA_MAX * v; }
+
+    function etaDoherty(v) {
+        // Two peaks at pi/4, at v = 0.5 and v = 1, with a dip to 70.7% between.
+        if (v <= 0.5) return ETA_MAX * (2 * v);
+        return ETA_MAX * (2 * v * v) / (3 * v - 1);
+    }
+
+    function etaET(v, mod) {
+        // The device sits near compression at every level, so the PA stays near
+        // its peak; everything then passes through the modulator. A mild taper
+        // at deep backoff, where the modulator's own overheads dominate.
+        return mod * ETA_MAX * (1 - 0.25 * (1 - v));
+    }
+
+    function update() {
+        var papr = AD.num('pa-papr');
+        var psat = AD.num('pa-psat');
+        var mod = AD.num('pa-mod') / 100;
+        var dpd = AD.num('pa-dpd');
+
+        AD.setText('pa-papr-val', papr + ' dB');
+        AD.setText('pa-psat-val', psat + ' W');
+        AD.setText('pa-mod-val', (mod * 100).toFixed(0) + ' %');
+        AD.setText('pa-dpd-val', dpd + ' dB');
+
+        // DPD lets the amplifier run closer to saturation, so the effective
+        // backoff is the PAPR minus whatever DPD recovers.
+        var backoff = Math.max(0, papr - dpd);
+        var v = Math.pow(10, -backoff / 20);      // voltage ratio
+        var pavg = psat * Math.pow(10, -backoff / 10);
+
+        var eB = etaClassB(v);
+        var eD = etaDoherty(v);
+        var eE = etaET(v, mod);
+
+        var best = Math.max(eD, eE);
+        var dcB = pavg / eB, dcBest = pavg / best;
+
+        AD.setText('pa-avg', pavg.toFixed(1) + ' W   (' + backoff.toFixed(0) +
+                             ' dB below P_sat)');
+        AD.setText('pa-eb', (eB * 100).toFixed(1) + ' %');
+        AD.setText('pa-ed', (eD * 100).toFixed(1) + ' %');
+        AD.setText('pa-ee', (eE * 100).toFixed(1) + ' %');
+        AD.setText('pa-dc', dcB.toFixed(0) + ' W  vs  ' + dcBest.toFixed(0) + ' W');
+        AD.setText('pa-heat', (dcB - pavg).toFixed(0) + ' W  →  ' +
+                              (dcBest - pavg).toFixed(0) + ' W   (' +
+                              ((dcB - dcBest)).toFixed(0) + ' W saved)');
+
+        // ---- plot ---------------------------------------------------------
+        var w = canvas.width, h = canvas.height;
+        var ml = 66, mr = 150, mt = 34, mb = 46;
+        var pw = w - ml - mr, ph = h - mt - mb;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        // x axis in dB of backoff, 0 at the right
+        var boMax = 16;
+        var X = function (bo) { return ml + (boMax - bo) / boMax * pw; };
+        var Y = function (e) { return mt + ph - e * ph / 0.85; };
+
+        function curve(fn, colour, dash) {
+            ctx.save();
+            ctx.strokeStyle = colour;
+            ctx.lineWidth = 2;
+            if (dash) ctx.setLineDash(dash);
+            ctx.beginPath();
+            for (var i = 0; i <= 300; i++) {
+                var bo = boMax * (1 - i / 300);
+                var vv = Math.pow(10, -bo / 20);
+                var e = fn(vv);
+                if (i === 0) ctx.moveTo(X(bo), Y(e)); else ctx.lineTo(X(bo), Y(e));
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+        curve(etaClassB, TEK.ref);
+        curve(etaDoherty, TEK.ch1);
+        curve(function (vv) { return etaET(vv, mod); }, TEK.ch2, [6, 4]);
+
+        // the operating point
+        ctx.save();
+        ctx.strokeStyle = TEK.ch3;
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(X(backoff), mt); ctx.lineTo(X(backoff), mt + ph); ctx.stroke();
+        ctx.restore();
+
+        [[eB, TEK.ref], [eD, TEK.ch1], [eE, TEK.ch2]].forEach(function (p) {
+            ctx.save();
+            ctx.fillStyle = p[1];
+            ctx.beginPath(); ctx.arc(X(backoff), Y(p[0]), 4.5, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        });
+
+        ctx.save();
+        ctx.fillStyle = TEK.text;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'right';
+        for (var g = 0; g <= 4; g++) {
+            var ev = 0.85 * g / 4;
+            ctx.fillText((ev * 100).toFixed(0) + '%', ml - 6, Y(ev) + 4);
+        }
+        ctx.textAlign = 'center';
+        for (var d = 0; d <= 4; d++) {
+            var bo2 = boMax * d / 4;
+            ctx.fillText(bo2.toFixed(0), X(bo2), mt + ph + 18);
+        }
+        ctx.fillText('backoff from saturation (dB)  —  saturation at the right', ml + pw / 2, h - 10);
+        ctx.textAlign = 'left';
+        ctx.fillText('efficiency', ml - 58, mt - 12);
+        ctx.fillStyle = TEK.ref; ctx.fillText('class B / AB', ml + pw + 8, mt + 14);
+        ctx.fillStyle = TEK.ch1; ctx.fillText('Doherty', ml + pw + 8, mt + 30);
+        ctx.fillStyle = TEK.ch2; ctx.fillText('envelope tracking', ml + pw + 8, mt + 46);
+        ctx.fillStyle = TEK.ch3; ctx.fillText('operating point', ml + pw + 8, mt + 66);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fillText('PAPR ' + papr + ' dB', ml + pw + 8, mt + 86);
+        if (dpd > 0) ctx.fillText('less ' + dpd + ' dB DPD', ml + pw + 8, mt + 100);
+        ctx.restore();
+
+        // ---- verdict ------------------------------------------------------
+        var verdict;
+        var winner = eD >= eE ? 'Doherty' : 'envelope tracking';
+        if (backoff < 2) {
+            verdict = 'Almost no backoff, so every technique converges on the same ' +
+                      'peak efficiency — there is nothing to recover. This is the ' +
+                      'constant-envelope case, and it is why GSM base stations needed ' +
+                      'none of this.';
+        } else if (Math.abs(backoff - 6) < 1) {
+            verdict = 'At 6 dB backoff a symmetric Doherty sits exactly on its efficiency ' +
+                      'peak: ' + (eD * 100).toFixed(0) + '% against class B\'s ' +
+                      (eB * 100).toFixed(0) + '%, almost exactly double. This is the point ' +
+                      'the topology was designed for, and it is why the classic Doherty ' +
+                      'matched the WCDMA era so well.';
+        } else if (backoff > 9) {
+            verdict = 'At ' + backoff.toFixed(0) + ' dB backoff a symmetric Doherty has ' +
+                      'fallen off its peak, giving ' + (eD * 100).toFixed(0) + '% — this is ' +
+                      'where ASYMMETRIC Doherty exists, moving the first peak out to match ' +
+                      'the PAPR. Envelope tracking is largely flat here at ' +
+                      (eE * 100).toFixed(0) + '%, which is its advantage.';
+        } else {
+            verdict = winner + ' wins at this operating point: ' +
+                      (best * 100).toFixed(0) + '% against class B\'s ' +
+                      (eB * 100).toFixed(0) + '%. That is ' + (dcB - dcBest).toFixed(0) +
+                      ' W less DC drawn and the same amount less heat to remove, for the ' +
+                      'same ' + pavg.toFixed(0) + ' W delivered.';
+        }
+        if (dpd > 0) {
+            verdict += '  The ' + dpd + ' dB DPD recovers moves the operating point ' +
+                       dpd + ' dB closer to saturation, which is worth efficiency on ' +
+                       'every one of the three curves at once.';
+        }
+
+        AD.setText('pa-note', verdict);
+    }
+
+    ['pa-papr', 'pa-psat', 'pa-mod', 'pa-dpd'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    update();
+
+    if (typeof ChecklistWidget !== 'undefined') {
+        new ChecklistWidget('pa-checklist', {
+            title: 'Modern PA Checklist',
+            items: [
+                {id: 'papr', text: 'Signal PAPR measured, not assumed - it drives every other decision', category: 'Requirements'},
+                {id: 'avg', text: 'Efficiency budgeted at the AVERAGE operating power, not at P_sat', category: 'Requirements'},
+                {id: 'band', text: 'Required bandwidth compared against the Doherty inverter limit', category: 'Requirements'},
+                {id: 'topology', text: 'Symmetric vs asymmetric Doherty chosen from the actual PAPR', category: 'Architecture'},
+                {id: 'et', text: 'If ET: modulator bandwidth at least 3-5x the signal bandwidth', category: 'Architecture'},
+                {id: 'etmod', text: 'Modulator efficiency included - it multiplies the whole system', category: 'Architecture'},
+                {id: 'device', text: 'Device technology chosen on power density and bandwidth, not just cost', category: 'Architecture'},
+                {id: 'dpd', text: 'DPD assumed from the start if using Doherty - it is not optional there', category: 'Linearisation'},
+                {id: 'obs', text: 'Observation receiver bandwidth 3-5x the signal, to see the regrowth', category: 'Linearisation'},
+                {id: 'mem', text: 'Memory effects considered; bias network time constants examined', category: 'Linearisation'},
+                {id: 'adapt', text: 'Continuous adaptation, not factory calibration', category: 'Linearisation'},
+                {id: 'delay', text: 'If ET: envelope-to-RF delay alignment calibrated and held over temperature', category: 'Linearisation'},
+                {id: 'thermal', text: 'Thermal design done at the average power with the real signal', category: 'Verification'},
+                {id: 'vswr', text: 'Ruggedness verified at the rated VSWR at ALL phase angles', category: 'Verification'},
+                {id: 'edges', text: 'Efficiency and ACPR verified at band edges, not only at centre', category: 'Verification'}
+            ]
+        });
+    }
+
+    if (typeof ExerciseWidget !== 'undefined') {
+        new ExerciseWidget('pa-exercises', {
+            exercises: [
+                {
+                    id: 'ex1',
+                    title: 'Size the cooling',
+                    problem: 'A 5G radio must deliver 40 W average with a 10 dB PAPR signal. Compare a class AB design and a symmetric Doherty: give the saturated power each needs, the efficiency at the operating point, the DC power and the heat to remove. Then say what the Doherty saves in a 64-element massive MIMO array.',
+                    hints: [
+                        'P_sat must be PAPR above the average power',
+                        'v = 10^(-backoff/20), and class B efficiency is (pi/4) v',
+                        'Doherty above v = 0.5: eta = (pi/4) 2v^2/(3v-1)',
+                        'Heat = P_DC - P_out'
+                    ],
+                    answer: 'P_sat: 40 W average with 10 dB PAPR needs peaks at 400 W, so P_sat = 400 W for both. Operating point: 10 dB backoff, so v = 10^(-0.5) = 0.3162. Class AB: eta = (pi/4)(0.3162) = 0.2484, i.e. 24.8%. P_DC = 40/0.2484 = 161 W. Heat = 161 - 40 = 121 W. Symmetric Doherty at v = 0.3162: this is BELOW v = 0.5, so we are on the rising branch, eta = (pi/4)(2 x 0.3162) = (pi/4)(0.6325) = 0.4967, i.e. 49.7%. P_DC = 40/0.497 = 80.5 W. Heat = 80.5 - 40 = 40.5 W. So the Doherty draws half the DC power and produces a third of the heat. Note WHERE on the curve we are: at 10 dB backoff a symmetric Doherty has passed its 6 dB peak going down, so it is not at its best either - an asymmetric Doherty tuned for 9-10 dB would do better still, which is exactly why asymmetric designs exist for 5G. In a 64-element array: 64 x (161 - 80.5) = 5.15 kW of DC power saved, and 64 x (121 - 40.5) = 5.15 kW less heat to remove. That is the difference between a radio that needs forced-air cooling and one that does not, on a mast, and it is why every 5G massive MIMO radio uses Doherty. The cost - a second device, a combiner and mandatory DPD - is trivial against 5 kW.'
+                },
+                {
+                    id: 'ex2',
+                    title: 'Can this modulator do it?',
+                    problem: 'An envelope tracking system must support a 100 MHz 5G NR carrier. Determine the required modulator bandwidth, and given a modulator that is 88% efficient and a PA that reaches 70% under ET, compute the system efficiency. Compare against a Doherty at 40% and say which you would choose and why.',
+                    hints: [
+                        'Envelope bandwidth is roughly 3-5x the signal bandwidth',
+                        'System efficiency multiplies the two stages',
+                        'Think about what a 300-500 MHz high-current supply modulator actually is'
+                    ],
+                    answer: 'Modulator bandwidth: 3-5 x 100 MHz = 300-500 MHz. That is the crux of the answer. A supply modulator that slews tens of volts at tens of amps with 300-500 MHz of bandwidth AND stays 88% efficient is at or beyond the state of the art - a switching stage cannot switch fast enough and a linear stage cannot be efficient enough, so the usual answer is a hybrid switcher plus linear assist, and its efficiency falls as the bandwidth rises. Taking the numbers as given: system efficiency = 0.88 x 0.70 = 0.616, i.e. 61.6%, against the Doherty 40%. On those numbers ET wins by half again. Which I would choose, and why: the Doherty, for a 100 MHz 5G carrier. The reason is that the 88% figure will not survive 400 MHz of modulator bandwidth - modulator efficiency is strongly bandwidth-dependent, and quoting a wideband ET system at handset-modulator efficiency is the error in the question. A Doherty has no such term: its combiner is passive and its bandwidth limit is the quarter-wave inverter, which is a design problem rather than a power-conversion one. The honest framing: ET is the better answer when the signal bandwidth is small enough that a modulator can be both fast and efficient - which is handsets, and increasingly narrow-carrier infrastructure. Doherty is the better answer at high power and wide bandwidth. And this is exactly why real 5G radios use a wideband Doherty with DPD rather than wideband ET, while handsets use ET.'
+                },
+                {
+                    id: 'ex3',
+                    title: 'Why DPD stopped being optional',
+                    problem: 'Explain why a Doherty amplifier essentially requires digital predistortion, in terms of its transfer characteristic. Then explain why DPD changes what you should look for when SELECTING a PA device, and give two device properties that became more important and one that became less.',
+                    hints: [
+                        'What is the peaking amplifier biased as, and what happens as it turns on?',
+                        'What can a predistorter invert, and what can it not?',
+                        'Think about repeatability versus linearity'
+                    ],
+                    answer: 'Why Doherty needs DPD: the peaking amplifier is biased class C, which means it is OFF below a threshold and conducts above it. As the drive crosses that threshold the amplifier gains a second current source and its load impedance modulates, so the overall transfer characteristic has a pronounced kink at the transition point - it is not a smooth compression curve, it is two regimes joined at a corner. A corner in the transfer characteristic generates far more intermodulation than smooth compression does, so an uncorrected Doherty has poor ACPR even well below saturation. DPD can invert that kink because it is deterministic and repeatable, which is precisely why the two technologies became standard together: the Doherty gives the efficiency, the DPD gives back the linearity. What changed in device selection - more important: (1) EFFICIENCY AT BACKOFF, because that is now the operating point and no longer something linearity forces you to trade away; (2) REPEATABILITY AND MODELLABILITY - a device whose non-linearity is smooth, stable over temperature, and free of hysteresis and long thermal tails, because those are the properties that decide whether a predistorter can invert it. Memory effects are the enemy, and they come largely from bias-network and thermal time constants. Less important: RAW LINEARITY, IP3 and uncorrected ACPR. A device that is more linear but has significant memory can perform worse in a DPD system than one that compresses harder but predictably. That is a genuinely different specification for the same component, and it is why modern PA datasheets lead with efficiency at backoff and increasingly publish behavioural model data.'
+                },
+                {
+                    id: 'ex4',
+                    title: 'Diagnose the regrowth',
+                    problem: 'An envelope tracking transmitter passes its spectral mask with a 20 MHz carrier and fails with a 60 MHz one, even with DPD active and adapting. ACPR is 8 dB worse. Give the most likely cause, explain why DPD cannot fix it, and give three things you would check in order.',
+                    hints: [
+                        'What scales with signal bandwidth in an ET system?',
+                        'What does DPD invert, and is the distortion coming from there?',
+                        'What else has a delay in it?'
+                    ],
+                    answer: 'Most likely cause: the supply modulator has run out of bandwidth. The envelope of a 60 MHz carrier needs roughly 180-300 MHz of modulator bandwidth against 60-100 MHz for the 20 MHz carrier - a three-fold increase. When the supply cannot follow the envelope on fast peaks, the PA is left with insufficient headroom exactly when it needs the most, and it clips. Clipping is spectral regrowth. Why DPD cannot fix it: DPD inverts the PA TRANSFER CHARACTERISTIC - the mapping from input amplitude and phase to output amplitude and phase, at a given supply voltage. Here the distortion is not in that mapping at all; it is caused by the supply voltage being wrong at that instant. The predistorter has no model of, and no access to, the supply. Worse, an adapting DPD will try to correct it and converge on coefficients that are wrong for the instants when the supply IS correct, so it can degrade performance in the parts of the signal that were previously fine. Three things to check, in order: (1) MODULATOR BANDWIDTH against the actual envelope bandwidth - measure the supply rail directly with a fast probe during the 60 MHz signal and compare it against the commanded envelope. If the rail is rounding off the peaks, that is the answer and nothing else matters. (2) ENVELOPE-TO-RF DELAY ALIGNMENT. This scales too: a fixed delay error that was a small fraction of a 20 MHz envelope period is a large fraction of a 60 MHz one. Sweep the delay and look for a clear optimum; if the optimum moved with bandwidth, alignment is part of it. (3) DPD OBSERVATION BANDWIDTH. The receiver needs 3-5x the signal bandwidth to see the regrowth it is correcting - 180-300 MHz here. If the observation path was sized for 20 MHz it is now blind to the adjacent-channel energy it is supposed to be minimising, and the loop is optimising something it cannot see. Note that all three are BANDWIDTH SCALING problems, which is the general lesson: an ET system that works at one bandwidth does not automatically work at three times that, and every path in it has to be re-checked.'
+                }
+            ]
+        });
+    }
+})();
+</script>

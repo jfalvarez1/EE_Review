@@ -2017,6 +2017,12 @@ const CURRICULUM = {
                     title: 'Antennas, and the Board They Sit On',
                     description: 'Why the ground plane is the antenna, and the bound that says small cannot be broadband',
                     topics: ['Radiation resistance and efficiency', 'The Chu limit', 'Chip vs IFA vs whip', 'Everything that detunes it', 'Tuning in the real product']
+                },
+                {
+                    id: 12,
+                    title: 'Modern Power Amplifiers: Doherty, Envelope Tracking and DPD',
+                    description: 'Three different attacks on the same number: efficiency at backoff',
+                    topics: ['Why backoff costs so much', 'Doherty load modulation', 'Envelope tracking', 'Digital predistortion', 'GaN, LDMOS and what changed']
                 }
             ]
         },
