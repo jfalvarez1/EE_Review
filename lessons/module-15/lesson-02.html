@@ -133,7 +133,44 @@
 
     <div class="card">
         <h3>Balancing Circuit Schematics</h3>
-        <div id="bal-schematic"></div>
+
+        <h4>Passive: bleed the high cell</h4>
+        <p>A resistor across the cell, switched in when that cell runs ahead of
+        the others. The energy becomes heat, which is why passive balancing
+        currents are small &mdash; typically 50&ndash;200&nbsp;mA &mdash; and why
+        it can only balance <em>down</em>, never up.</p>
+        <div id="bal-passive"></div>
+        <p class="fig-note">Q1 is one of the balance FETs; a real pack has one
+        per cell. R<sub>bal</sub> sets the current,
+        \(I = (V_{cell} - V_{DS})/R_{bal}\), and dissipates all of it: at
+        4.2&nbsp;V through 33&nbsp;&Omega; that is 127&nbsp;mA and
+        <strong>0.53&nbsp;W per cell</strong>, which is the thermal limit that
+        actually decides the resistor value.</p>
+
+        <h4>Active: move charge from the high cell to the low one</h4>
+        <p>A flying capacitor is switched across the high cell, then across the
+        low one, transferring charge rather than burning it. Balancing currents
+        of an amp or more become practical, and the pack can balance in either
+        direction.</p>
+        <div id="bal-active"></div>
+        <p class="fig-note">S1 and S2 never close together &mdash; that would
+        short the two cells through C<sub>fly</sub>. Phase 1 closes S1 and
+        C<sub>fly</sub> charges toward the higher cell; phase 2 closes S2 and it
+        discharges into the lower one. Charge moved per cycle is
+        \(Q = C_{fly}\Delta V\), so the balancing current is
+        \(I = f\,C_{fly}\Delta V\) &mdash; it falls to zero as the cells converge,
+        which is the behaviour you want.</p>
+
+        <h4>Integrated: the AFE does all of it</h4>
+        <p>A monitor IC with the balance FETs on-die. It measures every cell,
+        decides which to bleed, and switches its own internal FETs &mdash; so the
+        board carries one IC, one resistor per cell, and the sense wiring.</p>
+        <div id="bal-ic"></div>
+        <p class="fig-note">Note the external R<sub>bal</sub>: even an IC with
+        internal balance FETs puts the resistor outside, because the resistor is
+        where the heat goes and the die is the last place you want it. ICs with
+        fully internal balancing exist and are limited to tens of
+        milliamps for exactly that reason.</p>
     </div>
 
         <div class="card">
@@ -390,82 +427,129 @@
     });
 
     // Schematic
+    //
+    // Redrawn. The previous version put all three circuits in one 700x220 SVG
+    // and drew the cells as bare rectangles with the label sitting on the
+    // outline, the balance FET as a gap in a wire labelled "Q", and S1/S2 as
+    // two more gaps. Nothing in it was a component symbol.
+    //
+    // Now three separate diagrams built from the symbol library, so a cell is
+    // a battery, a switch is a switch, and the FET is a FET.
+    //
+    // Pin geometry, from component-models.js:
+    //   battery      plus (x, y-25), minus (x, y+25)
+    //   nmos         gate (x-25, y), drain (x+15, y-35), source (x+15, y+35)
+    //   resistor     (x±25, y), or (x, y±25) rotated 90
+    //   capacitor    same
+    //   switch_spst  (x±25, y)
+    //   ground       (x, y-10)
     function drawSchematic() {
-        const container = document.getElementById('bal-schematic');
-        const svg = new SchematicSVG(700, 220);
+        if (typeof ComponentModels === 'undefined') return;
 
-        // Passive balancing
-        svg.text(50, 25, 'Passive Balancing:', {fontSize: 12, fill: '#4af'});
+        // ---- 1. Passive: a resistor and a FET across the cell --------------
+        var passive = document.getElementById('bal-passive');
+        if (passive) {
+            passive.innerHTML = ComponentModels.diagram({
+                width: 520, height: 300,
+                title: 'Passive balancing — one cell, one bleed path',
+                parts: [
+                    { key: 'battery',  x: 110, y: 150, label: 'Cell', value: '4.20 V', labelPos: 'left' },
+                    { key: 'resistor', x: 300, y: 105, rotate: 90, label: 'R_bal', value: '33 Ω', labelPos: 'right' },
+                    { key: 'nmos',     x: 285, y: 215, label: 'Q1', labelPos: 'right' },
+                    { key: 'port',     x: 195, y: 215, rotate: 180, label: 'BAL_EN', labelPos: 'top' }
+                ],
+                wires: [
+                    // cell positive across the top to the resistor
+                    [[110, 125], [110, 80]],
+                    [[110, 80], [300, 80]],
+                    // resistor down to the FET drain
+                    [[300, 130], [300, 180]],
+                    // FET source back to cell negative
+                    [[300, 250], [300, 275]],
+                    [[300, 275], [110, 275]],
+                    [[110, 275], [110, 175]],
+                    // gate drive
+                    [[210, 215], [260, 215]]
+                ]
+            });
+        }
 
-        // Cell
-        svg.rect(50, 50, 40, 60, {fill: 'none', stroke: '#888'});
-        svg.text(70, 85, 'Cell', {fontSize: 9});
+        // ---- 2. Active: a flying capacitor between two cells ---------------
+        var active = document.getElementById('bal-active');
+        if (active) {
+            active.innerHTML = ComponentModels.diagram({
+                width: 560, height: 360,
+                title: 'Active balancing — a flying capacitor moves the charge',
+                parts: [
+                    { key: 'battery',   x: 110, y: 95,  label: 'Cell 1', value: '4.20 V', labelPos: 'left' },
+                    { key: 'battery',   x: 110, y: 245, label: 'Cell 2', value: '4.05 V', labelPos: 'left' },
+                    { key: 'switch_spst', x: 300, y: 70,  label: 'S1', labelPos: 'top' },
+                    { key: 'switch_spst', x: 300, y: 220, label: 'S2', labelPos: 'top' },
+                    { key: 'capacitor', x: 420, y: 145, rotate: 90, label: 'C_fly', value: '10 µF', labelPos: 'right' }
+                ],
+                wires: [
+                    // cell 1 top to S1
+                    [[110, 70], [275, 70]],
+                    // S1 to the flying cap's upper plate
+                    [[325, 70], [420, 70]],
+                    [[420, 70], [420, 120]],
+                    // the mid node: cell1 minus and cell2 plus are the same node
+                    [[110, 120], [110, 220]],
+                    // cell 2 top (the mid node) out to S2
+                    [[110, 220], [275, 220]],
+                    // S2 to the cap's lower plate
+                    [[325, 220], [420, 220]],
+                    [[420, 170], [420, 220]],
+                    // cell 2 bottom returns to the cap's lower plate too, so the
+                    // cap sees cell 1 with S1 closed and cell 2 with S2 closed
+                    [[110, 270], [110, 310]],
+                    [[110, 310], [490, 310]],
+                    [[490, 310], [490, 220]],
+                    [[490, 220], [420, 220]]
+                ]
+            });
+        }
 
-        // Balance resistor with switch
-        svg.wire([[90, 60], [120, 60]]);
-        svg.wire([[120, 60], [120, 80]]);
-        svg.text(135, 75, 'Q', {fontSize: 9});
-        svg.wire([[120, 100], [120, 120]]);
-        svg.resistor(140, 120, {horizontal: true});
-        svg.text(140, 135, 'Rbal', {fontSize: 9});
-        svg.wire([[160, 120], [180, 120]]);
-        svg.wire([[180, 120], [180, 100]]);
-        svg.wire([[90, 100], [180, 100]]);
-
-        // Control
-        svg.wire([[120, 90], [100, 90]]);
-        svg.text(85, 95, 'EN', {fontSize: 8});
-
-        svg.text(50, 170, 'Simple but wastes energy', {fontSize: 9, fill: '#888'});
-
-        // Active balancing (switched capacitor)
-        svg.text(250, 25, 'Active Balancing (Switched Cap):', {fontSize: 12, fill: '#4af'});
-
-        // Two cells
-        svg.rect(250, 50, 40, 40, {fill: 'none', stroke: '#888'});
-        svg.text(270, 75, 'C1', {fontSize: 9});
-
-        svg.rect(250, 100, 40, 40, {fill: 'none', stroke: '#888'});
-        svg.text(270, 125, 'C2', {fontSize: 9});
-
-        // Flying capacitor circuit
-        svg.wire([[290, 60], [320, 60]]);
-        svg.wire([[320, 60], [320, 75]]);
-        svg.text(335, 75, 'S1', {fontSize: 8});
-        svg.wire([[320, 95], [320, 105]]);
-        svg.text(335, 100, 'S2', {fontSize: 8});
-        svg.wire([[320, 105], [320, 120]]);
-        svg.wire([[290, 120], [320, 120]]);
-
-        // Flying cap
-        svg.wire([[320, 80], [370, 80]]);
-        svg.capacitor(385, 90, {horizontal: false});
-        svg.text(400, 90, 'Cfly', {fontSize: 9});
-        svg.wire([[385, 110], [370, 110], [370, 80]]);
-        svg.wire([[320, 100], [370, 100]]);
-
-        svg.text(250, 170, 'Phase 1: Charge Cfly from high cell', {fontSize: 9, fill: '#888'});
-        svg.text(250, 185, 'Phase 2: Discharge to low cell', {fontSize: 9, fill: '#888'});
-
-        // BMS IC
-        svg.text(480, 25, 'Integrated BMS IC:', {fontSize: 12, fill: '#4af'});
-
-        svg.rect(480, 50, 150, 100, {fill: 'none', stroke: '#888'});
-        svg.text(555, 70, 'BMS IC', {fontSize: 10});
-        svg.text(555, 90, '(e.g. BQ769x0)', {fontSize: 9});
-
-        svg.text(490, 115, 'Cell monitor', {fontSize: 8, fill: '#888'});
-        svg.text(490, 128, 'Balance FETs', {fontSize: 8, fill: '#888'});
-        svg.text(490, 141, 'Protection', {fontSize: 8, fill: '#888'});
-
-        svg.wire([[630, 70], [660, 70]]);
-        svg.wire([[630, 90], [660, 90]]);
-        svg.wire([[630, 110], [660, 110]]);
-        svg.wire([[630, 130], [660, 130]]);
-        svg.text(665, 100, 'Cell', {fontSize: 8});
-        svg.text(665, 115, 'taps', {fontSize: 8});
-
-        container.innerHTML = svg.render();
+        // ---- 3. Integrated AFE ---------------------------------------------
+        //
+        // No IC symbol here on purpose. The library has no generic multi-pin
+        // package, and borrowing the three-pin regulator symbol would draw a
+        // BQ769x0 with an input, an output and a ground - which is not what an
+        // AFE has, and a wrong symbol teaches a wrong thing.
+        //
+        // What the board actually looks like is a balance resistor per cell
+        // running to a named tap, so that is what this draws. Every wire is
+        // orthogonal, which is both correct schematic practice and what the
+        // net checker can verify.
+        var ic = document.getElementById('bal-ic');
+        if (ic) {
+            ic.innerHTML = ComponentModels.diagram({
+                width: 560, height: 330,
+                title: 'Integrated monitor — external R_bal, internal FETs',
+                parts: [
+                    { key: 'battery',  x: 110, y: 100, label: 'Cell 1', labelPos: 'left' },
+                    { key: 'battery',  x: 110, y: 230, label: 'Cell 2', labelPos: 'left' },
+                    { key: 'resistor', x: 300, y: 60,  label: 'R_bal', value: '33 Ω', labelPos: 'top' },
+                    { key: 'resistor', x: 300, y: 165, label: 'R_bal', value: '33 Ω', labelPos: 'top' },
+                    { key: 'port',     x: 445, y: 60,  label: 'VC2 / BAL2', labelPos: 'top' },
+                    { key: 'port',     x: 445, y: 165, label: 'VC1 / BAL1', labelPos: 'top' },
+                    { key: 'port',     x: 445, y: 285, label: 'VC0', labelPos: 'top' }
+                ],
+                wires: [
+                    // cell 1 positive out through its balance resistor to the tap
+                    [[110, 75], [110, 60]],
+                    [[110, 60], [275, 60]],
+                    [[325, 60], [430, 60]],
+                    // the mid node - cell 1 minus and cell 2 plus - to its tap
+                    [[110, 125], [110, 205]],
+                    [[110, 165], [275, 165]],
+                    [[325, 165], [430, 165]],
+                    // the pack negative to the bottom tap
+                    [[110, 255], [110, 285]],
+                    [[110, 285], [430, 285]]
+                ]
+            });
+        }
     }
 
     // Checklist
