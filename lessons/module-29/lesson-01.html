@@ -1,0 +1,702 @@
+<!-- Module 29, Lesson 1: Return Current: The Idea Everything Else Rests On -->
+<div class="lesson-content" data-module="29" data-lesson="1">
+
+    <div class="card">
+        <h2>Return Current: The Idea Everything Else Rests On</h2>
+        <p>Almost every PCB layout rule you have ever been handed &mdash; keep
+        ground planes solid, don't cross splits, route differential pairs
+        together, add a via next to every signal via &mdash; is a consequence of
+        one fact that is rarely stated plainly:</p>
+
+        <div class="notice">
+            <strong>Current flows in loops.</strong> Every signal that leaves a
+            driver must come back. The return current is exactly as large as the
+            signal current, it is just as real, and unlike the signal you did not
+            draw it on the schematic &mdash; so the board decides where it goes.
+            Almost all EMI and signal-integrity trouble is the return path taking
+            a route you did not intend.
+        </div>
+
+        <p>Get this lesson and the rest of the module is mostly bookkeeping. Skip
+        it and the rules become arbitrary things to memorise, which is exactly
+        how most people learn layout and exactly why most boards have avoidable
+        problems in them.</p>
+
+        <div class="analogy">
+            <span class="analogy-label">Water does not vanish at the tap</span>
+            <p>Nobody plumbs a building with supply pipes only. Water arrives, is
+            used, and <strong>leaves through a drain</strong>, and the drain is
+            designed with as much care as the supply.</p>
+            <p>A schematic draws the supply pipes and labels the drain
+            &ldquo;GND&rdquo;, as though naming it were the same as routing it.
+            The copper still has to carry that return, and if you have not decided
+            where, it will find its own way &mdash; possibly through a
+            neighbouring signal's reference, possibly around the edge of a split,
+            possibly out along a cable and into someone's radio.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> water
+            picks the lowest path and does not care about anything else. Return
+            current picks the path of least <em>impedance</em>, and which term
+            dominates &mdash; resistance or inductance &mdash; depends on
+            frequency. That frequency dependence is the whole subtlety, and the
+            plumbing has no equivalent of it.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. The energy is not in the copper</h3>
+
+        <p>Rick Hartley makes this point harder than anyone, and it is worth
+        stating in his terms: <em>the signal is not the current in the trace, it
+        is the electromagnetic field in the dielectric between the trace and its
+        return path.</em> The copper does not carry the energy; it
+        <strong>guides</strong> it. The energy travels in the space between the
+        conductors.</p>
+
+        <p>Two things follow immediately, and they are the reason the stackup
+        matters more than the routing:</p>
+
+        <ul>
+            <li><strong>The field needs somewhere to be.</strong> If there is a
+            solid plane one thin dielectric away, the field is confined to a small
+            volume directly beneath the trace, tightly bound, coupling to nothing.
+            If the nearest plane is three dielectrics away, that same field
+            spreads across a much larger volume &mdash; through your neighbours'
+            traces, and out of the board.</li>
+            <li><strong>Radiation is loop area.</strong> A signal and its return
+            enclose a loop. That loop is an antenna, and its radiated field is
+            proportional to its area. Keeping the return directly under the signal
+            makes the loop as thin as the dielectric &mdash; a few thousandths of
+            an inch &mdash; and thereby a hopeless antenna. That is the goal.</li>
+        </ul>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ L_{loop} \approx \mu_0 \frac{h \cdot \ell}{w} \]
+                <span class="drv-why">Loop inductance of a trace of width \(w\) and
+                length \(\ell\) over a plane at height \(h\). Note what it depends
+                on: the <em>height above the plane</em>, not the thickness of the
+                copper and not the width of the plane. Halve \(h\) and you halve
+                the loop inductance and the radiated field with it.</span>
+            </div>
+            <div class="drv-step">
+                \[ Z_0 = \sqrt{\frac{L'}{C'}} \quad\text{and}\quad
+                   t_{pd} = \sqrt{L'C'} \]
+                <span class="drv-why">The same \(L'\) that sets the loop inductance
+                sets the characteristic impedance. Impedance control and EMI
+                control are not two jobs — they are one geometry, seen twice.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. Least resistance, or least inductance?</h3>
+
+        <p>This is the single most useful piece of physics in PCB layout, and it
+        has a clean answer.</p>
+
+        <p>Consider a trace running from A to B over a ground plane, with the
+        return coming back through the plane. The return current could take the
+        short, wide, low-resistance route straight across the plane, or it could
+        hug the trace. Which it does depends on which term dominates the plane's
+        impedance:</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ Z = R + j\omega L \]
+                <span class="drv-why">At DC, \(\omega L = 0\) and the current
+                spreads out to minimise \(R\) — it takes the widest path
+                available. As \(\omega\) rises, \(\omega L\) grows without limit
+                while \(R\) stays put, so beyond some frequency the inductive term
+                completely dominates.</span>
+            </div>
+            <div class="drv-step">
+                \[ f_{cross} = \frac{R}{2\pi L} \]
+                <span class="drv-why">For a copper plane this lands in the low
+                kilohertz. Below about 1 kHz the return spreads; by roughly 100
+                kHz it is essentially all directly beneath the trace, in a bundle
+                only a few trace-widths wide.</span>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>Every digital and RF signal on your board is above the
+            crossover.</strong> Even a 1 kHz square wave has edges with megahertz
+            of content, and it is the <em>edge</em> that carries the current the
+            return path has to deal with. So for practical purposes: <strong>the
+            return current is directly under the trace</strong>, always, and any
+            layout rule can be checked by asking &ldquo;can it get there?&rdquo;
+        </div>
+
+        <p>That single question answers almost everything:</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>The rule you were told</th><th>What it actually means</th></tr></thead>
+                <tbody>
+                    <tr><td>Never route across a split in the ground plane</td>
+                        <td>The return cannot cross the gap. It must detour to
+                        wherever the two sides <em>are</em> joined, enclosing a
+                        loop that can be tens of square centimetres instead of
+                        fractions of one. That loop radiates, and it is in series
+                        with your signal as extra inductance.</td></tr>
+                    <tr><td>Put a ground via next to every signal via</td>
+                        <td>When the signal changes layers it changes reference
+                        planes. The return has to change planes too, and it can
+                        only do that through a via or a capacitor. Without one it
+                        detours to the nearest one it can find.</td></tr>
+                    <tr><td>Keep the dielectric to the plane thin</td>
+                        <td>Directly shrinks the loop area, which lowers inductance,
+                        crosstalk and radiation together.</td></tr>
+                    <tr><td>Don't route over a plane's edge or a void</td>
+                        <td>Same as a split. The return has to go round.</td></tr>
+                    <tr><td>Route a differential pair tightly coupled</td>
+                        <td>Each conductor is the other's return, so the loop is the
+                        gap between them. This is why a good pair is tolerant of
+                        plane discontinuities that would wreck a single-ended
+                        signal.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Interactive: where does the return actually flow?</h3>
+
+        <p>The return current density in a plane beneath a microstrip has a known
+        closed form. Slide the frequency and watch it collapse from &ldquo;spread
+        across the whole plane&rdquo; to &ldquo;a narrow bundle under the
+        trace&rdquo;, and add a slot to see what a split does to the loop.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="rc-f">Frequency</label>
+                <input type="range" id="rc-f" min="0" max="80" step="1" value="50">
+                <span class="range-value" id="rc-f-val">1 MHz</span>
+            </div>
+            <div class="c4">
+                <label for="rc-h">Height above plane</label>
+                <input type="range" id="rc-h" min="2" max="60" step="1" value="10">
+                <span class="range-value" id="rc-h-val">0.10 mm</span>
+            </div>
+            <div class="c4">
+                <label for="rc-len">Trace length</label>
+                <input type="range" id="rc-len" min="5" max="200" step="5" value="50">
+                <span class="range-value" id="rc-len-val">50 mm</span>
+            </div>
+            <div class="c6">
+                <label for="rc-slot">Slot in the plane</label>
+                <select id="rc-slot">
+                    <option value="none" selected>Solid plane</option>
+                    <option value="small">Slot forcing a 10 mm detour</option>
+                    <option value="big">Split plane, 40 mm detour to the bridge</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="rc-canvas" width="900" height="330"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Return concentration</div><div class="v mono" id="rc-conc">&mdash;</div></div>
+            <div class="box"><div class="k">Loop area</div><div class="v mono" id="rc-area">&mdash;</div></div>
+            <div class="box"><div class="k">Loop inductance</div><div class="v mono" id="rc-l">&mdash;</div></div>
+            <div class="box"><div class="k">Impedance of that loop</div><div class="v mono" id="rc-z">&mdash;</div></div>
+            <div class="box"><div class="k">Ground bounce at 20 mA/ns</div><div class="v mono" id="rc-bounce">&mdash;</div></div>
+            <div class="box"><div class="k">vs a solid plane</div><div class="v mono" id="rc-ratio">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="rc-note"></p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. The current distribution, quantitatively</h3>
+
+        <p>Above the crossover frequency the return current density in the plane
+        beneath a microstrip follows a Lorentzian in the lateral distance
+        \(x\):</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ J(x) = \frac{I}{\pi h}\cdot\frac{1}{1 + (x/h)^2} \]
+                <span class="drv-why">\(h\) is the height of the trace above the
+                plane. This is a remarkable result: the <em>only</em> length scale
+                is \(h\). The width of the plane does not appear, and neither does
+                the width of the trace.</span>
+            </div>
+            <div class="drv-step">
+                \[ \int_{-3h}^{3h} J\,dx = \frac{2}{\pi}\tan^{-1}(3)
+                   = 0.795 \]
+                <span class="drv-why">Roughly 80% of the return current is within
+                \(\pm 3h\) of the trace centreline. For a 0.1 mm dielectric that
+                is a 0.6 mm wide band — and 97% is within
+                \(\pm 20h\), i.e. 4 mm.</span>
+            </div>
+        </div>
+
+        <p class="fig-note">This is worth internalising because it makes the
+        &ldquo;keep the plane solid&rdquo; rule quantitative rather than
+        superstitious. A void 5 mm to the side of a trace on a 0.1 mm dielectric
+        is 50\(h\) away and takes essentially nothing from the return. A void
+        0.2 mm to the side takes a real fraction of it. And a void <em>directly
+        under</em> the trace takes all of it, which is why crossing a split is a
+        different category of mistake from routing near one.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. Worked example: what a split plane costs</h3>
+
+        <p>A 50&nbsp;mm trace carrying a signal with a 1&nbsp;ns edge, on a
+        0.1&nbsp;mm dielectric over a solid plane, versus the same trace crossing
+        a split that forces the return 40&nbsp;mm out of its way.</p>
+
+        <p>First, a distinction that matters and is often blurred. A trace over a
+        solid plane <em>does</em> have inductance &mdash; about 0.33&nbsp;nH/mm for
+        50&nbsp;&Omega; microstrip, so 16&nbsp;nH over 50&nbsp;mm. But that
+        inductance is <strong>distributed and paired with the line's
+        capacitance</strong>; together they are the characteristic impedance, and
+        the signal simply propagates. It does not appear as a lump of \(L\,di/dt\)
+        between two ground points.</p>
+
+        <p>What causes ground bounce is the <strong>excess</strong> loop &mdash;
+        the area the return encloses <em>beyond</em> running directly under the
+        trace. On a solid plane that excess is essentially zero. A split creates
+        it out of nothing.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \text{Solid: } A_{excess} \approx 0 \]
+                <span class="drv-why">The return is directly beneath, within a few
+                times the dielectric thickness. There is no uncompensated loop, so
+                no bounce between one part of the plane and another.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{Split: } A_{excess} \approx 40\,\mathrm{mm} \times
+                   20\,\mathrm{mm} = 800\ \mathrm{mm^2} = 8\times10^{-4}\ \mathrm{m^2} \]
+                <span class="drv-why">The return must run along the split to the
+                bridge and back, enclosing a large flat loop in the plane of the
+                board. Nothing compensates this one.</span>
+            </div>
+            <div class="drv-step">
+                \[ L_{excess} \approx \mu_0\frac{A}{w}
+                   = \frac{4\pi\times10^{-7}\times 8\times10^{-4}}{0.020}
+                   = \mathbf{50\ nH} \]
+                <span class="drv-why">Taking the detour's effective width as about
+                20 mm. Order-of-magnitude, but the order of magnitude is the
+                point.</span>
+            </div>
+            <div class="drv-step">
+                \[ V = L\frac{di}{dt} = 50\,\mathrm{nH}\times
+                   \frac{20\,\mathrm{mA}}{1\,\mathrm{ns}} = \mathbf{1.0\ V} \]
+                <span class="drv-why">One volt of ground bounce, from one signal,
+                on a 3.3 V board — and it is not noise on that net, it is a
+                voltage difference between two parts of what the schematic calls
+                &ldquo;ground&rdquo;, seen by <em>everything</em> referenced to
+                either side of it.</span>
+            </div>
+        </div>
+
+        <div class="warn">
+            <strong>And the radiation.</strong> An 800&nbsp;mm&sup2; loop carrying
+            harmonic content at 300&nbsp;MHz is an efficient small loop antenna. In
+            practice a single trace crossing a split plane is one of the most
+            reliable ways to fail a radiated-emissions test, and it is nearly
+            invisible on a schematic review because the schematic says both sides
+            are &ldquo;GND&rdquo;.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>5. The split-plane argument, settled</h3>
+
+        <p>Splitting the ground plane to &ldquo;isolate analogue from
+        digital&rdquo; is the most persistent piece of bad advice in electronics.
+        It appears in application notes, it is taught in courses, and it is
+        wrong for almost every board built since about 1990.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>The claim</th><th>What actually happens</th></tr></thead>
+                <tbody>
+                    <tr><td>&ldquo;Splitting stops digital noise reaching the analogue section&rdquo;</td>
+                        <td>It stops <em>DC and low-frequency</em> currents mixing, which was the real problem in the 1970s when the noise was 60 Hz hum and ground <em>resistance</em> was what coupled it. It does nothing about high-frequency coupling, which goes through the fields, not the copper.</td></tr>
+                    <tr><td>&ldquo;It gives each section a quiet reference&rdquo;</td>
+                        <td>Until one signal crosses the split — and on a real board something always does, often the very ADC data bus you split the plane to protect. That signal's return now runs the length of both sections.</td></tr>
+                    <tr><td>&ldquo;The datasheet says to&rdquo;</td>
+                        <td>Many do, and many of those figures date from an era of much slower edges. Check the date and the edge rates. Some vendors have quietly revised them.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p><strong>What to do instead:</strong> keep one solid ground plane, and
+        control the currents by <em>placement</em>. Put the analogue parts in one
+        area and the digital parts in another, so that the return currents of each
+        naturally stay under their own traces and never overlap. You get the
+        isolation you wanted without ever creating a discontinuity for a return
+        path to fall into. This is Hartley's position, Bogatin's position, and
+        Ott's position, and they agree for the same reason.</p>
+
+        <div class="notice">
+            <strong>The exception that proves it.</strong> There is one case where
+            a genuine plane split is right: a <em>galvanic isolation barrier</em>,
+            where the two sides are at different potentials and safety requires
+            them not to be connected at all. There, nothing crosses the split
+            except through an isolator, so no return path is ever broken. The rule
+            is not &ldquo;never split&rdquo; — it is <strong>never split a plane
+            that a signal has to cross</strong>.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="acceptance">
+        <h3>6. Acceptance tests</h3>
+
+        <h4>Performance</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Test</th><th>Condition</th><th>Pass criterion</th><th>If it fails</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Return path continuity</td>
+                        <td>For every high-speed net, trace the return on the reference layer</td>
+                        <td>An unbroken path directly beneath, from driver to receiver</td>
+                        <td>The commonest finding is a plane void under a connector or a large component, which nobody drew and nobody notices</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Split crossings</td>
+                        <td>Overlay the plane layers on the signal layers</td>
+                        <td>Zero signal traces crossing a plane split or void</td>
+                        <td>If one must cross, add a stitching capacitor at the crossing point — imperfect, but far better than nothing</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Layer-change vias</td>
+                        <td>Every signal via on a net above ~50 MHz</td>
+                        <td>A ground via within about 1 mm</td>
+                        <td>Without it the return detours to the nearest ground via, wherever that happens to be</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Radiated emissions</td>
+                        <td>Pre-compliance scan, 30 MHz to 1 GHz</td>
+                        <td>6 dB of margin below the limit</td>
+                        <td>Correlate the peaks with clock harmonics, then look for the loop that is radiating them. It is almost always a return path, not a &ldquo;noisy component&rdquo;.</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Ground bounce</td>
+                        <td>Scope with a short ground spring between two ground points at opposite ends of the board</td>
+                        <td>&lt; 50 mV during full digital activity</td>
+                        <td>Use a ground spring, not a 15 cm ground lead — the lead's own loop will manufacture the noise you are looking for</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Abuse</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What is done to it</th><th>What physically happens</th><th>Acceptable outcome</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>The ground plane split for &ldquo;analogue isolation&rdquo;</strong>, with the SPI bus to the ADC crossing it</td>
+                        <td>Every SPI edge's return runs to the bridge and back — say 60 mm each way. Loop inductance rises from a few nH to perhaps 60 nH, and with a 10 mA/ns edge that is 600 mV of bounce injected between analogue and digital ground.</td>
+                        <td><strong>The split makes the noise it was drawn to prevent, and makes it worse than no split at all.</strong> Nothing is damaged; the ADC simply loses two to three bits of effective resolution and nobody can find out why. Remove the split. This failure is so common that finding a split plane should be the first thing you look for on any board with unexplained converter noise.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A high-speed trace routed over a plane void</strong> left by a connector's mounting hole array</td>
+                        <td>Over the void the trace has no reference. Its impedance rises sharply — perhaps 50 &Omega; to 90 &Omega; over that stretch — creating a reflection at each end of the void, and its return spreads around the obstruction.</td>
+                        <td>At slow edges, nothing observable. As edge rates rise it becomes an impedance discontinuity that shows up as ringing and eye closure. <strong>The fix is placement</strong>: route around the void, or move the connector. Retuning terminations to compensate is treating a symptom.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A signal via with no accompanying ground via</strong>, on a 6-layer board, changing from layer 1 (ref: layer 2 GND) to layer 6 (ref: layer 5 GND)</td>
+                        <td>The return must get from the layer 2 plane to the layer 5 plane. With no via nearby it travels through whatever couples the two planes — the nearest stitching via, or the plane-pair capacitance, which at 500 MHz is a poor conductor over any distance.</td>
+                        <td>The added inductance appears in series with the signal and as a common-mode current on both planes. <strong>One 0.3 mm ground via, 0.5 mm away, removes it almost entirely.</strong> It is the cheapest fix in all of PCB design and the most frequently omitted.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A cable attached to a board whose ground plane carries bounce</strong></td>
+                        <td>The bounce voltage appears between the board's ground and the cable shield, driving the cable as a common-mode antenna. A 1 m cable is a very efficient radiator around 75 MHz.</td>
+                        <td>This is why boards fail EMC with cables attached and pass without them. <strong>The cure is at the source — reduce the ground bounce — not at the cable.</strong> Ferrites on the cable treat the symptom and are the standard sign that the return paths were not designed.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="rc-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="rc-exercises"></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var canvas = document.getElementById('rc-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var TEK = AD.TEK_COLORS;
+
+    var MU0 = 4 * Math.PI * 1e-7;
+
+    function update() {
+        // Frequency slider is logarithmic: 0..80 maps 100 Hz .. 10 GHz.
+        var fExp = 2 + AD.num('rc-f') / 80 * 8;
+        var f = Math.pow(10, fExp);
+        var h_mm = AD.num('rc-h') / 100;          // 0.02 .. 0.60 mm
+        var len_mm = AD.num('rc-len');
+        var slotSel = document.getElementById('rc-slot');
+        var slot = slotSel ? slotSel.value : 'none';
+
+        AD.setText('rc-f-val', AD.fmtUnit(f, 'Hz'));
+        AD.setText('rc-h-val', h_mm.toFixed(2) + ' mm');
+        AD.setText('rc-len-val', len_mm + ' mm');
+
+        // Below the crossover the return spreads; above it, it bundles under
+        // the trace. Model the transition with the same R/(R + jwL) split the
+        // physics gives, using a representative plane R and L.
+        var Rplane = 0.002;                        // ohms, a spread path
+        var Lplane = 8e-9;                         // henries, that same path
+        var fCross = Rplane / (2 * Math.PI * Lplane);
+        var bundled = 1 / Math.sqrt(1 + Math.pow(fCross / f, 2));   // 0 -> 1
+
+        // Effective lateral spread of the return: h at high frequency,
+        // widening toward the whole plane at low frequency.
+        var spread_mm = h_mm + (1 - bundled) * 25;
+
+        // The line's OWN loop - trace over plane. This inductance is distributed
+        // and paired with the line capacitance, so it is the characteristic
+        // impedance rather than a source of bounce. Reported for scale only.
+        var areaLine = len_mm * h_mm;                          // mm^2
+        var Lline = 0.33e-9 * len_mm;                          // 50 ohm microstrip
+
+        // The EXCESS loop the detour creates. This one is uncompensated, and it
+        // is what develops L di/dt between two points the schematic calls GND.
+        var detour_mm = slot === 'small' ? 10 : (slot === 'big' ? 40 : 0);
+        var detourW_mm = 20;
+        var areaExcess = detour_mm * detourW_mm;
+        var Lexcess = MU0 * (areaExcess * 1e-6) / (detourW_mm * 1e-3);
+
+        var Z = 2 * Math.PI * f * Lexcess;
+        var bounce = Lexcess * (0.020 / 1e-9);                 // 20 mA in 1 ns
+
+        AD.setText('rc-conc', (bundled * 100).toFixed(0) + '% bundled  (±' +
+                              (3 * h_mm).toFixed(2) + ' mm holds 80% when bundled)');
+        AD.setText('rc-area', areaExcess > 0
+            ? areaExcess.toFixed(0) + ' mm² excess   (line itself: ' +
+              areaLine.toFixed(1) + ' mm²)'
+            : 'no excess — the return is directly beneath');
+        AD.setText('rc-l', areaExcess > 0
+            ? AD.fmtUnit(Lexcess, 'H') + ' excess'
+            : '≈ 0 excess   (line: ' + AD.fmtUnit(Lline, 'H') + ', matched by C)');
+        AD.setText('rc-z', areaExcess > 0
+            ? AD.fmtUnit(Z, 'Ω') + ' at ' + AD.fmtUnit(f, 'Hz')
+            : '≈ 0 — L and C together are just Z₀');
+        AD.setText('rc-bounce', areaExcess > 0 ? AD.fmtUnit(bounce, 'V') : '≈ 0 V');
+        AD.setText('rc-ratio', areaExcess > 0
+            ? (areaExcess / areaLine).toFixed(0) + '× the line’s own loop area'
+            : 'this IS the solid-plane case');
+
+        // ---- plot: current density across the plane -----------------------
+        var w = canvas.width, hgt = canvas.height;
+        var ml = 60, mr = 130, mt = 44, mb = 46;
+        var pw = w - ml - mr, ph = hgt - mt - mb;
+
+        AD.drawGrid(ctx, w, hgt, 10, 8);
+
+        var xMax = 12;                              // mm each side
+        var X = function (x) { return ml + (x + xMax) / (2 * xMax) * pw; };
+
+        // J(x) = (1/(pi*s)) / (1 + (x/s)^2), s the effective spread.
+        var s = Math.max(spread_mm, 0.02);
+        var peak = 1 / (Math.PI * s);
+        var Y = function (j) { return mt + ph - (j / peak) * ph * 0.92; };
+
+        ctx.save();
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (var i = 0; i <= 500; i++) {
+            var x = -xMax + 2 * xMax * i / 500;
+            var j = (1 / (Math.PI * s)) / (1 + Math.pow(x / s, 2));
+            if (i === 0) ctx.moveTo(X(x), Y(j)); else ctx.lineTo(X(x), Y(j));
+        }
+        ctx.stroke();
+        // fill under it
+        ctx.lineTo(X(xMax), mt + ph);
+        ctx.lineTo(X(-xMax), mt + ph);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255,215,0,0.12)';
+        ctx.fill();
+        ctx.restore();
+
+        // the trace, above
+        ctx.save();
+        ctx.fillStyle = TEK.ch2;
+        ctx.fillRect(X(-0.15), mt - 22, X(0.15) - X(-0.15), 8);
+        ctx.fillStyle = TEK.text;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('trace', X(0), mt - 28);
+        ctx.restore();
+
+        // +/- 3h markers
+        if (bundled > 0.5) {
+            ctx.save();
+            ctx.strokeStyle = TEK.ch3;
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1;
+            [-3 * h_mm, 3 * h_mm].forEach(function (x) {
+                ctx.beginPath(); ctx.moveTo(X(x), mt); ctx.lineTo(X(x), mt + ph); ctx.stroke();
+            });
+            ctx.restore();
+        }
+
+        // the slot, if any
+        if (detour_mm > 0) {
+            var slotX = detour_mm === 10 ? 4 : 7;
+            ctx.save();
+            ctx.fillStyle = 'rgba(248,113,113,0.30)';
+            ctx.fillRect(X(slotX) - 5, mt, 10, ph);
+            ctx.strokeStyle = TEK.ref;
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(X(slotX) - 5, mt, 10, ph);
+            ctx.fillStyle = TEK.ref;
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('slot', X(slotX), mt + ph + 16);
+            ctx.restore();
+        }
+
+        // axes
+        ctx.save();
+        ctx.fillStyle = TEK.text;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        for (var g = -3; g <= 3; g++) {
+            var xx = xMax * g / 3;
+            ctx.fillText(xx.toFixed(0), X(xx), mt + ph + 18);
+        }
+        ctx.fillText('lateral distance from the trace centreline (mm)', ml + pw / 2, hgt - 10);
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText('Return current density in the plane', ml, mt - 26);
+        ctx.font = '11px monospace';
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('J(x)', ml + pw + 8, mt + 14);
+        ctx.fillStyle = TEK.ch3;
+        if (bundled > 0.5) ctx.fillText('±3h (80%)', ml + pw + 8, mt + 30);
+        ctx.fillStyle = TEK.text;
+        ctx.fillText('f_cross ≈ ' + AD.fmtUnit(fCross, 'Hz'), ml + pw + 8, mt + 50);
+        ctx.restore();
+
+        // ---- verdict ------------------------------------------------------
+        var verdict;
+        if (detour_mm > 0) {
+            verdict = 'The slot forces the return ' + detour_mm + ' mm out of its way, ' +
+                      'enclosing ' + areaExcess.toFixed(0) + ' mm² that nothing compensates — ' +
+                      (areaExcess / areaLine).toFixed(0) + '× the line’s own loop. That is ' +
+                      AD.fmtUnit(Lexcess, 'H') + ' of uncompensated inductance and ' +
+                      AD.fmtUnit(bounce, 'V') + ' of ground bounce from a single 20 mA/ns ' +
+                      'edge — a voltage between two places the schematic both calls GND.';
+        } else if (bundled < 0.2) {
+            verdict = 'Below the crossover the return spreads across the plane to minimise ' +
+                      'resistance — the classic low-frequency picture, and the reason ' +
+                      'star-grounding made sense when signals were slow. Note the curve is ' +
+                      'wide and low.';
+        } else if (bundled < 0.9) {
+            verdict = 'In transition. The inductive term is becoming comparable to the ' +
+                      'resistive one, and the return is collapsing toward the trace. ' +
+                      'Real signals contain a spread of frequencies, so parts of the same ' +
+                      'signal are on either side of this.';
+        } else {
+            verdict = 'Fully bundled: ' + (bundled * 100).toFixed(0) + '% inductance-dominated, ' +
+                      'so the return runs directly beneath the trace within about ±' +
+                      (3 * h_mm).toFixed(2) + ' mm. This is the regime every digital and RF ' +
+                      'signal lives in, and it is why the question "can the return get there?" ' +
+                      'answers almost every layout rule.';
+        }
+
+        AD.setText('rc-note', verdict);
+    }
+
+    ['rc-f', 'rc-h', 'rc-len'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    var sl = document.getElementById('rc-slot');
+    if (sl) sl.addEventListener('change', update);
+    update();
+
+    if (typeof ChecklistWidget !== 'undefined') {
+        new ChecklistWidget('rc-checklist', {
+            title: 'Return Path Checklist',
+            items: [
+                {id: 'solid', text: 'One solid ground plane; no splits anywhere a signal crosses', category: 'Planes'},
+                {id: 'adjacent', text: 'Every signal layer has a ground plane one dielectric away', category: 'Planes'},
+                {id: 'voids', text: 'Plane voids from connectors, mounting holes and thermals identified on a plot', category: 'Planes'},
+                {id: 'thin', text: 'Signal-to-plane dielectric as thin as the stackup allows', category: 'Planes'},
+                {id: 'vias', text: 'Ground via within 1 mm of every high-speed signal via', category: 'Routing'},
+                {id: 'nocross', text: 'No high-speed trace crosses a split, a void or a plane edge', category: 'Routing'},
+                {id: 'stitch', text: 'If a crossing is unavoidable, a stitching capacitor sits at the crossing point', category: 'Routing'},
+                {id: 'diff', text: 'Differential pairs routed tightly coupled and length-matched', category: 'Routing'},
+                {id: 'partition', text: 'Analogue and digital separated by PLACEMENT, not by cutting the plane', category: 'Strategy'},
+                {id: 'cables', text: 'Cable entry points located where the plane is quiet', category: 'Strategy'},
+                {id: 'review', text: 'Return path traced by eye for every critical net before release', category: 'Verification'},
+                {id: 'preemc', text: 'Pre-compliance scan with cables attached, not just the bare board', category: 'Verification'}
+            ]
+        });
+    }
+
+    if (typeof ExerciseWidget !== 'undefined') {
+        new ExerciseWidget('rc-exercises', {
+            exercises: [
+                {
+                    id: 'ex1',
+                    title: 'How wide is the return?',
+                    problem: 'A microstrip sits 0.1 mm above its reference plane. Using J(x) = (I/(pi h)) / (1 + (x/h)^2), find the lateral width containing 50%, 80% and 95% of the return current. Then repeat for a 0.5 mm dielectric and say what that means for crosstalk.',
+                    hints: [
+                        'The integral of the Lorentzian gives (2/pi) arctan(X/h) for the band from -X to +X',
+                        'Set that equal to 0.5, 0.8, 0.95 and solve for X/h',
+                        'tan(pi x 0.5/2) = tan(45 deg) = 1'
+                    ],
+                    answer: 'Solving (2/pi) arctan(X/h) = fraction: for 50%, arctan(X/h) = pi/4 so X = h. For 80%, arctan(X/h) = 0.4 pi = 1.257 rad, tan = 3.08, so X = 3.08h (the 3h rule of thumb). For 95%, arctan(X/h) = 0.475 pi = 1.492 rad, tan = 12.7, so X = 12.7h. At h = 0.1 mm: 50% within +/-0.1 mm, 80% within +/-0.31 mm, 95% within +/-1.27 mm. At h = 0.5 mm: 50% within +/-0.5 mm, 80% within +/-1.54 mm, 95% within +/-6.4 mm. The crosstalk consequence is direct and large. With a 0.1 mm dielectric, a neighbouring trace 1.3 mm away sits outside the 95% band and shares almost no return current. With a 0.5 mm dielectric that same neighbour is well inside the band and shares a substantial fraction, so they couple. This is why thin dielectrics reduce crosstalk, and it is a stronger effect than trace spacing: the coupling scales with the ratio s/h, so HALVING the dielectric thickness is worth as much as DOUBLING the spacing, and costs no board area at all.'
+                },
+                {
+                    id: 'ex2',
+                    title: 'Cost out a split plane',
+                    problem: 'An ADC board has a split between analogue and digital ground, bridged at one point. A 20 MHz SPI clock crosses the split; the bridge is 45 mm from the crossing. Estimate the loop area, the loop inductance, and the ground bounce for a 12 mA edge with a 2 ns rise time. Then state the resolution loss for a 16-bit ADC with a 3.3 V reference.',
+                    hints: [
+                        'The return must go from the crossing to the bridge and back - treat the loop as roughly 45 mm by 20 mm',
+                        'L is roughly mu0 x A / w; take w as about 20 mm',
+                        'di/dt = 12 mA / 2 ns',
+                        'One LSB of a 16-bit 3.3 V converter is 3.3/65536'
+                    ],
+                    answer: 'Loop area is about 45 x 20 = 900 mm^2 = 9e-4 m^2. L = mu0 A / w = 1.2566e-6 x 9e-4 / 0.020 = 5.65e-8 = 57 nH. di/dt = 0.012/2e-9 = 6e6 A/s. V = L di/dt = 5.65e-8 x 6e6 = 0.34 V. That is 340 mV appearing between analogue ground and digital ground on every SPI clock edge. One LSB is 3.3/65536 = 50.4 microvolts. The bounce is 340 mV / 50.4 uV = 6750 LSB, which is about 12.7 bits. So the converter has roughly 3 usable bits left during SPI activity. In practice the noise is transient and correlated with the clock, so the measured effect is a large increase in noise and clock-frequency spurs rather than a literal loss of 13 bits, but the order of magnitude is the point: the split intended to protect the ADC has destroyed it. Removing the split takes the loop to roughly 45 mm x 0.1 mm = 4.5 mm^2, i.e. 200x smaller, and the bounce with it.'
+                },
+                {
+                    id: 'ex3',
+                    title: 'When does the crossover happen?',
+                    problem: 'A return path through a plane has an effective resistance of 1 mOhm and an inductance of 5 nH. Find the frequency at which the inductive and resistive terms are equal. Then explain why a 1 kHz square wave still behaves as a high-frequency signal for return-path purposes.',
+                    hints: [
+                        'Set omega L = R',
+                        'For the second part, think about the spectral content of an edge, not the repetition rate',
+                        'Bandwidth of an edge is roughly 0.35 / t_rise'
+                    ],
+                    answer: 'omega L = R gives f = R/(2 pi L) = 0.001/(2 pi x 5e-9) = 31.8 kHz. Below this the return spreads to minimise resistance; above it, it bundles under the trace to minimise inductance. Why a 1 kHz square wave is still a high-frequency signal: the repetition rate is irrelevant to the return path, because what drives current through the loop inductance is di/dt, and di/dt is set by the EDGE. A 1 kHz square wave from a modern logic gate has a rise time of perhaps 2 ns, whose bandwidth is 0.35/2ns = 175 MHz - four decades above the crossover. So during the edges, the return is fully bundled and behaves exactly like a fast signal; only during the flat portions, where di/dt is zero and there is nothing to return, does the low-frequency picture apply. This is the single most important consequence: you cannot decide whether return-path rules apply by looking at a clock frequency. You must look at the edge rate, and on any board built from parts made in the last thirty years the edge rate says they apply.'
+                },
+                {
+                    id: 'ex4',
+                    title: 'Argue against the datasheet',
+                    problem: 'An ADC datasheet from 2003 shows a layout figure with separate AGND and DGND planes joined at a single point under the converter. Your board has a 100 MSPS interface. Write the argument you would make to a colleague who insists on following the figure, and state the one circumstance under which they would be right.',
+                    hints: [
+                        'Consider what the split does to the return of the data bus itself',
+                        'Consider what problem single-point grounding was invented to solve, and whether you have it',
+                        'Think about what changed between 2003 and now, and what did not'
+                    ],
+                    answer: 'The argument: single-point grounding solves a low-frequency problem - it stops DC and mains-frequency currents from one section developing a voltage across the shared ground RESISTANCE of another. That is a real problem, and in a circuit whose signals are all below a few kHz the technique is correct. It fails completely for high-speed signals because they do not return through the resistance, they return through the inductance, directly under their own traces. A 100 MSPS parallel or LVDS interface has edges in the hundreds of picoseconds; every one of those data lines crosses from the digital side to the converter, so every one of their returns must find the single-point join. The result is a return loop tens of millimetres across for each line, injecting bounce between exactly the two grounds the split was meant to keep apart - so the split does not merely fail to help, it manufactures the coupling. The correct approach is one solid plane with the analogue and digital sections physically separated by placement, so their return currents naturally occupy different regions of copper without any discontinuity existing for a return to fall into. When they WOULD be right: if the two sections must be galvanically isolated - different potentials, a safety barrier, or a genuinely floating measurement - then a real split is correct, because in that case nothing crosses it directly. Everything goes through an isolator or a transformer, so no return path is ever broken. Note the distinction: it is not about noise, it is about whether any conductor crosses the gap.'
+                }
+            ]
+        });
+    }
+})();
+</script>

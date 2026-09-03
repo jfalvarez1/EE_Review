@@ -1,0 +1,804 @@
+<!-- Module 21, Lesson 6: Transmission Lines and S-Parameters -->
+<div class="lesson-content" data-module="21" data-lesson="6">
+
+    <div class="card">
+        <h2>Transmission Lines and S-Parameters</h2>
+        <p>Everything before this module treated a wire as a wire: the same
+        voltage at both ends, at the same instant. That assumption is not a
+        simplification, it is a <em>frequency-dependent</em> assumption, and RF
+        is exactly the region where it stops being true. Once a connection is a
+        meaningful fraction of a wavelength long, the voltage at one end is not
+        the voltage at the other, and the connection has an impedance of its own
+        that has nothing to do with the resistance of the copper.</p>
+
+        <p>This lesson is the language the rest of RF is written in. Get it and
+        the Smith chart, matching, filters and amplifier design all become one
+        subject rather than five.</p>
+
+        <div class="analogy">
+            <span class="analogy-label">Why a wire becomes a thing</span>
+            <p>A short wire is a <strong>rigid rod</strong>: push one end and the
+            other end moves at the same moment. A long wire is a
+            <strong>rope</strong>: flick it and a wave travels down it, and what
+            happens at the far end comes back to you later, as a reflection.</p>
+            <p>Tie the rope's far end to a wall and the wave comes back inverted.
+            Leave it loose and it comes back the same way up. Attach it to
+            something that absorbs exactly the energy the rope delivers &mdash;
+            sand, a damper &mdash; and nothing comes back at all. That last case
+            is a <em>matched termination</em>, and it is the entire goal of RF
+            impedance matching.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> a rope
+            carries one wave; a transmission line carries a forward and a reverse
+            wave simultaneously, and what you measure with a probe is their
+            <em>sum</em>. That sum is the standing wave, and it is why a voltage
+            measured somewhere along a mismatched line tells you almost nothing on
+            its own.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. When does a wire become a transmission line?</h3>
+
+        <p>The honest answer is &ldquo;always&rdquo; &mdash; but it only
+        <em>matters</em> when the delay along it is a significant part of a
+        cycle, or of a rise time.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ v_p = \frac{c}{\sqrt{\varepsilon_{r,\text{eff}}}}, \qquad
+                   \lambda = \frac{v_p}{f} \]
+                <span class="drv-why">On FR4 microstrip \(\varepsilon_{r,\text{eff}}
+                \approx 3.0\) (lower than the bulk 4.3, because some of the field
+                is in the air above the trace), giving \(v_p = 1.73\times10^{8}\)
+                m/s, or <strong>5.8 ps per mm</strong>. Stripline is fully
+                embedded, so \(\varepsilon_{r,\text{eff}} = 4.3\) and it is slower
+                at 6.9 ps/mm.</span>
+            </div>
+            <div class="drv-step">
+                \[ \ell_{crit} \approx \frac{\lambda}{10}
+                   \quad\text{(RF)},\qquad
+                   \ell_{crit} \approx \frac{t_r}{2 t_{pd}}
+                   \quad\text{(digital edges)} \]
+                <span class="drv-why">Two different rules for the same physics. The
+                RF one asks whether the phase shift along the line is significant;
+                the digital one asks whether the reflection gets back before the
+                edge has finished.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Frequency</th><th>&lambda; on FR4 microstrip</th><th>&lambda;/10</th><th>What that means in practice</th></tr></thead>
+                <tbody>
+                    <tr><td>100 MHz</td><td>1730 mm</td><td>173 mm</td><td>Most of a board is still a lumped circuit</td></tr>
+                    <tr><td>433 MHz</td><td>400 mm</td><td>40 mm</td><td>Long traces start to matter; keep the RF section compact</td></tr>
+                    <tr><td>915 MHz</td><td>189 mm</td><td>19 mm</td><td>Almost every RF trace is a transmission line</td></tr>
+                    <tr><td>2.4 GHz</td><td>72 mm</td><td>7.2 mm</td><td>A 10 mm trace to the antenna is a circuit element you must design</td></tr>
+                    <tr><td>5.8 GHz</td><td>30 mm</td><td>3.0 mm</td><td>Component pads and via transitions are transmission lines</td></tr>
+                    <tr><td>28 GHz</td><td>6.2 mm</td><td>0.62 mm</td><td>Nothing is lumped. The package is part of the circuit.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note">Read the 2.4 GHz row carefully, because it is the one
+        that catches people. A Wi-Fi or BLE module sitting 15 mm from its antenna
+        is connected by <em>two tenths of a wavelength</em> of transmission line.
+        Route that as an ordinary trace and its impedance is whatever the stackup
+        happened to give you, the reflection is whatever falls out, and the range
+        is whatever it is. This is the single most common reason a radio that
+        works on the dev board does not work on the product.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. Characteristic impedance is not a resistance</h3>
+
+        <p>A 50&nbsp;&Omega; line does not have 50&nbsp;&Omega; of resistance.
+        Put an ohmmeter across it and you will read a short or an open depending
+        on the far end. \(Z_0\) is the ratio of voltage to current in a wave
+        travelling <em>one way</em> along the line, and it is set by geometry.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ Z_0 = \sqrt{\frac{L'}{C'}} \]
+                <span class="drv-why">Inductance and capacitance <em>per unit
+                length</em>. Both scale with length, so their ratio &mdash; and
+                therefore \(Z_0\) &mdash; does not depend on how long the line
+                is. A 1 mm and a 1 m length of the same trace have the same
+                \(Z_0\).</span>
+            </div>
+            <div class="drv-step">
+                \[ \Gamma = \frac{Z_L - Z_0}{Z_L + Z_0} \]
+                <span class="drv-why">The reflection coefficient. \(Z_L = Z_0\)
+                gives \(\Gamma = 0\) and nothing comes back; a short gives
+                \(-1\) (inverted), an open gives \(+1\) (upright). Exactly the
+                rope.</span>
+            </div>
+            <div class="drv-step">
+                \[ Z_{in}(\ell) = Z_0\,
+                   \frac{Z_L + jZ_0\tan\beta\ell}{Z_0 + jZ_L\tan\beta\ell},
+                   \qquad \beta = \frac{2\pi}{\lambda} \]
+                <span class="drv-why">The impedance you actually see at the input,
+                which is a function of <em>how far away</em> the load is. This one
+                equation is the whole of distributed matching.</span>
+            </div>
+        </div>
+
+        <h4>The three cases worth memorising</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Line length</th><th>\(Z_{in}\)</th><th>Consequence</th></tr></thead>
+                <tbody>
+                    <tr><td>\(\lambda/2\)</td><td>\(Z_L\)</td>
+                        <td>A half-wave line is invisible. Useful for getting a
+                        measurement plane where you want it &mdash; but only at
+                        one frequency.</td></tr>
+                    <tr><td>\(\lambda/4\)</td><td>\(Z_0^2/Z_L\)</td>
+                        <td>An impedance <em>inverter</em>. A short becomes an
+                        open and an open becomes a short. This is the quarter-wave
+                        transformer, and it is why an open stub can act as a
+                        capacitor and a shorted stub as an inductor.</td></tr>
+                    <tr><td>\(\ll\lambda\), open end</td><td>\(1/(j\omega C)\)</td>
+                        <td>A short open stub is just a capacitor &mdash; which is
+                        exactly how a lumped circuit behaves, recovered as a limit.
+                        The two views agree; they do not compete.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="warn">
+            <strong>Why 50&nbsp;&Omega;?</strong> For air-dielectric coax, minimum
+            loss is at about 77&nbsp;&Omega; and maximum power handling at about
+            30&nbsp;&Omega;. 50&nbsp;&Omega; is roughly the geometric mean, and it
+            is a compromise nobody has had a good enough reason to abandon. Video
+            uses 75&nbsp;&Omega; because it is nearer the low-loss optimum and loss
+            matters more than power there. Neither number is fundamental &mdash;
+            what matters is that <em>everyone agrees</em>, so parts interoperate.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Interactive: a line, a load, and what comes back</h3>
+
+        <p>Set a load and a line length and watch three things: the reflection,
+        the standing wave it creates along the line, and the impedance that
+        appears at the input as a result. The input impedance is what your
+        amplifier actually sees &mdash; not the load.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="tl-z0">Line Z<sub>0</sub></label>
+                <input type="range" id="tl-z0" min="20" max="120" step="1" value="50">
+                <span class="range-value" id="tl-z0-val">50 Ω</span>
+            </div>
+            <div class="c4">
+                <label for="tl-rl">Load resistance</label>
+                <input type="range" id="tl-rl" min="1" max="300" step="1" value="100">
+                <span class="range-value" id="tl-rl-val">100 Ω</span>
+            </div>
+            <div class="c4">
+                <label for="tl-xl">Load reactance</label>
+                <input type="range" id="tl-xl" min="-200" max="200" step="5" value="0">
+                <span class="range-value" id="tl-xl-val">0 Ω</span>
+            </div>
+            <div class="c6">
+                <label for="tl-len">Line length (wavelengths)</label>
+                <input type="range" id="tl-len" min="0" max="100" step="1" value="25">
+                <span class="range-value" id="tl-len-val">0.25 λ</span>
+            </div>
+            <div class="c6">
+                <label for="tl-f">Frequency</label>
+                <input type="range" id="tl-f" min="50" max="6000" step="10" value="2400">
+                <span class="range-value" id="tl-f-val">2400 MHz</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="tl-canvas" width="900" height="340"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Reflection Γ</div><div class="v mono" id="tl-gamma">&mdash;</div></div>
+            <div class="box"><div class="k">VSWR</div><div class="v mono" id="tl-vswr">&mdash;</div></div>
+            <div class="box"><div class="k">Return loss</div><div class="v mono" id="tl-rldb">&mdash;</div></div>
+            <div class="box"><div class="k">Mismatch loss</div><div class="v mono" id="tl-ml">&mdash;</div></div>
+            <div class="box"><div class="k">Z at the input</div><div class="v mono" id="tl-zin">&mdash;</div></div>
+            <div class="box"><div class="k">Physical length on FR4</div><div class="v mono" id="tl-phys">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="tl-note"></p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. VSWR, return loss and mismatch loss &mdash; one number, three costumes</h3>
+
+        <p>These three are the same information. Engineers use whichever is
+        conventional in the document they are writing, which is why specifications
+        mix them freely and why it pays to be able to convert in your head.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \text{VSWR} = \frac{1+|\Gamma|}{1-|\Gamma|}, \qquad
+                   RL_{dB} = -20\log_{10}|\Gamma|, \qquad
+                   ML_{dB} = -10\log_{10}\!\left(1-|\Gamma|^2\right) \]
+                <span class="drv-why">VSWR is the ratio of the standing wave's
+                maximum to its minimum, and it is what a slotted line physically
+                measured &mdash; a historical artefact that stuck. Return loss is
+                how much power comes back, in dB, stated positive. Mismatch loss is
+                how much of the forward power never reaches the load.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>VSWR</th><th>\(|\Gamma|\)</th><th>Return loss</th><th>Power reflected</th><th>Mismatch loss</th><th>Verdict</th></tr></thead>
+                <tbody>
+                    <tr><td>1.00:1</td><td>0.000</td><td>&infin;</td><td>0%</td><td>0 dB</td><td class="t-ok">Perfect, and unachievable</td></tr>
+                    <tr><td>1.10:1</td><td>0.048</td><td>26.4 dB</td><td>0.23%</td><td>0.010 dB</td><td class="t-ok">Excellent — a well-tuned antenna</td></tr>
+                    <tr><td>1.50:1</td><td>0.200</td><td>14.0 dB</td><td>4.0%</td><td>0.177 dB</td><td class="t-ok">The usual spec limit. Fine.</td></tr>
+                    <tr><td>2.00:1</td><td>0.333</td><td>9.5 dB</td><td>11.1%</td><td>0.512 dB</td><td>Acceptable at the edge of a band</td></tr>
+                    <tr><td>3.00:1</td><td>0.500</td><td>6.0 dB</td><td>25%</td><td>1.25 dB</td><td class="t-warn">A quarter of your power is coming back</td></tr>
+                    <tr><td>5.00:1</td><td>0.667</td><td>3.5 dB</td><td>44%</td><td>2.55 dB</td><td class="t-warn">Many PAs fold back or shut down here</td></tr>
+                    <tr><td>&infin;:1</td><td>1.000</td><td>0 dB</td><td>100%</td><td>&infin;</td><td class="t-bad">Open or short. Everything returns.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note">The column that surprises people is mismatch loss. A
+        2:1 VSWR sounds alarming and reflects 11% of the power, but costs only
+        0.5&nbsp;dB &mdash; about a 6% range reduction. The reason a bad VSWR still
+        matters is rarely the lost power: it is what the reflection does to the
+        <em>amplifier</em>. A PA presented with a wildly wrong load can see
+        voltage or current far outside what it was designed for, and that is a
+        destruction mechanism, not an efficiency one.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. S-parameters, and why RF abandoned Z and Y</h3>
+
+        <p>Low-frequency two-port parameters &mdash; Z, Y, h &mdash; are all
+        defined by open-circuiting or short-circuiting a port. That is the
+        problem. At 6&nbsp;GHz you cannot make a true open (the fringing
+        capacitance is a real admittance) or a true short (the via inductance is a
+        real impedance), and an active device presented with either will very
+        often oscillate.</p>
+
+        <p>What you <em>can</em> make, and make extremely well, is a
+        50&nbsp;&Omega; termination. S-parameters are defined with every port
+        terminated in \(Z_0\), which is why they are the only two-port description
+        that is actually measurable at RF. That is the whole reason for their
+        existence &mdash; not elegance, measurability.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ a_n = \frac{V_n + Z_0 I_n}{2\sqrt{Z_0}}, \qquad
+                   b_n = \frac{V_n - Z_0 I_n}{2\sqrt{Z_0}} \]
+                <span class="drv-why">Incident and reflected <em>power waves</em>
+                at port \(n\), normalised so that \(|a|^2\) and \(|b|^2\) are
+                powers. Everything else follows from these two.</span>
+            </div>
+            <div class="drv-step">
+                \[ \begin{bmatrix} b_1 \\ b_2 \end{bmatrix} =
+                   \begin{bmatrix} S_{11} & S_{12} \\ S_{21} & S_{22} \end{bmatrix}
+                   \begin{bmatrix} a_1 \\ a_2 \end{bmatrix} \]
+                <span class="drv-why">Read the subscripts as
+                <em>out-of, into</em>: \(S_{21}\) is what comes out of port 2 for a
+                wave going into port 1. It is backwards from how most people first
+                read it, and getting it wrong is a rite of passage.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th></th><th>Name</th><th>Measured with</th><th>What a designer reads from it</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">S<sub>11</sub></td><td>Input reflection</td>
+                        <td>Port 2 terminated in \(Z_0\)</td>
+                        <td>Input match. This <em>is</em> \(\Gamma\) at the input. Convert to VSWR or return loss at will.</td></tr>
+                    <tr><td class="mono">S<sub>21</sub></td><td>Forward transmission</td>
+                        <td>Drive port 1, terminate port 2</td>
+                        <td>Gain for an amplifier, insertion loss for a filter or cable. The headline number.</td></tr>
+                    <tr><td class="mono">S<sub>12</sub></td><td>Reverse transmission</td>
+                        <td>Drive port 2, terminate port 1</td>
+                        <td>Isolation. For an amplifier you want it tiny; if it is not, the output pulls the input and the stage can oscillate.</td></tr>
+                    <tr><td class="mono">S<sub>22</sub></td><td>Output reflection</td>
+                        <td>Port 1 terminated in \(Z_0\)</td>
+                        <td>Output match. Matters to whatever comes next.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Properties that let you sanity-check a data file</h4>
+        <ul>
+            <li><strong>Reciprocity:</strong> any network of passive, isotropic
+            materials has \(S_{12} = S_{21}\). If a filter's file does not, either
+            it contains a ferrite (an isolator or circulator, which is
+            deliberately non-reciprocal) or the measurement is wrong.</li>
+            <li><strong>Passivity:</strong> \(|S_{11}|^2 + |S_{21}|^2 \le 1\) at
+            every frequency, for every port. A passive part cannot return more
+            power than it was given. A value above 1 means a calibration error or
+            an active device.</li>
+            <li><strong>Losslessness:</strong> for a lossless network the sum is
+            exactly 1. The shortfall is the dissipation, which is how you extract
+            a filter's insertion loss from its S-parameters.</li>
+            <li><strong>They do not cascade by multiplication.</strong> Two
+            back-to-back S-matrices are not their product, because \(a_2\) of the
+            first is \(b_1\) of the second, not the other way round. Convert to
+            T-parameters (a transfer form), multiply those, convert back. Every RF
+            tool does this for you; know that it is happening.</li>
+        </ul>
+
+        <div class="warn">
+            <strong>A dB on an S-parameter is 20&nbsp;log, not 10&nbsp;log.</strong>
+            S-parameters are ratios of <em>waves</em> — amplitudes — so
+            \(S_{21,dB} = 20\log_{10}|S_{21}|\). The power ratio is
+            \(|S_{21}|^2\), and \(10\log_{10}|S_{21}|^2\) is the same number, which
+            is why it works out. But if you take \(10\log\) of the raw
+            \(|S_{21}|\) you will be exactly a factor of two out in dB, and a 3 dB
+            amplifier will look like 1.5 dB.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>5. Worked example: a quarter-wave transformer</h3>
+
+        <p>A 100&nbsp;&Omega; antenna must be driven from a 50&nbsp;&Omega;
+        amplifier at 2.4&nbsp;GHz, on FR4 microstrip.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ Z_{0,T} = \sqrt{Z_0 Z_L} = \sqrt{50 \times 100}
+                   = 70.7\ \Omega \]
+                <span class="drv-why">From \(Z_{in} = Z_{0,T}^2/Z_L\), setting
+                \(Z_{in} = 50\). The transformer's own impedance is the geometric
+                mean of the two it joins.</span>
+            </div>
+            <div class="drv-step">
+                \[ \lambda = \frac{3\times10^8}{2.4\times10^9\sqrt{3.0}}
+                   = 72.2\ \mathrm{mm}, \qquad
+                   \frac{\lambda}{4} = \mathbf{18.0\ mm} \]
+                <span class="drv-why">The electrical length is what matters, so the
+                dielectric constant enters directly. Get \(\varepsilon_{r,eff}\)
+                wrong by 10% and the transformer is 5% too long.</span>
+            </div>
+            <div class="drv-step">
+                \[ BW = 2 - \frac{4}{\pi}\cos^{-1}\!\left[
+                   \frac{\Gamma_m}{\sqrt{1-\Gamma_m^2}}\cdot
+                   \frac{2\sqrt{Z_0 Z_L}}{|Z_L - Z_0|}\right] = 36.7\% \]
+                <span class="drv-why">For \(\Gamma_m = 0.1\), i.e. 20 dB return
+                loss. A single quarter-wave section covers 2.4 GHz &plusmn;18%,
+                which comfortably spans the 2.4 GHz ISM band. A larger
+                transformation ratio would narrow this, and that is when you go to
+                two sections.</span>
+            </div>
+        </div>
+
+        <p>Without the transformer, \(\Gamma = (100-50)/(100+50) = 0.333\), a 2:1
+        VSWR, 9.5&nbsp;dB return loss and 0.51&nbsp;dB of mismatch loss. The
+        transformer buys back half a dB &mdash; which is worth having, but the
+        stronger argument is that the PA now sees the load it was characterised
+        into.</p>
+
+        <div class="analogy">
+            <span class="analogy-label">Why a quarter wave inverts</span>
+            <p>Think of the line as a <strong>revolving door with a quarter
+            turn</strong>. Whatever you push in emerges rotated ninety degrees. Do
+            it twice &mdash; a half wave &mdash; and you are back where you
+            started, which is exactly the \(\lambda/2\) rule.</p>
+            <p>A short at the far end is &ldquo;zero voltage, maximum
+            current&rdquo;. Rotate that by a quarter wavelength and it becomes
+            &ldquo;maximum voltage, zero current&rdquo; &mdash; an open. The
+            transformation \(Z_0^2/Z_L\) is that rotation written as algebra.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> the door
+            turns by a quarter only at one frequency. At twice the frequency the
+            same physical line is a half wave and does nothing at all. Every
+            distributed structure is a <em>frequency-selective</em> device, which
+            is both its limitation and, when you want a filter, the entire
+            point.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="acceptance">
+        <h3>6. Acceptance tests</h3>
+
+        <h4>Performance</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Test</th><th>Condition</th><th>Pass criterion</th><th>If it fails</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Trace impedance</td>
+                        <td>TDR on a coupon from the same panel</td>
+                        <td>50 &plusmn;5 &Omega; (&plusmn;10% is the usual fab tolerance)</td>
+                        <td>Ask the fab for a controlled-impedance stackup and let <em>them</em> set the trace width. The width you calculated assumes a dielectric height they may not be using.</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> S<sub>11</sub> across the band</td>
+                        <td>VNA, calibrated to the connector</td>
+                        <td>&lt; &minus;10 dB across the whole operating band, not just at centre</td>
+                        <td>Band edges are where a narrowband match fails. Check them explicitly.</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Calibration sanity</td>
+                        <td>Measure a known-good 50 &Omega; load and a short</td>
+                        <td>Load &lt; &minus;35 dB; short reads |&Gamma;| = 1 &ang;180&deg;</td>
+                        <td>If the load does not read well, the calibration is wrong and every measurement after it is fiction</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Passivity of any .s2p you were given</td>
+                        <td>Check \(|S_{11}|^2+|S_{21}|^2 \le 1\) at all frequencies</td>
+                        <td>Never exceeds 1 by more than measurement noise</td>
+                        <td>A passive part showing gain means the file is bad. Do not build a design on it.</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Reciprocity of a passive part</td>
+                        <td>Compare S<sub>12</sub> and S<sub>21</sub></td>
+                        <td>Equal within measurement error</td>
+                        <td>If they differ, either the part is non-reciprocal by design or port 2's calibration is off</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Abuse</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What is done to it</th><th>What physically happens</th><th>Acceptable outcome</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Antenna disconnected</strong> while a 1 W PA transmits</td>
+                        <td>\(|\Gamma| = 1\): all the power comes back. Depending on the line length between the PA and the open, the device sees either a voltage maximum or a current maximum. At a voltage max on a 5 V rail the drain can swing toward \(2V_{DD}(1+|\Gamma|) \approx \mathbf{20\ V}\), well past a 12 V-rated device.</td>
+                        <td>The PA must survive an infinite VSWR at <em>any</em> phase — this is the &ldquo;ruggedness&rdquo; spec, and it is quoted as a VSWR at all phase angles for exactly this reason. <strong>Without a rated-rugged device or a protection circuit, an unplugged antenna destroys the PA</strong>, and it is the single most common field failure in radio hardware. Mitigations: an isolator, a directional coupler plus foldback, or simply choosing a device rated for it.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A 50 &Omega; design built on a 4-layer stackup the fab substituted</strong></td>
+                        <td>Trace width was calculated for a 0.2 mm dielectric; the fab built 0.36 mm. \(Z_0\) rises to roughly 75 &Omega;. Against a 50 &Omega; load that is \(\Gamma = 0.2\), a 1.5:1 VSWR, in every transition along the chain.</td>
+                        <td>Nothing burns — this one degrades quietly, which is worse. Range drops a few dB and the filter shapes shift. <strong>The defence is a controlled-impedance note on the fab drawing and a TDR coupon</strong>, not a recalculation after the fact.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>The quarter-wave transformer used at 4.8 GHz</strong> instead of 2.4</td>
+                        <td>18 mm is now a <em>half</em> wavelength, so \(Z_{in} = Z_L = 100\ \Omega\). The transformer does nothing whatever; the match is exactly as bad as it was without it.</td>
+                        <td>Correct, expected, and the reason harmonics matter: at the second harmonic your matching network is not merely ineffective, it is transparent, so whatever the PA generates there goes straight to the antenna and radiates. <strong>Harmonic filtering is a separate job from matching</strong> and cannot be assumed to come free with it.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A ground via forgotten near a shunt stub</strong></td>
+                        <td>The stub is now grounded through 20 mm of return path instead of 0.3 mm of via. At 2.4 GHz that path is about 15 nH, i.e. \(j226\ \Omega\) in series with what should be a short.</td>
+                        <td>The stub stops being a stub. <strong>The match will be nowhere near the simulation and no amount of retuning the stub length will recover it</strong>, because the error is in series with everything. Via inductance is a component at RF; draw it in the schematic if that is what it takes to stop it being forgotten.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Build it in Circuit Toy</h3>
+        <p>A transmission line is a distributed structure, so the way to see it in
+        a lumped solver is to build it out of lumped sections &mdash; which is
+        also the most convincing demonstration that the two views are the same
+        physics. Build this in
+        <a href="https://github.com/jfalvarez1/circuit_toy" target="_blank" rel="noopener">Circuit Toy</a>.</p>
+
+        <p><strong>A 50 &Omega; line as five LC sections, driving a mismatched load</strong></p>
+
+        <p>For a 50&nbsp;&Omega; line with 5.8&nbsp;ps/mm of delay, one millimetre
+        has \(L' = Z_0 t_{pd} = 50 \times 5.8\,\mathrm{ps} = 290\ \mathrm{pH}\)
+        and \(C' = t_{pd}/Z_0 = 116\ \mathrm{fF}\). Each section below is 10 mm.</p>
+
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">Vsrc</td><td>Voltage Source</td><td>1&nbsp;V AC</td><td>from <span class="mono">src</span> to ground</td></tr>
+                    <tr><td class="mono">Rsrc</td><td>Resistor</td><td>50&nbsp;&Omega;</td><td>between <span class="mono">src</span> and <span class="mono">n0</span></td></tr>
+                    <tr><td class="mono">L1</td><td>Inductor</td><td>2.9&nbsp;nH</td><td>between <span class="mono">n0</span> and <span class="mono">n1</span></td></tr>
+                    <tr><td class="mono">C1</td><td>Capacitor</td><td>1.16&nbsp;pF</td><td>between <span class="mono">n1</span> and ground</td></tr>
+                    <tr><td class="mono">L2</td><td>Inductor</td><td>2.9&nbsp;nH</td><td>between <span class="mono">n1</span> and <span class="mono">n2</span></td></tr>
+                    <tr><td class="mono">C2</td><td>Capacitor</td><td>1.16&nbsp;pF</td><td>between <span class="mono">n2</span> and ground</td></tr>
+                    <tr><td class="mono">L3</td><td>Inductor</td><td>2.9&nbsp;nH</td><td>between <span class="mono">n2</span> and <span class="mono">n3</span></td></tr>
+                    <tr><td class="mono">C3</td><td>Capacitor</td><td>1.16&nbsp;pF</td><td>between <span class="mono">n3</span> and ground</td></tr>
+                    <tr><td class="mono">L4</td><td>Inductor</td><td>2.9&nbsp;nH</td><td>between <span class="mono">n3</span> and <span class="mono">n4</span></td></tr>
+                    <tr><td class="mono">C4</td><td>Capacitor</td><td>1.16&nbsp;pF</td><td>between <span class="mono">n4</span> and ground</td></tr>
+                    <tr><td class="mono">L5</td><td>Inductor</td><td>2.9&nbsp;nH</td><td>between <span class="mono">n4</span> and <span class="mono">n5</span></td></tr>
+                    <tr><td class="mono">C5</td><td>Capacitor</td><td>1.16&nbsp;pF</td><td>between <span class="mono">n5</span> and ground</td></tr>
+                    <tr><td class="mono">Rload</td><td>Resistor</td><td>100&nbsp;&Omega;</td><td>between <span class="mono">n5</span> and ground</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p><strong>What to run:</strong> an <strong>AC sweep</strong> from
+        10&nbsp;MHz to 3&nbsp;GHz.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(n0)</span> and
+        <span class="mono">V(n5)</span>. At low frequency the whole thing is a
+        wire and \(V(n0)/V(src) = 100/150 = 0.667\). As the frequency rises the
+        50&nbsp;mm of line becomes electrically long and \(V(n0)\) starts to
+        <em>oscillate</em> with frequency &mdash; that is \(Z_{in}\) rotating
+        exactly as \(Z_0(Z_L + jZ_0\tan\beta\ell)/(Z_0 + jZ_L\tan\beta\ell)\)
+        predicts. Find the frequency where \(V(n0)\) returns to 0.667: that is
+        where 50&nbsp;mm is a half wavelength.</p>
+
+        <p class="fig-note">Five sections is a coarse model &mdash; a lumped ladder
+        only mimics a line up to about \(f = 1/(\pi\sqrt{L'C'})\) per section,
+        above which it behaves as the low-pass filter it actually is. That
+        limitation is not a flaw in the exercise, it is the point: a real
+        transmission line is the limit of infinitely many infinitesimal sections,
+        and you can watch the approximation break down by pushing the sweep
+        higher.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="tl-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="tl-exercises"></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var canvas = document.getElementById('tl-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var TEK = AD.TEK_COLORS;
+
+    // Complex helpers.
+    function cAdd(a, b) { return [a[0] + b[0], a[1] + b[1]]; }
+    function cSub(a, b) { return [a[0] - b[0], a[1] - b[1]]; }
+    function cMul(a, b) { return [a[0]*b[0] - a[1]*b[1], a[0]*b[1] + a[1]*b[0]]; }
+    function cDiv(a, b) {
+        var d = b[0]*b[0] + b[1]*b[1];
+        return [(a[0]*b[0] + a[1]*b[1]) / d, (a[1]*b[0] - a[0]*b[1]) / d];
+    }
+    function cAbs(a) { return Math.hypot(a[0], a[1]); }
+
+    var EPS_EFF = 3.0;           // FR4 microstrip
+    var C0 = 2.998e8;
+
+    function update() {
+        var Z0 = AD.num('tl-z0');
+        var RL = AD.num('tl-rl');
+        var XL = AD.num('tl-xl');
+        var lenLambda = AD.num('tl-len') / 100;      // 0 .. 1.00 wavelengths
+        var fMHz = AD.num('tl-f');
+
+        AD.setText('tl-z0-val', Z0 + ' Ω');
+        AD.setText('tl-rl-val', RL + ' Ω');
+        AD.setText('tl-xl-val', (XL >= 0 ? '+' : '') + XL + ' Ω');
+        AD.setText('tl-len-val', lenLambda.toFixed(2) + ' λ');
+        AD.setText('tl-f-val', fMHz + ' MHz');
+
+        var ZL = [RL, XL];
+        var G = cDiv(cSub(ZL, [Z0, 0]), cAdd(ZL, [Z0, 0]));
+        var gMag = cAbs(G);
+        var gAng = Math.atan2(G[1], G[0]) * 180 / Math.PI;
+
+        var vswr = gMag >= 0.9999 ? Infinity : (1 + gMag) / (1 - gMag);
+        var rlDb = gMag <= 1e-9 ? Infinity : -20 * Math.log10(gMag);
+        var mlDb = -10 * Math.log10(Math.max(1e-12, 1 - gMag * gMag));
+
+        // Z looking in through `lenLambda` wavelengths of line.
+        var bl = 2 * Math.PI * lenLambda;
+        var t = Math.tan(bl);
+        var Zin;
+        if (!isFinite(t) || Math.abs(t) > 1e6) {
+            // tan is infinite at exactly a quarter wave: Zin -> Z0^2/ZL
+            Zin = cDiv([Z0 * Z0, 0], ZL);
+        } else {
+            var num = cAdd(ZL, [0, Z0 * t]);
+            var den = cAdd([Z0, 0], cMul([0, t], ZL));
+            Zin = cMul([Z0, 0], cDiv(num, den));
+        }
+
+        var lambda_m = C0 / (fMHz * 1e6 * Math.sqrt(EPS_EFF));
+        var physMm = lenLambda * lambda_m * 1000;
+
+        AD.setText('tl-gamma', gMag.toFixed(3) + ' ∠' + gAng.toFixed(0) + '°');
+        AD.setText('tl-vswr', isFinite(vswr) ? vswr.toFixed(2) + ' : 1' : '∞ : 1');
+        AD.setText('tl-rldb', isFinite(rlDb) ? rlDb.toFixed(1) + ' dB' : '∞');
+        AD.setText('tl-ml', mlDb.toFixed(3) + ' dB  (' +
+                            (gMag * gMag * 100).toFixed(1) + '% reflected)');
+        AD.setText('tl-zin', Zin[0].toFixed(1) + (Zin[1] >= 0 ? ' + j' : ' − j') +
+                             Math.abs(Zin[1]).toFixed(1) + ' Ω');
+        AD.setText('tl-phys', physMm.toFixed(1) + ' mm  (λ = ' +
+                              (lambda_m * 1000).toFixed(0) + ' mm on FR4 microstrip)');
+
+        // ---- plot: |V| along the line, load at the right ------------------
+        var w = canvas.width, h = canvas.height;
+        var ml = 60, mr = 130, mt = 26, mb = 44;
+        var pw = w - ml - mr, ph = h - mt - mb;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        // Show a full wavelength of line so the standing wave is always visible,
+        // with the selected input position marked.
+        var span = 1.0;                          // wavelengths drawn
+        var vMax = 1 + gMag, vMin = 1 - gMag;
+        var yTop = Math.max(2.0, vMax * 1.15);
+
+        var X = function (d) { return ml + (span - d) / span * pw; };  // d from load
+        var Y = function (v) { return mt + ph - (v / yTop) * ph; };
+
+        // |V(d)| = |1 + G e^{-2j beta d}|
+        ctx.save();
+        ctx.strokeStyle = TEK.ch1;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (var i = 0; i <= 400; i++) {
+            var d = span * i / 400;
+            var ph2 = -2 * (2 * Math.PI) * d;
+            var e = [Math.cos(ph2), Math.sin(ph2)];
+            var v = cAbs(cAdd([1, 0], cMul(G, e)));
+            var x = X(d), y = Y(v);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // max / min envelope
+        ctx.save();
+        ctx.strokeStyle = TEK.ideal;
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1;
+        [vMax, vMin].forEach(function (v) {
+            ctx.beginPath(); ctx.moveTo(ml, Y(v)); ctx.lineTo(ml + pw, Y(v)); ctx.stroke();
+        });
+        ctx.restore();
+
+        // the chosen input plane
+        var dIn = Math.min(span, lenLambda);
+        ctx.save();
+        ctx.strokeStyle = TEK.ch3;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(X(dIn), mt); ctx.lineTo(X(dIn), mt + ph); ctx.stroke();
+        ctx.restore();
+
+        // load plane
+        ctx.save();
+        ctx.strokeStyle = TEK.ch4;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(X(0), mt); ctx.lineTo(X(0), mt + ph); ctx.stroke();
+        ctx.restore();
+
+        // axes and legend
+        ctx.save();
+        ctx.fillStyle = TEK.text;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'right';
+        for (var g = 0; g <= 4; g++) {
+            var vv = yTop * g / 4;
+            ctx.fillText(vv.toFixed(2), ml - 6, Y(vv) + 4);
+        }
+        ctx.textAlign = 'center';
+        for (var k = 0; k <= 4; k++) {
+            var dd = span * k / 4;
+            ctx.fillText(dd.toFixed(2) + 'λ', X(dd), mt + ph + 18);
+        }
+        ctx.fillText('distance from the load  →  (load at right)', ml + pw / 2, h - 8);
+        ctx.textAlign = 'left';
+        ctx.fillText('|V| / |V⁺|', ml - 52, mt - 10);
+
+        ctx.fillStyle = TEK.ch1; ctx.fillText('standing wave', ml + pw + 8, mt + 14);
+        ctx.fillStyle = TEK.ch3; ctx.fillText('input plane', ml + pw + 8, mt + 30);
+        ctx.fillStyle = TEK.ch4; ctx.fillText('load plane', ml + pw + 8, mt + 46);
+        ctx.fillStyle = TEK.ideal;
+        ctx.fillText('1 ± |Γ|', ml + pw + 8, mt + 62);
+        ctx.restore();
+
+        // ---- verdict ------------------------------------------------------
+        var verdict;
+        if (gMag < 0.02) {
+            verdict = 'Matched. The standing wave is flat, meaning there is no reverse ' +
+                      'wave to add to the forward one — so the impedance is the same ' +
+                      'everywhere along the line and the length does not matter at all. ' +
+                      'This is the only case where a line is genuinely just a wire.';
+        } else if (Math.abs(lenLambda - 0.25) < 0.02 || Math.abs(lenLambda - 0.75) < 0.02) {
+            verdict = 'At a quarter wave the line inverts: Z_in = Z₀²/Z_L = ' +
+                      (Z0 * Z0 / Math.max(1, RL)).toFixed(1) + ' Ω for the resistive part. ' +
+                      'This is the quarter-wave transformer — set Z₀ to √(50·Z_L) and the ' +
+                      'input lands on 50 Ω.';
+        } else if (Math.abs(lenLambda - 0.5) < 0.02 || lenLambda < 0.02) {
+            verdict = 'At a half wave (or zero) the line is invisible: Z_in = Z_L exactly. ' +
+                      'Note this is true only at this one frequency — move off it and the ' +
+                      'same copper does something else entirely.';
+        } else if (vswr > 5) {
+            verdict = 'VSWR ' + vswr.toFixed(1) + ':1. The peak on the line is ' +
+                      vMax.toFixed(2) + '× the forward wave and the trough is ' +
+                      vMin.toFixed(2) + '×. A voltage peak this large is what destroys ' +
+                      'power devices driving an unterminated line, and where it lands ' +
+                      'depends on the line length — which is why ruggedness is specified ' +
+                      'at all phase angles.';
+        } else {
+            verdict = 'Z_in is ' + Zin[0].toFixed(0) + (Zin[1] >= 0 ? '+j' : '−j') +
+                      Math.abs(Zin[1]).toFixed(0) + ' Ω — note that it is NOT the load, ' +
+                      'and that it changes as you slide the length. The line has rotated ' +
+                      'the load impedance. Sliding the length is exactly moving around the ' +
+                      'Smith chart.';
+        }
+
+        AD.setText('tl-note',
+            'Γ = ' + gMag.toFixed(3) + ' ∠' + gAng.toFixed(0) + '°, VSWR ' +
+            (isFinite(vswr) ? vswr.toFixed(2) : '∞') + ':1. ' + verdict);
+    }
+
+    ['tl-z0', 'tl-rl', 'tl-xl', 'tl-len', 'tl-f'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    update();
+
+    if (typeof ChecklistWidget !== 'undefined') {
+        new ChecklistWidget('tl-checklist', {
+            title: 'Transmission Line Design Checklist',
+            items: [
+                {id: 'lambda', text: 'Wavelength computed with the EFFECTIVE dielectric constant, not the bulk one', category: 'Analysis'},
+                {id: 'crit', text: 'Every RF interconnect compared against lambda/10 at the highest frequency of interest', category: 'Analysis'},
+                {id: 'harm', text: 'Harmonics considered - a line that is quarter-wave in band is half-wave at 2f', category: 'Analysis'},
+                {id: 'stack', text: 'Controlled-impedance note on the fab drawing, with the target and tolerance', category: 'Implementation'},
+                {id: 'width', text: 'Trace width set by the fabricator from the stackup, not calculated in isolation', category: 'Implementation'},
+                {id: 'ref', text: 'Continuous reference plane under every RF trace, with no splits crossed', category: 'Implementation'},
+                {id: 'via', text: 'Ground vias placed at every shunt element; via inductance budgeted', category: 'Implementation'},
+                {id: 'trans', text: 'Connector and via transitions modelled, not assumed ideal', category: 'Implementation'},
+                {id: 'tdr', text: 'Impedance coupon on the panel and TDR-verified on the first build', category: 'Verification'},
+                {id: 's11', text: 'S11 measured across the whole band including edges, not just at centre', category: 'Verification'},
+                {id: 'cal', text: 'VNA calibration verified against a known load before trusting any sweep', category: 'Verification'},
+                {id: 'rugged', text: 'Behaviour with the antenna disconnected verified, at multiple line lengths', category: 'Verification'}
+            ]
+        });
+    }
+
+    if (typeof ExerciseWidget !== 'undefined') {
+        new ExerciseWidget('tl-exercises', {
+            exercises: [
+                {
+                    id: 'ex1',
+                    title: 'Is it a transmission line?',
+                    problem: 'A BLE module at 2.44 GHz sits 22 mm from a chip antenna on FR4 microstrip. A separate 40 MHz clock runs 60 mm across the same board with a 1.5 ns rise time. For each, decide whether it must be treated as a transmission line, and say why.',
+                    hints: [
+                        'For the RF trace use the lambda/10 rule with eps_eff = 3.0',
+                        'For the clock use the rise-time rule: length matters if the round trip is comparable to the edge',
+                        'FR4 microstrip propagates at about 5.8 ps/mm'
+                    ],
+                    answer: 'RF trace: lambda = 3e8/(2.44e9 x sqrt(3.0)) = 71.0 mm, so lambda/10 = 7.1 mm. The trace is 22 mm, which is 0.31 lambda - over three times the threshold and more than a quarter wavelength, so it will rotate the antenna impedance almost all the way round the Smith chart. This ABSOLUTELY must be a controlled-impedance 50 ohm line, and the antenna match must be tuned with the trace in place, not on a bare antenna. Clock: propagation delay = 60 mm x 5.8 ps/mm = 348 ps, round trip 696 ps. The rise time is 1500 ps. The critical length rule (l_crit = t_r / (2 x t_pd) = 1500/(2 x 5.8) = 129 mm) says 60 mm is under half the critical length, so reflections settle well within the edge and it can be treated as lumped. Note the two rules gave opposite answers for lines of similar physical length - because the question is never "how long is the wire", it is "how long compared to what is travelling on it".'
+                },
+                {
+                    id: 'ex2',
+                    title: 'Two-section transformer',
+                    problem: 'Match 12.5 ohm to 50 ohm at 915 MHz. First design a single quarter-wave transformer and calculate its fractional bandwidth for 20 dB return loss. Then explain why two sections would be used instead, and give the two impedances for a binomial (maximally flat) two-section design.',
+                    hints: [
+                        'Single section: Z = sqrt(Z0 x ZL)',
+                        'Bandwidth formula: BW = 2 - (4/pi) arccos[ (Gm/sqrt(1-Gm^2)) x 2 sqrt(Z0 ZL)/|ZL - Z0| ]',
+                        'For a binomial two-section, Z1 = Z0 (ZL/Z0)^(1/4) and Z2 = Z0 (ZL/Z0)^(3/4)',
+                        'The transformation ratio here is 4:1, much larger than the 2:1 in the lesson'
+                    ],
+                    answer: 'Single section: Z = sqrt(50 x 12.5) = 25 ohm, length = lambda/4. On FR4 microstrip lambda = 3e8/(915e6 x sqrt(3.0)) = 189 mm, so the section is 47.3 mm. Bandwidth: 2 sqrt(Z0 ZL)/|ZL-Z0| = 2 x 25/37.5 = 1.333. Gm/sqrt(1-Gm^2) = 0.1/0.995 = 0.1005. Product = 0.1340. arccos(0.1340) = 1.4365 rad. (4/pi)(1.4365) = 1.829. BW = 2 - 1.829 = 0.171, i.e. 17.1% - less than half the 36.7% the 2:1 case achieved. That is the point: bandwidth falls as the transformation ratio rises, because a single section has only one degree of freedom to cancel a larger mismatch. Two-section binomial: (ZL/Z0)^(1/4) = (0.25)^(0.25) = 0.7071, so Z1 = 50 x 0.7071 = 35.4 ohm; (0.25)^(0.75) = 0.3536, so Z2 = 50 x 0.3536 = 17.7 ohm. Each section is lambda/4 = 47.3 mm, total 94.6 mm. This roughly doubles the bandwidth for the same return loss, at the cost of twice the board area - which at 915 MHz is a real cost and is why 12.5 ohm loads are often matched with lumped elements instead below about 2 GHz.'
+                },
+                {
+                    id: 'ex3',
+                    title: 'Reading an S-parameter file',
+                    problem: 'A supplier sends an .s2p for a 2.4 GHz bandpass filter. At 2.44 GHz it lists S11 = -18 dB, S21 = -1.8 dB, S12 = -1.8 dB, S22 = -16 dB. At 4.88 GHz it lists S11 = -0.4 dB and S21 = -32 dB. Verify the file is physically plausible at both frequencies, and state the insertion loss and the input VSWR in band.',
+                    hints: [
+                        'Convert each dB figure to a linear magnitude: |S| = 10^(dB/20)',
+                        'Passivity requires |S11|^2 + |S21|^2 <= 1',
+                        'VSWR = (1+|G|)/(1-|G|) with |G| = |S11|'
+                    ],
+                    answer: 'In band at 2.44 GHz: |S11| = 10^(-18/20) = 0.126, |S21| = 10^(-1.8/20) = 0.813. Sum of squares = 0.0159 + 0.661 = 0.677, which is well under 1 - passive and plausible. The 1 - 0.677 = 0.323 that is missing is dissipated in the filter, which is exactly the 1.8 dB of insertion loss. S12 = S21, so the part is reciprocal as a passive filter must be. Input VSWR = (1 + 0.126)/(1 - 0.126) = 1.126/0.874 = 1.29:1 - a good match. Out of band at 4.88 GHz: |S11| = 10^(-0.4/20) = 0.955, |S21| = 10^(-32/20) = 0.0251. Sum of squares = 0.912 + 0.0006 = 0.913, under 1 and therefore plausible. This is what a good stopband looks like: almost everything is reflected (S11 near 0 dB) and almost nothing is transmitted. Note that a filter rejects by REFLECTING, not by absorbing - which means at 4.88 GHz your PA sees a near-total mismatch. If the PA generates a strong second harmonic, that harmonic is bounced straight back into it. This is a real and frequently overlooked interaction, and the reason some designs use an absorptive (diplexed) filter instead.'
+                },
+                {
+                    id: 'ex4',
+                    title: 'Where does the voltage peak land?',
+                    problem: 'A 5 V PA drives an open circuit through a 50 ohm line at 915 MHz. Explain why the damage depends on the line length, and calculate the length (in mm, on FR4 microstrip) that puts a voltage maximum right at the device.',
+                    hints: [
+                        'An open gives Gamma = +1, so the reflected wave returns in phase at the load',
+                        '|V(d)| = |1 + Gamma e^(-2j beta d)|, with d measured from the load',
+                        'A voltage maximum occurs where the two waves add in phase'
+                    ],
+                    answer: 'With Gamma = +1 the standing wave is |V(d)| = |1 + e^(-2j beta d)| = 2|cos(beta d)|. That is 2 (a maximum) when beta d = 0, pi, 2pi..., i.e. d = 0, lambda/2, lambda... and 0 (a minimum) at d = lambda/4, 3lambda/4. So the voltage maximum sits at the device when the line is an integer number of HALF wavelengths, and a voltage NULL sits there when it is an odd number of quarter wavelengths. lambda on FR4 microstrip at 915 MHz = 3e8/(915e6 x sqrt(3.0)) = 189 mm, so lambda/2 = 94.6 mm. A line of 94.6 mm (or 189 mm, or 0 mm) puts the peak at the device. The consequence: at the voltage-maximum length the drain sees roughly twice its normal swing and fails from overvoltage; at the quarter-wave length it instead sees a current maximum and fails from overcurrent. Neither is safe, and you cannot choose the length because a broken antenna cable can be any length. This is precisely why PA ruggedness is specified as "survives infinite VSWR at ALL phase angles" rather than at one - the phase is not yours to control.'
+                }
+            ]
+        });
+    }
+})();
+</script>

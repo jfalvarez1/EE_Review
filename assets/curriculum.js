@@ -1981,6 +1981,18 @@ const CURRICULUM = {
                     title: 'RF Filter Design',
                     description: 'Bandpass and bandstop filters for RF',
                     topics: ['LC tank circuits', 'Crystal filters', 'SAW filters', 'Filter synthesis']
+                },
+                {
+                    id: 6,
+                    title: 'Transmission Lines and S-Parameters',
+                    description: 'When a wire stops being a wire, and the language RF is written in',
+                    topics: ['Wavelength and the lambda/10 rule', 'Characteristic impedance', 'VSWR, return loss, mismatch loss', 'S-parameters', 'Quarter-wave transformers']
+                },
+                {
+                    id: 7,
+                    title: 'Noise Figure, the Cascade and Receiver Sensitivity',
+                    description: 'Where the noise comes from, how it accumulates, and what range it buys',
+                    topics: ['kTB and the -174 dBm/Hz floor', 'Noise figure, factor, temperature', 'The Friis cascade', 'Sensitivity', 'Link budget']
                 }
             ]
         },
@@ -2598,6 +2610,54 @@ const CURRICULUM = {
                     title: 'Design: A Headphone Amplifier',
                     description: 'One output that has to drive a 37:1 range of loads, and why output impedance is a tone control',
                     topics: ['5 V for high Z, 20 mA for low', 'Zout against a swinging load', 'The op-amp is not the problem', 'Excess gain is a hazard']
+                }
+            ]
+        },
+        // ========== MODULE 29: PCB Design and Layout ==========
+        // The board is a circuit element, not a way of connecting circuit
+        // elements. Everything the schematic promises is delivered or lost
+        // here, and the stackup decision - made in the first hour of a project
+        // and rarely revisited - constrains everything that follows.
+        {
+            id: 29,
+            title: 'PCB Design and Layout',
+            description: 'Stackup, return paths, impedance, safety spacing and the calculations behind them',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'Return Current: The Idea Everything Else Rests On',
+                    description: 'Current flows in loops, and at speed the return chooses inductance over resistance',
+                    topics: ['The loop, not the trace', 'Least resistance vs least inductance', 'The crossover frequency', 'Why a split plane is a slot antenna']
+                },
+                {
+                    id: 2,
+                    title: 'Stackup: The Decision That Constrains Everything',
+                    description: 'Hartley and Bogatin on why every signal layer needs an adjacent ground plane',
+                    topics: ['4, 6 and 8 layer stackups', 'Ground adjacency', 'Thin dielectrics', 'Plane capacitance and what it is really worth']
+                },
+                {
+                    id: 3,
+                    title: 'Impedance Control and the Calculators',
+                    description: 'Microstrip, stripline, and what a field solver knows that a formula does not',
+                    topics: ['Microstrip and stripline geometry', 'Aspect ratio rules of thumb', 'Where closed-form equations fail', 'Working with your fabricator']
+                },
+                {
+                    id: 4,
+                    title: 'Creepage, Clearance and the Safety Standards',
+                    description: 'IPC-2221, IEC 60664-1 and IEC 62368-1, and how to actually apply them',
+                    topics: ['Creepage vs clearance', 'Pollution degree and CTI material group', 'Overvoltage category', 'Slots, coating and altitude']
+                },
+                {
+                    id: 5,
+                    title: 'Trace Width, Current and Temperature Rise',
+                    description: 'IPC-2221 and IPC-2152, copper resistance, vias and where the heat goes',
+                    topics: ['The IPC-2221 area equation', 'Why IPC-2152 replaced it', 'Sheet resistance and IR drop', 'Via current and inductance']
+                },
+                {
+                    id: 6,
+                    title: 'Layout Strategy: Placement, Partitioning and Flow',
+                    description: 'The decisions made before a single trace is routed, which decide whether routing works',
+                    topics: ['Placement is 90% of layout', 'Partitioning by function', 'Decoupling loop inductance', 'Design rules that are myths']
                 }
             ]
         }

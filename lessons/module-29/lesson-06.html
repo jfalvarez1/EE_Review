@@ -1,0 +1,597 @@
+<!-- Module 29, Lesson 6: Layout Strategy: Placement, Partitioning and Flow -->
+<div class="lesson-content" data-module="29" data-lesson="6">
+
+    <div class="card">
+        <h2>Layout Strategy: Placement, Partitioning and Flow</h2>
+        <p>Routing gets all the attention because it is the part that looks like
+        work. But by the time you start routing, almost every important decision
+        has already been made: the stackup fixed the physics, and the placement
+        fixed which connections are short and which are long. A good placement
+        makes routing nearly automatic; a bad one cannot be routed well by anyone,
+        and the effort spent trying is wasted.</p>
+
+        <div class="notice">
+            <strong>Placement is most of layout.</strong> Spend the time there.
+            Move parts around for an hour before drawing a single trace, and be
+            willing to move them again after the first routing attempt reveals
+            what you got wrong. Re-placing is cheap; re-routing a board built on a
+            bad placement is not.
+        </div>
+
+        <div class="analogy">
+            <span class="analogy-label">Floorplanning a kitchen</span>
+            <p>A kitchen is designed around the <strong>work triangle</strong>:
+            fridge, sink, hob. Get those three positions right and the cooking
+            flows; get them wrong and no amount of beautiful cabinetry fixes it,
+            because you will walk the wrong path ten thousand times.</p>
+            <p>A board has the same structure. Connector, converter, processor,
+            memory &mdash; the critical loops are decided by where you put things,
+            and the traces are just the walking. Nobody solves a badly planned
+            kitchen by choosing nicer floor tiles.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> a kitchen
+            has one cook and one flow. A board has several simultaneous flows
+            &mdash; power, high-speed signals, analogue, thermal &mdash; that
+            compete for the same space and sometimes want opposite things. Layout
+            is the negotiation between them, which is why there is rarely one
+            correct answer.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. The order of operations</h3>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Step</th><th>What you do</th><th>What you must not do yet</th></tr></thead>
+                <tbody>
+                    <tr><td>1. Mechanical</td><td>Board outline, mounting holes, keep-outs, connector positions fixed by the enclosure, height restrictions</td><td>Nothing electrical. These are not negotiable and everything else works around them.</td></tr>
+                    <tr><td>2. Stackup</td><td>Agree it with the fabricator; get impedance-controlled widths back</td><td>Do not start routing against an assumed stackup</td></tr>
+                    <tr><td>3. Partition</td><td>Draw regions on the board: power in, conversion, digital, analogue, RF, I/O. On paper, before the CAD tool.</td><td>Do not place individual components yet</td></tr>
+                    <tr><td>4. Anchor placement</td><td>Place the parts whose position is forced &mdash; connectors, the big processor, the magnetics, anything with a heatsink</td><td>Do not place passives</td></tr>
+                    <tr><td>5. Critical loops</td><td>Place the parts that form loops that must be small: switching regulator input loop, decoupling, crystal, current-sense</td><td>Do not compromise these for routing convenience later</td></tr>
+                    <tr><td>6. Everything else</td><td>Remaining passives, pull-ups, test points</td><td></td></tr>
+                    <tr><td>7. Route power first</td><td>Wide, short, deliberate. Power is harder to move than signals.</td><td>Do not let the autorouter near it</td></tr>
+                    <tr><td>8. Route critical signals</td><td>Clocks, high-speed buses, differential pairs, sensitive analogue</td><td></td></tr>
+                    <tr><td>9. Route the rest</td><td>Everything remaining</td><td></td></tr>
+                    <tr><td>10. Pour and stitch</td><td>Copper pours, ground stitching vias, thermal relief decisions</td><td>Do not use a pour to fix a routing mistake</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note">Step 3 is the one people skip, and it is the one that
+        matters most. Ten minutes with a pencil deciding where the noisy things
+        live and where the quiet things live saves a week of EMC debugging. It
+        also makes step 5 obvious, because once the regions exist you can see
+        which loops cross them.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. Partitioning: separation without splitting</h3>
+
+        <p>The previous lessons established that splitting a ground plane is
+        almost always wrong. Partitioning is how you get the isolation you wanted
+        without the split: <strong>separate the currents by geometry, not by
+        cutting copper.</strong></p>
+
+        <p>Return currents flow directly under their own traces. So if the digital
+        traces are all in one region of the board, their return currents are all
+        in that region of the plane, and they never visit the analogue region
+        &mdash; without any barrier existing. The plane stays solid, every return
+        path is continuous, and the isolation comes for free from the physics.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Region</th><th>Where it goes</th><th>Why</th></tr></thead>
+                <tbody>
+                    <tr><td>Power entry, protection, filtering</td><td>At the connector, at the board edge</td><td>Conducted emissions are filtered before they reach anything, and surge energy is dumped near where it entered</td></tr>
+                    <tr><td>Switching converters</td><td>Between power entry and the loads, away from analogue and RF</td><td>The loudest thing on the board. Distance is the cheapest attenuation there is.</td></tr>
+                    <tr><td>Digital / processor</td><td>Central, near its memory</td><td>The buses are the densest routing and want the shortest runs</td></tr>
+                    <tr><td>Analogue / converters</td><td>One region, adjacent to its I/O, away from switchers and clocks</td><td>Its return currents stay local; nothing loud shares its copper</td></tr>
+                    <tr><td>RF</td><td>Its own corner, with the antenna at the board edge</td><td>Antenna placement is dictated by the enclosure and by keeping metal away from it</td></tr>
+                    <tr><td>I/O and cables</td><td>Grouped at one edge</td><td>Cables are the antennas. Put them where the plane is quiet, and never route noisy signals near the cable entry.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="warn">
+            <strong>The one rule that makes partitioning work:</strong> signals
+            crossing between regions should cross at a <em>single, deliberate,
+            narrow interface</em>. If the digital-to-analogue interface is eight
+            signals crossing at one place, their returns are confined there too.
+            If those same eight signals wander across the board individually, the
+            partition has no meaning.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. The loops that must be small</h3>
+
+        <p>A handful of loops on any board carry fast, large current changes.
+        These are placed first and are never compromised for routing convenience,
+        because their area determines both the noise they radiate and the noise
+        they suffer.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Loop</th><th>What it is</th><th>Target</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Buck input loop</strong></td>
+                        <td>Input capacitor &rarr; high-side switch &rarr; low-side switch &rarr; back to the capacitor. This loop carries a <em>trapezoidal</em> current with nanosecond edges.</td>
+                        <td>The single most important loop on any switching board. As small as physically possible; the input capacitor goes right against the IC's VIN and GND pins, on the same layer, with no vias in the loop.</td></tr>
+                    <tr><td>Boost output loop</td>
+                        <td>Switch &rarr; diode &rarr; output capacitor &rarr; back</td>
+                        <td>Same reasoning, on the output side instead — a boost has its discontinuous current at the output</td></tr>
+                    <tr><td>Decoupling loop</td>
+                        <td>IC power pin &rarr; capacitor &rarr; ground &rarr; back to the IC's ground pin, <em>including the vias</em></td>
+                        <td>Minimise loop inductance, not distance-to-the-pin. See &sect;4.</td></tr>
+                    <tr><td>Gate drive loop</td>
+                        <td>Driver output &rarr; gate &rarr; source &rarr; back to the driver's return</td>
+                        <td>Large \(di/dt\); a big loop causes gate ringing and can turn a device on when you did not ask</td></tr>
+                    <tr><td>Crystal loop</td>
+                        <td>Crystal, its two load capacitors, and the return to the oscillator's ground pin</td>
+                        <td>Small and guarded. A crystal is a high-impedance node and picks up anything nearby.</td></tr>
+                    <tr><td>Current sense</td>
+                        <td>The two sense connections to the shunt</td>
+                        <td>Kelvin connection, routed as a tightly coupled pair from the resistor's own sense pads</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="notice">
+            <strong>The switch node is the other half of the story.</strong> The
+            buck switch node swings the full input voltage in nanoseconds, so it is
+            the board's most effective E-field radiator. Keep it <em>small in
+            area</em> &mdash; just big enough to carry the current and conduct heat
+            &mdash; and never pour it large &ldquo;for thermal reasons&rdquo;
+            without accounting for what that copper radiates.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Interactive: decoupling loop inductance</h3>
+
+        <p>The capacitor value is the part everyone specifies and the part that
+        matters least above a few megahertz. What decides the impedance at high
+        frequency is the <em>loop</em>: package ESL plus the vias plus the trace.
+        Change the placement and watch where the capacitor stops helping.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="dc-c">Capacitance</label>
+                <select id="dc-c">
+                    <option value="1e-9">1 nF</option>
+                    <option value="1e-8">10 nF</option>
+                    <option value="1e-7" selected>100 nF</option>
+                    <option value="1e-6">1 µF</option>
+                    <option value="1e-5">10 µF</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="dc-pkg">Package</label>
+                <select id="dc-pkg">
+                    <option value="0.3">0201 — ESL 0.3 nH</option>
+                    <option value="0.45">0402 — ESL 0.45 nH</option>
+                    <option value="0.6" selected>0603 — ESL 0.6 nH</option>
+                    <option value="0.9">0805 — ESL 0.9 nH</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="dc-place">Via and trace arrangement</label>
+                <select id="dc-place">
+                    <option value="ideal">Via-in-pad, both vias, 0.10 mm stackup</option>
+                    <option value="good" selected>Vias at the pads, short traces</option>
+                    <option value="ok">2 mm of trace to shared vias</option>
+                    <option value="bad">6 mm of trace, one shared ground via</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="dc-h">Board thickness (via length)</label>
+                <input type="range" id="dc-h" min="4" max="24" step="1" value="16">
+                <span class="range-value" id="dc-h-val">1.6 mm</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="dc-canvas" width="900" height="330"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Total loop inductance</div><div class="v mono" id="dc-l">&mdash;</div></div>
+            <div class="box"><div class="k">Self-resonant frequency</div><div class="v mono" id="dc-srf">&mdash;</div></div>
+            <div class="box"><div class="k">Impedance at 100 MHz</div><div class="v mono" id="dc-z100">&mdash;</div></div>
+            <div class="box"><div class="k">Impedance at 500 MHz</div><div class="v mono" id="dc-z500">&mdash;</div></div>
+            <div class="box"><div class="k">Where the inductance is</div><div class="v mono" id="dc-where">&mdash;</div></div>
+            <div class="box"><div class="k">vs the best case</div><div class="v mono" id="dc-vs">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="dc-note"></p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. Decoupling, honestly</h3>
+
+        <p>The traditional advice &mdash; a 100&nbsp;nF at every power pin, plus a
+        10&nbsp;&micro;F and a 1&nbsp;nF &ldquo;for high frequency&rdquo; &mdash;
+        is mostly folklore built on a misunderstanding. Here is what the physics
+        supports.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Belief</th><th>What is actually true</th></tr></thead>
+                <tbody>
+                    <tr><td>&ldquo;Add a small capacitor in parallel for high frequency&rdquo;</td>
+                        <td>The small capacitor has <em>the same loop inductance</em> as the big one, since the loop is set by the vias and the geometry, not the part. Above resonance both are inductors, so the small one adds almost nothing — and the parallel combination creates an <strong>anti-resonance</strong> between them where the impedance is <em>higher</em> than either alone. Prefer more capacitors of one value over a ladder of values.</td></tr>
+                    <tr><td>&ldquo;Put the capacitor as close to the pin as possible&rdquo;</td>
+                        <td>Closer to the <em>loop</em>, not the pin. A capacitor 1 mm from the pin whose ground returns through a via 4 mm away has a worse loop than one 3 mm from the pin with its own via right at its pad. Minimise the enclosed area of the whole path.</td></tr>
+                    <tr><td>&ldquo;More capacitance is better&rdquo;</td>
+                        <td>Only below resonance. Above it, capacitance is irrelevant and inductance is everything. Ten 100 nF parts in parallel give a tenth of the loop inductance as well as ten times the capacitance — the inductance is the reason it works.</td></tr>
+                    <tr><td>&ldquo;The MLCC value on the BOM is what you get&rdquo;</td>
+                        <td>X5R and X7R lose a large fraction of their capacitance under DC bias — a 10 &micro;F 0603 rated 6.3 V can be under 3 &micro;F at 5 V. Check the bias curve, not the marking.</td></tr>
+                    <tr><td>&ldquo;Decoupling handles everything up to a gigahertz&rdquo;</td>
+                        <td>Above roughly 100&ndash;200 MHz the board contributes almost nothing; the on-die and in-package capacitance is what supplies the current. Your job at those frequencies is to not make things worse.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>5. Rules that are myths</h3>
+
+        <p>Every layout guide contains rules that have outlived their evidence.
+        Knowing which are which saves both board area and argument.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Rule</th><th>Verdict</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>The 20-H rule</strong> (pull the power plane back 20&times; the dielectric height from the board edge)</td>
+                        <td class="t-warn"><strong>Largely a myth.</strong> The original simulation has not held up; measured benefit is small and inconsistent, and it costs real board area. Edge stitching vias around the perimeter do far more for edge radiation.</td></tr>
+                    <tr><td><strong>The 3W rule</strong> (space traces 3&times; their width apart)</td>
+                        <td class="t-warn"><strong>The wrong variable.</strong> Crosstalk is governed by \(s/h\), not \(s/w\). On a thin stackup 2W is generous; on a thick one 5W may not be enough. Use spacing relative to the <em>dielectric height</em>.</td></tr>
+                    <tr><td><strong>Split the ground plane for analogue</strong></td>
+                        <td class="t-bad"><strong>Actively harmful</strong> on any board with signals crossing the split. See lesson 1.</td></tr>
+                    <tr><td><strong>45&deg; corners instead of 90&deg;</strong></td>
+                        <td class="t-warn"><strong>True, but irrelevant.</strong> The original reason was acid entrapment in etching, a solved manufacturing problem. Electrically a right-angle corner adds a tiny capacitance that matters only above roughly 10 GHz. Use 45&deg; because it looks tidy and routes shorter, not because you believe it is fixing anything.</td></tr>
+                    <tr><td><strong>Route a guard trace beside a sensitive signal</strong></td>
+                        <td class="t-warn"><strong>Conditional.</strong> A guard trace helps only if it is grounded at <em>both</em> ends and stitched along its length at &lt; &lambda;/10 intervals. Grounded at one end, it is a floating antenna that can make things worse.</td></tr>
+                    <tr><td><strong>Star grounding</strong></td>
+                        <td class="t-warn"><strong>Correct for its era, wrong for yours.</strong> It solves a low-frequency shared-resistance problem. Above a few kHz the return follows inductance, and a star topology forces enormous loops. Correct for a mains-frequency instrument; wrong for anything with a digital edge in it.</td></tr>
+                    <tr><td><strong>A ground plane under a crystal</strong></td>
+                        <td class="t-ok"><strong>True and worth doing</strong>, along with a guarded pour tied to the oscillator's ground pin. A crystal is a genuinely high-impedance node.</td></tr>
+                    <tr><td><strong>Thermal reliefs on ground pins</strong></td>
+                        <td class="t-ok"><strong>True for manufacturability</strong>, and a real trade: they add inductance and resistance. On decoupling capacitor grounds and power connections, use direct connections and let the assembler adjust their profile.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="acceptance">
+        <h3>6. Acceptance tests</h3>
+
+        <h4>Performance</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Test</th><th>Condition</th><th>Pass criterion</th><th>If it fails</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Critical loop review</td>
+                        <td>Print the layout and physically trace each loop from &sect;3 with a finger</td>
+                        <td>Every one is small, on one layer where possible, with no unnecessary vias</td>
+                        <td>Re-place. These loops are not fixable by routing.</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Partition audit</td>
+                        <td>Colour the regions on a plot and look at what crosses between them</td>
+                        <td>Crossings happen at deliberate narrow interfaces, not scattered</td>
+                        <td>A signal wandering across a partition takes its return current with it</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Rail impedance</td>
+                        <td>Measure rail noise at the load pin with a short-ground probe under full switching activity</td>
+                        <td>Within the device's specified supply tolerance including ripple</td>
+                        <td>Look at the decoupling <em>loop</em> before adding capacitors</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Switch node</td>
+                        <td>Scope the switch node with a ground spring</td>
+                        <td>Ringing bounded; no overshoot past the device's absolute maximum</td>
+                        <td>Almost always the input loop, not the snubber</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Pre-compliance</td>
+                        <td>Radiated scan with all cables attached and the enclosure closed</td>
+                        <td>6 dB margin below the limit</td>
+                        <td>Correlate peaks to clocks, then find the loop. Do not start with ferrites.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Abuse</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What is done to it</th><th>What physically happens</th><th>Acceptable outcome</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>The buck input capacitor moved 8 mm away</strong> to make room for a connector</td>
+                        <td>The input loop grows from perhaps 20 mm&sup2; to 200 mm&sup2;, so its inductance rises roughly tenfold to maybe 12 nH. With a 2 A switched current and a 5 ns edge, \(V = L\,di/dt = 12\,\mathrm{nH}\times 4\times10^{8} = \mathbf{4.8\ V}\) of overshoot on the switch node.</td>
+                        <td>On a 12 V input that is 17 V on a device rated 20 V &mdash; it survives, marginally, until a hot day or a fast part. <strong>The board also fails conducted emissions, because that loop is now an efficient magnetic radiator at the switching harmonics.</strong> There is no snubber, ferrite or capacitor that recovers this; it is a placement error and only re-placement fixes it. Put the input capacitor first, then place the connector around it.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Decoupling capacitors placed 1 mm from the pin but sharing one ground via 5 mm away</strong></td>
+                        <td>The loop is not 1 mm; it is 1 mm out, 5 mm along the trace to the via, down the via, and back through the plane. Loop inductance is perhaps 4 nH rather than 1 nH, so the self-resonance of a 100 nF part drops from about 16 MHz to 8 MHz, and its impedance at 100 MHz is four times higher.</td>
+                        <td><strong>The layout looks textbook-correct in the CAD tool and performs badly.</strong> The capacitor's <em>own</em> via at its <em>own</em> pad is worth more than moving it closer to the pin. This is the most common decoupling mistake and it is invisible unless you deliberately trace the return.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A 10 &micro;F 6.3 V X5R 0603 used on a 5 V rail</strong></td>
+                        <td>DC bias derating: X5R dielectric loses capacitance under field, and at 5 V on a 6.3 V-rated 0603 the effective value can fall below 3 &micro;F — under 30% of the marking. The part is not faulty and measures 10 &micro;F at 0 V bias.</td>
+                        <td><strong>The bulk decoupling is a third of what the design assumed, and no measurement on an unbiased part reveals it.</strong> This shows up as excessive load-transient droop that the designer cannot explain from the BOM. Use a higher voltage rating (a 25 V part at 5 V derates far less), a larger case size, or a different dielectric — and read the bias curve, which vendors publish and almost nobody opens.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>The autorouter run on a mixed-signal board</strong> after a good manual placement</td>
+                        <td>The router optimises for completion and length. It has no model of return paths, loop area, partitioning, or which nets are sensitive, so it will happily route a clock across the analogue region and a reset line beside it.</td>
+                        <td><strong>The board routes to 100% and fails everything else.</strong> Autorouters are useful for dense fan-out and for buses whose constraints you have fully expressed as rules; they are not a substitute for judgement about which connections matter. Route power and every critical net by hand first, lock them, and only then let the router finish the remainder.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A copper pour used to &ldquo;fill in&rdquo; an unrouted region</strong>, left unstitched and connected at one point</td>
+                        <td>An isolated or single-point-connected pour is a resonant structure. It couples to nearby traces capacitively and re-radiates, and at the frequency where it is a quarter wavelength it becomes an efficient antenna driven by whatever it is coupled to.</td>
+                        <td><strong>A floating pour is worse than no pour.</strong> Either stitch it to ground at intervals below &lambda;/10 at the highest frequency present, or delete it. This applies equally to the decorative ground pours many designers add by reflex on the outer layers — pour and stitch, or do not pour.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="dc-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="dc-exercises"></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var canvas = document.getElementById('dc-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var TEK = AD.TEK_COLORS;
+
+    // Trace loop inductance contributions, per arrangement.
+    var PLACE = {
+        ideal: { trace_mm: 0,   vias: 2, label: 'via-in-pad, both vias' },
+        good:  { trace_mm: 0.6, vias: 2, label: 'vias at the pads' },
+        ok:    { trace_mm: 2.0, vias: 2, label: '2 mm of trace' },
+        bad:   { trace_mm: 6.0, vias: 1, label: '6 mm of trace, one shared via' }
+    };
+
+    function viaL(h_mm, d_mm) {
+        // L = 5.08 h [ln(4h/d) + 1] nH, with h and d in inches.
+        var h = h_mm / 25.4, d = d_mm / 25.4;
+        return 5.08 * h * (Math.log(4 * h / d) + 1) * 1e-9;
+    }
+
+    function val(id, dflt) { var e = document.getElementById(id); return e ? e.value : dflt; }
+
+    function update() {
+        var C = parseFloat(val('dc-c', '1e-7'));
+        var esl = parseFloat(val('dc-pkg', '0.6')) * 1e-9;
+        var place = PLACE[val('dc-place', 'good')] || PLACE.good;
+        var h_mm = AD.num('dc-h') / 10;
+
+        AD.setText('dc-h-val', h_mm.toFixed(1) + ' mm');
+
+        // Trace inductance: about 0.33 nH/mm for a trace over a nearby plane,
+        // but a decoupling stub is a loop out and back, so count both sides.
+        var Ltrace = place.trace_mm * 2 * 0.33e-9;
+        // A single shared via must carry the return for the whole loop, so the
+        // via inductance is not divided.
+        var Lvia = viaL(h_mm, 0.3) * (place.vias === 2 ? 2 : 2);
+        if (place.vias === 1) Lvia = viaL(h_mm, 0.3) * 2 * 1.6;   // shared: worse
+
+        var Ltot = esl + Ltrace + Lvia;
+
+        var srf = 1 / (2 * Math.PI * Math.sqrt(Ltot * C));
+
+        function zAt(f) {
+            var xc = 1 / (2 * Math.PI * f * C);
+            var xl = 2 * Math.PI * f * Ltot;
+            return Math.abs(xl - xc);
+        }
+
+        // Best case for comparison: 0201 with via-in-pad on a thin board.
+        var Lbest = 0.3e-9 + 2 * viaL(0.4, 0.3);
+
+        AD.setText('dc-l', AD.fmtUnit(Ltot, 'H'));
+        AD.setText('dc-srf', AD.fmtUnit(srf, 'Hz'));
+        AD.setText('dc-z100', AD.fmtUnit(zAt(1e8), 'Ω'));
+        AD.setText('dc-z500', AD.fmtUnit(zAt(5e8), 'Ω'));
+        AD.setText('dc-where',
+            'pkg ' + (esl / Ltot * 100).toFixed(0) + '%,  vias ' +
+            (Lvia / Ltot * 100).toFixed(0) + '%,  trace ' +
+            (Ltrace / Ltot * 100).toFixed(0) + '%');
+        AD.setText('dc-vs', (Ltot / Lbest).toFixed(1) + '× the best achievable (' +
+                            AD.fmtUnit(Lbest, 'H') + ')');
+
+        // ---- plot: |Z| vs frequency ---------------------------------------
+        var w = canvas.width, hgt = canvas.height;
+        var ml = 68, mr = 150, mt = 34, mb = 46;
+        var pw = w - ml - mr, ph = hgt - mt - mb;
+
+        AD.drawGrid(ctx, w, hgt, 10, 8);
+
+        var fLo = 1e5, fHi = 1e10;
+        var zLo = 1e-3, zHi = 1e2;
+        var X = function (f) {
+            return ml + (Math.log10(f) - Math.log10(fLo)) /
+                        (Math.log10(fHi) - Math.log10(fLo)) * pw;
+        };
+        var Y = function (z) {
+            var zc = Math.max(zLo, Math.min(zHi, z));
+            return mt + ph - (Math.log10(zc) - Math.log10(zLo)) /
+                             (Math.log10(zHi) - Math.log10(zLo)) * ph;
+        };
+
+        function plotZ(L, colour, width) {
+            ctx.save();
+            ctx.strokeStyle = colour;
+            ctx.lineWidth = width;
+            ctx.beginPath();
+            for (var i = 0; i <= 400; i++) {
+                var f = Math.pow(10, Math.log10(fLo) +
+                        (Math.log10(fHi) - Math.log10(fLo)) * i / 400);
+                var z = Math.abs(2 * Math.PI * f * L - 1 / (2 * Math.PI * f * C));
+                z = Math.max(z, 0.003);        // a little ESR so the notch is finite
+                if (i === 0) ctx.moveTo(X(f), Y(z)); else ctx.lineTo(X(f), Y(z));
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+        plotZ(Lbest, TEK.ideal, 1.5);
+        plotZ(Ltot, TEK.ch1, 2);
+
+        // markers at 100 MHz and 500 MHz
+        [[1e8, '100 MHz'], [5e8, '500 MHz']].forEach(function (m) {
+            ctx.save();
+            ctx.strokeStyle = TEK.ch3;
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(X(m[0]), mt); ctx.lineTo(X(m[0]), mt + ph); ctx.stroke();
+            ctx.restore();
+        });
+
+        ctx.save();
+        ctx.fillStyle = TEK.text;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'right';
+        [1e-3, 1e-2, 1e-1, 1, 10, 100].forEach(function (z) {
+            ctx.fillText(AD.fmtUnit(z, 'Ω'), ml - 6, Y(z) + 4);
+        });
+        ctx.textAlign = 'center';
+        [1e5, 1e6, 1e7, 1e8, 1e9, 1e10].forEach(function (f) {
+            ctx.fillText(AD.fmtUnit(f, 'Hz'), X(f), mt + ph + 18);
+        });
+        ctx.fillText('frequency', ml + pw / 2, hgt - 10);
+        ctx.textAlign = 'left';
+        ctx.fillText('|Z|', ml - 60, mt - 12);
+        ctx.fillStyle = TEK.ch1; ctx.fillText('your decoupling', ml + pw + 8, mt + 14);
+        ctx.fillStyle = TEK.ideal; ctx.fillText('best achievable', ml + pw + 8, mt + 30);
+        ctx.fillStyle = TEK.text;
+        ctx.fillText('capacitive ←', ml + pw + 8, mt + 56);
+        ctx.fillText('→ inductive', ml + pw + 8, mt + 70);
+        ctx.restore();
+
+        // ---- verdict ------------------------------------------------------
+        var verdict;
+        if (Ltrace / Ltot > 0.4) {
+            verdict = 'The trace is ' + (Ltrace / Ltot * 100).toFixed(0) + '% of the loop — ' +
+                      'more than the capacitor package itself. Moving the part closer, or ' +
+                      'putting its vias at its own pads, is worth more than any change of ' +
+                      'value or dielectric.';
+        } else if (Lvia / Ltot > 0.5) {
+            verdict = 'The vias dominate at ' + (Lvia / Ltot * 100).toFixed(0) +
+                      '% of the loop. A thinner board, or a decoupling plane closer to the ' +
+                      'surface, shortens them. This is a STACKUP fix, not a placement one — ' +
+                      'which is why the stackup lesson comes before this one.';
+        } else {
+            verdict = 'Package ESL dominates, which means the layout is doing its job and ' +
+                      'the remaining improvement is a smaller case size. This is the ' +
+                      'well-designed case.';
+        }
+
+        AD.setText('dc-note',
+            'Self-resonance at ' + AD.fmtUnit(srf, 'Hz') + ' — above that this capacitor is ' +
+            'an inductor, and its value stops mattering entirely. At 500 MHz it presents ' +
+            AD.fmtUnit(zAt(5e8), 'Ω') + '. ' + verdict);
+    }
+
+    ['dc-h'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    ['dc-c', 'dc-pkg', 'dc-place'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', update);
+    });
+    update();
+
+    if (typeof ChecklistWidget !== 'undefined') {
+        new ChecklistWidget('dc-checklist', {
+            title: 'Layout Strategy Checklist',
+            items: [
+                {id: 'mech', text: 'Mechanical constraints placed first and treated as fixed', category: 'Order'},
+                {id: 'partition', text: 'Regions drawn on paper before any component is placed', category: 'Order'},
+                {id: 'anchors', text: 'Forced parts placed before free ones; passives last', category: 'Order'},
+                {id: 'power1st', text: 'Power routed before signals; autorouter kept away from it', category: 'Order'},
+                {id: 'buckin', text: 'Buck input loop placed first, minimal area, no vias in the loop', category: 'Loops'},
+                {id: 'gate', text: 'Gate drive loop small, with a dedicated return to the driver', category: 'Loops'},
+                {id: 'decoup', text: 'Decoupling optimised for LOOP area, with each part having its own vias', category: 'Loops'},
+                {id: 'xtal', text: 'Crystal and its load caps in a small guarded group over solid ground', category: 'Loops'},
+                {id: 'kelvin', text: 'Current sense taken as a Kelvin pair from the shunt sense pads', category: 'Loops'},
+                {id: 'swnode', text: 'Switch node copper kept small; not poured large for thermal reasons', category: 'Loops'},
+                {id: 'interface', text: 'Cross-region signals cross at a single narrow interface', category: 'Partition'},
+                {id: 'cables', text: 'Cable and connector entries grouped where the plane is quiet', category: 'Partition'},
+                {id: 'bias', text: 'MLCC DC bias derating checked against the bias curve, not the marking', category: 'Components'},
+                {id: 'onevalue', text: 'More capacitors of one value preferred over a ladder of values', category: 'Components'},
+                {id: 'pours', text: 'Every copper pour stitched to ground, or deleted', category: 'Finishing'},
+                {id: 'edge', text: 'Edge stitching vias around the perimeter rather than relying on the 20-H rule', category: 'Finishing'}
+            ]
+        });
+    }
+
+    if (typeof ExerciseWidget !== 'undefined') {
+        new ExerciseWidget('dc-exercises', {
+            exercises: [
+                {
+                    id: 'ex1',
+                    title: 'Where does the inductance actually live?',
+                    problem: 'A 100 nF 0402 (ESL 0.45 nH) decouples an IC on a 1.6 mm board. It sits 3 mm from the power pin, and its ground connects through 4 mm of trace to a via shared with another capacitor. Estimate the total loop inductance, break it down by contributor, and compute the self-resonant frequency. Then say which single change helps most.',
+                    hints: [
+                        'Trace inductance over a plane is about 0.33 nH/mm, and a decoupling stub is a loop out and back',
+                        'Via inductance: L = 5.08 h [ln(4h/d) + 1] nH with h and d in inches, 1.6 mm = 0.063 in, 0.3 mm drill = 0.012 in',
+                        'A shared via carries both capacitors returns, so it is worse than a dedicated one',
+                        'f = 1/(2 pi sqrt(LC))'
+                    ],
+                    answer: 'Contributions: package ESL 0.45 nH. Trace: 3 mm to the power pin plus 4 mm of ground trace is 7 mm of loop path, and treating it as an out-and-back loop at roughly 0.33 nH/mm gives about 2.3 nH - though it depends on the enclosed area, so call it 2-3 nH. Vias: one via is 5.08 x 0.063 x (ln(4x0.063/0.012) + 1) = 5.08 x 0.063 x (ln 21 + 1) = 5.08 x 0.063 x 4.045 = 1.29 nH; the loop needs a power via and a ground via, so 2.6 nH, and because the ground via is shared with another capacitor its effective contribution is worse still - call the via total 3-4 nH. Total is roughly 6-7 nH. Breakdown: package 7%, trace 35%, vias 55-58%. Self-resonance: f = 1/(2 pi sqrt(6.5e-9 x 100e-9)) = 1/(2 pi x 2.55e-8) = 6.2 MHz. Above 6.2 MHz this "decoupling capacitor" is an inductor. At 100 MHz its impedance is 2 pi x 1e8 x 6.5e-9 = 4.1 ohm, which is doing essentially nothing. Which change helps most: give it its OWN ground via, placed at its own pad. That removes the 4 mm of ground trace and un-shares the via, taking the total to roughly 0.45 + 0.7 + 2.6 = 3.7 nH, nearly halving it and moving resonance to 8.3 MHz. Note what does NOT help: changing the value, adding a parallel 1 nF, or moving the part 1 mm closer to the pin. The loop is the thing.'
+                },
+                {
+                    id: 'ex2',
+                    title: 'Anti-resonance',
+                    problem: 'A designer places a 100 nF and a 1 nF in parallel on the same power pin, both 0402, both with about 2 nH of loop inductance. Compute each part self-resonance, then explain what happens between those two frequencies and why the pair can be worse than the 100 nF alone.',
+                    hints: [
+                        'f = 1/(2 pi sqrt(LC)) for each',
+                        'Above its resonance a capacitor is an inductor; below, a capacitor',
+                        'Between the two resonances, one branch is inductive and the other is capacitive - what does that form?'
+                    ],
+                    answer: 'Resonances: 100 nF with 2 nH gives f = 1/(2 pi sqrt(2e-9 x 100e-9)) = 1/(2 pi x 1.414e-8) = 11.3 MHz. 1 nF with the same 2 nH gives f = 1/(2 pi sqrt(2e-9 x 1e-9)) = 1/(2 pi x 1.414e-9) = 112.5 MHz. Between 11.3 and 112.5 MHz the 100 nF branch is INDUCTIVE (it is above its resonance) and the 1 nF branch is CAPACITIVE (below its own). An inductor in parallel with a capacitor is a parallel resonant tank, and at its resonance a parallel LC presents a HIGH impedance - limited only by loss. That anti-resonance sits at roughly sqrt(11.3 x 112.5) = 35.7 MHz, and there the pair presents a higher impedance than the 100 nF would have on its own. The key insight is that the small capacitor did not extend the useful range; it added a peak inside it. Why the folklore persists: it was true when capacitors had much larger and more variable ESL and when loop inductances differed substantially between parts. Today the loop is set by the vias and the geometry, which are the same for both parts, so the small capacitor buys almost nothing above resonance and costs an anti-resonance below it. What to do instead: use MORE capacitors of ONE value. Ten 100 nF parts in parallel, each with its own vias, have one tenth the loop inductance and ten times the capacitance, so the resonance stays in the same place but the impedance is ten times lower everywhere. The parallel inductance reduction is the real mechanism, and it has no anti-resonance because every branch is identical.'
+                },
+                {
+                    id: 'ex3',
+                    title: 'Floorplan a mixed-signal board',
+                    problem: 'A 100 x 80 mm board has: a barrel jack for 12 V, a buck to 3.3 V, a buck to 1.8 V, an STM32, a 24-bit ADC with four analogue inputs on a terminal block, a 2.4 GHz radio module with a chip antenna, and a USB-C connector. Sketch the partitioning in words, state where each block goes and why, and identify the three loops you would place first.',
+                    hints: [
+                        'Start from the mechanical constraints: which parts must be at an edge?',
+                        'What is the loudest thing and what is the quietest?',
+                        'Where do cables attach, and what do cables do?',
+                        'The antenna has its own rules'
+                    ],
+                    answer: 'Mechanical anchors first: barrel jack, USB-C and the terminal block are all connectors and must be at board edges; the chip antenna must be at an edge with a ground keep-out beneath and around it, and with no metal or enclosure hardware nearby. Put the antenna at one corner, ideally a short edge, with the radio module immediately behind it. Partition: (1) POWER, along one edge with the barrel jack: input protection, bulk capacitance, then the two bucks. Keep this region as far from the ADC and the antenna as the board allows - it is the loudest block. (2) DIGITAL, central: STM32 with its decoupling and crystal, USB-C on the edge nearest the STM32 so the differential pair is short. (3) ANALOGUE, at the opposite corner from the power section: the ADC, its reference, its filtering, and the terminal block on the adjacent edge so the analogue inputs enter directly into the analogue region and never cross the board. (4) RF, its own corner: module, matching, antenna, with the RF section adjacent to the digital region so the SPI or UART to the STM32 is short. Crucially: ONE solid ground plane throughout, no splits anywhere. The isolation comes from the fact that each block return current flows under its own traces, which stay within its own region. The STM32-to-ADC interface crosses at a single deliberate narrow neck, so those returns are confined there. The three loops to place first: (1) the 12 V buck input loop - input capacitor hard against the IC VIN and GND pins, same layer, no vias in the loop, placed before anything else in the power section; (2) the second buck input loop, same treatment; (3) the ADC reference and its decoupling, which is the highest-impedance, most sensitive loop on the board and determines how many of those 24 bits are real. Honourable mention: the STM32 crystal, which wants a small guarded group over solid ground.'
+                },
+                {
+                    id: 'ex4',
+                    title: 'Argue about a design rule',
+                    problem: 'A reviewer insists the design must follow the 3W rule and the 20-H rule. Evaluate both against the physics, say what you would do instead in each case, and note what it would cost to comply unnecessarily.',
+                    hints: [
+                        'What variable actually controls crosstalk between two microstrips?',
+                        'What is the 20-H rule claimed to do, and what is the evidence?',
+                        'Both cost board area - how much?'
+                    ],
+                    answer: '3W rule (space traces three times their width apart): the intent is right, the variable is wrong. Crosstalk between two microstrips is governed by the ratio of spacing to DIELECTRIC HEIGHT, s/h, not spacing to trace width, s/w. The reason is the return current distribution: from the Lorentzian J(x) = (I/pi h)/(1 + (x/h)^2), the fraction of one trace return current that a neighbour shares depends entirely on s/h. Trace width barely enters. So on a thin stackup where h = 0.1 mm and a 50 ohm trace is 0.2 mm wide, 3W = 0.6 mm = 6h, which is far more spacing than needed - 2h or 3h would give under 5% coupling. On a thick stackup where h = 0.7 mm and the 50 ohm trace is 1.4 mm, 3W = 4.2 mm = 6h, which happens to work out the same because w = 2h in both cases. That coincidence is why the rule survives: for 50 ohm microstrip specifically, 3W IS 6h. It breaks the moment the trace is not 50 ohm, or the layer is stripline, or the width was chosen for current rather than impedance. What to do instead: specify spacing as a multiple of h, and pick the multiple from your crosstalk budget - roughly 2h for 5%, 3h for 2%. 20-H rule (pull the power plane back 20 times the dielectric height from the board edge): this originated in a single simulation study and has not replicated well; measured benefit is small and inconsistent, and some measurements show it moving the resonance rather than damping it. What to do instead: put a row of ground stitching vias around the board perimeter at intervals below lambda/10 at the highest frequency of concern. That genuinely shorts the plane-pair edge and suppresses edge radiation, and it costs no area. Cost of complying unnecessarily: the 20-H rule on a 100 x 80 mm board with h = 0.1 mm asks for a 2 mm pull-back, which is trivial - so if the reviewer insists, comply, it costs almost nothing. But on a thicker stackup with h = 0.7 mm it is a 14 mm border, removing about 40% of the plane area on a small board, which is a real cost for no demonstrated benefit. The 3W rule on a thin stackup wastes routing channels you will need. The right response to a reviewer is not to refuse the rule but to state the variable the physics actually uses and offer the measurement that settles it.'
+                }
+            ]
+        });
+    }
+})();
+</script>
