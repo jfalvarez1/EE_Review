@@ -201,6 +201,37 @@
             });
             svg.appendChild(vg);
 
+            // ---- annotations: point at a feature and name it -----------------
+            // A layout figure is only useful if it can say "THAT, there, is the
+            // input loop". Each annotation is a labelled box in board
+            // millimetres, optionally scoped to one layer.
+            (opts.annotations || []).forEach(function (a) {
+                if (a.layer && a.layer !== layer) return;
+                var g = el('g', { class: 'bv-annot' });
+                var stroke = a.colour || '#FF5C5C';
+                g.appendChild(el('rect', {
+                    x: a.x, y: a.y, width: a.w, height: a.h,
+                    fill: 'none', stroke: stroke,
+                    'stroke-width': Math.max(bb.w, bb.h) * 0.004,
+                    'stroke-dasharray': (Math.max(bb.w, bb.h) * 0.012) + ' ' +
+                                        (Math.max(bb.w, bb.h) * 0.008),
+                    rx: Math.max(bb.w, bb.h) * 0.004
+                }));
+                if (a.label) {
+                    var fs = Math.max(bb.h * 0.042, 1.2);
+                    var above = a.y - fs * 0.5 > bb.y;
+                    var tx = el('text', {
+                        x: a.x, y: above ? a.y - fs * 0.45 : a.y + a.h + fs * 1.1,
+                        'font-family': 'monospace', 'font-size': fs,
+                        fill: stroke, 'font-weight': '700'
+                    });
+                    tx.textContent = a.label;
+                    g.appendChild(tx);
+                }
+                g.setAttribute('pointer-events', 'none');
+                svg.appendChild(g);
+            });
+
             // the layer name, in the figure, so a panel is never ambiguous
             var label = el('text', {
                 x: bb.x + bb.w * 0.012, y: bb.y + bb.h * 0.075,
