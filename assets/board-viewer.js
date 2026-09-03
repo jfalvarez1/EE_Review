@@ -376,7 +376,10 @@
             host.innerHTML = '<p class="bv-loading">Loading board…</p>';
 
             var xhr = new XMLHttpRequest();
-            xhr.open('GET', url, true);
+            // Same cache key as the lesson fetches: board data is served by a
+            // static host too, and a stale board is as confusing as a stale
+            // lesson.
+            xhr.open('GET', url + (window.BUILD_ID ? '?v=' + window.BUILD_ID : ''), true);
             xhr.onreadystatechange = function () {
                 if (xhr.readyState !== 4) return;
                 if (xhr.status !== 200 && xhr.status !== 0) {

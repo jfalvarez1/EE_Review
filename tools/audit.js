@@ -57,7 +57,9 @@ const GATING = [
     ['check-toy-parts.js',
      'a build table naming a part Circuit Toy does not have, which sends readers to the wrong one'],
     ['validate-path.js',
-     'every syllabus step resolves to a lesson that exists on disk']
+     'every syllabus step resolves to a lesson that exists on disk'],
+    ['stamp-build.js --check',
+     'a stale cache key: readers get the OLD lesson against the new assets']
 ];
 
 const ADVISORY = [
@@ -67,8 +69,12 @@ const ADVISORY = [
 ];
 
 function run(script) {
+    // An entry may carry arguments, e.g. 'stamp-build.js --check'.
+    const parts = String(script).split(/\s+/);
+    const file = parts.shift();
     try {
-        const out = execFileSync(process.execPath, [path.join(ROOT, 'tools', script)],
+        const out = execFileSync(process.execPath,
+            [path.join(ROOT, 'tools', file)].concat(parts),
             { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 });
         return { ok: true, out };
     } catch (e) {

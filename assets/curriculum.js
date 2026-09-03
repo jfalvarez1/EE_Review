@@ -3443,7 +3443,19 @@ const Router = {
         };
 
         try {
-            xhr.open('GET', lessonFile, true);
+            // Cache-bust the fetch.
+            //
+            // Lessons are fetched by XHR, and a static host - GitHub Pages
+            // included - serves them with ordinary caching headers. So after
+            // an update a returning reader keeps getting the OLD lesson from
+            // cache while the assets around it are new, which shows up as a
+            // lesson referring to figures that no longer exist. A hard refresh
+            // fixes it, but nobody should have to know that.
+            //
+            // BUILD_ID changes whenever the course is rebuilt, so the URL
+            // changes with it and the browser refetches exactly once per
+            // release rather than on every navigation.
+            xhr.open('GET', lessonFile + (window.BUILD_ID ? '?v=' + window.BUILD_ID : ''), true);
             xhr.send();
         } catch (e) {
             // Fallback for strict CORS - show placeholder
