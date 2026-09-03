@@ -819,6 +819,12 @@ const CURRICULUM = {
                     title: 'Thermal Design for Output Stages',
                     description: 'Heatsinking and thermal management',
                     topics: ['Thermal goals', 'Heatsink selection', 'Thermal interface', 'Temperature monitoring']
+                },
+                {
+                    id: 15,
+                    title: 'Interview Prep — Output Stages',
+                    description: 'The whole module as it gets asked on a whiteboard',
+                    topics: ['Worst heat is at 63% swing', 'Bolt the bias to the heatsink', 'Foldback and its start-up trap', 'Reactive load lines and SOA']
                 }
             ]
         },
@@ -1421,6 +1427,12 @@ const CURRICULUM = {
                     title: 'Power Sequencing',
                     description: 'Multi-rail sequencing and tracking',
                     topics: ['Sequencer ICs', 'RC delay networks', 'Voltage tracking', 'Power-good signals']
+                },
+                {
+                    id: 11,
+                    title: 'Interview Prep — Power Supply Design',
+                    description: 'The whole module as it gets asked on a whiteboard',
+                    topics: ['Find the discontinuous loop', 'Transient sizes the output cap', 'Probe grounds lie', 'Why it fails only in the product']
                 }
             ]
         },
