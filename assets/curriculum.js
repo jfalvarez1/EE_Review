@@ -1875,6 +1875,12 @@ const CURRICULUM = {
                     title: 'Optocouplers and Isolation',
                     description: 'Galvanic isolation for digital signals',
                     topics: ['Why isolate', 'LED + phototransistor structure', 'CTR and drive current', 'Speed limits and alternatives']
+                },
+                {
+                    id: 11,
+                    title: 'Design: Driving a Higher Voltage from a Lower One',
+                    description: 'Six standard answers, the one that fits, and what breaks when the input is wrong',
+                    topics: ['Where is the load return', 'VGS is source-referred', 'Voltage problem vs current problem', 'Size the series R for the fault']
                 }
             ]
         },

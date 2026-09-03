@@ -1,0 +1,617 @@
+<!-- Module 19, Lesson 11: Design — Driving a Higher Voltage from a Lower One -->
+<div class="lesson-content" data-module="19" data-lesson="11">
+
+    <div class="card">
+        <h2>Design: Driving a Higher Voltage from a Lower One</h2>
+        <p>Your controller runs on 3.3 V. The thing you have to switch runs on 24 V,
+        or 48 V, or 400 V. This is one of the most common jobs in practical
+        electronics, it has about six standard answers, and choosing between them
+        badly is how boards end up with parts that get hot, edges that ring, or FETs
+        that never fully turn on.</p>
+
+        <div class="notice">
+            <strong>Three questions, asked before choosing anything.</strong> They
+            eliminate most of the options immediately.
+            <ol style="margin-top:8px">
+                <li><strong>Is the load's low side free to sit at your ground?</strong>
+                If yes, a low-side switch does the job and everything gets easier. If
+                the load must be grounded &mdash; a chassis, a motor frame, a shared
+                return &mdash; you are forced high-side and the problem changes
+                completely.</li>
+                <li><strong>How fast, and how often?</strong> A relay coil switched
+                once a minute and a MOSFET switched at 100 kHz are not the same
+                problem. Speed is what makes gate charge, and therefore driver
+                current, matter at all.</li>
+                <li><strong>Do the two sides share a ground?</strong> If not &mdash;
+                mains, motor drives, anything with a real isolation requirement
+                &mdash; no amount of level shifting will do and you need an
+                optocoupler, a digital isolator or a transformer.</li>
+            </ol>
+        </div>
+
+        <div class="analogy">
+            <span class="analogy-label">A way to hold the whole problem</span>
+            <p>A gate is a <strong>bucket you fill with charge</strong>, and how full
+            it is decides how far the valve opens. Two separate things can go wrong,
+            and they get confused constantly.</p>
+            <p><strong>Not filling it high enough</strong> means the valve is only
+            part open: the FET is a resistor rather than a switch and dissipates
+            continuously. That is a <em>voltage</em> problem, and waiting does not
+            fix it.</p>
+            <p><strong>Not filling it fast enough</strong> means the valve spends a
+            long time part open on every transition. That is a <em>current</em>
+            problem &mdash; the bucket does fill, but slowly, and the loss happens
+            during the fill. It only matters if you fill it often.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> a real
+            bucket does not push back. A gate does, through \(C_{GD}\) &mdash; during
+            the Miller plateau the level stops rising even though you are still
+            pouring, because the drain is moving and stealing the charge. That
+            plateau is where nearly all the switching loss lives, and the bucket
+            picture cannot show it.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. The six answers, and when each is right</h3>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Approach</th><th>Use it when</th><th>Watch out for</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Low-side N-channel FET</strong></td>
+                        <td>The load's return can float. The default answer and the
+                        cheapest &mdash; the source is at ground, so \(V_{GS}\) is
+                        simply your logic level.</td>
+                        <td>Needs a logic-level part. A standard FET specified at
+                        \(V_{GS} = 10\,\mathrm{V}\) may barely turn on at 3.3 V.</td></tr>
+                    <tr><td><strong>NPN or N-FET plus a pull-up</strong></td>
+                        <td>Driving a high-voltage <em>input</em> rather than a load.
+                        Inverting, open-drain, trivially cheap.</td>
+                        <td>The rising edge is set by the pull-up and the capacitance,
+                        so the two edges are wildly asymmetric.</td></tr>
+                    <tr><td><strong>P-channel high-side FET</strong></td>
+                        <td>High-side switching at modest speed, up to about 20 V.
+                        The gate is referred to the rail, so pulling it <em>down</em>
+                        turns it on &mdash; which a low-voltage part can do.</td>
+                        <td>\(V_{GS}\) must not exceed the gate rating, so above about
+                        20 V a zener clamp stops being optional. Worse
+                        \(R_{DS(on)}\) than an equivalent N-channel.</td></tr>
+                    <tr><td><strong>N-channel high-side with a bootstrap</strong></td>
+                        <td>High-side switching that has to be fast or efficient. The
+                        standard answer in every synchronous buck and half-bridge.</td>
+                        <td>Cannot hold on indefinitely &mdash; the bootstrap
+                        capacitor only recharges while the switch node is low, so
+                        100% duty is impossible without a refresh.</td></tr>
+                    <tr><td><strong>Charge pump</strong></td>
+                        <td>High-side, and you need 100% duty or a DC on-state.</td>
+                        <td>Slow to start, limited current, more parts. Usually
+                        integrated inside a dedicated high-side driver.</td></tr>
+                    <tr><td><strong>Optocoupler or digital isolator</strong></td>
+                        <td>The two sides genuinely do not share a ground.</td>
+                        <td>Needs an isolated supply on the far side. An
+                        optocoupler's CTR degrades with age and temperature &mdash;
+                        design margin in.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. Worked design &mdash; a 3.3 V GPIO switching a 24 V solenoid</h3>
+
+        <div class="kv">
+            <div class="box"><div class="k">Control</div><div class="v mono">3.3 V GPIO, 4 mA drive</div></div>
+            <div class="box"><div class="k">Load</div><div class="v mono">24 V solenoid, 500 mA</div></div>
+            <div class="box"><div class="k">Rate</div><div class="v mono">a few Hz</div></div>
+            <div class="box"><div class="k">Return</div><div class="v mono">free to float — low side allowed</div></div>
+        </div>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ V_{GS} = 3.3\,\mathrm{V} \;\Longrightarrow\; \text{a LOGIC-LEVEL FET} \]
+                <span class="drv-why">The first and most-missed decision. Read
+                \(R_{DS(on)}\) off the datasheet's curve at \(V_{GS} = 2.5\) or 3 V,
+                never the headline value at 10 V.</span>
+            </div>
+            <div class="drv-step">
+                \[ P_{cond} = I^2R_{DS(on)} = (0.5)^2(0.05) = 12.5\,\mathrm{mW} \]
+                <span class="drv-why">With a 50 mΩ logic-level part. Nothing — at a
+                few hertz there is no switching loss worth the name, and conduction
+                is all there is.</span>
+            </div>
+            <div class="drv-step">
+                \[ V_{DS(max)} > 24\,\mathrm{V} + \text{flyback margin} \;\Rightarrow\; \text{a 60 V part} \]
+                <span class="drv-why">Not 30 V. The inductive kick and any supply
+                transient both land here, and derating a switch to half its rating is
+                ordinary practice.</span>
+            </div>
+            <div class="drv-step">
+                \[ R_{gate} = 100\,\Omega, \qquad R_{pulldown} = 100\,\mathrm{k}\Omega \]
+                <span class="drv-why">The series resistor limits the GPIO's peak
+                current into the gate capacitance and damps ringing. The pull-down
+                holds the gate off while the controller is in reset — without it the
+                solenoid can energise during boot, which is a safety item rather than
+                an inconvenience.</span>
+            </div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">The component that is not optional</span>
+            <p>A solenoid is an inductor, and interrupting inductor current makes an
+            arbitrarily large voltage: \(V = L\,di/dt\), with \(di/dt\) set by how
+            fast the FET turns off. With no path for that current the FET avalanches
+            and eventually fails.</p>
+            <div class="eq">\[ \text{Flyback diode across the coil, cathode to } +24\,\mathrm{V} \]</div>
+            <p>Rate it for the full coil current and choose it faster than the FET
+            turns off. A 1N4007 is too slow for a fast edge; a 1N4148 is fast and too
+            small at 500 mA; an ultrafast part in the right current class is the
+            answer. If release time matters &mdash; a solenoid that must drop out
+            quickly &mdash; put a zener in series with the diode so the coil
+            de-energises against a higher voltage and therefore faster, paid for with
+            a larger \(V_{DS}\) at the FET.</p>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. Gate drive calculator</h3>
+        <p>The same four numbers decide every one of these. Put your case in and see
+        which limit binds &mdash; whether you have a voltage problem, a current
+        problem, or neither.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="gd-vdrv">Driver supply \(V_{DRV}\)</label>
+                <input type="range" id="gd-vdrv" min="1.8" max="15" step="0.1" value="3.3">
+                <span class="range-value" id="gd-vdrv-val">3.3 V</span>
+            </div>
+            <div class="c4">
+                <label for="gd-vth">FET threshold \(V_{th}\)</label>
+                <input type="range" id="gd-vth" min="0.6" max="4.5" step="0.1" value="1.5">
+                <span class="range-value" id="gd-vth-val">1.5 V</span>
+            </div>
+            <div class="c4">
+                <label for="gd-qg">Gate charge \(Q_g\)</label>
+                <input type="range" id="gd-qg" min="1" max="120" step="1" value="12">
+                <span class="range-value" id="gd-qg-val">12 nC</span>
+            </div>
+            <div class="c4">
+                <label for="gd-rg">Series gate resistor</label>
+                <input type="range" id="gd-rg" min="0" max="1000" step="10" value="100">
+                <span class="range-value" id="gd-rg-val">100 Ω</span>
+            </div>
+            <div class="c6">
+                <label for="gd-idrv">Driver current limit</label>
+                <input type="range" id="gd-idrv" min="1" max="2000" step="1" value="4">
+                <span class="range-value" id="gd-idrv-val">4 mA</span>
+            </div>
+            <div class="c6">
+                <label for="gd-fsw">Switching frequency</label>
+                <input type="range" id="gd-fsw" min="0" max="6" step="0.05" value="0.7">
+                <span class="range-value" id="gd-fsw-val">5 Hz</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="gd-canvas" width="900" height="280"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Overdrive \(V_{GS} - V_{th}\)</div><div class="v mono" id="gd-ov">&mdash;</div></div>
+            <div class="box"><div class="k">Gate current available</div><div class="v mono" id="gd-ig">&mdash;</div></div>
+            <div class="box"><div class="k">Turn-on time</div><div class="v mono" id="gd-ton">&mdash;</div></div>
+            <div class="box"><div class="k">Gate drive power</div><div class="v mono" id="gd-pg">&mdash;</div></div>
+            <div class="box"><div class="k">Period spent switching</div><div class="v mono" id="gd-duty">&mdash;</div></div>
+            <div class="box"><div class="k">Verdict</div><div class="v mono" id="gd-verdict">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="gd-note"></p>
+
+        <div class="checkpoint" data-kind="diagnose" data-answer="b">
+            <p class="cp-q">A 3.3 V GPIO drives a FET whose threshold is specified as
+            "1 to 3 V". The board works on the bench, and a few units in the field
+            run hot and fail. What is the most likely cause?</p>
+            <ol class="cp-options">
+                <li data-k="a">The GPIO cannot supply enough current, so the edges are slow
+                    <div class="cp-why">Slow edges cost energy per transition, so
+                    this only matters at high switching frequency &mdash; and it would
+                    affect every unit roughly equally. The clue is that only
+                    <em>some</em> fail.</div></li>
+                <li data-k="b">Threshold spread: on the high-\(V_{th}\) parts, 3.3 V leaves almost no overdrive
+                    <div class="cp-why">Right. \(V_{th}\) is a distribution, not a
+                    number, and "1 to 3 V" is a wide one. A part at the 3 V end has
+                    0.3 V of overdrive from a 3.3 V gate — barely on, enormous
+                    \(R_{DS(on)}\), dissipating continuously rather than switching.
+                    And \(V_{th}\) falls with temperature, so the part gets
+                    <em>less</em> bad as it heats, which is why it can pass a short
+                    test and fail a long one. Specify against \(V_{th(max)}\), and
+                    read \(R_{DS(on)}\) off the curve at your actual
+                    \(V_{GS}\).</div></li>
+                <li data-k="c">The flyback diode is too slow
+                    <div class="cp-why">Worth checking &mdash; a slow flyback diode
+                    stresses the FET at turn-off &mdash; but it would not produce
+                    steady heating, and again would not single out a few
+                    units.</div></li>
+                <li data-k="d">The gate resistor is too large
+                    <div class="cp-why">Same reasoning as (a): it changes edge speed,
+                    which matters at frequency, and affects all units
+                    equally.</div></li>
+            </ol>
+            <div class="cp-then">
+                <p>"Works on some units" almost always points at a parameter
+                distribution rather than a topology mistake. The design question is
+                which datasheet corner you specified against.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. When the load must be grounded: high side</h3>
+
+        <div id="gd-diagram"></div>
+        <p class="fig-note">Low side on the left: the source sits at ground, so
+        \(V_{GS}\) is just the logic level and there is nothing to arrange. High side
+        on the right: the source rides up to 24 V when the FET turns on, so the gate
+        has to get above that.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \text{Low side: } V_{GS} = V_{GPIO} - 0 = 3.3\,\mathrm{V} \]
+            </div>
+            <div class="drv-step">
+                \[ \text{High side, N-channel: } V_{GS} = V_{GPIO} - V_{LOAD} = 3.3 - 24 = -20.7\,\mathrm{V} \]
+                <span class="drv-why">Hard off, and it can never turn on. This is why
+                high-side drive is a separate topic rather than a rearrangement of
+                the same circuit.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{Need } V_G > 24 + V_{GS(on)} \approx 34\,\mathrm{V} \;-\; \textit{above the supply} \]
+            </div>
+        </div>
+
+        <h4>The P-channel escape, and its limit</h4>
+        <p>A P-channel FET's gate is referred to its source, which for a high-side
+        switch is the <em>rail</em>. Pulling the gate <em>down</em> turns it on, and
+        pulling something down is exactly what a low-voltage transistor can do.</p>
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \text{A small NPN pulls the gate toward ground: } V_{SG} \to 24\,\mathrm{V} \]
+                <span class="drv-why">Which is a problem, not a success —
+                \(V_{GS(max)}\) on most FETs is ±20 V and you have just exceeded
+                it.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{Add a 12 V zener gate-to-source, and a resistor gate-to-source} \]
+                <span class="drv-why">The zener clamps \(V_{SG}\) to a safe value;
+                the resistor guarantees the FET is OFF when nothing is driving it.
+                Above about 20 V rails the clamp stops being optional.</span>
+            </div>
+        </div>
+
+        <div class="analogy">
+            <span class="analogy-label">Why high side is genuinely harder</span>
+            <p>A low-side switch is a <strong>tap at the bottom of the tank</strong>:
+            you stand on the ground next to it and turn it. A high-side switch is a
+            tap at the <em>top</em>, and the handle moves up and down with the water
+            level &mdash; so to turn it you have to be standing on the tap
+            itself.</p>
+            <p>That is exactly what a bootstrap does. The capacitor is a small
+            platform that rides on the source, charged while the source is down, so
+            the driver always has firm footing relative to the pin it is driving. And
+            it explains the limitation in one line: <strong>if the source never comes
+            back down, the platform never gets recharged</strong>, which is why a
+            bootstrapped high-side switch cannot stay on forever.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> the platform
+            is not free-floating &mdash; the bootstrap diode ties it to the driver
+            supply, and that diode's reverse recovery and voltage rating are real
+            design constraints the picture says nothing about.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="acceptance">
+        <h3>5. Acceptance tests</h3>
+
+        <h4>Performance</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Test</th><th>Condition</th><th>Pass criterion</th><th>If it fails</th></tr></thead>
+                <tbody>
+                    <tr><td>Fully on</td><td>GPIO high, load at rated current, hot</td>
+                        <td>\(V_{DS} &lt; 50\,\mathrm{mV}\), i.e. \(R_{DS(on)}\) at the value you designed with</td>
+                        <td>Not a logic-level part, or \(V_{th}\) at the high end of its distribution</td></tr>
+                    <tr><td>Fully off</td><td>GPIO low or floating, controller in reset</td>
+                        <td>Load current &lt; 10 &micro;A</td>
+                        <td>Missing gate pull-down</td></tr>
+                    <tr><td>Turn-off spike</td><td>Scope on the drain, ground spring, inductive load</td>
+                        <td>Peak \(V_{DS}\) below half the device rating</td>
+                        <td>Flyback diode too slow, or too far from the coil</td></tr>
+                    <tr><td>Boot behaviour</td><td>Power-on with the controller unprogrammed</td>
+                        <td>The load never energises, not even momentarily</td>
+                        <td>The pull-down is the only thing standing between you and a solenoid firing at power-up</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Abuse</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What is done to it</th><th>What physically happens</th><th>Acceptable outcome</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>10 V applied to the 3.3 V gate input</strong></td>
+                        <td>Through the 100 &Omega; series resistor the gate reaches 10 V. Most logic-level FETs are rated \(V_{GS(max)} = \pm 20\,\mathrm{V}\), so the FET is <em>fine</em>. The casualty is upstream: the GPIO's ESD diode to its own 3.3 V rail conducts, and \(({10-3.3-0.7})/100 = \mathbf{60\ mA}\) flows into a pin rated for about 10 mA.</td>
+                        <td><strong>The microcontroller's I/O structure is damaged or the 3.3 V rail is pulled up</strong>, which can brown out or latch the whole controller. Raise the series resistor to 1 k&Omega; and the fault current falls to 6 mA, inside the pin's limit &mdash; a one-component change that turns a destroyed controller into a shrug.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>48 V applied to a 24 V load rail</strong></td>
+                        <td>The FET now stands off 48 V against a 60 V rating &mdash; survivable on its own. But the flyback spike rides on top of it: even a well-behaved diode leaves 48 V plus a volt or two, and a slow one leaves far more. The solenoid also dissipates four times its rated power.</td>
+                        <td>The FET survives; <strong>the solenoid coil burns out</strong>, and it does so slowly enough that nobody connects the two events. If the supply can plausibly be wrong, a series fuse sized just above the coil's rated current is the cheap answer.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Flyback diode fitted backwards</strong></td>
+                        <td>It is now a forward-biased diode across the 24 V supply. Current is limited only by the supply and the diode's bulk resistance &mdash; amps.</td>
+                        <td><strong>The diode fails short within milliseconds</strong>, then the supply's own protection trips or its trace opens. Loud, immediate and obvious, which is the good kind of failure: the bad version is a diode that survives long enough to look intermittent.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Load shorted</strong></td>
+                        <td>Current is limited by \(R_{DS(on)}\) and the supply: \(24/0.05 = \mathbf{480\ A}\) if the supply could deliver it. It cannot, so in practice the supply collapses or its fuse opens, and the FET sees whatever it can pass in the meantime.</td>
+                        <td>Depends entirely on the supply. <strong>A current-limited supply protects everything; a large capacitor bank does not</strong>, and the FET fails first. If the load can be shorted by a user &mdash; an accessible connector &mdash; then the switch needs its own current limit, and "the supply will protect it" is a hope rather than a design.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Gate driven at 100 kHz</strong> instead of a few Hz</td>
+                        <td>The 4 mA GPIO takes \(Q_g/I = 12\,\mathrm{nC}/4\,\mathrm{mA} = 3\,\mu\mathrm{s}\) to charge the gate. At 100 kHz the period is 10 &micro;s, so the FET is in transition for <strong>60% of every cycle</strong> &mdash; the region where it has both voltage across it and current through it.</td>
+                        <td>The FET overheats within seconds. Nothing about the schematic changed; only the rate did. <strong>This is why "it works" at one frequency proves nothing at another</strong>, and why the calculator above reports the fraction of the period spent switching rather than just the edge time.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="ac-consequence">
+            <strong>Note which way the damage runs.</strong> In the overvoltage case
+            the FET is fine and the <em>controller</em> is destroyed, through a path
+            &mdash; the GPIO's ESD diode &mdash; that appears on no schematic. A
+            series resistor sized for the fault rather than for the edge is the
+            entire fix, and it costs nothing. Ask of every interface: if the far side
+            is wrong, what current flows, and into what?
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>6. Build it in Circuit Toy</h3>
+        <p>The gallery has both halves of this already:
+        <span class="mono">Low-side Switch + Flyback</span>,
+        <span class="mono">High-side PMOS Switch</span>,
+        <span class="mono">Bootstrap High-Side Drive</span>,
+        <span class="mono">Open-Collector Level Shift</span>,
+        <span class="mono">Open-Drain + Pull-up</span>,
+        <span class="mono">I2C Level Shifter</span> and
+        <span class="mono">Pull-up Sizing</span>.</p>
+
+        <ol class="lab-steps">
+            <li class="lab-step">Open <span class="mono">Low-side Switch + Flyback</span>
+                and remove the flyback diode. Watch the drain voltage at turn-off and
+                see how far it goes &mdash; that spike is what the diode is for, and
+                it is more convincing measured than described.</li>
+            <li class="lab-step">Now rebuild the same load as a high-side N-channel
+                switch with the gate driven from 3.3 V. Plot
+                <span class="mono">V(gate) − V(source)</span> and watch it sit at
+                roughly &minus;20 V. The trace being flat is the whole lesson of
+                section 4.</li>
+            <li class="lab-step">Replace the gate source with one that pulses to 34 V
+                &mdash; ten volts above the rail, which is exactly what a bootstrap
+                manufactures &mdash; and watch the same circuit start working. That
+                one substitution is the content of high-side drive.</li>
+            <li class="lab-step">Then open <span class="mono">Bootstrap High-Side Drive</span>
+                and probe the gate against the switch node, to see the gate riding
+                10 V above a source that is itself swinging between ground and the
+                rail.</li>
+            <li class="lab-step">Finally, in <span class="mono">Open-Drain + Pull-up</span>,
+                measure the two edge times. The asymmetry &mdash; fast falling, slow
+                rising &mdash; is the cost of the cheapest level shifter there is.</li>
+        </ol>
+    </div>
+
+    <div class="card">
+        <h3>What to carry forward</h3>
+        <div class="kv">
+            <div class="box"><div class="k">Ask where the load's return is</div>
+                <div class="v">Low side if it can float. That answer costs nothing and eliminates the hard problem.</div></div>
+            <div class="box"><div class="k">\(V_{GS}\) is source-referred</div>
+                <div class="v">A high-side N-channel gate must go ABOVE the rail. Everything else follows.</div></div>
+            <div class="box"><div class="k">Two failure modes, not one</div>
+                <div class="v">Not high enough is a voltage problem; not fast enough is a current problem. Only the second scales with frequency.</div></div>
+            <div class="box"><div class="k">Specify against \(V_{th(max)}\)</div>
+                <div class="v">Threshold is a distribution. "Works on most units" is what designing at typical looks like.</div></div>
+            <div class="box"><div class="k">Inductive load, flyback path</div>
+                <div class="v">Not optional. Faster than the FET turns off, rated for full coil current.</div></div>
+            <div class="box"><div class="k">Size the series resistor for the fault</div>
+                <div class="v">Not for the edge. It is what stands between a wrong voltage and a dead controller.</div></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var canvas = document.getElementById('gd-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+
+    function update() {
+        var Vdrv = AD.num('gd-vdrv');
+        var Vth = AD.num('gd-vth');
+        var Qg = AD.num('gd-qg') * 1e-9;
+        var Rg = AD.num('gd-rg');
+        var Idrv = AD.num('gd-idrv') * 1e-3;
+        var fsw = Math.pow(10, AD.num('gd-fsw'));
+
+        AD.setText('gd-vdrv-val', Vdrv.toFixed(1) + ' V');
+        AD.setText('gd-vth-val', Vth.toFixed(1) + ' V');
+        AD.setText('gd-qg-val', (Qg * 1e9).toFixed(0) + ' nC');
+        AD.setText('gd-rg-val', Rg + ' Ω');
+        AD.setText('gd-idrv-val', AD.fmtUnit(Idrv, 'A'));
+        AD.setText('gd-fsw-val', AD.fmtUnit(fsw, 'Hz'));
+
+        var overdrive = Vdrv - Vth;
+
+        // Two things can limit the gate current - the driver's own capability
+        // and the series resistor. Whichever is smaller is the real one.
+        var iFromR = Rg > 0 ? Vdrv / Rg : Infinity;
+        var Ig = Math.min(Idrv, iFromR);
+        var tOn = Ig > 0 ? Qg / Ig : Infinity;
+        var Pgate = Qg * Vdrv * fsw;
+        var switchFrac = tOn * 2 * fsw;          // both edges, per period
+
+        AD.setText('gd-ov', overdrive.toFixed(2) + ' V');
+        AD.setText('gd-ig', AD.fmtUnit(Ig, 'A') +
+            (iFromR < Idrv ? '  (limited by Rg)' : '  (limited by the driver)'));
+        AD.setText('gd-ton', AD.fmtUnit(tOn, 's'));
+        AD.setText('gd-pg', AD.fmtUnit(Pgate, 'W'));
+        AD.setText('gd-duty', Math.min(100, switchFrac * 100).toFixed(2) + ' %');
+
+        // The point of the widget: say WHICH problem you have.
+        var verdict, colour;
+        if (overdrive < 0.5) {
+            verdict = 'NOT ENOUGH VOLTAGE'; colour = 'rgba(251,113,133,0.95)';
+        } else if (overdrive < 1.5) {
+            verdict = 'marginal voltage'; colour = 'rgba(251,191,36,0.95)';
+        } else if (switchFrac > 0.10) {
+            verdict = 'NOT ENOUGH CURRENT'; colour = 'rgba(251,113,133,0.95)';
+        } else if (switchFrac > 0.02) {
+            verdict = 'marginal current'; colour = 'rgba(251,191,36,0.95)';
+        } else {
+            verdict = 'comfortable'; colour = 'rgba(52,211,153,0.95)';
+        }
+        AD.setText('gd-verdict', verdict);
+
+        // ---- the gate rising through the threshold ----------------------
+        var w = canvas.width, h = canvas.height;
+        var ml = 60, mr = 20, mt = 24, mb = 36;
+        var pw = w - ml - mr, ph = h - mt - mb;
+        var tMax = Math.max(tOn * 2.5, 1e-9);
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+        var Vmax = Math.max(Vdrv, Vth) * 1.15;
+        var X = function (t) { return ml + (t / tMax) * pw; };
+        var Y = function (v) { return mt + ph - (v / Vmax) * ph; };
+
+        // Below Vth the FET is off; from Vth to about Vth+1.5 it is a resistor
+        // rather than a switch. Shading that band is most of the point.
+        ctx.fillStyle = 'rgba(251, 113, 133, 0.10)';
+        ctx.fillRect(ml, Y(Vth), pw, mt + ph - Y(Vth));
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.10)';
+        ctx.fillRect(ml, Y(Vth + 1.5), pw, Y(Vth) - Y(Vth + 1.5));
+
+        ctx.strokeStyle = 'rgba(251, 113, 133, 0.7)';
+        ctx.setLineDash([5, 4]); ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(ml, Y(Vth)); ctx.lineTo(ml + pw, Y(Vth)); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Constant-current charging is a ramp, which is the right first-order
+        // picture and matches how Qg is specified.
+        ctx.strokeStyle = 'rgba(110, 231, 255, 0.95)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (var i = 0; i <= 300; i++) {
+            var t = (i / 300) * tMax;
+            var v = Math.min(Vdrv, Vdrv * (t / tOn));
+            if (i === 0) ctx.moveTo(X(t), Y(v)); else ctx.lineTo(X(t), Y(v));
+        }
+        ctx.stroke();
+
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(251, 113, 133, 0.9)';
+        ctx.fillText('below Vth: off', ml + 6, Y(Vth) + 16);
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+        ctx.fillText('partly on: a resistor, not a switch', ml + 6, Y(Vth) - 6);
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.9)';
+        ctx.fillText('V_GS reaches ' + Vdrv.toFixed(1) + ' V in ' + AD.fmtUnit(tOn, 's'),
+                     ml + 6, mt + 14);
+        ctx.fillStyle = colour;
+        ctx.textAlign = 'right';
+        ctx.fillText(verdict, ml + pw - 6, mt + 14);
+
+        AD.setText('gd-note',
+            overdrive < 0.5
+                ? 'With ' + Vdrv.toFixed(1) + ' V of drive against a ' + Vth.toFixed(1) +
+                  ' V threshold there is ' + overdrive.toFixed(2) + ' V of overdrive. The FET is ' +
+                  'barely on: Rds(on) far above the datasheet headline, dissipating continuously ' +
+                  'rather than switching, and no amount of driver current fixes it. This is a ' +
+                  'VOLTAGE problem — a logic-level part, or a higher gate supply.'
+                : switchFrac > 0.10
+                    ? 'The voltage is fine, but ' + AD.fmtUnit(Ig, 'A') + ' takes ' +
+                      AD.fmtUnit(tOn, 's') + ' to move ' + (Qg * 1e9).toFixed(0) + ' nC, and at ' +
+                      AD.fmtUnit(fsw, 'Hz') + ' that is ' + Math.min(100, switchFrac * 100).toFixed(0) +
+                      '% of every period in transition — where the FET has both voltage across it ' +
+                      'and current through it. This is a CURRENT problem: a gate driver, a smaller ' +
+                      'Rg, or a part with less gate charge.'
+                    : 'Voltage and current are both adequate: ' + overdrive.toFixed(1) +
+                      ' V of overdrive and only ' + (switchFrac * 100).toFixed(2) +
+                      '% of the period spent switching. Gate drive power is ' +
+                      AD.fmtUnit(Pgate, 'W') + ', dissipated in the DRIVER and in Rg, not in the ' +
+                      'FET. Now push the frequency up and watch which limit appears first.');
+    }
+
+    ['gd-vdrv', 'gd-vth', 'gd-qg', 'gd-rg', 'gd-idrv', 'gd-fsw'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    update();
+
+    // ================================================ low side vs high side
+    (function schematic() {
+        var host = document.getElementById('gd-diagram');
+        if (!host || typeof ComponentModels === 'undefined') return;
+
+        // Pin geometry: vsource plus (0,-25) minus (0,+25); resistor (x±25,y) or
+        // (x,y±25) rotated; nmos gate (x-25,y) drain (x+15,y-35) source (x+15,y+35);
+        // port (x-15,y), or (x+15,y) rotated 180; ground (x,y-10).
+        host.innerHTML = ComponentModels.diagram({
+            width: 640, height: 360,
+            title: 'Low-side (left) and high-side (right): the same FET, a different problem',
+            parts: [
+                { key: 'vsource',  x: 70,  y: 150, label: '24 V', labelPos: 'left' },
+                { key: 'resistor', x: 200, y: 105, rotate: 90, label: 'load', labelPos: 'right' },
+                { key: 'nmos',     x: 185, y: 210, label: 'M1', labelPos: 'right' },
+                // rotate:180 puts the port's pin on its RIGHT, facing the gate
+                { key: 'port',     x: 120, y: 210, rotate: 180, label: '3.3 V', labelPos: 'top' },
+                { key: 'ground',   x: 200, y: 300 },
+                { key: 'ground',   x: 70,  y: 300 },
+
+                { key: 'vsource',  x: 420, y: 150, label: '24 V', labelPos: 'left' },
+                { key: 'nmos',     x: 535, y: 120, label: 'M2', labelPos: 'right' },
+                { key: 'resistor', x: 550, y: 230, rotate: 90, label: 'load', labelPos: 'right' },
+                { key: 'port',     x: 470, y: 120, rotate: 180, label: '3.3 V', labelPos: 'top' },
+                { key: 'ground',   x: 550, y: 300 },
+                { key: 'ground',   x: 420, y: 300 }
+            ],
+            wires: [
+                [[70, 125], [70, 60], [200, 60], [200, 80]],
+                [[200, 130], [200, 175]],
+                [[200, 245], [200, 290]],
+                [[70, 175], [70, 290]],
+                [[135, 210], [160, 210]],
+
+                [[420, 125], [420, 60], [550, 60], [550, 85]],
+                [[550, 155], [550, 205]],
+                [[550, 255], [550, 290]],
+                [[420, 175], [420, 290]],
+                [[485, 120], [510, 120]]
+            ],
+            texts: [
+                { x: 200, y: 328, text: 'source at ground', size: 10, anchor: 'middle' },
+                { x: 200, y: 344, text: 'V_GS = 3.3 V  ✓', size: 10, anchor: 'middle' },
+                { x: 550, y: 328, text: 'source rides to 24 V', size: 10, anchor: 'middle' },
+                { x: 550, y: 344, text: 'V_GS = −20.7 V  ✗ hard off', size: 10, anchor: 'middle' }
+            ]
+        });
+    })();
+})();
+</script>
