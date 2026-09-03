@@ -2579,6 +2579,12 @@ const CURRICULUM = {
                     title: 'Design: A 50 W Class AB Power Amplifier',
                     description: 'A complete channel from brief to heatsink, with acceptance tests and abuse cases',
                     topics: ['Rails from sqrt(2PRL)', 'Heat at 64% of swing', 'Degenerate to place the crossover', 'What dies, and it is usually not the amplifier']
+                },
+                {
+                    id: 6,
+                    title: 'Design: A Class D Amplifier',
+                    description: 'The same 50 W the other way: modulator, bridge, filter, and the EMI you buy it with',
+                    topics: ['Loss follows frequency not volume', 'The speaker is part of the filter', 'Dead time is crossover distortion', 'No load is now dangerous']
                 }
             ]
         }
