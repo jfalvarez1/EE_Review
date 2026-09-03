@@ -1,0 +1,825 @@
+<!-- Module 28, Lesson 5: Design — A 50 W Class AB Power Amplifier -->
+<div class="lesson-content" data-module="28" data-lesson="5">
+
+    <div class="card">
+        <h2>Design: A 50 W Class AB Power Amplifier</h2>
+        <p>A complete channel, from the brief to a heatsink specification. This is
+        the longest design in the course because a power amplifier is where every
+        earlier module has to hold at once: a differential pair, a Miller-compensated
+        VAS, an output stage with a thermal feedback loop, and a stability argument
+        that decides whether the whole thing sings or oscillates.</p>
+
+        <div class="kv">
+            <div class="box"><div class="k">Output</div><div class="v mono">50 W into 8 Ω, both channels driven</div></div>
+            <div class="box"><div class="k">Input sensitivity</div><div class="v mono">~1 V RMS for full output</div></div>
+            <div class="box"><div class="k">Bandwidth</div><div class="v mono">20 Hz–20 kHz, ±0.1 dB</div></div>
+            <div class="box"><div class="k">THD</div><div class="v mono">&lt; 0.01% at 1 kHz, rated power</div></div>
+            <div class="box"><div class="k">Load tolerance</div><div class="v mono">4–8 Ω, survive a short</div></div>
+            <div class="box"><div class="k">Ambient</div><div class="v mono">50 °C inside the enclosure</div></div>
+        </div>
+
+        <div class="notice">
+            <strong>The order the decisions have to be made in.</strong> Each one
+            constrains the next, and doing them out of order means going round again.
+            <strong>Rails</strong> come from the output power and the load.
+            <strong>Devices and heatsink</strong> come from the rails.
+            <strong>Bias</strong> comes from the output devices.
+            <strong>Front end</strong> comes from the required loop gain and the
+            stability limit. <strong>Protection</strong> comes last, and is designed
+            against the failures rather than the specification.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. Rails, from the output power</h3>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \hat{V}_{out} = \sqrt{2PR_L} = \sqrt{2(50)(8)} = 28.3\,\mathrm{V} \]
+            </div>
+            <div class="drv-step">
+                \[ \hat{I}_{out} = \frac{28.3}{8} = 3.54\,\mathrm{A} \]
+            </div>
+            <div class="drv-step">
+                \[ V_{CC} = \hat{V}_{out} + V_{drop} \approx 28.3 + 4 = 32.3 \;\rightarrow\; \pm 35\,\mathrm{V} \]
+                <span class="drv-why">The 4 V covers two \(V_{BE}\) drops through
+                the driver and output devices, the emitter resistor, and enough
+                \(V_{CE}\) to keep the output transistor out of saturation. Round up,
+                because an unregulated supply sags under load and the rated power
+                must be available at the sagged voltage.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{Available: } \frac{(35-4)^2}{2(8)} = 60\,\mathrm{W} \quad \text{— 20\% margin} \]
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>Into 4 &Omega; the same amplifier tries to make 120 W</strong>,
+            which needs 7.75 A peak and doubles the device dissipation. That is why
+            "50 W into 8 &Omega;" and "survives a 4 &Omega; load" are two separate
+            specifications, and why the protection circuit in section 5 exists.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. Output devices and the heatsink</h3>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ P_{diss,max} = \frac{2V_{CC}^2}{\pi^2R_L} = \frac{2(35)^2}{\pi^2(8)} = 31.0\,\mathrm{W} \]
+                <span class="drv-why">Total, at 64% of full swing — not at full
+                output. Sizing here is the difference between an amplifier that
+                survives a test tone and one that does not.</span>
+            </div>
+            <div class="drv-step">
+                \[ 15.5\,\mathrm{W} \text{ per device} \]
+            </div>
+            <div class="drv-step">
+                \[ \theta_{JA} \leq \frac{T_{J,max} - T_a}{P} = \frac{150 - 50}{15.5} = 6.45\,\mathrm{°C/W} \]
+            </div>
+            <div class="drv-step">
+                \[ \theta_{SA} \leq 6.45 - \underbrace{1.0}_{\theta_{JC}} - \underbrace{0.5}_{\theta_{CS}} = 4.95\,\mathrm{°C/W\ per\ device} \]
+                <span class="drv-why">\(\theta_{JC}\) from the datasheet for a
+                TO-247; \(\theta_{CS}\) is the mica washer and thermal compound, and
+                it is not negligible.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{Both devices on one heatsink: } \theta_{SA} \leq 2.5\,\mathrm{°C/W} \]
+                <span class="drv-why">They share it, so the sink must be twice as
+                good. A 2.5 °C/W extrusion is a substantial piece of aluminium —
+                roughly 150 mm of a medium profile — and this number is what decides
+                the size of the product.</span>
+            </div>
+        </div>
+
+        <p><strong>Device selection.</strong> \(V_{CEO}\) must exceed the rail-to-rail
+        70 V with margin, so a 100 V or 150 V part. \(I_C\) must exceed 3.54 A peak,
+        and into 4 &Omega; nearly 8 A, so a 15 A device. And the specification that
+        matters most is the <strong>SOA curve</strong>: at 35 V across the device and
+        3.5 A through it, the operating point must sit inside the second-breakdown
+        region of the curve, not merely inside the constant-power hyperbola.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. Bias: the number with a genuine optimum</h3>
+        <p>Quiescent current in a class AB stage is not "as little as you can get
+        away with". Too little gives crossover distortion; too much gives a different
+        distortion as the two devices both conduct and their transconductances add.
+        There is a distinct minimum in between.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \text{Emitter resistors } R_E = 0.22\,\Omega \text{ per device} \]
+                <span class="drv-why">Local feedback that stabilises the bias
+                against temperature and lets paralleled devices share. Larger wastes
+                output swing; smaller stops stabilising.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{Optimum: } \approx 11\,\mathrm{mV} \text{ across each } R_E \;\Longrightarrow\; I_q = \frac{0.011}{0.22} = 50\,\mathrm{mA} \]
+                <span class="drv-why">The classic result for a complementary
+                emitter-follower output stage. It is a genuine minimum in the
+                distortion-versus-bias curve, and it moves very little with
+                device type — which is why 50 mA per device appears in so many
+                designs that look otherwise unrelated.</span>
+            </div>
+            <div class="drv-step">
+                \[ P_{idle} = 2V_{CC}I_q = 2(35)(0.05) = 3.5\,\mathrm{W} \]
+                <span class="drv-why">The price of class AB over class B: three and
+                a half watts to produce silence. Against class A's 153 W for the same
+                rails, it is a bargain.</span>
+            </div>
+            <div class="drv-step">
+                \[ V_{spreader} = 4V_{BE} + 2I_qR_E = 2.6 + 0.022 = 2.62\,\mathrm{V} \]
+                <span class="drv-why">Four junctions for a driver-plus-output
+                (EF2) stage. This is what the \(V_{BE}\) multiplier must
+                produce.</span>
+            </div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">The mounting requirement that is not on the schematic</span>
+            <p>The \(V_{BE}\) multiplier transistor must be <strong>bolted to the
+            heatsink, in contact with the output devices</strong>. If it stays cool
+            while they heat up, their \(V_{BE}\) falls, the spreader voltage does not
+            follow, the quiescent current rises, the dissipation rises, and they get
+            hotter. That is thermal runaway, and it destroys output stages in
+            seconds.</p>
+            <p>The emitter resistors slow it down &mdash; they are local negative
+            feedback on \(I_q\) &mdash; but thermal coupling of the bias reference is
+            the actual fix. A schematic cannot show it, so it belongs in the
+            assembly drawing and in the design review.</p>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. The front end, and where the bandwidth comes from</h3>
+        <p>Three stages: a degenerated differential pair, a Miller-compensated
+        voltage amplifier, and the output stage already designed. The two numbers
+        that come out of it are the loop crossover frequency and the slew rate, and
+        they are set by different things &mdash; which is the useful part.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \text{Closed-loop gain } A_{cl} = 1 + \frac{R_f}{R_g} = 1 + \frac{21\mathrm{k}}{1\mathrm{k}} = 22 \]
+                <span class="drv-why">Gives full output from 0.91 V RMS in, which is
+                +1.4 dBu — comfortably driven by any line-level source.</span>
+            </div>
+            <div class="drv-step">
+                \[ r_e = \frac{V_T}{I_{tail}/2} = \frac{26\,\mathrm{mV}}{2\,\mathrm{mA}} = 13\,\Omega \]
+            </div>
+            <div class="drv-step">
+                \[ G_m = \frac{1}{r_e + R_{degen}} \]
+                <span class="drv-why">Degeneration resistors in the input pair's
+                emitters. This is the design knob.</span>
+            </div>
+            <div class="drv-step">
+                \[ f_{crossover} = \frac{G_m}{2\pi A_{cl}C_{dom}} \]
+            </div>
+            <div class="drv-step">
+                \[ \mathrm{SR} = \frac{I_{tail}}{C_{dom}} = \frac{4\,\mathrm{mA}}{100\,\mathrm{pF}} = 40\,\mathrm{V/\mu s} \]
+                <span class="drv-why">Slew rate is set by the tail current and the
+                compensation capacitor — and NOT by the degeneration.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Degeneration</th><th>\(G_m\)</th><th>Loop crossover</th><th>Slew rate</th></tr></thead>
+                <tbody>
+                    <tr><td>none</td><td>76.9 mA/V</td><td>5.6 MHz &mdash; unusable</td><td>40 V/&micro;s</td></tr>
+                    <tr><td>22 &Omega;</td><td>28.6 mA/V</td><td>2.1 MHz</td><td>40 V/&micro;s</td></tr>
+                    <tr><td>47 &Omega;</td><td>16.7 mA/V</td><td>1.2 MHz</td><td>40 V/&micro;s</td></tr>
+                    <tr><td><strong>100 &Omega;</strong></td><td><strong>8.8 mA/V</strong></td><td><strong>640 kHz</strong></td><td><strong>40 V/&micro;s</strong></td></tr>
+                    <tr><td>220 &Omega;</td><td>4.3 mA/V</td><td>310 kHz</td><td>40 V/&micro;s</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">Why the undegenerated version is unusable</span>
+            <p>A 5.6 MHz loop crossover sounds like a fast amplifier and is in fact a
+            broken one. The output stage &mdash; a driver and an output device, both
+            with their own capacitances, driving a load that may be a capacitive cable
+            &mdash; has poles in the low megahertz. Cross over up there and those
+            poles are inside the loop at unity gain, phase margin disappears, and the
+            amplifier oscillates.</p>
+            <p>Degeneration fixes it, and note the last column: <strong>slew rate is
+            unchanged throughout</strong>. Degeneration lowers the small-signal
+            transconductance without touching the maximum current the tail can
+            deliver, so it improves the slew rate <em>relative to</em> the bandwidth.
+            An undegenerated pair reaches its slewing limit at a much lower input
+            level, which is one of the classic causes of amplifiers that measure well
+            on a sine and sound poor on music.</p>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Design calculator</h3>
+        <p>Change the brief and watch every downstream number move. The verdicts flag
+        the constraint that is binding rather than just printing values.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="pa-p">Output power into the load</label>
+                <input type="range" id="pa-p" min="5" max="300" step="5" value="50">
+                <span class="range-value" id="pa-p-val">50 W</span>
+            </div>
+            <div class="c4">
+                <label for="pa-rl">Load</label>
+                <input type="range" id="pa-rl" min="2" max="16" step="1" value="8">
+                <span class="range-value" id="pa-rl-val">8 Ω</span>
+            </div>
+            <div class="c4">
+                <label for="pa-ta">Ambient inside the box</label>
+                <input type="range" id="pa-ta" min="20" max="70" step="1" value="50">
+                <span class="range-value" id="pa-ta-val">50 °C</span>
+            </div>
+            <div class="c4">
+                <label for="pa-n">Output pairs in parallel</label>
+                <input type="range" id="pa-n" min="1" max="4" step="1" value="1">
+                <span class="range-value" id="pa-n-val">1 pair</span>
+            </div>
+            <div class="c6">
+                <label for="pa-degen">Input degeneration</label>
+                <input type="range" id="pa-degen" min="0" max="220" step="1" value="100">
+                <span class="range-value" id="pa-degen-val">100 Ω</span>
+            </div>
+            <div class="c6">
+                <label for="pa-cdom">Miller capacitor</label>
+                <input type="range" id="pa-cdom" min="10" max="330" step="5" value="100">
+                <span class="range-value" id="pa-cdom-val">100 pF</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="pa-canvas" width="900" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Rails needed</div><div class="v mono" id="pa-rails">&mdash;</div></div>
+            <div class="box"><div class="k">Peak output current</div><div class="v mono" id="pa-ipk">&mdash;</div></div>
+            <div class="box"><div class="k">Worst-case dissipation</div><div class="v mono" id="pa-pd">&mdash;</div></div>
+            <div class="box"><div class="k">Heatsink required</div><div class="v mono" id="pa-sink">&mdash;</div></div>
+            <div class="box"><div class="k">Loop crossover</div><div class="v mono" id="pa-fc">&mdash;</div></div>
+            <div class="box"><div class="k">Slew rate</div><div class="v mono" id="pa-sr">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="pa-note"></p>
+
+        <div class="checkpoint" data-kind="design" data-answer="b">
+            <p class="cp-q">Your 50 W design is finished. Marketing asks for 100 W
+            into the same 8 &Omega;. What is the largest consequence?</p>
+            <ol class="cp-options">
+                <li data-k="a">The output devices need twice the current rating
+                    <div class="cp-why">Peak current only rises by &radic;2, from
+                    3.54 A to 5.0 A, because power goes as the square of voltage.
+                    Real, and not the biggest problem.</div></li>
+                <li data-k="b">The heatsink has to be twice as good, because dissipation scales with \(V_{CC}^2\)
+                    <div class="cp-why">Right, and it is worse than it sounds.
+                    Doubling the power needs &radic;2 times the rails, and
+                    \(P_{diss} = 2V_{CC}^2/\pi^2R_L\) scales with the square of that
+                    — so dissipation doubles to 62 W while the allowed thermal
+                    resistance halves to about 1.2 °C/W. That is the difference
+                    between an extrusion on the back panel and forced air or a much
+                    larger chassis, and it usually decides the product's size and
+                    price. It is also why designers reach for a second output pair
+                    here: two pairs share the dissipation and each sees half.</div></li>
+                <li data-k="c">The compensation must be redesigned
+                    <div class="cp-why">The front end barely notices. Loop crossover
+                    and slew rate are set by \(G_m\), \(C_{dom}\) and the closed-loop
+                    gain, none of which changed.</div></li>
+                <li data-k="d">The slew rate requirement doubles
+                    <div class="cp-why">It rises by &radic;2 with the peak voltage,
+                    from 3.55 to 5.0 V/&micro;s — against 40 V/&micro;s available.
+                    Not close to binding.</div></li>
+            </ol>
+            <div class="cp-then">
+                <p>Set the calculator to 100 W and watch the heatsink number, then
+                add a second output pair and watch it become tractable again. That
+                sequence is how the decision is actually made.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>5. Protection, designed against the failures</h3>
+        <p>Four things go wrong with power amplifiers, and each needs its own answer.
+        None of them appears in the performance specification.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Failure</th><th>What happens</th><th>The answer</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Output short</strong></td>
+                        <td>Current limited only by \(R_E\) and the device; dissipation becomes \(V_{CC} \times I\), far above any normal operating point</td>
+                        <td>A VI limiter that senses both the voltage across the device and the current through it, so the limit follows the SOA curve rather than a fixed current</td></tr>
+                    <tr><td><strong>Reactive load</strong></td>
+                        <td>Voltage and current out of phase, so the load line becomes an ellipse that can leave the SOA at the same average power</td>
+                        <td>The same VI limiter, plus honest SOA margin. A fixed current limit does not protect against this.</td></tr>
+                    <tr><td><strong>DC on the output</strong></td>
+                        <td>A failed output device puts a rail across the speaker and destroys the voice coil in seconds</td>
+                        <td>A DC detector driving a relay that disconnects the speaker, with a few hundred milliseconds of delay so music does not trip it</td></tr>
+                    <tr><td><strong>Switch-on thump</strong></td>
+                        <td>Rails come up at different rates and the output slams to one of them</td>
+                        <td>The same relay, held open for a second or two after power-up</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="notice">
+            <strong>The VI limiter has a cost worth naming.</strong> It sits in the
+            signal path and, if it engages on a difficult but legitimate load, it
+            produces distortion far worse than anything the amplifier does normally.
+            Set it too tight and the amplifier sounds bad on real speakers; too loose
+            and it does not protect. This is the single most argued-about circuit in
+            power amplifier design, and the reason some high-end designs omit it and
+            use large SOA margin and fuses instead.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>6. Build it in Circuit Toy</h3>
+        <p>Build it in pieces, in the order it was designed. Each stage is a gallery
+        circuit already.</p>
+        <ol class="lab-steps">
+            <li class="lab-step">Open <span class="mono">Complementary push-pull output stage</span>.
+                Drive it with a 1 kHz sine at a few hundred millivolts and find the
+                crossover notch. Then add the bias spreader and watch it close.</li>
+            <li class="lab-step">Sweep the bias from zero upward and plot distortion.
+                You should find a minimum, not a monotonic improvement &mdash; that is
+                the optimum in section 3, measured.</li>
+            <li class="lab-step">Open <span class="mono">Differential Pair</span> and
+                add emitter degeneration. Measure \(G_m\) by driving a small
+                differential signal and reading the output current, and confirm
+                \(G_m = 1/(r_e+R_E)\).</li>
+            <li class="lab-step">Open <span class="mono">Two-Stage CE Amplifier</span>
+                and add a Miller capacitor between the VAS collector and base. Watch
+                the open-loop response tilt to a single −20 dB/decade slope, which is
+                what compensation is for.</li>
+            <li class="lab-step">Then <span class="mono">Loop Stability &amp; Phase Margin</span>
+                to see the same thing as a phase margin number, and
+                <span class="mono">The same stage with and without compensation</span>
+                for the comparison side by side.</li>
+        </ol>
+        <p class="fig-note">Also relevant: <span class="mono">Darlington Follower</span>
+        for the EF2 output topology, and <span class="mono">Gain-bandwidth and slew
+        rate against infinity</span>, which is the interaction in section 4 made
+        visible.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="acceptance">
+        <h3>7. Acceptance tests &mdash; does the design actually hold up?</h3>
+        <p>The calculation closing is not the same as the design working. Below is
+        what this amplifier has to survive, with a numeric pass criterion for each.
+        The first block is the specification; the second is <strong>abuse</strong>,
+        where the pass criterion is not "works correctly" but "fails in a way you
+        chose rather than a way you did not".</p>
+
+        <h4>Performance</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Test</th><th>Condition</th><th>Pass criterion</th><th>If it fails</th></tr></thead>
+                <tbody>
+                    <tr><td>Rated power</td><td>1 kHz sine, 8 &Omega;, both channels</td>
+                        <td>&ge; 50 W before 1% THD, rails not sagged below 32 V</td>
+                        <td>Transformer or reservoir capacitance too small &mdash; the rails, not the amplifier</td></tr>
+                    <tr><td>Thermal</td><td>Continuous sine at 64% of full swing, 1 hour, lid on</td>
+                        <td>Heatsink &lt; 90 &deg;C, junction &lt; 150 &deg;C by calculation</td>
+                        <td>Heatsink undersized. This is the worst-case point, not full output.</td></tr>
+                    <tr><td>Bias stability</td><td>From cold, then after the thermal test</td>
+                        <td>\(I_q\) settles to 50 &plusmn;15 mA and does <em>not</em> keep climbing</td>
+                        <td>The \(V_{BE}\) multiplier is not thermally coupled. Climbing bias is runaway starting.</td></tr>
+                    <tr><td>Stability, resistive</td><td>10 kHz square wave, 8 &Omega;</td>
+                        <td>&lt; 10% overshoot, no ringing beyond one cycle</td>
+                        <td>Loop crossover too high &mdash; more degeneration or more \(C_{dom}\)</td></tr>
+                    <tr><td>Stability, capacitive</td><td>Same, with 2 &micro;F across the output</td>
+                        <td>Does not oscillate; some ringing is acceptable</td>
+                        <td>Missing or undersized output inductor (the Zobel / Thiele network)</td></tr>
+                    <tr><td>Slew rate</td><td>20 kHz square wave, just below clipping</td>
+                        <td>&ge; 20 V/&micro;s measured, no slew-limiting on a 20 kHz sine at full output</td>
+                        <td>\(C_{dom}\) too large or tail current too small</td></tr>
+                    <tr><td>DC offset</td><td>At the output, input shorted, warm</td>
+                        <td>&lt; 50 mV, and stable</td>
+                        <td>Input pair mismatch or base-current imbalance; add a servo or match the base resistances</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Abuse &mdash; what happens when someone does the wrong thing</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What is done to it</th><th>What physically happens</th><th>Acceptable outcome</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Output shorted</strong> at full drive</td>
+                        <td>The output tries to source \(V_{CC}/R_E\) = 35/0.22 = <strong>159 A</strong>. It will not get there, but current is limited only by the device's own capability while <em>the full rail sits across it</em> — instantaneous dissipation in the low kilowatts.</td>
+                        <td>VI limiter engages within microseconds and holds the operating point inside the SOA. <strong>Without it the output device fails by second breakdown in under a millisecond</strong> — far faster than any fuse.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>4 &Omega; load</strong> when rated for 8</td>
+                        <td>Peak current doubles to 7.1 A; worst-case dissipation doubles to 62 W. The junction rises to \(50 + 31 \times 6.45 = 250\,\mathrm{°C}\) with the original heatsink.</td>
+                        <td>Either the heatsink is sized for 4 &Omega; from the start, or a thermal cut-out mutes the amplifier before the junction reaches 150 &deg;C. Silently overheating is not an acceptable outcome.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Input driven to 10 V</strong> when it expects 1</td>
+                        <td>The amplifier clips hard and the feedback loop cannot hold \(V_- = V_+\). The full input then appears across the input pair's base-emitter junctions, and a reverse-biased B-E junction <strong>avalanches at about 6&ndash;7 V</strong>.</td>
+                        <td>Back-to-back diodes across the input pair, or a series input resistor that limits the avalanche current to under a milliamp. <strong>Without them, avalanching permanently degrades \(\beta\) and the noise figure</strong> — the amplifier still works and is quietly worse forever, which is the most insidious failure of the set.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Speaker disconnected</strong> while playing</td>
+                        <td>Nothing. A voltage amplifier is happy into an open circuit &mdash; dissipation falls to the quiescent value.</td>
+                        <td>No action needed. Worth stating explicitly, because the intuition that "no load is dangerous" comes from valve amplifiers, where an output transformer with no load really does arc over.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>One rail fails</strong> (fuse, rectifier, or dry joint)</td>
+                        <td>The output slams to the surviving rail. The speaker sees <strong>35 V DC across 8 &Omega; = 4.4 A</strong>, which is 153 W into a voice coil rated for a few watts of continuous dissipation.</td>
+                        <td>The DC-detect relay opens within a few hundred milliseconds. <strong>Without it the voice coil burns out</strong>, and the customer replaces a speaker rather than a fuse.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Power cycled rapidly</strong></td>
+                        <td>Rails come up before the protection has released and before the input source is settled; the output can slam to a rail for tens of milliseconds.</td>
+                        <td>The mute relay stays open until the rails are up and the DC detector is happy. A thump is a symptom of the relay timing, not of the amplifier.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Driven into clipping continuously</strong></td>
+                        <td>A clipped sine has roughly 1.5&times; the RMS of an unclipped one at the same peak, so speaker dissipation rises sharply &mdash; and the harmonics land in the tweeter.</td>
+                        <td>The amplifier survives; the <em>speaker</em> may not. This is the most common way amplifiers destroy loudspeakers, and it is why an undersized amplifier is more dangerous to a speaker than an oversized one.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="ac-consequence">
+            <strong>The pattern worth extracting.</strong> In five of those seven
+            rows the amplifier is fine and something else dies &mdash; the speaker,
+            the input transistor's \(\beta\), the customer's confidence. A protection
+            circuit is not there to protect the amplifier from the world. It is
+            mostly there to protect the world from the amplifier, and designing it
+            requires asking what is downstream, not what is inside.
+        </div>
+
+        <h4>Try the abuse cases</h4>
+        <p>Pick a fault and see what the numbers do. The verdict is against a
+        150 &deg;C junction and the device's actual limits, not against a feeling.</p>
+
+        <div class="controls">
+            <div class="c6">
+                <label for="ab-case">Fault</label>
+                <select id="ab-case">
+                    <option value="nominal" selected>Nominal — 8 Ω, rated drive</option>
+                    <option value="four">4 Ω load instead of 8 Ω</option>
+                    <option value="short">Output shorted at full drive</option>
+                    <option value="overdrive">Input driven 10× too hard</option>
+                    <option value="open">Speaker disconnected</option>
+                    <option value="railfail">One supply rail lost</option>
+                    <option value="clip">Continuous hard clipping</option>
+                </select>
+            </div>
+            <div class="c6">
+                <label for="ab-prot">Protection fitted</label>
+                <select id="ab-prot">
+                    <option value="all" selected>VI limiter + DC relay + input clamps</option>
+                    <option value="none">None — bare amplifier</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Device dissipation</div><div class="v mono" id="ab-pd">&mdash;</div></div>
+            <div class="box"><div class="k">Junction temperature</div><div class="v mono" id="ab-tj">&mdash;</div></div>
+            <div class="box"><div class="k">Time to damage</div><div class="v mono" id="ab-time">&mdash;</div></div>
+            <div class="box"><div class="k">What dies</div><div class="v mono" id="ab-dies">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="ab-note"></p>
+    </div>
+
+    <div class="card">
+        <h3>The design, on one page</h3>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Decision</th><th>Value</th><th>Set by</th></tr></thead>
+                <tbody>
+                    <tr><td>Rails</td><td>&plusmn;35 V</td><td>\(\sqrt{2PR_L}\) plus 4 V of output-stage drop</td></tr>
+                    <tr><td>Output devices</td><td>100 V, 15 A, TO-247</td><td>Rail-to-rail voltage, 4 &Omega; peak current, and the SOA curve</td></tr>
+                    <tr><td>Heatsink</td><td>2.5 &deg;C/W</td><td>31 W at 64% swing, 150 &deg;C junction, 50 &deg;C ambient</td></tr>
+                    <tr><td>Emitter resistors</td><td>0.22 &Omega;</td><td>Bias stability and device sharing against lost swing</td></tr>
+                    <tr><td>Quiescent current</td><td>50 mA per device</td><td>The distortion minimum at ~11 mV across \(R_E\)</td></tr>
+                    <tr><td>Bias spreader</td><td>2.62 V, on the heatsink</td><td>Four \(V_{BE}\) plus the \(R_E\) drops, tracking temperature</td></tr>
+                    <tr><td>Closed-loop gain</td><td>22 (21 k / 1 k)</td><td>0.91 V RMS input sensitivity</td></tr>
+                    <tr><td>Input degeneration</td><td>100 &Omega;</td><td>640 kHz crossover, safely below the output stage poles</td></tr>
+                    <tr><td>Miller capacitor</td><td>100 pF</td><td>40 V/&micro;s slew rate, 11&times; the requirement</td></tr>
+                    <tr><td>Protection</td><td>VI limiter + DC relay</td><td>Short, reactive load, device failure, switch-on</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var canvas = document.getElementById('pa-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+
+    var VT = 0.026, ITAIL = 4e-3, ACL = 22;
+    var THETA_JC = 1.0, THETA_CS = 0.5, TJ_MAX = 150;
+
+    function update() {
+        var P = AD.num('pa-p');
+        var RL = AD.num('pa-rl');
+        var Ta = AD.num('pa-ta');
+        var pairs = Math.round(AD.num('pa-n'));
+        var degen = AD.num('pa-degen');
+        var Cdom = AD.num('pa-cdom') * 1e-12;
+
+        AD.setText('pa-p-val', P + ' W');
+        AD.setText('pa-rl-val', RL + ' Ω');
+        AD.setText('pa-ta-val', Ta + ' °C');
+        AD.setText('pa-n-val', pairs + (pairs === 1 ? ' pair' : ' pairs'));
+        AD.setText('pa-degen-val', degen + ' Ω');
+        AD.setText('pa-cdom-val', (Cdom * 1e12).toFixed(0) + ' pF');
+
+        var Vpk = Math.sqrt(2 * P * RL);
+        var Ipk = Vpk / RL;
+        var Vcc = Math.ceil((Vpk + 4) / 5) * 5;             // round up to 5 V
+        var Pdiss = 2 * Vcc * Vcc / (Math.PI * Math.PI * RL);
+        var perDevice = Pdiss / (2 * pairs);
+        var thetaJA = (TJ_MAX - Ta) / perDevice;
+        var thetaSA = thetaJA - THETA_JC - THETA_CS;
+        var sinkShared = thetaSA / (2 * pairs);
+
+        var re = VT / (ITAIL / 2);
+        var Gm = 1 / (re + degen);
+        var fc = Gm / (2 * Math.PI * ACL * Cdom);
+        var SR = ITAIL / Cdom;
+        var SRneed = 2 * Math.PI * 20e3 * Vpk;
+
+        AD.setText('pa-rails', '±' + Vcc + ' V');
+        AD.setText('pa-ipk', Ipk.toFixed(2) + ' A');
+        AD.setText('pa-pd', Pdiss.toFixed(1) + ' W total, ' + perDevice.toFixed(1) + ' W/device');
+        AD.setText('pa-sink', sinkShared > 0
+            ? sinkShared.toFixed(2) + ' °C/W'
+            : 'IMPOSSIBLE — junction cannot be held');
+        AD.setText('pa-fc', AD.fmtUnit(fc, 'Hz'));
+        AD.setText('pa-sr', (SR / 1e6).toFixed(0) + ' V/µs  (need ' + (SRneed / 1e6).toFixed(1) + ')');
+
+        // ---- dissipation against output, with the design point marked ----
+        var w = canvas.width, h = canvas.height;
+        var ml = 66, mr = 20, mt = 26, mb = 40;
+        var pw = w - ml - mr, ph = h - mt - mb;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        var pOut = function (d) { return Math.pow(d * Vcc, 2) / (2 * RL); };
+        var pDiss = function (d) {
+            var Pdc = (2 * Vcc * (d * Vcc)) / (Math.PI * RL);
+            return Math.max(0, Pdc - pOut(d));
+        };
+        var yMax = Math.max(Pdiss, pOut(1)) * 1.1;
+        var X = function (d) { return ml + d * pw; };
+        var Y = function (p) { return mt + ph - (p / yMax) * ph; };
+
+        [{ f: pDiss, c: 'rgba(251, 191, 36, 0.95)', n: 'dissipation in the devices' },
+         { f: pOut,  c: 'rgba(110, 231, 255, 0.7)', n: 'power into the load' }].forEach(function (cu) {
+            ctx.strokeStyle = cu.c; ctx.lineWidth = 2.4;
+            ctx.beginPath();
+            for (var i = 0; i <= 200; i++) {
+                var d = i / 200;
+                if (i === 0) ctx.moveTo(X(d), Y(cu.f(d))); else ctx.lineTo(X(d), Y(cu.f(d)));
+            }
+            ctx.stroke();
+        });
+
+        var dPeak = 2 / Math.PI;
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
+        ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(X(dPeak), mt); ctx.lineTo(X(dPeak), mt + ph); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.95)';
+        ctx.beginPath(); ctx.arc(X(dPeak), Y(Pdiss), 5, 0, Math.PI * 2); ctx.fill();
+
+        // Where the rated power sits on the swing axis.
+        var dRated = Vpk / Vcc;
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.8)';
+        ctx.setLineDash([6, 3]); ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(X(dRated), mt); ctx.lineTo(X(dRated), mt + ph); ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(251, 191, 36, 0.95)';
+        ctx.fillText('device dissipation — peaks at 64%, ' + Pdiss.toFixed(0) + ' W', ml + 8, mt + 14);
+        ctx.fillStyle = 'rgba(110, 231, 255, 0.8)';
+        ctx.fillText('power into the load', ml + 8, mt + 29);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.9)';
+        ctx.fillText('rated ' + P + ' W', X(dRated), mt + ph + 16);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fillText('output swing as a fraction of the rail →', ml + pw / 2, h - 10);
+
+        // ---- the verdict: which constraint is binding --------------------
+        var verdict;
+        if (sinkShared <= 0) {
+            verdict = 'THERMALLY IMPOSSIBLE with ' + pairs + ' output ' +
+                      (pairs === 1 ? 'pair' : 'pairs') + ': holding a 150 °C junction at ' +
+                      Ta + ' °C ambient would need a heatsink with negative thermal ' +
+                      'resistance. Add output pairs — each pair halves the per-device ' +
+                      'dissipation — or lower the ambient, or accept less power.';
+        } else if (sinkShared < 0.5) {
+            verdict = 'The heatsink is the binding constraint at ' + sinkShared.toFixed(2) +
+                      ' °C/W. Below about 0.5 °C/W natural convection has run out and you are ' +
+                      'into forced air or a chassis-sized extrusion, which changes what the ' +
+                      'product is. Adding a second output pair is usually cheaper than the ' +
+                      'metal it saves.';
+        } else if (fc > 2e6) {
+            verdict = 'Thermally fine, but the loop crosses over at ' + AD.fmtUnit(fc, 'Hz') +
+                      ' — up where the output stage’s own poles live. Phase margin will be ' +
+                      'poor and it may oscillate outright. Add input degeneration or a larger ' +
+                      'Miller capacitor; note the slew rate only responds to the second.';
+        } else if (SR < SRneed * 2) {
+            verdict = 'Slew rate is only ' + (SR / SRneed).toFixed(1) + '× the requirement, which ' +
+                      'is not enough margin — an amplifier that just meets its slew limit on a ' +
+                      'sine will slew-limit on music. Reduce the Miller capacitor and pay for it ' +
+                      'with more degeneration to keep the crossover where it is.';
+        } else {
+            verdict = 'Balanced: a ' + sinkShared.toFixed(1) + ' °C/W heatsink is an ordinary ' +
+                      'extrusion, the loop crosses at ' + AD.fmtUnit(fc, 'Hz') + ' which is well ' +
+                      'below the output stage poles, and the slew rate has ' +
+                      (SR / SRneed).toFixed(0) + '× margin. This is a buildable design.';
+        }
+
+        AD.setText('pa-note',
+            P + ' W into ' + RL + ' Ω needs ' + Vpk.toFixed(1) + ' V peak and ' +
+            Ipk.toFixed(2) + ' A, so ±' + Vcc + ' V rails. ' + verdict);
+    }
+
+    ['pa-p', 'pa-rl', 'pa-ta', 'pa-n', 'pa-degen', 'pa-cdom'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    update();
+
+    // ================================================ the abuse bench
+    //
+    // A design is not finished until it has been driven outside its
+    // specification and the failure mode named. Each case below computes the
+    // actual dissipation and junction temperature rather than asserting an
+    // outcome, and says WHAT dies - which in most of these is not the
+    // amplifier.
+    (function abuse() {
+        var caseEl = document.getElementById('ab-case');
+        var protEl = document.getElementById('ab-prot');
+        if (!caseEl || !protEl) return;
+
+        var Vcc = 35, RE = 0.22;
+        // The as-BUILT thermal resistance, not the 6.45 C/W budget from
+        // section 2. A budget is the value that puts the junction exactly at
+        // its limit; nobody ships that, so the design uses a heatsink with
+        // margin and this is what it achieves.
+        var THETA = 5.5;
+
+        // Steady-state junction temperature only means something for a fault
+        // the amplifier sits in. For a fault measured in milliseconds, or one
+        // that damages something other than the output devices, reporting a
+        // steady-state temperature is nonsense - so each case says whether the
+        // thermal number applies.
+        function run() {
+            var c = caseEl.value;
+            var protected_ = protEl.value === 'all';
+            var Ta = AD.num('pa-ta');
+            var pd, tj, time, dies, note;
+            var thermal = true;      // is a steady-state Tj meaningful here?
+
+            if (c === 'nominal') {
+                pd = 2 * Vcc * Vcc / (Math.PI * Math.PI * 8) / 2;
+                tj = Ta + pd * THETA;
+                time = 'indefinite';
+                dies = 'nothing';
+                note = 'The design point. ' + pd.toFixed(1) + ' W per device puts the junction at ' +
+                       tj.toFixed(0) + ' °C against a 150 °C limit, with the heatsink sized in ' +
+                       'section 2. Everything below is a departure from this.';
+            } else if (c === 'four') {
+                pd = 2 * Vcc * Vcc / (Math.PI * Math.PI * 4) / 2;
+                tj = Ta + pd * THETA;
+                time = tj > 150 ? 'minutes' : 'indefinite';
+                dies = tj > 150 ? 'the output devices, by overheating' : 'nothing';
+                note = 'Halving the load impedance doubles the worst-case dissipation to ' +
+                       pd.toFixed(1) + ' W per device, which the ORIGINAL heatsink turns into ' +
+                       tj.toFixed(0) + ' °C. ' +
+                       (tj > 150
+                            ? 'That is past the junction limit: the devices cook over minutes, not ' +
+                              'milliseconds, so it passes a short bench test and fails a real one. ' +
+                              'Either size the heatsink for 4 Ω from the start or fit a thermal cut-out.'
+                            : 'Still inside the limit at this ambient — but check it at the highest ' +
+                              'ambient the product will see, because the margin is thin.');
+            } else if (c === 'short') {
+                // Both branches are transient events, so a steady-state Tj is
+                // meaningless: the limiter case is bounded by SOA rather than by
+                // temperature, and the unprotected case is over before the
+                // junction has time to heat at all.
+                thermal = false;
+                var Ilim = protected_ ? 4 : Vcc / (RE + 0.15);
+                pd = Vcc * Ilim / 2;
+                tj = 0;
+                time = protected_ ? 'held indefinitely, inside SOA' : 'under 1 ms';
+                dies = protected_ ? 'nothing' : 'the output transistors, by second breakdown';
+                note = protected_
+                    ? 'The VI limiter holds the current at about 4 A while the full rail sits across ' +
+                      'the device, so dissipation is ' + pd.toFixed(0) + ' W per device — high, and ' +
+                      'survivable because the limiter follows the SOA curve rather than a fixed ' +
+                      'current. This is why the limiter senses voltage as well as current.'
+                    : 'Without the limiter the current is bounded only by the emitter resistor and the ' +
+                      'device itself — of the order of ' + Ilim.toFixed(0) + ' A with 35 V across it. ' +
+                      'That is kilowatts in a package rated for tens of watts. The failure is SECOND ' +
+                      'BREAKDOWN, not overheating: current crowds into a hot spot and the device ' +
+                      'shorts in well under a millisecond. No fuse is fast enough — the fuse protects ' +
+                      'the transformer after the transistor has already failed short.';
+            } else if (c === 'overdrive') {
+                pd = 2 * Vcc * Vcc / (Math.PI * Math.PI * 8) / 2;
+                tj = Ta + pd * THETA;
+                time = protected_ ? 'indefinite' : 'immediate and permanent';
+                dies = protected_ ? 'nothing' : 'the input pair’s beta and noise figure';
+                note = protected_
+                    ? 'The input clamps conduct and hold the differential input below the 6 V ' +
+                      'base-emitter avalanche voltage. The amplifier clips — which sounds bad and ' +
+                      'harms nothing.'
+                    : 'The amplifier clips, so the loop can no longer hold the two inputs together, ' +
+                      'and the full differential drive appears across the input pair. A reverse-biased ' +
+                      'base-emitter junction avalanches at 6–7 V. The device does not fail outright: ' +
+                      'its BETA and its NOISE FIGURE are permanently degraded. So the amplifier keeps ' +
+                      'working, measurably worse, with no visible fault — the most insidious outcome ' +
+                      'in this table, and the reason input clamps cost two diodes and are always fitted.';
+            } else if (c === 'open') {
+                pd = Vcc * 0.05;
+                tj = Ta + pd * THETA;
+                time = 'indefinite';
+                dies = 'nothing';
+                note = 'Nothing happens. With no load there is no output current, so dissipation ' +
+                       'falls to the quiescent ' + pd.toFixed(1) + ' W per device and the junction ' +
+                       'sits at ' + tj.toFixed(0) + ' °C. Worth stating because the instinct that ' +
+                       '"no load is dangerous" is inherited from valve amplifiers, where an output ' +
+                       'transformer with no load really does arc over. A solid-state voltage ' +
+                       'amplifier does not care.';
+            } else if (c === 'railfail') {
+                // The amplifier's own thermal state is not the story here - the
+                // speaker is what fails, and it fails long before any junction
+                // reaches equilibrium.
+                thermal = false;
+                var Idc = Vcc / 8;
+                pd = Vcc * Idc / 2;
+                tj = 0;
+                time = protected_ ? 'relay opens in ~300 ms' : 'seconds';
+                dies = protected_ ? 'nothing' : 'the loudspeaker voice coil';
+                note = 'The output slams to the surviving rail, putting ' + Vcc + ' V DC across ' +
+                       '8 Ω — ' + Idc.toFixed(1) + ' A, or ' + (Vcc * Idc).toFixed(0) + ' W into a ' +
+                       'voice coil rated for a few watts continuous. ' +
+                       (protected_
+                            ? 'The DC detector sees it and opens the relay in a few hundred ' +
+                              'milliseconds, which is fast enough — the coil has thermal mass.'
+                            : 'Without a relay the coil burns out in seconds. Note the amplifier ' +
+                              'itself is fine: the customer replaces a speaker, and the fault that ' +
+                              'caused it is still there.');
+            } else {
+                pd = 2 * Vcc * Vcc / (Math.PI * Math.PI * 8) / 2 * 0.8;
+                tj = Ta + pd * THETA;
+                time = 'amplifier indefinite, speaker minutes';
+                dies = 'the tweeter, usually';
+                note = 'Hard clipping actually REDUCES amplifier dissipation slightly, because the ' +
+                       'output spends more time near the rails where the device voltage is low. ' +
+                       'The damage is downstream: a clipped sine carries far more RMS power than an ' +
+                       'unclipped one at the same peak, and the harmonics it generates land in the ' +
+                       'tweeter, which is designed for a small fraction of the system power. ' +
+                       'This is the commonest way amplifiers destroy loudspeakers, and it is why an ' +
+                       'UNDERSIZED amplifier is more dangerous to a speaker than an oversized one.';
+            }
+
+            AD.setText('ab-pd', pd > 500 ? AD.fmtUnit(pd, 'W') + ' — instantaneous'
+                                         : pd.toFixed(1) + ' W per device');
+            AD.setText('ab-tj', !thermal
+                ? 'n/a — this fault is not thermal'
+                : tj.toFixed(0) + ' °C' + (tj > 150 ? '  ✗ over 150 limit' : '  ✓ under 150'));
+            AD.setText('ab-time', time);
+            AD.setText('ab-dies', dies);
+            AD.setText('ab-note', note);
+        }
+
+        caseEl.addEventListener('change', run);
+        protEl.addEventListener('change', run);
+        ['pa-ta'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('input', run);
+        });
+        run();
+    })();
+})();
+</script>

@@ -2555,6 +2555,12 @@ const CURRICULUM = {
                     title: 'Design: A Microphone Preamplifier',
                     description: 'A noise budget in nV/rtHz, taken to a topology and a part',
                     topics: ['-130.8 dBu is the floor at 150 ohm', 'Ropt = en/in', 'Why phantom power is free', 'Gain inside the loop, not at the input']
+                },
+                {
+                    id: 5,
+                    title: 'Design: A 50 W Class AB Power Amplifier',
+                    description: 'A complete channel from brief to heatsink, with acceptance tests and abuse cases',
+                    topics: ['Rails from sqrt(2PRL)', 'Heat at 64% of swing', 'Degenerate to place the crossover', 'What dies, and it is usually not the amplifier']
                 }
             ]
         }
