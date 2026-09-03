@@ -1,0 +1,244 @@
+<!-- Module 10, Lesson 14: Interview Prep — Measurement and Debug -->
+<div class="lesson-content" data-module="10" data-lesson="14">
+
+    <div class="card">
+        <h2>Interview Prep &mdash; Measurement and Debug</h2>
+        <p>Every hardware interview has one of these, and it is usually the question
+        the decision turns on. "Here is a board that does not work. What do you do?"
+        There is no formula. What they are grading is whether you have a
+        <em>method</em>, and whether you distrust your instruments the right amount.</p>
+
+        <div class="notice">
+            <strong>The method, said out loud, before touching anything.</strong>
+            Interviewers are listening for structure, and this structure works on
+            any fault.
+            <ol style="margin-top:8px">
+                <li><strong>What changed?</strong> New board, new firmware, new
+                component lot, new temperature. If nothing changed, something
+                changed and you have not found it.</li>
+                <li><strong>Is it the board or the measurement?</strong> Probe
+                somewhere you know the answer first. Confirm the instrument before
+                trusting it.</li>
+                <li><strong>Power first, always.</strong> Every rail, at the load,
+                under load, with the scope AC-coupled as well as DC. Most "logic
+                bugs" are power bugs.</li>
+                <li><strong>Bisect.</strong> Halve the signal chain, decide which
+                half is wrong, repeat. Do not sweep left to right.</li>
+                <li><strong>Form a hypothesis that predicts something.</strong> Then
+                test the prediction rather than the fault. "If it is X, then Y should
+                also be true" is what makes debugging converge.</li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="interview">
+        <h3>Questions</h3>
+
+        <div class="pset">
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">1</span>
+                    <span class="iq-tag iq-trace">Method</span>
+                    <span class="problem-level level-2">Standard</span></div>
+                <p>An amplifier board has no output. Walk me through it.</p>
+                <details><summary>How to answer</summary>
+                <p>Do not start at the input. Start at power, then bisect.</p>
+                <ol>
+                    <li><strong>Rails, at the chip.</strong> Not at the regulator —
+                    at the pin, under load. A rail that is 4.6 V instead of 5 V, or
+                    that has 500 mV of ripple, explains almost anything downstream.</li>
+                    <li><strong>DC bias points, midpoint first.</strong> One
+                    measurement in the middle of the chain tells you which half to
+                    throw away. An op-amp output sitting hard at a rail is a
+                    saturated stage and tells you the DC is wrong before you inject
+                    any signal at all.</li>
+                    <li><strong>Inject and follow.</strong> Signal into the input,
+                    then check the midpoint you just measured. Present but wrong
+                    means the fault is upstream and it is a gain or bias problem;
+                    absent means it is upstream and it is a broken path.</li>
+                    <li><strong>Check the obvious physical things</strong> in
+                    parallel: is anything hot, is anything on backwards, is the part
+                    the one the BOM says.</li>
+                </ol>
+                <p class="iq-say">"And I would look at the DC before anything else,
+                because a saturated stage produces no output and looks identical to
+                a dead stage on an AC measurement. That distinction is usually the
+                whole fault."</p>
+                <div class="iq-testing"><strong>What they are testing:</strong>
+                whether you bisect or sweep. Sweeping left to right takes \(N\)
+                measurements; bisecting takes \(\log_2 N\), and on a real board with
+                twenty nodes that is the difference between an afternoon and five
+                minutes. Say the word "bisect".</div>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">2</span>
+                    <span class="iq-tag iq-trap">Trap</span>
+                    <span class="problem-level level-2">Standard</span></div>
+                <p>Your scope shows a 3.3 V logic signal with 1.5 V of overshoot and
+                heavy ringing. Is the signal bad?</p>
+                <details><summary>How to answer</summary>
+                <p>Possibly, but check the probe first &mdash; there are three ways
+                to see ringing that is not there.</p>
+                <ul>
+                    <li><strong>Ground lead inductance.</strong> Six inches is about
+                    150 nH and resonates with the probe capacitance at roughly
+                    100&ndash;200 MHz. Use a ground spring.</li>
+                    <li><strong>Probe compensation.</strong> An uncompensated 10×
+                    probe over- or under-shoots on every edge. Check it on the
+                    calibrator square wave before believing any edge.</li>
+                    <li><strong>Insufficient bandwidth &mdash; the opposite
+                    error.</strong> A 100 MHz scope on a 1 ns edge rounds it off and
+                    hides real ringing. \(BW \approx 0.35/t_r\), so a 1 ns edge needs
+                    350 MHz to be seen honestly.</li>
+                </ul>
+                <p class="iq-say">"If it survives all three, then it is real, and I
+                would look for an impedance discontinuity: an unterminated line, a
+                stub, or a return path interrupted by a plane split. The quick test
+                is to add a series resistor at the source to match the trace
+                impedance — if the ringing collapses, it was reflection."</p>
+                <div class="iq-testing"><strong>What they are testing:</strong>
+                whether you validate the measurement before acting on it. Both
+                directions matter: candidates who only know about ground leads miss
+                that too little bandwidth hides real problems.</div>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">3</span>
+                    <span class="iq-tag iq-trap">Trap</span>
+                    <span class="problem-level level-3">Harder</span></div>
+                <p>A circuit misbehaves, and it starts working correctly as soon as
+                you put a scope probe on the suspect node. Now what?</p>
+                <details><summary>How to answer</summary>
+                <p>The probe is part of the circuit, and that is a clue rather than
+                an annoyance.</p>
+                <p>A 10× probe adds about 10 pF and 10 M&Omega;. Ten picofarads is
+                enough to:</p>
+                <ul>
+                    <li>Damp an oscillation, by adding a pole that costs the loop
+                    the gain it needed at the offending frequency.</li>
+                    <li>Slow an edge enough to fix a race or a marginal setup time.</li>
+                    <li>Provide a return path for leakage on a very high-impedance
+                    node, so a floating input stops floating.</li>
+                </ul>
+                <p class="iq-say">"So the fault is telling me it is marginal at
+                high frequency or at high impedance. I would switch to a low-capacitance
+                active probe — under a picofarad — and see if the fault returns,
+                which distinguishes 'the probe is loading it' from 'the probe is
+                grounding it'. If a permanent small capacitor genuinely fixes it, that
+                can be a legitimate solution, but only after I understand why, because
+                a 10 pF fix has no margin and will come back at temperature."</p>
+                <div class="iq-testing"><strong>What they are testing:</strong>
+                whether you treat a Heisenbug as information. The bad answer is
+                "leave the probe on it". The good one uses the loading as a
+                diagnostic that narrows the mechanism.</div>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">4</span>
+                    <span class="iq-tag iq-trace">Method</span>
+                    <span class="problem-level level-3">Harder</span></div>
+                <p>One board in fifty fails. The other forty-nine are fine. How do
+                you find it?</p>
+                <details><summary>How to answer</summary>
+                <p>Intermittent and rare, so the first job is not to find the fault
+                &mdash; it is to make it happen on demand.</p>
+                <ol>
+                    <li><strong>Get a reliable reproduction.</strong> Freeze spray
+                    and a heat gun, component by component, will localise a
+                    temperature-sensitive part in minutes. Flexing the board finds
+                    cracked joints and cracked ceramics. Marginal supply voltage
+                    finds anything near a threshold.</li>
+                    <li><strong>Compare, do not just inspect.</strong> Put the bad
+                    board next to a good one and diff everything: X-ray or AOI on
+                    the assembly, date codes, and the actual waveforms at the same
+                    nodes.</li>
+                    <li><strong>Suspect the process before the design.</strong>
+                    One in fifty is a manufacturing rate, not a design rate. A design
+                    marginality usually shows up on all boards at some corner; a
+                    solder or component defect shows up on a few boards at every
+                    corner.</li>
+                    <li><strong>Then check whether it is marginal by design.</strong>
+                    If the good boards are only just passing, the fifty-to-one is
+                    where the distribution crosses the limit, and the fix is margin,
+                    not rework.</li>
+                </ol>
+                <p class="iq-say">"The distinguishing question is whether the
+                forty-nine good boards have any margin. If they pass by a mile, it
+                is a defect and I want the failure analysis. If they pass by a
+                hair, the population is centred wrong and the one failure is just
+                the tail — and fixing that one board fixes nothing."</p>
+                <div class="iq-testing"><strong>What they are testing:</strong>
+                statistical thinking about hardware. The insight that a rare
+                failure is either a defect or a distribution problem, and that they
+                need completely different responses, is what a manufacturing-aware
+                engineer brings.</div>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">5</span>
+                    <span class="iq-tag iq-rapid">Rapid</span></div>
+                <p>What bandwidth do you need to measure a 2 ns rise time honestly?</p>
+                <details><summary>Answer</summary>
+                <p>\(BW = 0.35/t_r = 175\,\mathrm{MHz}\) to see it at all, and you
+                want three to five times that to see it accurately — call it
+                500 MHz to 1 GHz. Remember the scope and probe combine in
+                quadrature: \(t_{measured} = \sqrt{t_{actual}^2 + t_{scope}^2}\), so
+                a 175 MHz scope measuring a 2 ns edge reports about 2.8 ns.</p>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">6</span>
+                    <span class="iq-tag iq-rapid">Rapid</span></div>
+                <p>When would you use a current probe instead of a voltage probe?</p>
+                <details><summary>Answer</summary>
+                <p>When you need to know where current is <em>going</em> rather than
+                what a node is doing: finding which of five parallel branches draws
+                the supply spike, measuring inductor current to check for saturation
+                or DCM, or measuring common-mode current on a cable for EMI, which
+                voltage probing simply cannot see. Also whenever the interesting node
+                has no ground you can safely reference — a current probe is
+                galvanically isolated, which is why it is the right instrument on the
+                primary side of an offline supply.</p>
+                </details>
+            </div>
+
+            <div class="problem">
+                <div class="problem-head"><span class="problem-num">7</span>
+                    <span class="iq-tag iq-rapid">Rapid</span></div>
+                <p>Your DMM reads 2.5 V on a node you expect to be 0 V or 5 V.</p>
+                <details><summary>Answer</summary>
+                <p>Most likely the node is floating and the meter's 10 M&Omega; input
+                is forming a divider with leakage, or the node is switching and you
+                are reading the average of a 50% duty cycle. Both are common and both
+                are resolved the same way: put a scope on it. A meter reports an
+                average and cannot distinguish a steady 2.5 V from a square wave, and
+                that mistake accounts for a surprising share of confusing
+                measurements.</p>
+                </details>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>If you remember four things</h3>
+        <div class="kv">
+            <div class="box"><div class="k">Power first, at the pin, under load</div>
+                <div class="v">Most logic bugs are power bugs, and the regulator output is not where to look.</div></div>
+            <div class="box"><div class="k">Bisect, do not sweep</div>
+                <div class="v">\(\log_2 N\) instead of \(N\). Say the word in the interview.</div></div>
+            <div class="box"><div class="k">Validate the instrument</div>
+                <div class="v">Ground leads invent ringing; too little bandwidth hides it. Both are errors.</div></div>
+            <div class="box"><div class="k">A rare failure is a distribution</div>
+                <div class="v">Defect or margin — completely different responses. Ask how much margin the good boards have.</div></div>
+        </div>
+    </div>
+
+</div>

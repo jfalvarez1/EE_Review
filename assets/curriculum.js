@@ -315,6 +315,12 @@ const CURRICULUM = {
                     title: 'Diodes in Practice: an Overview',
                     description: 'Rectification, clamping and protection at the level an engineer uses them',
                     topics: ['Ripple = I/(f·C)', 'Peak-to-average current ratio', 'Choosing a rectifier', 'TVS, Schottky clamps, why zeners faded']
+                },
+                {
+                    id: 3,
+                    title: 'Interview Prep — Semiconductors and Diodes',
+                    description: 'The whole module as it gets asked on a whiteboard',
+                    topics: ['60 mV per decade', 'Why -2 mV/degC, and the bandgap', 'Average vs RMS vs peak', 'Schottky reverse runaway']
                 }
             ]
         },
@@ -1077,6 +1083,12 @@ const CURRICULUM = {
                     title: 'Environmental Testing and Reliability',
                     description: 'Temperature, humidity, and vibration testing',
                     topics: ['Environmental stresses', 'HALT/HASS', 'Reliability prediction', 'Failure analysis']
+                },
+                {
+                    id: 14,
+                    title: 'Interview Prep — Measurement and Debug',
+                    description: '"Here is a board that does not work" — the question the decision turns on',
+                    topics: ['Power first, at the pin', 'Bisect, do not sweep', 'Validate the instrument', 'A rare failure is a distribution']
                 }
             ]
         },
