@@ -137,44 +137,90 @@
     </div>
 
         <div class="card">
-        <h3>Build it in Circuit Toy</h3>
-        <p>The interactives above are models with the physics written into them.
-        To put this circuit in front of a real solver, build it in
-        <a href="https://github.com/jfalvarez1/circuit_toy" target="_blank" rel="noopener">Circuit Toy</a>
-        from the table below. Node names are just labels &mdash; anything
-        sharing a name is one wire.</p>
+        <h3>Build it in firmware</h3>
+        <p>This lesson's subject is an algorithm rather than a circuit, so there is
+        nothing here to wire up. What follows is the coulomb-counting fuel gauge in
+        full, including the two corrections that separate a working one from a
+        demonstration.</p>
 
-        <p><strong>Coulomb Counting Algorithm (Pseudocode)</strong></p>
+        <p><strong>Coulomb counting, with OCV resynchronisation</strong></p>
 
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
-                <tbody>
-                    <tr><td class="mono">float</td><td>Controlled source</td><td>Start fully charged</td><td>output <span class="mono">soc_percent</span> to <span class="mono">=</span>, sensing <span class="mono">100.0;</span> to <span class="mono">//</span></td></tr>
-                    <tr><td class="mono">float</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">coulombs_remaining;</span> to <span class="mono">//</span>, sensing <span class="mono">In</span> to <span class="mono">mAh</span></td></tr>
-                    <tr><td class="mono">void</td><td>Voltage source</td><td>&mdash;</td><td>from <span class="mono">fuel_gauge_init()</span> to <span class="mono">{</span></td></tr>
-                    <tr><td class="mono">coulombs_remaining</td><td>Capacitor</td><td></td><td>between <span class="mono">=</span> and <span class="mono">QMAX_mAh;</span></td></tr>
-                    <tr><td class="mono">void</td><td>Voltage source</td><td>&mdash;</td><td>from <span class="mono">fuel_gauge_update(float</span> to <span class="mono">v_sense)</span></td></tr>
-                    <tr><td class="mono">float</td><td>Controlled source</td><td>RSENSE) * 1000;</td><td>output <span class="mono">current_mA</span> to <span class="mono">=</span>, sensing <span class="mono">(v_sense</span> to <span class="mono">/</span></td></tr>
-                    <tr><td class="mono">float</td><td>Controlled source</td><td>(3600 * ADC_RATE_Hz);</td><td>output <span class="mono">delta_mAh</span> to <span class="mono">=</span>, sensing <span class="mono">current_mA</span> to <span class="mono">/</span></td></tr>
-                    <tr><td class="mono">coulombs_remaining</td><td>Capacitor</td><td></td><td>between <span class="mono">-=</span> and <span class="mono">delta_mAh;</span></td></tr>
-                    <tr><td class="mono">if</td><td>Current source</td><td>0&nbsp;A</td><td>from <span class="mono">(coulombs_remaining</span> to <span class="mono"><</span></td></tr>
-                    <tr><td class="mono">if</td><td>Current source</td><td>&mdash;</td><td>from <span class="mono">(coulombs_remaining</span> to <span class="mono">></span></td></tr>
-                    <tr><td class="mono">coulombs_remaining</td><td>Capacitor</td><td></td><td>between <span class="mono">=</span> and <span class="mono">QMAX_mAh;</span></td></tr>
-                    <tr><td class="mono">void</td><td>Voltage source</td><td>&mdash;</td><td>from <span class="mono">fuel_gauge_sync_ocv(float</span> to <span class="mono">v_battery)</span></td></tr>
-                    <tr><td class="mono">if</td><td>Current source</td><td>&mdash;</td><td>from <span class="mono">(is_at_rest())</span> to <span class="mono">{</span></td></tr>
-                    <tr><td class="mono">float</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">soc_from_ocv</span> to <span class="mono">=</span>, sensing <span class="mono">ocv_to_soc(v_battery);</span> to <span class="mono">undefined</span></td></tr>
-                    <tr><td class="mono">coulombs_remaining</td><td>Capacitor</td><td></td><td>between <span class="mono">=</span> and <span class="mono">(soc_percent/100)</span></td></tr>
-                    <tr><td class="mono">float</td><td>Controlled source</td><td>&mdash;</td><td>output <span class="mono">get_effective_capacity(float</span> to <span class="mono">temp_C)</span>, sensing <span class="mono">{</span> to <span class="mono">undefined</span></td></tr>
-                    <tr><td class="mono">float</td><td>Controlled source</td><td>0.01 * abs(25 - temp_C);</td><td>output <span class="mono">factor</span> to <span class="mono">=</span>, sensing <span class="mono">1.0</span> to <span class="mono">-</span></td></tr>
-                    <tr><td class="mono">return</td><td>Resistor</td><td></td><td>between <span class="mono">QMAX_mAh</span> and <span class="mono">*</span></td></tr>
-                </tbody>
-            </table>
-        </div>
+<pre class="code-block"><span class="cmt">// Start fully charged.</span>
+float soc_percent        = 100.0;
+float coulombs_remaining;          <span class="cmt">// in mAh</span>
 
-        <p>Then change one thing at a time and predict the result before you run
-        it. A simulator is only worth the time if you are checking an answer you
-        already have &mdash; otherwise it is a very slow way of being surprised.</p>
+void fuel_gauge_init(void) {
+    coulombs_remaining = QMAX_mAh;
+}
+
+void fuel_gauge_update(float v_sense) {
+    float current_mA = (v_sense / RSENSE) * 1000;
+
+    <span class="cmt">// One sample is 1/ADC_RATE_Hz seconds, and there are 3600</span>
+    <span class="cmt">// seconds in the hour that the "h" in mAh refers to.</span>
+    float delta_mAh  = current_mA / (3600 * ADC_RATE_Hz);
+
+    coulombs_remaining -= delta_mAh;
+
+    <span class="cmt">// Clamp. Without this the integral walks out of range and never</span>
+    <span class="cmt">// comes back, because nothing else in the loop is a feedback path.</span>
+    if (coulombs_remaining &lt; 0)        coulombs_remaining = 0;
+    if (coulombs_remaining &gt; QMAX_mAh) coulombs_remaining = QMAX_mAh;
+
+    soc_percent = 100.0 * coulombs_remaining / QMAX_mAh;
+}
+
+<span class="cmt">// The correction. Coulomb counting integrates a measurement, so it</span>
+<span class="cmt">// integrates that measurement's offset too: a 1 mA zero error on the</span>
+<span class="cmt">// current sense is 24 mAh of drift a day, whatever the battery does.</span>
+<span class="cmt">// Open-circuit voltage is absolute but only valid at rest.</span>
+void fuel_gauge_sync_ocv(float v_battery) {
+    if (is_at_rest()) {
+        float soc_from_ocv = ocv_to_soc(v_battery);
+        soc_percent        = soc_from_ocv;
+        coulombs_remaining = (soc_from_ocv / 100) * QMAX_mAh;
+    }
+}
+
+<span class="cmt">// Capacity is not a constant. A cell delivers less of it when cold,</span>
+<span class="cmt">// and a gauge that reports a percentage of the wrong total is wrong</span>
+<span class="cmt">// by that much even when its integration is perfect.</span>
+float get_effective_capacity(float temp_C) {
+    float factor = 1.0 - 0.01 * fabsf(25 - temp_C);
+    return QMAX_mAh * factor;
+}</pre>
+
+        <p>Two things in that listing are worth more than the integration itself.</p>
+
+        <p>The first is <span class="mono">fuel_gauge_sync_ocv</span>. Coulomb counting
+        is an <em>integrator</em>, and an integrator accumulates its input's offset
+        along with its signal: a 1&nbsp;mA zero error on the current-sense amplifier is
+        24&nbsp;mAh of invented charge every day, regardless of what the battery is
+        doing. Nothing inside the loop can detect that, because the loop has no
+        reference &mdash; it only ever sees differences. Open-circuit voltage is the
+        reference, and it is <em>absolute</em>: it depends on the cell's chemistry
+        rather than on the history of the measurement. The catch is that it is only
+        valid at rest, because any current puts I&nbsp;&times;&nbsp;R<sub>int</sub> on
+        top of it, which is why the correction is guarded by
+        <span class="mono">is_at_rest()</span> instead of running every cycle.
+        <strong>A relative measurement corrected occasionally by an absolute one is a
+        pattern worth recognising</strong> &mdash; it is the same arrangement as a
+        GPS-disciplined oscillator, or a dead-reckoning system taking a fix.</p>
+
+        <p>The second is <span class="mono">get_effective_capacity</span>. The
+        percentage a gauge reports is charge divided by capacity, and the denominator
+        is not a constant: a lithium cell at 0&nbsp;&deg;C delivers roughly 20&ndash;25%
+        less than the same cell at 25&nbsp;&deg;C, because the electrolyte's
+        conductivity falls and the internal resistance rises. A gauge with a perfect
+        integrator and a fixed QMAX still reads wrong in the cold, and it reads wrong
+        in the direction that matters &mdash; <strong>optimistically</strong>. This is
+        most of why a phone shuts down at an indicated 30% on a winter morning.</p>
+
+        <p>Change one thing at a time here too, and predict the result first. Set
+        RSENSE 1% high and work out how long it takes the reported charge to be a
+        percent wrong; disable the OCV sync and see what the drift does over a week;
+        hold QMAX fixed and run the gauge at 0&nbsp;&deg;C. Each one is a fault that
+        ships, and none of them makes the code crash.</p>
     </div>
 
     <div class="card">
