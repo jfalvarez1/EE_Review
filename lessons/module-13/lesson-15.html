@@ -1,0 +1,554 @@
+<!-- Module 13, Lesson 15: Multiphase and Coupled-Inductor Voltage Regulators -->
+<div class="lesson-content" data-module="13" data-lesson="15">
+
+    <div class="card">
+        <h2>Multiphase and Coupled-Inductor Voltage Regulators</h2>
+        <p>The buck converter in the earlier lessons is the one in the textbooks and
+        it is not the one in a server, a graphics card or an AI accelerator. Those
+        run a topology that looks superficially similar and has three additions the
+        textbook version does not have: many phases, magnetically coupled inductors,
+        and a control loop that is deliberately allowed to droop.</p>
+
+        <div class="notice">
+            <strong>The specification that forced all of it.</strong> A modern
+            processor core rail is roughly
+            <strong>12 V in, 0.7&ndash;1.1 V out, hundreds of amps</strong>, and the
+            load can change by half its full current in <strong>under a
+            microsecond</strong>. Nothing about that is a scaled-up version of a 3 A
+            point-of-load converter &mdash; the numbers are far enough outside the
+            textbook's assumptions that the topology had to change.
+        </div>
+
+        <div class="analogy">
+            <span class="analogy-label">Why one phase cannot do it</span>
+            <p>A single-phase buck is <strong>one person with one bucket</strong>
+            filling a tank that is being drained unpredictably. To keep up with a
+            sudden demand they need a small bucket they can move quickly &mdash; but
+            a small bucket means many trips, and each trip splashes, so the tank
+            level ripples.</p>
+            <p>Interleaving is <strong>ten people with the same buckets, taking
+            turns</strong>. The splashes now land at different moments and partly
+            cancel, so the level is smoother even though each bucket is unchanged.
+            Coupled inductors are the part that sounds impossible: the ten people are
+            <strong>roped together</strong> in a way that makes each bucket feel
+            heavy when they are taking turns, and light when they all rush at
+            once.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> the rope is
+            not a metaphor for cooperation, it is negative mutual inductance, and it
+            works because the phases are 180&deg;/N apart in steady state and in
+            phase during a transient. Change the interleaving and the trick
+            inverts.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. What interleaving buys, exactly</h3>
+        <p>Run \(N\) phases from the same input to the same output, switching
+        \(360°/N\) apart. Four things improve, and only the first is obvious.</p>
+
+        <ul>
+            <li><strong>Current sharing.</strong> Each phase carries \(I_{out}/N\),
+            so the FETs, the inductor and the copper all get easier.</li>
+            <li><strong>Ripple cancellation at the output.</strong> The phase ripples
+            do not add &mdash; they partly cancel, and at particular duty cycles they
+            cancel <em>completely</em>.</li>
+            <li><strong>Effective ripple frequency of \(N f_{sw}\).</strong> The
+            output capacitor sees \(N\) times the switching rate, so the same ripple
+            spec needs far less capacitance.</li>
+            <li><strong>Thermal spreading.</strong> The loss is distributed across
+            the board rather than concentrated in one package.</li>
+        </ul>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ K(D,N) = \frac{\bigl[(m+1) - ND\bigr]\bigl[ND - m\bigr]}{ND(1-D)}, \qquad m = \lfloor ND \rfloor \]
+                <span class="drv-why">The normalised output ripple: total ripple
+                divided by what one phase alone would produce.</span>
+            </div>
+            <div class="drv-step">
+                \[ D = \frac{k}{N} \;\Longrightarrow\; K = 0 \]
+                <span class="drv-why">Exact cancellation whenever the duty cycle is
+                an integer multiple of \(1/N\). At 12 V in and 1.2 V out, \(D=0.1\),
+                so ten phases cancel the output ripple entirely.</span>
+            </div>
+            <div class="drv-step">
+                \[ N=2,\ D=0.1: K = 0.89 \qquad N=8,\ D=0.1: K = 0.22 \qquad N=10,\ D=0.1: K = 0 \]
+                <span class="drv-why">Two phases at this duty cancel almost nothing.
+                The benefit is strongly duty-dependent, which is why phase count is
+                chosen against the actual conversion ratio and not by rule of
+                thumb.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. The dilemma interleaving does <em>not</em> solve</h3>
+        <p>Pick the inductor and you are choosing between two things that both
+        matter and that pull in opposite directions.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \Delta I_{ripple} = \frac{V_{out}(1-D)}{Lf_{sw}} \;\propto\; \frac{1}{L} \]
+                <span class="drv-why">Steady state wants L LARGE. Ripple current
+                costs conduction loss, core loss, and output capacitance.</span>
+            </div>
+            <div class="drv-step">
+                \[ \left|\frac{di}{dt}\right|_{max} = \frac{V_{in}-V_{out}}{L} \;\propto\; \frac{1}{L} \]
+                <span class="drv-why">Transient wants L SMALL. When the load steps,
+                this is the fastest the inductor current can possibly follow, and
+                everything the loop cannot supply comes out of the output
+                capacitors.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{One } L, \text{ two requirements, opposite directions.} \]
+                <span class="drv-why">In an uncoupled design this is a hard trade
+                and you simply choose a point on it. Coupling is what removes the
+                word "one".</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. Coupled inductors: two different inductances from one part</h3>
+        <p>Wind two phases on a shared core so they are <strong>inversely</strong>
+        coupled &mdash; mutual inductance \(M = \rho L\) with \(\rho\) negative,
+        typically \(-0.2\) to \(-0.7\). Now write the two-winding equations and the
+        trick appears on its own.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ v_1 = L\frac{di_1}{dt} + M\frac{di_2}{dt}, \qquad v_2 = M\frac{di_1}{dt} + L\frac{di_2}{dt} \]
+            </div>
+            <div class="drv-step">
+                \[ \frac{di_1}{dt} = \frac{L\,v_1 - M\,v_2}{L^2 - M^2} \]
+                <span class="drv-why">Invert the pair. Everything below is this one
+                expression evaluated in two different situations.</span>
+            </div>
+            <div class="drv-step">
+                \[ \textbf{Transient: } v_1 = v_2 = v \;\Longrightarrow\; \frac{di}{dt} = \frac{v}{L+M} \;\Longrightarrow\; \boxed{L_{tr} = L(1+\rho)} \]
+                <span class="drv-why">During a load step every phase drives in the
+                same direction, so the mutual term SUBTRACTS from the self term.
+                With \(\rho = -0.5\) the transient inductance is half the self
+                inductance and the current slews twice as fast.</span>
+            </div>
+            <div class="drv-step">
+                \[ \textbf{Steady state } (D<0.5): \; v_1 = V_{in}-V_{out},\; v_2 = -V_{out} \]
+                <span class="drv-why">Phase 1 is on while phase 2 is off — that is
+                what interleaving means — so the two windings see opposite-signed
+                voltages and the mutual term now ADDS.</span>
+            </div>
+            <div class="drv-step">
+                \[ L_{eff} = \frac{v_1}{di_1/dt} = \frac{(V_{in}-V_{out})\,L\,(1-\rho^2)}{(V_{in}-V_{out}) + \rho V_{out}} \]
+            </div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">The comparison that shows the benefit</span>
+            <p>Comparing coupled and uncoupled at the same <em>self</em> inductance
+            proves nothing, because the two designs would then have different
+            transient speeds. The honest comparison is <strong>at equal transient
+            inductance</strong> &mdash; give the coupled design a bigger self
+            inductance so that \(L_{tr}\) matches. At 12 V to 1.2 V, 600 kHz, with
+            \(L_{tr}\) held at 75 nH throughout:</p>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>\(\rho\)</th><th>Self \(L\)</th><th>\(L_{eff}\) for ripple</th><th>Ripple current</th><th>vs uncoupled</th></tr></thead>
+                    <tbody>
+                        <tr><td>0 (uncoupled)</td><td>75 nH</td><td>75 nH</td><td>24.0 A</td><td>&mdash;</td></tr>
+                        <tr><td>&minus;0.2</td><td>94 nH</td><td>92 nH</td><td>19.6 A</td><td>&minus;18%</td></tr>
+                        <tr><td>&minus;0.35</td><td>115 nH</td><td>105 nH</td><td>17.1 A</td><td>&minus;29%</td></tr>
+                        <tr><td>&minus;0.5</td><td>150 nH</td><td>119 nH</td><td>15.1 A</td><td><strong>&minus;37%</strong></td></tr>
+                        <tr><td>&minus;0.7</td><td>250 nH</td><td>138 nH</td><td>13.0 A</td><td>&minus;46%</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p>Same transient response, 37% less ripple current at \(\rho=-0.5\).
+            That is less conduction loss, less core loss, less output capacitance and
+            a smaller inductor &mdash; bought by winding two phases on one core
+            instead of two.</p>
+        </div>
+
+        <div class="notice">
+            <strong>What it costs.</strong> The magnetics are no longer a catalogue
+            part &mdash; coupling coefficient becomes a specification you have to
+            hold in production. Phases are no longer independent, so a phase-shedding
+            controller that drops phases at light load changes the effective coupling
+            of the ones remaining. And the current in an individual winding is no
+            longer a clean triangle, which makes current sensing and per-phase
+            balancing harder than in an uncoupled design.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Interactive: the trade, and what coupling does to it</h3>
+        <p>Hold the transient inductance fixed and increase the coupling. Watch the
+        ripple fall while the transient response does not change &mdash; which is the
+        thing that is supposed to be impossible.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="ci-vin">\(V_{in}\)</label>
+                <input type="range" id="ci-vin" min="5" max="54" step="1" value="12">
+                <span class="range-value" id="ci-vin-val">12 V</span>
+            </div>
+            <div class="c4">
+                <label for="ci-vout">\(V_{out}\)</label>
+                <input type="range" id="ci-vout" min="0.6" max="5" step="0.05" value="1.2">
+                <span class="range-value" id="ci-vout-val">1.20 V</span>
+            </div>
+            <div class="c4">
+                <label for="ci-n">Phases</label>
+                <input type="range" id="ci-n" min="1" max="20" step="1" value="8">
+                <span class="range-value" id="ci-n-val">8</span>
+            </div>
+            <div class="c4">
+                <label for="ci-rho">Coupling \(\rho\)</label>
+                <input type="range" id="ci-rho" min="-0.75" max="0" step="0.01" value="-0.5">
+                <span class="range-value" id="ci-rho-val">−0.50</span>
+            </div>
+            <div class="c6">
+                <label for="ci-ltr">Transient inductance \(L_{tr}\) (held fixed)</label>
+                <input type="range" id="ci-ltr" min="20" max="400" step="5" value="75">
+                <span class="range-value" id="ci-ltr-val">75 nH</span>
+            </div>
+            <div class="c6">
+                <label for="ci-fsw">Switching frequency per phase</label>
+                <input type="range" id="ci-fsw" min="200" max="2000" step="50" value="600">
+                <span class="range-value" id="ci-fsw-val">600 kHz</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="ci-canvas" width="900" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Duty cycle</div><div class="v mono" id="ci-d">&mdash;</div></div>
+            <div class="box"><div class="k">Self inductance needed</div><div class="v mono" id="ci-lself">&mdash;</div></div>
+            <div class="box"><div class="k">Effective L for ripple</div><div class="v mono" id="ci-leff">&mdash;</div></div>
+            <div class="box"><div class="k">Ripple per phase</div><div class="v mono" id="ci-ripple">&mdash;</div></div>
+            <div class="box"><div class="k">Interleaving factor K</div><div class="v mono" id="ci-k">&mdash;</div></div>
+            <div class="box"><div class="k">Output ripple after cancellation</div><div class="v mono" id="ci-out">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="ci-note"></p>
+
+        <div class="checkpoint" data-kind="predict" data-answer="b">
+            <p class="cp-q">A 12 V to 1.2 V regulator runs 8 phases. Someone proposes
+            going to 10. What happens to the output ripple, and why is the answer
+            not "it falls by 20%"?</p>
+            <ol class="cp-options">
+                <li data-k="a">It falls by 20%, in proportion to the phase count
+                    <div class="cp-why">Ripple cancellation is not proportional to
+                    N. It depends on where \(ND\) sits relative to the nearest
+                    integer, which is a sawtooth function of duty cycle rather than a
+                    smooth one.</div></li>
+                <li data-k="b">It falls essentially to zero, because \(D = 0.1 = 1/10\)
+                    <div class="cp-why">Right. \(K = 0\) whenever \(D\) is an exact
+                    multiple of \(1/N\). At 12 V to 1.2 V the duty cycle is 0.1, so
+                    ten phases cancel completely while eight leave 22% of one
+                    phase's ripple. That is a step change, not a proportional one —
+                    and it is why phase count is chosen against the actual conversion
+                    ratio. Change the input to 13.2 V and D becomes 0.091, the exact
+                    cancellation is gone, and ten phases are only slightly better
+                    than eight.</div></li>
+                <li data-k="c">It rises, because more phases means more switching noise
+                    <div class="cp-why">More phases raise the effective ripple
+                    <em>frequency</em> to \(Nf_{sw}\), which makes the output
+                    capacitor's job easier, not harder. The switching noise spectrum
+                    moves up; the ripple amplitude does not rise.</div></li>
+                <li data-k="d">It does not change, since each phase still has the same inductor
+                    <div class="cp-why">Each phase's own ripple is unchanged, which
+                    is true and is not the question — the output sees the SUM of the
+                    phase ripples, and how they add depends on their phase
+                    relationship.</div></li>
+            </ol>
+            <div class="cp-then">
+                <p>Set the interactive above to 8 phases and then 10 and watch K
+                collapse. Then move \(V_{in}\) by a volt and watch the benefit
+                largely disappear &mdash; which is the practical caution.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. The trans-inductor VR, and where it came from</h3>
+        <p>Coupled inductors improve the transient by a factor of \((1+\rho)\), which
+        is bounded &mdash; you cannot push \(\rho\) to \(-1\) without the steady-state
+        behaviour falling apart. As processor \(di/dt\) kept rising, that bound
+        started to bind.</p>
+
+        <p>The <strong>trans-inductor voltage regulator</strong> attacks it
+        differently. Each phase inductor gains a secondary winding, and all the
+        secondaries are connected in <em>series</em> in a single loop with one shared
+        compensating inductor \(L_c\). The primary side still behaves like an ordinary
+        multiphase buck in steady state. But during a transient, a change in any one
+        phase is transformer-coupled into the shared loop and therefore into
+        <em>every</em> other phase at once.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \text{Steady state: the loop current is small, phases behave normally} \]
+            </div>
+            <div class="drv-step">
+                \[ \text{Transient: all phases respond together, and } L_c \text{ sets how strongly} \]
+                <span class="drv-why">Smaller \(L_c\) means tighter coupling between
+                phases and a faster collective response. \(L_c \to \infty\) is the
+                ordinary uncoupled multiphase buck.</span>
+            </div>
+        </div>
+
+        <p>So \(L_c\) becomes a design knob that trades transient speed against
+        steady-state ripple, independently of the main inductors. The costs are real:
+        an extra magnetic component, a loop carrying current around the whole
+        regulator, and current sensing that is harder still than the coupled-inductor
+        case.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>5. What else changed, and what it replaced</h3>
+        <p>The textbook buck is not wrong &mdash; it is the 1990s point-of-load
+        converter, and the assumptions underneath it have all moved. Each row below is
+        a thing that changed and the reason it changed.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Then</th><th>Now</th><th>Why it moved</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td>Discrete controller, driver, and two FETs</td>
+                        <td><strong>Smart power stage / DrMOS</strong>: driver and both FETs in one package with current and temperature telemetry</td>
+                        <td>The gate loop inductance between a separate driver and FET became a limiting factor at high \(di/dt\). Integrating it shortened the loop and made per-phase current sensing accurate enough for real balancing.</td>
+                    </tr>
+                    <tr>
+                        <td>One or two phases</td>
+                        <td><strong>8&ndash;20+ phases</strong>, with phase shedding at light load</td>
+                        <td>Hundreds of amps cannot be carried by one inductor, and \(K(D,N)\) rewards a phase count matched to the conversion ratio.</td>
+                    </tr>
+                    <tr>
+                        <td>Independent inductors</td>
+                        <td><strong>Coupled inductors</strong>, and TLVR where the transient demands it</td>
+                        <td>Load steps outran what a single inductance value could serve, as shown above.</td>
+                    </tr>
+                    <tr>
+                        <td>Regulate to a fixed voltage</td>
+                        <td><strong>Load line / adaptive voltage positioning</strong>: let the output droop deliberately with current</td>
+                        <td>If the rail is allowed to sit high at light load and low at heavy load, a load step starts from the top of the window and ends at the bottom, so the same tolerance band absorbs twice the excursion — and less output capacitance is needed. It also saves power at high load.</td>
+                    </tr>
+                    <tr>
+                        <td>Analog compensation, fixed at design time</td>
+                        <td><strong>Digital control with PMBus telemetry</strong>: per-rail voltage, current, temperature and fault logging</td>
+                        <td>A system with dozens of rails needs to be commissioned, monitored and sequenced by software, and compensation that can be tuned after layout is worth a great deal.</td>
+                    </tr>
+                    <tr>
+                        <td>12 V distributed around the board</td>
+                        <td><strong>48 V distribution</strong>, converted near the load</td>
+                        <td>At constant power, four times the voltage is a quarter of the current and a sixteenth of the distribution loss. Rack-level 48 V is now normal in data centres.</td>
+                    </tr>
+                    <tr>
+                        <td>48 V &rarr; 12 V &rarr; 1 V in two regulated stages</td>
+                        <td><strong>Hybrid and switched-capacitor first stages</strong>: unregulated 4:1 or 8:1 divider feeding a regulated buck</td>
+                        <td>A switched-capacitor divider moves energy in capacitors rather than magnetics and can exceed 98% efficiency, because it is not regulating. Regulation is left to the stage that must do it anyway.</td>
+                    </tr>
+                    <tr>
+                        <td>Regulator beside the processor</td>
+                        <td><strong>Vertical power delivery</strong>: the last stage underneath the package</td>
+                        <td>At 500 A, a milliohm of PDN resistance is 250 W. Shortening the path from the regulator to the die stopped being a layout nicety and became the dominant loss.</td>
+                    </tr>
+                    <tr>
+                        <td>Silicon MOSFETs everywhere</td>
+                        <td><strong>GaN</strong> in the higher-voltage stages</td>
+                        <td>No body-diode reverse recovery and much lower gate charge, so the same efficiency at several times the switching frequency — which shrinks the magnetics, which is usually the point.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">The thread running through all of it</span>
+            <p>Every one of those changes is a response to the same two pressures:
+            <strong>current went up</strong> and <strong>\(di/dt\) went up</strong>.
+            Higher current makes distribution loss dominate, which drives 48 V,
+            vertical delivery and phase count. Higher \(di/dt\) makes the transient
+            response dominate, which drives coupled inductors, TLVR, load line and
+            digital control. If you can name which of the two a given technique
+            serves, you understand why it exists.</p>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Build it in Circuit Toy</h3>
+        <p>Start from <span class="mono">Two-Phase Interleaved Buck</span> in the
+        gallery &mdash; it already has two phases running 180&deg; apart into a shared
+        output.</p>
+        <ol class="lab-steps">
+            <li class="lab-step">Run a transient and measure the output ripple.
+                Then set the duty cycle to 0.5 by making \(V_{out} = V_{in}/2\) and
+                watch it collapse: that is \(K(0.5, 2) = 0\), the exact-cancellation
+                result, on a real solver.</li>
+            <li class="lab-step">Move the duty away from 0.5 in small steps and plot
+                the ripple against \(D\). You should get the sawtooth shape of
+                \(K(D,N)\), not a smooth curve.</li>
+            <li class="lab-step">Halve both inductors and re-run. Ripple doubles and
+                the transient recovery gets faster &mdash; the trade in section 2,
+                measured rather than asserted.</li>
+            <li class="lab-step">Compare against <span class="mono">Buck Converter</span>
+                driven at the same total current to see what the second phase was
+                worth.</li>
+        </ol>
+        <p class="fig-note">Also worth opening alongside:
+        <span class="mono">CCM vs DCM</span> for what happens to a phase at light
+        load, and <span class="mono">Bulk, ceramic and plane inductance against a load
+        step</span>, which shows the output-capacitor side of the transient problem
+        this whole lesson is about.</p>
+    </div>
+
+    <div class="card">
+        <h3>What to carry forward</h3>
+        <div class="kv">
+            <div class="box"><div class="k">\(K = 0\) at \(D = k/N\)</div>
+                <div class="v">Ripple cancellation is a sawtooth in duty, not proportional to phase count.</div></div>
+            <div class="box"><div class="k">Coupling separates two inductances</div>
+                <div class="v">\(L_{tr} = L(1+\rho)\) for the transient, a larger \(L_{eff}\) for the ripple.</div></div>
+            <div class="box"><div class="k">Compare at equal \(L_{tr}\)</div>
+                <div class="v">Otherwise you are comparing two different transient designs and proving nothing.</div></div>
+            <div class="box"><div class="k">Load line is free capacitance</div>
+                <div class="v">Drooping on purpose lets one tolerance band absorb twice the step.</div></div>
+            <div class="box"><div class="k">Two pressures explain everything</div>
+                <div class="v">Current up drives 48 V and vertical delivery. \(di/dt\) up drives coupling and TLVR.</div></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var canvas = document.getElementById('ci-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+
+    // Normalised output ripple after interleaving: total / one phase.
+    function K(D, N) {
+        var m = Math.floor(N * D);
+        var num = ((m + 1) - N * D) * (N * D - m);
+        var den = N * D * (1 - D);
+        return den > 0 ? Math.max(0, num / den) : 0;
+    }
+
+    function update() {
+        var Vin = AD.num('ci-vin');
+        var Vout = Math.min(AD.num('ci-vout'), Vin * 0.95);
+        var N = Math.round(AD.num('ci-n'));
+        var rho = AD.num('ci-rho');
+        var Ltr = AD.num('ci-ltr') * 1e-9;
+        var fsw = AD.num('ci-fsw') * 1e3;
+
+        var D = Vout / Vin;
+
+        AD.setText('ci-vin-val', Vin + ' V');
+        AD.setText('ci-vout-val', Vout.toFixed(2) + ' V');
+        AD.setText('ci-n-val', String(N));
+        AD.setText('ci-rho-val', rho.toFixed(2));
+        AD.setText('ci-ltr-val', (Ltr * 1e9).toFixed(0) + ' nH');
+        AD.setText('ci-fsw-val', (fsw / 1e3).toFixed(0) + ' kHz');
+
+        // Hold the transient inductance fixed and let the self inductance grow
+        // with coupling - the only honest comparison.
+        var Lself = Ltr / (1 + rho);
+        var v1 = Vin - Vout, v2 = -Vout;
+        var Leff = (v1 * Lself * (1 - rho * rho)) / (v1 - rho * v2);
+
+        var ripplePhase = Vout * (1 - D) / (Leff * fsw);
+        var k = K(D, N);
+        var rippleOut = ripplePhase * k;
+
+        AD.setText('ci-d', D.toFixed(3));
+        AD.setText('ci-lself', AD.fmtUnit(Lself, 'H'));
+        AD.setText('ci-leff', AD.fmtUnit(Leff, 'H'));
+        AD.setText('ci-ripple', ripplePhase.toFixed(1) + ' A pk-pk');
+        AD.setText('ci-k', k.toFixed(3));
+        AD.setText('ci-out', rippleOut.toFixed(2) + ' A pk-pk');
+
+        // ---- K against duty, for this phase count and a few others -------
+        var w = canvas.width, h = canvas.height;
+        var ml = 60, mr = 20, mt = 26, mb = 40;
+        var pw = w - ml - mr, ph = h - mt - mb;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+        var X = function (d) { return ml + d * pw; };
+        var Y = function (kk) { return mt + ph - kk * ph * 0.9; };
+
+        [{ n: 1, c: 'rgba(255,255,255,0.25)' },
+         { n: 2, c: 'rgba(167,139,250,0.5)' },
+         { n: N, c: 'rgba(52,211,153,0.95)' }].forEach(function (s) {
+            ctx.strokeStyle = s.c;
+            ctx.lineWidth = s.n === N ? 2.6 : 1.4;
+            ctx.beginPath();
+            for (var i = 0; i <= 600; i++) {
+                var d = 0.002 + (i / 600) * 0.976;
+                if (i === 0) ctx.moveTo(X(d), Y(K(d, s.n))); else ctx.lineTo(X(d), Y(K(d, s.n)));
+            }
+            ctx.stroke();
+        });
+
+        // Where this design sits.
+        ctx.strokeStyle = 'rgba(251,191,36,0.9)';
+        ctx.setLineDash([4, 4]); ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(X(D), mt); ctx.lineTo(X(D), mt + ph); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(251,191,36,0.95)';
+        ctx.beginPath(); ctx.arc(X(D), Y(k), 5, 0, Math.PI * 2); ctx.fill();
+
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(52,211,153,0.95)';
+        ctx.fillText(N + ' phases', ml + 8, mt + 14);
+        ctx.fillStyle = 'rgba(167,139,250,0.7)';
+        ctx.fillText('2 phases', ml + 8, mt + 29);
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.fillText('1 phase', ml + 8, mt + 44);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(251,191,36,0.95)';
+        ctx.fillText('D = ' + D.toFixed(3), X(D), mt + ph + 16);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fillText('duty cycle →', ml + pw / 2, h - 10);
+        ctx.textAlign = 'left';
+        ctx.fillText('output ripple / one phase', ml + 8, mt + ph - 8);
+
+        var note;
+        if (k < 0.02) {
+            note = 'D = ' + D.toFixed(3) + ' is essentially an exact multiple of 1/' + N +
+                   ', so the phase ripples cancel almost completely at the output — ' +
+                   rippleOut.toFixed(2) + ' A from ' + ripplePhase.toFixed(1) +
+                   ' A per phase. This is the sweet spot, and it is narrow: nudge Vin by a ' +
+                   'volt and watch it disappear.';
+        } else {
+            note = 'At D = ' + D.toFixed(3) + ' with ' + N + ' phases, K = ' + k.toFixed(3) +
+                   ', so ' + (k * 100).toFixed(0) + '% of one phase’s ripple survives to the ' +
+                   'output. The nearest exact-cancellation duty for this phase count is ' +
+                   (Math.round(D * N) / N).toFixed(3) + '.';
+        }
+        note += '  Coupling of ' + rho.toFixed(2) + ' means the ' + AD.fmtUnit(Ltr, 'H') +
+                ' transient inductance is delivered by a ' + AD.fmtUnit(Lself, 'H') +
+                ' self inductance, which the ripple sees as ' + AD.fmtUnit(Leff, 'H') + '. ' +
+                'Slide the coupling to zero and watch the ripple rise while the transient ' +
+                'inductance — the number that sets how fast this thing can answer a load step — ' +
+                'does not move at all.';
+        AD.setText('ci-note', note);
+    }
+
+    ['ci-vin', 'ci-vout', 'ci-n', 'ci-rho', 'ci-ltr', 'ci-fsw'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    update();
+})();
+</script>

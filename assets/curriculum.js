@@ -1371,6 +1371,12 @@ const CURRICULUM = {
                     title: 'Digital Power Control and Multi-Phase VRMs',
                     description: 'Modern power management for processors',
                     topics: ['Multi-phase benefits', 'Digital control', 'Current sharing', 'VRM specifications']
+                },
+                {
+                    id: 15,
+                    title: 'Multiphase and Coupled-Inductor Voltage Regulators',
+                    description: 'What a processor rail actually uses, and what changed to make the textbook buck obsolete for it',
+                    topics: ['K = 0 at D = k/N', 'Ltr = L(1+rho)', 'TLVR and the shared loop', '48 V, vertical delivery, load line']
                 }
             ]
         },
@@ -2513,6 +2519,30 @@ const CURRICULUM = {
                     title: 'Interview Prep — Power Systems',
                     description: 'The whole module as it gets asked on a whiteboard',
                     topics: ['%Z is the fault current', 'P with angle, Q with magnitude', 'Why 765 kV, with numbers', 'What limits a line']
+                }
+            ]
+        },
+        // ========== MODULE 28: Amplifier Design ==========
+        // Every amplifier type, what each is for, and complete audio designs.
+        // Separate from the device modules on purpose: knowing how a BJT works
+        // does not tell you how to choose between class AB and class D, and
+        // that choice is the one a job actually asks for.
+        {
+            id: 28,
+            title: 'Amplifier Design',
+            description: 'Every amplifier type, its trade-offs, and complete designs from brief to bench',
+            lessons: [
+                {
+                    id: 1,
+                    title: 'The Amplifier Map',
+                    description: 'There are only four amplifiers; the source and the load choose for you',
+                    topics: ['V/V, V/A, A/V, A/A', 'Impedances are forced, not chosen', 'Gain distribution and Friis', 'Which family to reach for']
+                },
+                {
+                    id: 2,
+                    title: 'Amplifier Classes A to H',
+                    description: 'Conduction angle decides efficiency, distortion and heatsink size',
+                    topics: ['25% and 78.5% derived', 'Worst heat at 64% of swing', 'Why class C needs a tank', 'Class G, H and envelope tracking']
                 }
             ]
         }
