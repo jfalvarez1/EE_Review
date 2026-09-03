@@ -58,6 +58,8 @@ const GATING = [
      'a widget given an argument shape it cannot render - the [object Object] class of bug'],
     ['check-empty-containers.js',
      'a figure the markup promises, with a caption, that no code ever draws into'],
+    ['check-build-nets.js',
+     'a build table you cannot wire up: a lead going nowhere, or a node it never builds'],
     ['check-toy-parts.js',
      'a build table naming a part Circuit Toy does not have, which sends readers to the wrong one'],
     ['check-arithmetic.js',
