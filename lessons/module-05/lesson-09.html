@@ -379,7 +379,7 @@
                     <tr><td class="mono">VIN</td><td>Voltage source</td><td>pulse 0&nbsp;V to 5&nbsp;V, period 500&nbsp;&micro;s</td><td>from <span class="mono">5</span> to ground</td></tr>
                     <tr><td class="mono">RB</td><td>Resistor</td><td>330&nbsp;&Omega;</td><td>between <span class="mono">5</span> and <span class="mono">2</span></td></tr>
                     <tr><td class="mono">Q1</td><td>Transistor (BJT)</td><td><span class="mono">2N3904</span></td><td>collector <span class="mono">3</span>, base <span class="mono">2</span>, emitter ground</td></tr>
-                    <tr><td class="mono">L1</td><td>Inductor</td><td>100&nbsp;mH</td><td>between <span class="mono">1</span> and <span class="mono">3</span></td></tr>
+                    <tr><td class="mono">L1</td><td>Inductor</td><td>100&nbsp;mH</td><td>between <span class="mono">1</span> and <span class="mono">3a</span></td></tr>
                     <tr><td class="mono">R_coil</td><td>Resistor</td><td>100&nbsp;&Omega;</td><td>between <span class="mono">3</span> and <span class="mono">3a</span></td></tr>
                     <tr><td class="mono">D1</td><td>Diode</td><td><span class="mono">1N4148</span></td><td>anode <span class="mono">3</span>, cathode <span class="mono">1</span></td></tr>
                 </tbody>
@@ -391,6 +391,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="sim-check-m05l09"></div>
     </div>
 
     <div class="card">
@@ -1128,5 +1130,107 @@
         ]
     });
 
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('sim-check-m05l09', {
+        id: 'm05l09-switch',
+        title: 'Switching an inductor, and where the energy goes',
+        intro: 'A switch is easy until the load stores energy. The interesting ' +
+               'numbers here are not the on-state ones &mdash; they are what happens ' +
+               'in the microsecond after you turn it off, and whether the transistor ' +
+               'survives it.',
+        probes: [
+            { id: 'ipk', label: 'Coil current at the end of the on-time', node: 'I(L1)',
+              expect: '26', unit: 'mA', tol: 4,
+              why: 'The coil is 100&nbsp;mH with 100&nbsp;&Omega; in series, so ' +
+                   '&tau; = L/R = 1&nbsp;ms. The pulse is on for half of a ' +
+                   '500&nbsp;&micro;s period &mdash; 250&nbsp;&micro;s, or a quarter ' +
+                   'of a time constant &mdash; so the current only reaches ' +
+                   '(12/100)(1 &minus; e<sup>&minus;0.25</sup>) = 26&nbsp;mA of the ' +
+                   '119&nbsp;mA it would eventually settle at. A relay driven this ' +
+                   'way would never pull in, and the waveform tells you so at a ' +
+                   'glance: the ramp is still visibly straight.' },
+            { id: 'vsat', label: 'V(3) while the transistor is on',
+              expect: '0.1', unit: 'V', tol: 0.15,
+              why: 'V<sub>CE(sat)</sub>. The transistor is a switch here, not an ' +
+                   'amplifier, and the whole design intent is to get this as close ' +
+                   'to zero as the base drive allows.' },
+            { id: 'ib', label: 'Base current while on', node: 'I(RB)',
+              expect: '12.7', unit: 'mA', tol: 1.5,
+              why: '(5 &minus; 0.8)/330&nbsp;&Omega;. Against 26&nbsp;mA of ' +
+                   'collector current that is a forced &beta; of 2 &mdash; ' +
+                   'ludicrously overdriven, which is exactly what you want from a ' +
+                   'switch and exactly what you must not do to an amplifier. ' +
+                   'Saturation is a design goal on this page and a fault on every ' +
+                   'other one in the module.' },
+            { id: 'vpk', label: 'Peak V(3) just after turn-off, with D1 fitted',
+              expect: '12.7', unit: 'V', tol: 0.6,
+              why: 'V<sub>CC</sub> plus one diode drop, and not a volt more. The ' +
+                   'inductor insists on continuing its current; the diode gives it ' +
+                   'somewhere to go, and the collector can only rise until that path ' +
+                   'opens. This is the entire job of a flyback diode, in one ' +
+                   'reading.' }
+        ],
+        experiments: [
+            { action: 'Delete D1 and run it again. Watch V(3).',
+              expect: 'The collector <strong>flies up to the transistor&rsquo;s ' +
+                      'breakdown voltage</strong> — around 40 V for a 2N3904 — and ' +
+                      'sits there while the stored energy dumps into the junction.',
+              why: 'The inductor will produce whatever voltage it takes to keep its ' +
+                   'current flowing, and with the transistor off the only path left ' +
+                   'is avalanche. The energy is &frac12;LI&sup2; = 0.5 &times; ' +
+                   '0.1&nbsp;H &times; (26&nbsp;mA)&sup2; = <strong>34 ' +
+                   '&micro;J</strong>, delivered into a die a fraction of a ' +
+                   'millimetre across, every cycle. A 2N3904 will survive this ' +
+                   'briefly and will not survive it for a week. It is the single ' +
+                   'most common way a first relay driver fails, and the fix costs ' +
+                   'four cents.' },
+            { action: 'Clamp harder: replace D1 with a 24 V Zener in series with a ' +
+                      'diode, cathode to cathode.',
+              expect: 'The collector now rises to about <strong>36 V</strong>, and ' +
+                      'the current decays in roughly <strong>110 µs</strong> instead ' +
+                      'of a millisecond.',
+              why: 'A plain flyback diode is the gentlest clamp and therefore the ' +
+                   'slowest: the coil sees only its own resistance, so the current ' +
+                   'decays with the same 1&nbsp;ms time constant it charged with. ' +
+                   'Clamping at 24&nbsp;V instead forces the decay at ' +
+                   'dI/dt = V/L, so t = LI/V = 0.1 &times; 0.026/24 = ' +
+                   '108&nbsp;&micro;s. Faster release, higher voltage stress: the ' +
+                   'trade every relay and solenoid driver makes, and the reason ' +
+                   'automotive injector drivers clamp at 60&nbsp;V rather than at a ' +
+                   'diode drop.' },
+            { action: 'Let it settle: change the pulse period from 500 µs to 5 ms.',
+              expect: 'The current now reaches its full <strong>119 mA</strong>, and ' +
+                      'the coil dissipates <strong>1.4 W</strong> while the ' +
+                      'transistor dissipates <strong>12 mW</strong>.',
+              why: 'Five time constants is enough to settle, and the numbers ' +
+                   'separate cleanly: I&sup2;R in the coil is 0.119&sup2; &times; ' +
+                   '100 = 1.4&nbsp;W, while the switch loses only ' +
+                   'V<sub>CE(sat)</sub>&times;I = 0.1 &times; 0.119 = 12&nbsp;mW. ' +
+                   'That ratio is the whole argument for switching rather than ' +
+                   'regulating: the element in control barely heats, because it is ' +
+                   'either fully on or fully off.' },
+            { action: 'Starve the base: change RB from 330 Ω to 3.3 kΩ, with the ' +
+                      '5 ms period from the previous experiment.',
+              expect: 'I<sub>B</sub> falls to 1.3 mA, which needs a &beta; of 94 to ' +
+                      'carry 119 mA. V(3) <strong>lifts off the rail</strong> — the ' +
+                      'transistor has come out of saturation — and its dissipation ' +
+                      'rises by two orders of magnitude.',
+              why: 'A switch stops being a switch the moment it leaves saturation. ' +
+                   'The 2N3904&rsquo;s &beta; is only guaranteed to 100 at 10&nbsp;mA ' +
+                   'and falls to 30 by 100&nbsp;mA, so a base drive sized on the ' +
+                   'typical figure will work on the bench and fail on the line. The ' +
+                   'rule is to drive for a forced &beta; of 10 or less &mdash; ' +
+                   'I<sub>B</sub> = I<sub>C</sub>/10 &mdash; which is why the ' +
+                   'original 330&nbsp;&Omega; looks so extravagant and is not.' }
+        ]
+    });
 })();
 </script>
