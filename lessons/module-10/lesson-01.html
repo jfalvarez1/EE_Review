@@ -389,7 +389,14 @@
         </table>
 
         <div class="warn">
-            <strong>Important:</strong> Always use 10× probes for analog debugging! 1× probes add 100-300pF capacitance that loads high-impedance circuits and affects rise times.
+            <strong>Important:</strong> Use 10&times; probes for analog
+            debugging. A 1&times; probe is the coax itself, so its tip
+            capacitance is the cable's: <strong>60&ndash;120 pF</strong>
+            depending on length. A 10&times; probe divides that down to
+            <strong>10&ndash;15 pF</strong>, which is the whole point of the
+            9 M&Omega; and its trimmer. Against a 10 k&Omega; source, 100 pF
+            is a 160 kHz pole you did not design and cannot see &mdash; the
+            edge you are measuring is one your probe created.
         </div>
     </div>
 
@@ -443,7 +450,14 @@
         <p class="caption">Rise time measurement error decreases as scope BW increases relative to signal BW</p>
 
         <div class="notice">
-            <strong>Rule of Thumb:</strong> For <5% rise time error, scope BW should be ≥5× the signal's highest frequency content. For <2% error, use ≥10× BW.
+            <strong>Rule of Thumb:</strong> Rise times add in quadrature, so
+            the error for a bandwidth ratio <em>r</em> is
+            &radic;(1 + 1/<em>r</em>&sup2;) &minus; 1. That is
+            <strong>5.4% at 3&times;</strong>, <strong>2.0% at 5&times;</strong>
+            and <strong>0.5% at 10&times;</strong>. The usual advice &mdash;
+            five times the signal's highest frequency content &mdash; is
+            therefore a 2% rule, not a 5% one, and the curve below is that
+            expression plotted.
         </div>
     </div>
 
@@ -461,7 +475,8 @@
             </div>
             <div class="box">
                 <div class="k">6" Lead Resonance</div>
-                <div class="v mono">~50 MHz with 10pF probe</div>
+                <div class="v mono">~130 MHz with a 10&times; probe (10 pF)</div>
+                <div class="v" style="font-size:12px;color:var(--muted)">150 nH against 10 pF. Swap to a 1&times; probe and its ~70 pF drags the same lead down to ~50 MHz &mdash; slower ringing, and now inside the band you care about.</div>
             </div>
         </div>
 
@@ -492,6 +507,8 @@
         <p class="caption">Longer ground leads cause more ringing on fast edges</p>
 
         <p><strong>Solution:</strong> Use the ground spring or remove the probe ground lead and use the bare ground barrel directly on a nearby ground point.</p>
+
+        <div id="fault-find-m10l01"></div>
     </div>
 
     <!-- ============================================= -->
@@ -3209,5 +3226,143 @@
             explanation: 'The measured rise time includes the scope\'s limitation. Subtract in quadrature to get the true signal rise time.'
         });
     }
+})();
+</script>
+
+<script>
+/* The single most common false alarm on a bench, and the reason this section
+ * exists. Every reading below is consistent with the others and with the
+ * arithmetic in the boxes above: 6 inches of ground lead is about 150 nH,
+ * against a 10x probe's 10 pF that resonates at 1/(2*pi*sqrt(LC)) = 130 MHz,
+ * and swapping to a 1x probe's 70 pF moves it to 50 MHz. The frequency
+ * following the PROBE rather than the circuit is the whole diagnosis. */
+(function () {
+    if (typeof FaultFindWidget === 'undefined') return;
+    new FaultFindWidget('fault-find-m10l01', {
+        id: 'm10l01-ringing',
+        title: 'The edge rings. Is it the board or is it you?',
+        symptom:
+            'A 3.3&nbsp;V logic output drives a short trace to another chip on ' +
+            'the same board. On a 500&nbsp;MHz scope with a 10&times; probe and ' +
+            'the standard 6-inch ground lead, every rising edge shows ' +
+            '<strong>about 40% overshoot</strong> and four or five cycles of ' +
+            'decaying ringing at roughly <strong>130&nbsp;MHz</strong>. The ' +
+            'board is a four-layer stack with a solid ground plane, the trace ' +
+            'is 15&nbsp;mm long, and the receiving chip is behaving perfectly.' +
+            '<br><br>Something is ringing. Find out what, in as few probes as ' +
+            'you can.',
+        probes: [
+            { id: 'spring', label: 'Swap the 6" ground lead for the ground spring',
+              reading: 'ringing now ~450 MHz, amplitude far smaller',
+              note: 'The frequency <em>moved</em>, and it moved when you changed ' +
+                    'something about the <em>probe</em> rather than the circuit. ' +
+                    'A half-inch spring is roughly 12&nbsp;nH against the same ' +
+                    '10&nbsp;pF, which lands near 460&nbsp;MHz &mdash; and now ' +
+                    'above the scope’s own bandwidth, so most of it never ' +
+                    'reaches the screen.' },
+            { id: 'onex', label: 'Measure it again with a 1× probe, same 6" lead',
+              reading: 'ringing now ~50 MHz',
+              note: 'It moved again, in the direction the arithmetic predicts: a ' +
+                    '1&times; probe brings about 70&nbsp;pF instead of 10, and ' +
+                    '150&nbsp;nH against 70&nbsp;pF is 49&nbsp;MHz. Two probe ' +
+                    'changes, two different ringing frequencies, one unchanged ' +
+                    'circuit.' },
+            { id: 'shorted', label: 'Put the probe TIP on the same ground pad as the clip',
+              reading: 'the ringing is still there, same 130 MHz, same shape',
+              note: 'This is the decisive one. Both ends of the probe are on ' +
+                    'ground, so there is no signal being measured at all &mdash; ' +
+                    'and it still rings. Whatever you are looking at is being ' +
+                    'made inside the probe’s own loop.' },
+            { id: 'bwlimit', label: 'Turn on the scope’s 20 MHz bandwidth limit',
+              reading: 'the ringing disappears completely',
+              note: 'Satisfying and useless. A 20&nbsp;MHz filter removes ' +
+                    '130&nbsp;MHz ringing whether it is real or an artefact, so ' +
+                    'this tells you nothing about the cause. It is worth taking ' +
+                    'once to learn that it is not a diagnosis &mdash; hiding a ' +
+                    'symptom is the commonest way to ship a board that fails ' +
+                    'later.' },
+            { id: 'secondch', label: 'Probe the same node with channel 2 and a second probe',
+              reading: 'identical ringing on both channels',
+              note: 'Ambiguous, and worth understanding why: both probes have the ' +
+                    'same ground lead, so both build the same resonant loop. ' +
+                    'Agreement between two instruments making the same mistake ' +
+                    'is not evidence.' },
+            { id: 'trace', label: 'Compute the trace’s round-trip time. 15 mm on FR4, εr ≈ 4.2.',
+              reading: '~0.1 ns each way, so a reflection would ring near 2.5 GHz',
+              note: 'Signals travel about 6&nbsp;ps/mm in FR4 stripline, so ' +
+                    '15&nbsp;mm is 0.09&nbsp;ns and a quarter-wave resonance ' +
+                    'lands in the gigahertz. Whatever is ringing at 130&nbsp;MHz, ' +
+                    'it is not this trace. That is a twenty-fold discrepancy ' +
+                    '&mdash; the kind of number that settles an argument.' }
+        ],
+        causes: [
+            { id: 'lead',
+              text: 'The probe’s ground lead inductance is resonating with the ' +
+                    'probe tip capacitance. The ringing is an artefact of the ' +
+                    'measurement, not a property of the board.',
+              correct: true,
+              why: 'Six inches of wire is about 150&nbsp;nH, and a 10&times; ' +
+                   'probe puts roughly 10&nbsp;pF at the tip. ' +
+                   '1/(2&pi;&radic;LC) = 130&nbsp;MHz, which is the number on ' +
+                   'the screen to two significant figures. The fast edge dumps ' +
+                   'charge into that loop and it rings, exactly as any ' +
+                   'underdamped LC does. Everything you measured is consistent ' +
+                   'with it: shorten the lead and the frequency goes up as ' +
+                   '1/&radic;L, change the probe and it moves as 1/&radic;C, and ' +
+                   'short the tip to ground and it is still there, because the ' +
+                   'loop does not need the circuit to exist.' },
+            { id: 'driver',
+              text: 'The driving chip’s output stage is unstable and oscillating.',
+              correct: false,
+              why: 'An unstable output stage would ring at a frequency set by ' +
+                   'the chip, not by your probe. Yours moved from 130 to 450 to ' +
+                   '50&nbsp;MHz as you changed leads and probes, and nothing ' +
+                   'inside the chip knows which probe you picked up. It also ' +
+                   'survived shorting the probe tip to ground, at which point ' +
+                   'the chip is not connected to the measurement at all.' },
+            { id: 'reflect',
+              text: 'The trace is behaving as a transmission line and the edge ' +
+                    'is reflecting off an unterminated end.',
+              correct: false,
+              why: 'A reasonable first guess, and the arithmetic kills it: ' +
+                   '15&nbsp;mm of FR4 is about 0.09&nbsp;ns one way, so a ' +
+                   'quarter-wave resonance would be in the gigahertz, not at ' +
+                   '130&nbsp;MHz. Reflections also do not change frequency when ' +
+                   'you change probes. The general rule is worth keeping: a ' +
+                   'trace only behaves as a transmission line when its delay is ' +
+                   'a significant fraction of the edge time, and this one is ' +
+                   'nowhere near.' },
+            { id: 'bw',
+              text: 'The scope’s bandwidth is too low for this edge.',
+              correct: false,
+              why: 'Insufficient bandwidth <em>rounds</em> an edge, it does not ' +
+                   'add overshoot to it &mdash; a bandwidth-limited step comes ' +
+                   'out slower and smoother, never faster and lumpier. If ' +
+                   'anything, a wider scope would show this artefact more ' +
+                   'clearly, which is one of the small ironies of buying a ' +
+                   'better instrument.' },
+            { id: 'decap',
+              text: 'The driver is missing its decoupling capacitor, so the ' +
+                    'supply is sagging on each edge.',
+              correct: false,
+              why: 'A real fault and a real symptom &mdash; but it shows up as ' +
+                   'a dip on the supply rail and a slowed or drooping output ' +
+                   'edge, and it would not care which probe you used. Worth ' +
+                   'keeping on the list for next time, and worth ruling out the ' +
+                   'way you ruled this one out: change one thing and see whether ' +
+                   'the symptom follows it.' }
+        ],
+        lesson:
+            'The habit this is teaching: <strong>when a symptom changes as you ' +
+            'change the instrument, the instrument is the symptom</strong>. It ' +
+            'takes one probe to establish &mdash; shorten the ground lead, or ' +
+            'short the tip to the clip &mdash; and it costs nothing to do it ' +
+            'before you start redesigning a board.' +
+            '<br><br>The other habit is arithmetic before opinion. Two numbers ' +
+            'settled this: 150&nbsp;nH against 10&nbsp;pF is 130&nbsp;MHz, and ' +
+            '15&nbsp;mm of FR4 is 0.09&nbsp;ns. One matched the screen exactly ' +
+            'and the other missed by a factor of twenty. Neither needed ' +
+            'equipment you do not already have.'
+    });
 })();
 </script>
