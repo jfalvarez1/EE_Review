@@ -132,19 +132,23 @@
                     <tr><td class="mono">L_SPLIT_A</td><td>Inductor</td><td>5&nbsp;nH</td><td>between <span class="mono">split_a</span> and <span class="mono">split_mid</span></td></tr>
                     <tr><td class="mono">R_SPLIT</td><td>Resistor</td><td>10&nbsp;m&Omega;</td><td>between <span class="mono">split_mid</span> and <span class="mono">split_b</span></td></tr>
                     <tr><td class="mono">L_SPLIT_B</td><td>Inductor</td><td>5&nbsp;nH</td><td>between <span class="mono">split_b</span> and <span class="mono">gnd_ref</span></td></tr>
-                    <tr><td class="mono">VSIG</td><td>Voltage source</td><td>AC 1&nbsp;V for a frequency sweep</td><td>from <span class="mono">sig_out</span> to <span class="mono">gnd_a</span></td></tr>
-                    <tr><td class="mono">ISIG</td><td>Current source</td><td>0&nbsp;A DC</td><td>from <span class="mono">sig_out</span> to <span class="mono">gnd_ref</span></td></tr>
+                    <tr><td class="mono">ISOLID</td><td>Current source</td><td>AC 1&nbsp;A for a frequency sweep</td><td>from <span class="mono">gnd_a</span> to ground <em>(1&nbsp;A in, so every trace reads as an impedance)</em></td></tr>
+                    <tr><td class="mono">ISPLIT</td><td>Current source</td><td>AC 1&nbsp;A for a frequency sweep</td><td>from <span class="mono">split_a</span> to ground</td></tr>
                     <tr><td class="mono">VREF</td><td>Voltage source</td><td>0&nbsp;V DC</td><td>from <span class="mono">gnd_ref</span> to ground</td></tr>
                 </tbody>
             </table>
         </div>
 
         <p><strong>What to run:</strong> an <strong>AC sweep</strong> from 1&nbsp;kHz to 1&nbsp;GHz.</p>
-        <p><strong>What to watch:</strong> <span class="mono">VDB(gnd_a)</span>, <span class="mono">VDB(split_a)</span>.</p>
+        <p><strong>What to watch:</strong> <span class="mono">VDB(gnd_a)</span>, <span class="mono">VDB(split_a)</span> &mdash; both driven by 1&nbsp;A, so each curve <em>is</em> that ground path's impedance in dB&Omega;.</p>
+        <p>Two flat regions and two rising ones, and the interesting part is which gap is which. At 1&nbsp;kHz they sit at &minus;60 and &minus;40&nbsp;dB: 1&nbsp;m&Omega; against 10&nbsp;m&Omega;, a resistance ratio of ten. At 1&nbsp;GHz they are at 10 and 36&nbsp;dB &mdash; 3.14&nbsp;&Omega; against 62.8&nbsp;&Omega;, an <em>inductance</em> ratio of twenty. Each curve turns where &omega;L&nbsp;=&nbsp;R, at 318&nbsp;kHz for the plane and 159&nbsp;kHz for the split.</p>
+        <p><strong>Above those corners the resistance is irrelevant and only the inductance matters</strong>, and inductance is set by loop area, which is exactly what a split makes worse. That is the argument against splitting a ground plane in one graph: the split was supposed to keep digital return current out of the analogue section, and at the frequencies where that current is actually a problem the split has made the impedance twenty times higher.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m14l03-ground"></div>
     </div>
 
     <div class="card">
@@ -565,6 +569,108 @@
         ],
         solution: 'The return current must detour around the gap, creating a large loop area.',
         explanation: 'Large loop areas act as antennas, radiating and receiving EMI. This is why signals should never cross ground plane gaps.'
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m14l03-ground', {
+        id: 'm14l03-ground',
+        title: 'The split makes it worse where it matters',
+        intro: 'Both ground paths are driven with 1&nbsp;A, so every reading is that ' +
+               'path\'s impedance directly. Take the low-frequency numbers first, where ' +
+               'the answer is a resistance ratio and the split looks merely worse; then ' +
+               'take the high-frequency ones, where it is an inductance ratio and the ' +
+               'split looks like a mistake.',
+        probes: [
+            { id: 'solid_lf', label: 'VDB(gnd_a) at 1 kHz',
+              expect: '-60', unit: 'dB', tol: 1,
+              why: '1&nbsp;m&Omega; with 1&nbsp;A through it is 1&nbsp;mV, which is ' +
+                   '&minus;60&nbsp;dB. Down here the 500&nbsp;pH is nothing: ' +
+                   '&omega;L is 3&nbsp;&micro;&Omega;, three hundred times smaller than the ' +
+                   'resistance, so the plane is behaving like a piece of copper and its ' +
+                   'inductance is invisible.' },
+            { id: 'split_lf', label: 'VDB(split_a) at 1 kHz',
+              expect: '-40', unit: 'dB', tol: 1,
+              why: '10&nbsp;m&Omega;. Ten times worse than the plane, 20&nbsp;dB, and this ' +
+                   'is the comparison people usually have in mind &mdash; a narrow bridge ' +
+                   'has more resistance than a plane. It is true, and it is the least ' +
+                   'important thing about it.' },
+            { id: 'solid_hf', label: 'VDB(gnd_a) at 1 GHz',
+              expect: '9.9', unit: 'dB', tol: 1,
+              why: '2&pi;&nbsp;&times;&nbsp;1&nbsp;GHz&nbsp;&times;&nbsp;500&nbsp;pH = ' +
+                   '3.14&nbsp;&Omega;. The resistance has become irrelevant &mdash; a ' +
+                   'thousandth of the impedance &mdash; and <strong>the plane is now ' +
+                   'described entirely by its inductance</strong>. That is the first thing ' +
+                   'to take away: above a few hundred kilohertz, a ground connection is an ' +
+                   'inductor and nothing else.' },
+            { id: 'split_hf', label: 'VDB(split_a) at 1 GHz',
+              expect: '36.0', unit: 'dB', tol: 1,
+              why: '62.8&nbsp;&Omega;, from 10&nbsp;nH. <strong>Twenty times the plane, ' +
+                   '26&nbsp;dB</strong> &mdash; a bigger gap than at DC, and made of ' +
+                   'something else entirely. The 10&nbsp;nH is loop area, and loop area is ' +
+                   'exactly what cutting a slot in a plane creates: the return current has ' +
+                   'to go around.' },
+            { id: 'corner', label: 'Frequency where VDB(gnd_a) starts rising (ωL = R)',
+              expect: '318', unit: 'kHz', tol: 30,
+              why: 'R/(2&pi;L) = 1&nbsp;m&Omega;/(2&pi;&nbsp;&times;&nbsp;500&nbsp;pH). ' +
+                   'The split path turns even earlier, at 159&nbsp;kHz. <strong>Both ' +
+                   'corners sit far below any digital edge rate</strong>, which is the ' +
+                   'point: for the currents you were worried about, both grounds have ' +
+                   'already stopped being resistive, and every argument about resistance is ' +
+                   'about the wrong regime.' }
+        ],
+        experiments: [
+            { action: 'Make R_SPLIT 1 mΩ, the same as the plane — a very wide, very short ' +
+                      'bridge.',
+              expect: 'The low-frequency curves converge, and the <strong>1 GHz gap does ' +
+                      'not move at all</strong>.',
+              why: 'This is the experiment that settles the argument. You can make the ' +
+                   'bridge as fat as you like and it changes nothing above 159&nbsp;kHz, ' +
+                   'because up there the impedance is 2&pi;fL and L is set by geometry &mdash; ' +
+                   'the area enclosed by the current going out and coming back. <strong>You ' +
+                   'cannot fix an inductance problem with copper cross-section</strong>, ' +
+                   'only by shortening the loop, and a slot in a plane makes the loop ' +
+                   'longer by construction.' },
+            { action: 'Halve L_SPLIT_A and L_SPLIT_B to 2.5 nH each — route the bridge ' +
+                      'directly under the crossing signal.',
+              expect: 'The 1 GHz reading drops by <strong>6 dB</strong>, to about 30 dB.',
+              why: 'Half the inductance is half the impedance, and 6&nbsp;dB is what halving ' +
+                   'anything gives you. The physical meaning is worth being concrete about: ' +
+                   'the inductance of a return path is a property of where the current ' +
+                   'actually flows, and at these frequencies it flows <em>directly under the ' +
+                   'signal trace</em>, because that is the lowest-inductance path available ' +
+                   'to it. <strong>Return current follows the signal, not the shortest route ' +
+                   'to the supply</strong> &mdash; which is the single fact that makes ' +
+                   'ground-plane layout tractable, and the fact a split violates.' },
+            { action: 'Put the two networks back-to-back: inject 1 A into gnd_a and measure ' +
+                      'the voltage that appears at split_a.',
+              expect: 'Nothing, in this model — the two networks share only gnd_ref.',
+              why: 'And that is the honest limitation of a lumped model, worth knowing before ' +
+                   'you trust one. Two ground structures on a real board couple through ' +
+                   'mutual inductance and through the fields between them, and that coupling ' +
+                   'is often the actual failure mechanism &mdash; the noise does not travel ' +
+                   '<em>through</em> the split, it radiates across it. <strong>A lumped ' +
+                   'network can show you that a split raises impedance and cannot show you ' +
+                   'that it makes an antenna</strong>, which is why the measurement that ' +
+                   'settles these arguments in practice is a near-field probe rather than a ' +
+                   'simulation.' },
+            { action: 'Sweep further, to 10 GHz.',
+              expect: 'Both curves keep rising at <strong>20 dB per decade</strong>, forever.',
+              why: 'Which is a warning about the model rather than a result. A real plane ' +
+                   'stops behaving like a lumped inductor once its dimensions approach a ' +
+                   'quarter wavelength &mdash; at 10&nbsp;GHz that is 3.6&nbsp;mm in FR4, ' +
+                   'smaller than any board &mdash; and starts behaving like a resonant ' +
+                   'cavity, with peaks and nulls instead of a straight line. <strong>Every ' +
+                   'lumped model has a frequency above which it is confidently wrong</strong>, ' +
+                   'and the useful habit is knowing roughly where that is before reading the ' +
+                   'top of the graph.' }
+        ]
     });
 })();
 </script>
