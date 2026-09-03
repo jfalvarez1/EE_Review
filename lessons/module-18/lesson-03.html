@@ -147,17 +147,20 @@
                     <tr><td class="mono">EAMP</td><td>Controlled source</td><td>10</td><td>output <span class="mono">amp_out</span> to ground, sensing <span class="mono">sense_hi</span> to <span class="mono">sense_lo</span></td></tr>
                     <tr><td class="mono">RFILT</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">amp_out</span> and <span class="mono">adc_in</span></td></tr>
                     <tr><td class="mono">CFILT</td><td>Capacitor</td><td>100&nbsp;nF</td><td>between <span class="mono">adc_in</span> and ground</td></tr>
-                    <tr><td class="mono">RREF</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">iex_out</span> and ground</td></tr>
+                    <tr><td class="mono">RREF</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">rtd_lo</span> and ground <em>(the excitation returns through here &mdash; that is what makes the reading ratiometric)</em></td></tr>
                 </tbody>
             </table>
         </div>
 
         <p><strong>What to run:</strong> a <strong>DC sweep</strong> of <span class="mono">IEX</span> from 500&nbsp;&micro; to 1.50&nbsp;m.</p>
-        <p><strong>What to watch:</strong> <span class="mono">V(amp_out)</span>, <span class="mono">V(adc_in)</span>.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(amp_out)</span>, <span class="mono">V(adc_in)</span>, <span class="mono">V(rtd_lo)</span> &mdash; the last one is the drop across RREF, and it is the measurement's own reference.</p>
+        <p>The two sense leads carry no current, because EAMP's inputs take none. That is the entire point of a Kelvin connection: RLEAD1 and RLEAD2 are in the circuit and drop nothing, so their 1&nbsp;&Omega; &mdash; almost 1% of a Pt100 at 0&nbsp;&deg;C, which would be two and a half degrees of error &mdash; disappears from the answer. Sweep them from 1&nbsp;&Omega; to 100&nbsp;&Omega; and watch V(amp_out) not move.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m18l03-rtd"></div>
     </div>
 
     <div class="card">
@@ -555,6 +558,107 @@
         ctx.fillText(row[2], 270, y);
         ctx.fillText(row[3], 470, y);
         ctx.fillText(row[4], 600, y);
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m18l03-rtd', {
+        id: 'm18l03-rtd',
+        title: 'The excitation current should cancel out',
+        intro: 'A ratiometric measurement is one where the thing you are least sure of ' +
+               '&mdash; here the excitation current &mdash; divides out of the answer. ' +
+               'Check the absolute readings first, then change IEX and check that the ' +
+               '<em>ratio</em> does not move. That second check is the design.',
+        probes: [
+            { id: 'ref', label: 'V(rtd_lo) — across the reference resistor',
+              expect: '1.000', unit: 'V', tol: 0.005,
+              why: '1&nbsp;mA through 1&nbsp;k&Omega;. Every bit of the excitation goes ' +
+                   'through here on its way to ground, which is what makes it a valid ' +
+                   'reference &mdash; and it is the return path the table used to be ' +
+                   'missing entirely, leaving the RTD with nowhere to send its current.' },
+            { id: 'rtdv', label: 'V(sense_hi, sense_lo) — across the RTD',
+              expect: '109.63', unit: 'mV', tol: 0.5,
+              why: '1&nbsp;mA &times; 109.63&nbsp;&Omega;. That resistance is a Pt100 at ' +
+                   '25&nbsp;&deg;C by the linear form, 100(1 + 0.00385&nbsp;&times;&nbsp;25). ' +
+                   'The Callendar&ndash;Van&nbsp;Dusen equation gives 109.73 instead &mdash; ' +
+                   '0.1&nbsp;&Omega;, a quarter of a degree. <strong>At 25&nbsp;&deg;C the ' +
+                   'linear approximation is nearly free; a real 500&nbsp;&deg;C sensor ' +
+                   'reads 470&nbsp;&deg;C through it</strong> &mdash; 30 degrees out. That ' +
+                   'is what the quadratic term in Callendar&ndash;Van&nbsp;Dusen is for, ' +
+                   'and why it can be skipped near room temperature and cannot be skipped ' +
+                   'in a furnace.' },
+            { id: 'amp', label: 'V(amp_out)',
+              expect: '1.0963', unit: 'V', tol: 0.005,
+              why: '109.63&nbsp;mV &times; 10. Worth confirming against the sense voltage ' +
+                   'directly: if the gain looks like 9-point-something, the sense leads are ' +
+                   'carrying current they should not be.' },
+            { id: 'adc', label: 'V(adc_in)',
+              expect: '1.0963', unit: 'V', tol: 0.005,
+              why: 'Identical, because at DC no current flows through RFILT into a ' +
+                   'capacitor. RFILT and CFILT are the anti-alias filter and they cost ' +
+                   'nothing in accuracy &mdash; their corner is 1/(2&pi;&nbsp;&times;&nbsp;' +
+                   '1&nbsp;k&nbsp;&times;&nbsp;100&nbsp;nF) = <strong>1.59&nbsp;kHz</strong>. ' +
+                   'If V(adc_in) differs from V(amp_out) at DC, something is loading that ' +
+                   'node, and on real hardware that something is usually the converter\'s ' +
+                   'own input current.' },
+            { id: 'ratio', label: 'V(amp_out) divided by V(rtd_lo)',
+              expect: '1.0963', unit: '', tol: 0.005,
+              why: 'The whole point. This ratio is 10&nbsp;&times;&nbsp;R<sub>RTD</sub>/' +
+                   'R<sub>REF</sub>, and the excitation current has cancelled out of it ' +
+                   'completely. <strong>A converter that measures the RTD against ' +
+                   'V(rtd_lo) as its reference gets the temperature right even if IEX is ' +
+                   '20% off and drifting</strong> &mdash; which is why nearly every RTD ' +
+                   'front end sold today works this way, and why the current source in one ' +
+                   'is allowed to be cheap.' }
+        ],
+        experiments: [
+            { action: 'Change IEX from 1 mA to 1.5 mA and re-run.',
+              expect: 'V(amp_out) rises to 1.644 V, V(rtd_lo) rises to 1.5 V, and the ' +
+                      '<strong>ratio is still 1.0963</strong>.',
+              why: 'A 50% error in the excitation, and the measurement does not notice. ' +
+                   'That is what ratiometric buys, and it is worth doing once at an absurd ' +
+                   'value to see how completely the current drops out. The reference ' +
+                   '<em>resistor</em> still has to be accurate &mdash; the accuracy has been ' +
+                   'moved, not removed, from a current source to a resistor, which is the ' +
+                   'better place for it because a precision resistor is cheap and stable ' +
+                   'and a precision current source is neither.' },
+            { action: 'Make RLEAD1 and RLEAD2 100 Ω instead of 1 Ω.',
+              expect: 'V(amp_out) does <strong>not move at all</strong>.',
+              why: 'The sense leads carry no current, because the amplifier\'s inputs take ' +
+                   'none, so a hundred ohms in them drops nothing. This is the Kelvin ' +
+                   'connection and it is the entire reason RTDs are wired with more than ' +
+                   'two wires: at 1&nbsp;&Omega; per lead, a two-wire connection would add ' +
+                   '2&nbsp;&Omega; to a 109&nbsp;&Omega; measurement &mdash; <strong>five ' +
+                   'degrees of error from the cable</strong>, which changes as the cable ' +
+                   'warms.' },
+            { action: 'Raise IEX to 10 mA.',
+              expect: 'Everything scales, and the ratio still holds. In hardware the ' +
+                      'reading would <strong>drift upward and keep drifting</strong>.',
+              why: 'Self-heating, the error a simulation will never show you. 10&nbsp;mA ' +
+                   'through 109.63&nbsp;&Omega; is 11&nbsp;mW dissipated inside the sensor. ' +
+                   'A Pt100 in still air has a self-heating coefficient around ' +
+                   '0.5&nbsp;&deg;C/mW, so that is <strong>five degrees of error the sensor ' +
+                   'itself creates</strong>, and it settles over minutes rather than ' +
+                   'milliseconds so it looks like a real thermal transient. This is why ' +
+                   'RTD excitation is kept near 1&nbsp;mA even though more current would ' +
+                   'mean more signal, and why datasheets quote the coefficient separately ' +
+                   'for still air and for immersion.' },
+            { action: 'Make RREF 1.001 kΩ — a 0.1% error in the reference resistor.',
+              expect: 'The ratio shifts by 0.1%, which is about <strong>0.28 °C</strong>.',
+              why: 'Follow where the accuracy actually lives. The current source can be ' +
+                   '20% off; the reference resistor cannot be 0.1% off without costing you ' +
+                   'a quarter of a degree. <strong>Ratiometric design does not make error go ' +
+                   'away, it decides which component owns it</strong> &mdash; and the whole ' +
+                   'reason it is a good trade is that a 0.01% foil resistor with a ' +
+                   '2&nbsp;ppm/&deg;C tempco is an ordinary thing to buy, while a current ' +
+                   'source of that stability is not.' }
+        ]
     });
 })();
 </script>

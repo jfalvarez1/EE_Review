@@ -241,22 +241,25 @@
             <table>
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
-                    <tr><td class="mono">V_ex</td><td>Voltage source</td><td>set by <span class="mono">VEX</span></td><td>from <span class="mono">bridge_top</span> to ground</td></tr>
-                    <tr><td class="mono">R1</td><td>Resistor</td><td></td><td>between <span class="mono">bridge_top</span> and <span class="mono">vplus</span></td></tr>
-                    <tr><td class="mono">R2</td><td>Resistor</td><td></td><td>between <span class="mono">bridge_top</span> and <span class="mono">vminus</span></td></tr>
-                    <tr><td class="mono">R3</td><td>Resistor</td><td></td><td>between <span class="mono">vplus</span> and ground</td></tr>
-                    <tr><td class="mono">R4</td><td>Resistor</td><td></td><td>between <span class="mono">vminus</span> and ground</td></tr>
-                    <tr><td class="mono">R_gain</td><td>Resistor</td><td></td><td>between ground and ground</td></tr>
-                    <tr><td class="mono">E_inamp</td><td>Controlled source</td><td>0 vminus 0 0 {GAIN} {-GAIN}</td><td>output <span class="mono">out</span> to ground, sensing <span class="mono">POLY(2)</span> to <span class="mono">vplus</span></td></tr>
+                    <tr><td class="mono">V_ex</td><td>Voltage source</td><td>5&nbsp;V DC</td><td>from <span class="mono">bridge_top</span> to ground</td></tr>
+                    <tr><td class="mono">R1</td><td>Resistor</td><td>350&nbsp;&Omega;</td><td>between <span class="mono">bridge_top</span> and <span class="mono">vplus</span></td></tr>
+                    <tr><td class="mono">R2</td><td>Resistor</td><td>350&nbsp;&Omega;</td><td>between <span class="mono">bridge_top</span> and <span class="mono">vminus</span></td></tr>
+                    <tr><td class="mono">R3</td><td>Resistor</td><td>353.5&nbsp;&Omega; &mdash; <strong>the active gauge</strong> <em>(350 at rest; 5&nbsp;m&epsilon; at GF&nbsp;2 is +1%)</em></td><td>between <span class="mono">vplus</span> and ground</td></tr>
+                    <tr><td class="mono">R4</td><td>Resistor</td><td>350&nbsp;&Omega;</td><td>between <span class="mono">vminus</span> and ground</td></tr>
+                    <tr><td class="mono">E_inamp</td><td>VCVS</td><td>gain 100 <em>(an INA with R<sub>G</sub> = 499&nbsp;&Omega;: 1 + 49.4k/499 = 100)</em></td><td>output <span class="mono">out</span> to ground, sensing <span class="mono">vplus</span> to <span class="mono">vminus</span></td></tr>
                 </tbody>
             </table>
         </div>
 
-        <p><strong>What to run:</strong> a <strong>DC sweep</strong> of <span class="mono">STRAIN</span> from 0&nbsp; to 5&nbsp;m.</p>
+        <p><strong>What to run:</strong> a <strong>DC operating point</strong>; then set R3 by hand to 350&nbsp;&Omega; (zero strain) and 353.5&nbsp;&Omega; (5&nbsp;m&epsilon;), which is the sweep.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(vplus,vminus)</span>, <span class="mono">V(out)</span>.</p>
+        <p>Note what the bridge is doing: it takes 5&nbsp;V and returns 12&nbsp;mV, discarding 2.5&nbsp;V of common mode on each side to do it. That ratio &mdash; <strong>a differential signal 400 times smaller than the common-mode voltage it rides on</strong> &mdash; is why a bridge needs an instrumentation amplifier and not just a gain stage, and why the CMRR number on that amplifier's datasheet is the first thing to read.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m18l07-bridge"></div>
     </div>
 
         <div class="card">
@@ -1502,3 +1505,101 @@
         })();
     });
     </script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m18l07-bridge', {
+        id: 'm18l07-bridge',
+        title: 'Twelve millivolts on top of two and a half volts',
+        intro: 'Check this one to four figures, because the interesting result is a ' +
+               '<em>discrepancy</em>: the exact answer and the textbook answer differ by ' +
+               'half a percent, and that gap is a real property of the topology rather ' +
+               'than a rounding error. Do the zero-strain case first &mdash; if the bridge ' +
+               'is not balanced at rest, nothing after it means anything.',
+        probes: [
+            { id: 'vminus', label: 'V(vminus) — the reference half',
+              expect: '2.5000', unit: 'V', tol: 0.002,
+              why: 'Two equal 350&nbsp;&Omega; arms across 5&nbsp;V. This half never moves; ' +
+                   'it exists only so the active half has something to be compared with, ' +
+                   'and it is the reason a bridge measures a <em>change</em> in resistance ' +
+                   'rather than a resistance.' },
+            { id: 'vplus', label: 'V(vplus) with R3 at 353.5 Ω',
+              expect: '2.51244', unit: 'V', tol: 0.0005,
+              why: '5 &times; 353.5/703.5. Note the arithmetic: a 1% change in one arm ' +
+                   'moves this node by 0.5%, because the arm is only half the divider. ' +
+                   '<strong>A quarter bridge gives you half of what you might expect ' +
+                   'before the differencing even starts.</strong>' },
+            { id: 'diff', label: 'V(vplus, vminus) — the bridge output',
+              expect: '12.438', unit: 'mV', tol: 0.05,
+              why: 'And here is the discrepancy worth chasing. The textbook quarter-bridge ' +
+                   'formula is V<sub>EX</sub>&nbsp;&times;&nbsp;GF&nbsp;&times;&nbsp;' +
+                   '&epsilon;/4 = 5 &times; 2 &times; 0.005/4 = <strong>12.50&nbsp;mV</strong>, ' +
+                   'but the exact answer is 12.438. The formula assumes the changing arm ' +
+                   'stays 350&nbsp;&Omega; in the denominator, and it does not &mdash; it is ' +
+                   '353.5. <strong>The 0.5% shortfall is the quarter bridge\'s own ' +
+                   'nonlinearity</strong>, it grows with strain, and it is why a load cell ' +
+                   'that has to be accurate does not use one arm.' },
+            { id: 'out', label: 'V(out) after the amplifier',
+              expect: '1.2438', unit: 'V', tol: 0.005,
+              why: '12.438&nbsp;mV &times; 100. A gain of 100 turns a 12&nbsp;mV signal into ' +
+                   'something an ADC can resolve, and the R<sub>G</sub> that sets it is ' +
+                   '499&nbsp;&Omega; on a standard part &mdash; 1 + 49.4k/499 = 100.0, one ' +
+                   'E96 resistor with no trimming.' },
+            { id: 'cmr', label: 'The common-mode voltage the amplifier has to ignore, (V(vplus) + V(vminus))/2',
+              expect: '2.506', unit: 'V', tol: 0.005,
+              why: 'This is the number that decides which amplifier you can use. The signal ' +
+                   'is 12&nbsp;mV and it rides on 2.5&nbsp;V, a ratio of about 200:1. To ' +
+                   'keep the common-mode error below one part in a thousand of the signal ' +
+                   'you need roughly <strong>106&nbsp;dB of CMRR</strong> &mdash; which is ' +
+                   'an instrumentation amplifier, not a difference amplifier built from four ' +
+                   'discrete resistors, whose CMRR is limited to about 20&nbsp;log(1/2&times;' +
+                   'tolerance) and lands near 48&nbsp;dB with 0.1% parts.' }
+        ],
+        experiments: [
+            { action: 'Set R3 back to 350 Ω — zero strain.',
+              expect: 'V(out) is <strong>exactly 0</strong>.',
+              why: 'A balanced bridge outputs nothing regardless of the excitation voltage, ' +
+                   'the temperature, or the absolute resistance, as long as the ratios ' +
+                   'match. That is the property being bought: <strong>a bridge is a null ' +
+                   'detector</strong>, and a null is the one measurement that needs no ' +
+                   'calibrated reference. In hardware you will not get exactly zero, and the ' +
+                   'residue is the offset the datasheet quotes in mV/V.' },
+            { action: 'Make it a full bridge: R2 and R3 to 353.5 Ω, R1 and R4 to 346.5 Ω.',
+              expect: 'The output becomes <strong>50.000 mV exactly</strong> — four times ' +
+                      'as much, and with the 0.5% error gone.',
+              why: 'Both effects at once, and they have different causes. Four times the ' +
+                   'output because all four arms now contribute instead of one. And ' +
+                   '<em>exactly</em> 50&nbsp;mV, because each half is now 353.5/700 against ' +
+                   '346.5/700 and the denominators are identical &mdash; the nonlinearity ' +
+                   'cancels algebraically rather than being made small. <strong>This is why ' +
+                   'every load cell you can buy is a full bridge</strong>: it is not for the ' +
+                   'gain, it is for the linearity, and the gain is free.' },
+            { action: 'Raise V_ex from 5 V to 10 V.',
+              expect: 'The output doubles to 24.9 mV.',
+              why: 'Which sounds like free signal, and it is the first thing people try. The ' +
+                   'limit is self-heating: at 10&nbsp;V a 350&nbsp;&Omega; bridge dissipates ' +
+                   '10&sup2;/700&nbsp;&times;&nbsp;2 = 286&nbsp;mW, four times the 71&nbsp;mW ' +
+                   'at 5&nbsp;V, all of it in the gauge that is glued to the thing you are ' +
+                   'measuring. <strong>A strain gauge that warms up reads strain that is not ' +
+                   'there</strong>, because the gauge alloy has a temperature coefficient of ' +
+                   'its own and because the specimen expands. Excitation voltage is chosen ' +
+                   'against a thermal limit, not a noise one.' },
+            { action: 'Simulate a lead-resistance error: put 1 Ω in series with R3\'s ground ' +
+                      'connection.',
+              expect: 'V(out) shifts by <strong>3.5 mV</strong> — 1.4 millistrain of ' +
+                      'strain that is not there, from a wire.',
+              why: 'The bridge output goes from 12.438 to 15.969&nbsp;mV, and it has no way of ' +
+                   'knowing the extra 3.5&nbsp;mV came from a wire rather than the specimen. ' +
+                   'Scaled against the 12.438&nbsp;mV that 5&nbsp;m&epsilon; produces, that ' +
+                   'is 1.4&nbsp;m&epsilon; of pure fiction — a third of the reading. <strong>This is why strain ' +
+                   'gauges are wired in three-wire or six-wire configurations</strong>, ' +
+                   'putting equal lead resistance in adjacent arms so the bridge cancels it ' +
+                   'the same way it cancels temperature.' }
+        ]
+    });
+})();
+</script>
