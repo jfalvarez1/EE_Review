@@ -209,6 +209,12 @@ const CURRICULUM = {
                     title: 'Industry Advanced Applications Selection Guide',
                     description: 'Choosing the right topology for applications',
                     topics: ['Requirements analysis', 'IC selection criteria', 'Trade-off evaluation', 'Design validation']
+                },
+                {
+                    id: 15,
+                    title: 'Interview Prep — Filters, TIAs, Instrumentation and Noise',
+                    description: 'The whole module as it gets asked on a whiteboard',
+                    topics: ['4 nV/rtHz per kohm', 'Q as positive feedback', 'Why an INA beats a difference amp', 'kT/C and where R cancels']
                 }
             ]
         },
@@ -1691,6 +1697,12 @@ const CURRICULUM = {
                     title: 'Testing and Fixing Monotonicity',
                     description: 'Practical methods to detect and mitigate non-monotonic behavior',
                     topics: ['Histogram test procedure', 'Servo loop testing', 'Signal averaging', 'Component selection guidelines']
+                },
+                {
+                    id: 19,
+                    title: 'Interview Prep — Data Conversion',
+                    description: 'The whole module as it gets asked on a whiteboard',
+                    topics: ['Where 6.02N + 1.76 comes from', 'Jitter follows input frequency', 'Why Nyquist is not enough', 'A SAR input is a capacitor']
                 }
             ]
         },
@@ -2465,6 +2477,12 @@ const CURRICULUM = {
                     title: 'Specifying a Transmission Line End to End',
                     description: 'One worked project from brief to spec sheet',
                     topics: ['N-1 sizes the conductor', 'Span versus structure-height trade', 'Loss economics', 'The line spec sheet']
+                },
+                {
+                    id: 20,
+                    title: 'Interview Prep — Power Systems',
+                    description: 'The whole module as it gets asked on a whiteboard',
+                    topics: ['%Z is the fault current', 'P with angle, Q with magnitude', 'Why 765 kV, with numbers', 'What limits a line']
                 }
             ]
         }
