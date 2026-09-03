@@ -2011,6 +2011,12 @@ const CURRICULUM = {
                     title: 'Receiver and Transmitter Architectures',
                     description: 'Superhet, zero-IF, low-IF and direct sampling - which hard problem you prefer',
                     topics: ['The image and frequency planning', 'DC offset, 1/f and IIP2', 'I/Q imbalance and image rejection', 'LO pulling', 'What changed in industry']
+                },
+                {
+                    id: 11,
+                    title: 'Antennas, and the Board They Sit On',
+                    description: 'Why the ground plane is the antenna, and the bound that says small cannot be broadband',
+                    topics: ['Radiation resistance and efficiency', 'The Chu limit', 'Chip vs IFA vs whip', 'Everything that detunes it', 'Tuning in the real product']
                 }
             ]
         },
