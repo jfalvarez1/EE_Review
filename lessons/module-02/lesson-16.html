@@ -1,0 +1,545 @@
+<!-- Module 2, Lesson 16: Noise — the Floor You Cannot Design Below -->
+<div class="lesson-content" data-module="2" data-lesson="16">
+
+    <div class="card">
+        <h2>Noise: the Floor You Cannot Design Below</h2>
+        <p>Every other limit in this course is a design choice you could revisit
+        with a better part or more current. Noise is not. A resistor at room
+        temperature generates a voltage across itself because its electrons are
+        warm, and no amount of money changes that. What you get to choose is how
+        much you add on top, and whether the thing you are measuring is above the
+        floor at all.</p>
+
+        <div class="notice">
+            <strong>This lesson is a budget, not a theory.</strong> The aim is that
+            you can look at a schematic and say, within a factor of two and without
+            a simulator, what its noise floor is and which component set it. That is
+            a fifteen-minute skill and it is the difference between choosing parts
+            and guessing at them.
+        </div>
+
+        <div class="analogy">
+            <span class="analogy-label">Why noise adds the way it does</span>
+            <p>Noise sources are like <strong>people talking in a room</strong>, all
+            saying different things at once. Two conversations at the same volume do
+            not make one twice as loud &mdash; the sounds are uncorrelated, so the
+            <em>powers</em> add and the amplitude only goes up by &radic;2.</p>
+            <p>The practical consequence is the useful part. A source at a third of
+            the dominant one adds <strong>0.45 dB</strong>. At a fifth, 0.17 dB.
+            So a noise budget is not a list of things to minimise &mdash; it is a
+            search for the one or two that matter, after which everything else is
+            free. Chase the loudest voice; the rest of the room is a rounding
+            error.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> two
+            <em>correlated</em> sources do add in amplitude, and that happens for
+            real &mdash; the same interference coupling into two inputs, or one
+            supply's noise reaching two stages. Quadrature is for uncorrelated
+            sources only, and interference is not noise in this sense at all: it has
+            a cause you can go and remove.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. Where it comes from &mdash; three mechanisms</h3>
+
+        <h4>Thermal (Johnson&ndash;Nyquist): every resistor, always</h4>
+        <div class="derivation">
+            <div class="drv-step">
+                \[ e_n = \sqrt{4kTR} \quad [\mathrm{V}/\sqrt{\mathrm{Hz}}] \]
+                <span class="drv-why">Charge carriers are in thermal motion, so a
+                resistor has a fluctuating voltage across it even with no current
+                flowing. It depends on temperature and resistance, and on nothing
+                else — not the material, not the construction, not the price.</span>
+            </div>
+            <div class="drv-step">
+                \[ \boxed{4\,\mathrm{nV}/\sqrt{\mathrm{Hz}} \text{ for } 1\,\mathrm{k}\Omega \text{ at room temperature}} \]
+                <span class="drv-why">The number to memorise. Everything else scales
+                as \(\sqrt{R}\), so you never need the constants again.</span>
+            </div>
+            <div class="drv-step">
+                \[ 100\,\Omega: 1.3 \qquad 10\,\mathrm{k}: 12.9 \qquad 100\,\mathrm{k}: 40.7 \qquad 1\,\mathrm{M}: 129 \]
+            </div>
+        </div>
+
+        <h4>Shot: current is made of electrons</h4>
+        <div class="derivation">
+            <div class="drv-step">
+                \[ i_n = \sqrt{2qI} \quad [\mathrm{A}/\sqrt{\mathrm{Hz}}] \]
+                <span class="drv-why">Charge is discrete, so a DC current crossing a
+                barrier arrives as countable events with Poisson statistics. It needs
+                a barrier — a junction — so a plain resistor has thermal noise but
+                not shot noise.</span>
+            </div>
+            <div class="drv-step">
+                \[ 1\,\mu\mathrm{A}: 0.57\,\mathrm{pA}/\sqrt{\mathrm{Hz}} \qquad 1\,\mathrm{mA}: 17.9 \]
+                <span class="drv-why">Note it goes as \(\sqrt I\): the noise
+                <em>current</em> grows, but relative to the signal current it shrinks.
+                More current is a better signal-to-noise ratio, which is why
+                low-noise front ends burn current.</span>
+            </div>
+        </div>
+
+        <h4>Flicker (1/f): the one that ruins DC measurements</h4>
+        <div class="derivation">
+            <div class="drv-step">
+                \[ e_n(f) = e_{n,wb}\sqrt{1 + \frac{f_c}{f}} \]
+                <span class="drv-why">Below the corner frequency \(f_c\), noise
+                density rises as \(1/\sqrt f\). Caused by carriers being trapped and
+                released at surface states, so it depends on the process and the
+                device — bipolar inputs have a corner of a few hertz, CMOS a few
+                kilohertz.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{Band-limited: } e_{rms} = e_{n,wb}\sqrt{f_c\ln\frac{f_2}{f_1}} \]
+                <span class="drv-why">The logarithm is why every decade contributes
+                equally, and why "0.1 to 10 Hz noise" is the figure precision
+                datasheets quote — averaging for longer does not help.</span>
+            </div>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">Which one you are fighting</span>
+            <p><strong>High source impedance</strong> &rarr; thermal, from the source
+            itself. <strong>Low impedance and wide band</strong> &rarr; the
+            amplifier's voltage noise. <strong>Near DC</strong> &rarr; flicker, and
+            the broadband number on the datasheet's front page is the wrong one.
+            <strong>Photodiodes and anything with a bias current</strong> &rarr;
+            shot.</p>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. The amplifier's two numbers, and the impedance that decides between them</h3>
+        <p>A noise datasheet gives you \(e_n\) in nV/&radic;Hz and \(i_n\) in
+        pA/&radic;Hz. They are not two ways of saying the same thing &mdash; which
+        one hurts depends entirely on what is connected to the input.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ e_{total} = \sqrt{\underbrace{4kTR_s}_{\text{source}} + \underbrace{e_n^2}_{\text{voltage}} + \underbrace{(i_nR_s)^2}_{\text{current}}} \]
+                <span class="drv-why">Three terms. The current noise only becomes a
+                voltage by flowing through the source resistance, which is why it is
+                harmless at low impedance and fatal at high.</span>
+            </div>
+            <div class="drv-step">
+                \[ R_{opt} = \frac{e_n}{i_n} \]
+                <span class="drv-why">Where the two amplifier terms are equal, and
+                where that amplifier is at its best. Below it, voltage noise
+                dominates; above it, current noise does.</span>
+            </div>
+        </div>
+
+        <div class="notice">
+            <strong>"Low-noise op-amp" on its own is not a specification.</strong> A
+            FET-input part with forty times less current noise is <em>worse</em> than
+            a bipolar one by 12 dB at a 150 &Omega; source, and better by a mile at
+            80 k&Omega;. The first question in any noise design is always: what is
+            the source impedance?
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. Noise gain is not signal gain</h3>
+        <p>This is the idea the rest of the module keeps using, and it is worth
+        stating on its own.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \text{Noise gain} = 1 + \frac{R_f}{R_1} \qquad\text{always} \]
+                <span class="drv-why">Whatever appears at the op-amp's own input —
+                its \(e_n\), its offset — is amplified by this. It does not care
+                which end of \(R_1\) the signal came in.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{Non-inverting: signal gain} = 1 + \frac{R_f}{R_1} \quad \text{— the same} \]
+            </div>
+            <div class="drv-step">
+                \[ \text{Inverting: signal gain} = -\frac{R_f}{R_1} \quad \text{— NOT the same} \]
+            </div>
+            <div class="drv-step">
+                \[ \text{Inverting unity gain: signal} \times 1, \text{ noise} \times 2 \;\Longrightarrow\; \textbf{6 dB worse} \]
+                <span class="drv-why">An inverting buffer and a follower have the
+                same signal gain and differ by 6 dB in output noise. If you do not
+                need the inversion, that is 6 dB paid for nothing.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. Bandwidth: noise is not band-limited where you think</h3>
+        <div class="derivation">
+            <div class="drv-step">
+                \[ V_{rms} = e_n\sqrt{\mathrm{BW}_{noise}} \]
+                <span class="drv-why">Density times the square root of bandwidth.
+                Halving the bandwidth buys you only \(\sqrt2\), which is why
+                filtering is a weak lever compared with fixing the dominant
+                source.</span>
+            </div>
+            <div class="drv-step">
+                \[ \mathrm{BW}_{noise} = \frac{\pi}{2}f_{-3\mathrm{dB}} = 1.57\,f_{-3\mathrm{dB}} \quad\text{(one pole)} \]
+                <span class="drv-why">A single-pole filter keeps letting noise
+                through above its corner, so the equivalent brick-wall bandwidth is
+                57% wider than the corner. Forgetting this understates the noise by
+                25%.</span>
+            </div>
+            <div class="drv-step">
+                \[ \text{2 poles: } 1.11f \qquad \text{3: } 1.05f \qquad \text{4: } 1.03f \]
+                <span class="drv-why">A sharper filter converges on the corner
+                frequency, which is one of the quieter arguments for a higher-order
+                anti-alias filter.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Interactive: build a noise budget</h3>
+        <p>An inverting stage, with every contributor shown as a share of the total
+        <em>power</em>. Watch what happens when you scale the resistors: the gain does
+        not change and the noise does.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="nb-r1">\(R_1\)</label>
+                <input type="range" id="nb-r1" min="1.7" max="6" step="0.02" value="3">
+                <span class="range-value" id="nb-r1-val">1 kΩ</span>
+            </div>
+            <div class="c4">
+                <label for="nb-gain">Signal gain \(R_f/R_1\)</label>
+                <input type="range" id="nb-gain" min="1" max="100" step="1" value="10">
+                <span class="range-value" id="nb-gain-val">10</span>
+            </div>
+            <div class="c4">
+                <label for="nb-en">Op-amp \(e_n\)</label>
+                <input type="range" id="nb-en" min="0.8" max="30" step="0.1" value="4">
+                <span class="range-value" id="nb-en-val">4.0 nV/√Hz</span>
+            </div>
+            <div class="c4">
+                <label for="nb-in">Op-amp \(i_n\)</label>
+                <input type="range" id="nb-in" min="-3" max="1.3" step="0.05" value="0">
+                <span class="range-value" id="nb-in-val">1.00 pA/√Hz</span>
+            </div>
+            <div class="c6">
+                <label for="nb-bw">Signal bandwidth (−3 dB)</label>
+                <input type="range" id="nb-bw" min="1" max="7" step="0.05" value="5">
+                <span class="range-value" id="nb-bw-val">100 kHz</span>
+            </div>
+            <div class="c6">
+                <label for="nb-poles">Filter order</label>
+                <input type="range" id="nb-poles" min="1" max="4" step="1" value="1">
+                <span class="range-value" id="nb-poles-val">1 pole</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="nb-canvas" width="900" height="300"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Noise gain</div><div class="v mono" id="nb-ng">&mdash;</div></div>
+            <div class="box"><div class="k">Total, at the output</div><div class="v mono" id="nb-out">&mdash;</div></div>
+            <div class="box"><div class="k">Referred to the input</div><div class="v mono" id="nb-rti">&mdash;</div></div>
+            <div class="box"><div class="k">Noise bandwidth</div><div class="v mono" id="nb-bwn">&mdash;</div></div>
+            <div class="box"><div class="k">Integrated</div><div class="v mono" id="nb-int">&mdash;</div></div>
+            <div class="box"><div class="k">Dominant contributor</div><div class="v mono" id="nb-dom">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="nb-note"></p>
+
+        <div class="checkpoint" data-kind="design" data-answer="b">
+            <p class="cp-q">A gain-of-10 inverting stage uses
+            \(R_1 = 10\,\mathrm{k}\Omega\), \(R_f = 100\,\mathrm{k}\Omega\). A
+            colleague suggests 1 k and 10 k instead. Same gain &mdash; what does it
+            buy?</p>
+            <ol class="cp-options">
+                <li data-k="a">Nothing. The gain is a ratio, so the noise is the same.
+                    <div class="cp-why">The gain is a ratio and the noise is not.
+                    Thermal noise depends on the resistance itself, not on the
+                    ratio.</div></li>
+                <li data-k="b">About 2.8× less input-referred noise
+                    <div class="cp-why">Right, and it is worth being able to see why
+                    without computing. \(R_1\)'s thermal noise scales as \(\sqrt R\)
+                    and is amplified by the signal gain; the op-amp's current noise
+                    through \(R_f\) scales as \(R\) outright. Dropping both by ten
+                    takes the input-referred noise from 17.4 to 6.2 nV/√Hz. The cost
+                    is that the op-amp now has to drive 1 kΩ rather than 10 kΩ, and
+                    the source has to drive a 1 kΩ input impedance — which is exactly
+                    the trade, and the reason you do not simply keep
+                    going.</div></li>
+                <li data-k="c">Less noise, but at the cost of gain accuracy
+                    <div class="cp-why">Accuracy is set by the resistor tolerance,
+                    which is a percentage and does not care about the absolute
+                    value.</div></li>
+                <li data-k="d">Nothing useful — the op-amp's \(e_n\) dominates either way
+                    <div class="cp-why">Worth checking rather than assuming, and here
+                    it is false: at 10 k/100 k the op-amp's voltage noise is only 6%
+                    of the total power. \(R_1\) is 55% and the current noise through
+                    \(R_f\) is 33%. Set the interactive to those values and
+                    look.</div></li>
+            </ol>
+            <div class="cp-then">
+                <p><strong>Use the lowest resistor values the source and the op-amp's
+                output can drive.</strong> That single habit is worth more than most
+                part substitutions.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>5. The worked budget, in full</h3>
+        <p>Inverting stage, gain &minus;10, 100 kHz, an op-amp with
+        \(e_n = 4\,\mathrm{nV}/\sqrt{\mathrm{Hz}}\) and
+        \(i_n = 1\,\mathrm{pA}/\sqrt{\mathrm{Hz}}\).</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Contributor</th><th>1 k / 10 k</th><th>share</th><th>10 k / 100 k</th><th>share</th></tr></thead>
+                <tbody>
+                    <tr><td>Op-amp \(e_n\) &times; noise gain (11)</td>
+                        <td>44.0 nV/&radic;Hz</td><td>50%</td>
+                        <td>44.0 nV/&radic;Hz</td><td>6%</td></tr>
+                    <tr><td>\(R_1\) thermal &times; signal gain (10)</td>
+                        <td>40.7</td><td>43%</td>
+                        <td><strong>128.7</strong></td><td><strong>55%</strong></td></tr>
+                    <tr><td>\(R_f\) thermal</td>
+                        <td>12.9</td><td>4%</td>
+                        <td>40.7</td><td>5%</td></tr>
+                    <tr><td>Op-amp \(i_n\) through \(R_f\)</td>
+                        <td>10.0</td><td>3%</td>
+                        <td><strong>100.0</strong></td><td><strong>33%</strong></td></tr>
+                    <tr><td><strong>Total at the output</strong></td>
+                        <td><strong>62.1</strong></td><td></td>
+                        <td><strong>173.7</strong></td><td></td></tr>
+                    <tr><td>Referred to the input</td>
+                        <td>6.21 nV/&radic;Hz</td><td></td>
+                        <td>17.4 nV/&radic;Hz</td><td></td></tr>
+                    <tr><td>Integrated over 157 kHz</td>
+                        <td>24.6 &micro;V RMS</td><td></td>
+                        <td>68.8 &micro;V RMS</td><td></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="drv-result">
+            <span class="drv-label">Read the two share columns against each other</span>
+            <p>Same circuit, same gain, same op-amp. In the left-hand design the
+            amplifier and the resistors matter about equally, so a better op-amp
+            would buy you something. In the right-hand one the op-amp contributes
+            <strong>6%</strong> of the noise power &mdash; buying a quieter part would
+            change essentially nothing, and the money should go into lower resistor
+            values instead.</p>
+            <p>That is what a noise budget is <em>for</em>. Not to compute a number,
+            but to tell you which change is worth making.</p>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>6. Measuring it, and the mistakes that make it look wrong</h3>
+        <ol class="lab-steps">
+            <li class="lab-step">Short the input to ground <em>through the source
+                impedance you will actually use</em>, not with a wire. A shorted
+                input removes the source's own thermal noise and flatters the
+                result.</li>
+            <li class="lab-step">Measure at the output and divide by the gain. Trying
+                to measure nanovolts directly is why the gain is there.</li>
+            <li class="lab-step">Band-limit deliberately, and know the order of the
+                filter you are measuring through &mdash; the 1.57 factor is a 25%
+                error if you assume a brick wall.</li>
+            <li class="lab-step">Use a true-RMS meter or the scope's RMS measurement
+                over many acquisitions. Peak-to-peak on a scope is roughly
+                6&ndash;8&times; RMS for Gaussian noise and depends on how long you
+                looked, so it is a poor number to quote.</li>
+            <li class="lab-step">Check for interference before believing anything.
+                Mains harmonics, switching supplies and nearby digital clocks are
+                <em>not</em> noise: they have a cause, they are removable, and they
+                will dominate a measurement while telling you nothing about the
+                design.</li>
+        </ol>
+
+        <div class="notice">
+            <strong>If the measurement is far worse than the budget, it is almost
+            never the noise theory.</strong> It is interference, a ground loop, or a
+            measurement artefact. Look at the spectrum before touching the circuit:
+            real noise is broad and featureless, interference has lines in it.
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Build it in Circuit Toy</h3>
+        <p>Circuit Toy has a <span class="mono">Noise Source</span> part, which makes
+        this one of the few places you can watch a budget behave.</p>
+        <ol class="lab-steps">
+            <li class="lab-step">Build the gain-of-10 inverting stage with 1 k and
+                10 k. Inject a noise source at the input and measure the output
+                spectrum.</li>
+            <li class="lab-step">Change to 10 k and 100 k. The gain is identical and
+                the output noise is nearly three times larger &mdash; the checkpoint
+                above, measured.</li>
+            <li class="lab-step">Now build the same gain as a <em>non-inverting</em>
+                stage and compare. Same signal gain, and for the inverting version
+                the noise gain is 11 against 11 — equal here. Then do it at unity
+                gain, where the inverting version's noise gain is 2 and the
+                follower's is 1, and find the 6 dB.</li>
+            <li class="lab-step">Open <span class="mono">Op-Amp Error Sources</span>
+                alongside for the offset and bias-current terms, which sit on top of
+                everything here.</li>
+        </ol>
+    </div>
+
+    <div class="card">
+        <h3>What to carry forward</h3>
+        <div class="kv">
+            <div class="box"><div class="k">4 nV/√Hz per kΩ</div>
+                <div class="v">Scale by \(\sqrt R\). This one number answers most noise questions.</div></div>
+            <div class="box"><div class="k">\(R_{opt} = e_n/i_n\)</div>
+                <div class="v">Low noise is a property of a part AND a source impedance, never of a part.</div></div>
+            <div class="box"><div class="k">Noise gain, not signal gain</div>
+                <div class="v">\(1+R_f/R_1\) always. An inverting buffer is 6 dB worse than a follower.</div></div>
+            <div class="box"><div class="k">×1.57 for one pole</div>
+                <div class="v">Noise bandwidth exceeds the corner. Assuming a brick wall understates by 25%.</div></div>
+            <div class="box"><div class="k">Quadrature means one wins</div>
+                <div class="v">A third of the dominant source adds 0.45 dB. Find the loudest voice.</div></div>
+            <div class="box"><div class="k">Lowest resistors you can drive</div>
+                <div class="v">Same gain, 2.8× less noise. Usually cheaper than a better op-amp.</div></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var K = 1.380649e-23, T = 300;
+    var canvas = document.getElementById('nb-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+
+    // Equivalent noise bandwidth as a multiple of the -3 dB corner, by order.
+    var ENBW = { 1: Math.PI / 2, 2: 1.111, 3: 1.047, 4: 1.026 };
+
+    function thermal(R) { return Math.sqrt(4 * K * T * R); }
+
+    function update() {
+        var R1 = Math.pow(10, AD.num('nb-r1'));
+        var G = AD.num('nb-gain');
+        var Rf = R1 * G;
+        var en = AD.num('nb-en') * 1e-9;
+        var inA = Math.pow(10, AD.num('nb-in')) * 1e-12;
+        var bw = Math.pow(10, AD.num('nb-bw'));
+        var poles = Math.round(AD.num('nb-poles'));
+
+        var NG = 1 + G;
+
+        AD.setText('nb-r1-val', AD.fmtUnit(R1, 'Ω'));
+        AD.setText('nb-gain-val', G + '   (Rf = ' + AD.fmtUnit(Rf, 'Ω') + ')');
+        AD.setText('nb-en-val', (en * 1e9).toFixed(1) + ' nV/√Hz');
+        AD.setText('nb-in-val', (inA * 1e12).toFixed(2) + ' pA/√Hz');
+        AD.setText('nb-bw-val', AD.fmtUnit(bw, 'Hz'));
+        AD.setText('nb-poles-val', poles + (poles === 1 ? ' pole' : ' poles'));
+
+        // Every contributor referred to the OUTPUT, which is where they add.
+        var terms = [
+            { n: 'op-amp eₙ × noise gain', v: en * NG,        c: 'rgba(110,231,255,0.9)' },
+            { n: 'R1 thermal × signal gain',    v: thermal(R1) * G, c: 'rgba(52,211,153,0.9)' },
+            { n: 'Rf thermal',                  v: thermal(Rf),     c: 'rgba(251,191,36,0.9)' },
+            { n: 'op-amp iₙ through Rf',   v: inA * Rf,        c: 'rgba(167,139,250,0.9)' }
+        ];
+        var power = terms.reduce(function (s, t) { return s + t.v * t.v; }, 0);
+        var tot = Math.sqrt(power);
+        var rti = tot / G;
+        var bwn = ENBW[poles] * bw;
+        var integrated = tot * Math.sqrt(bwn);
+
+        terms.forEach(function (t) { t.share = t.v * t.v / power; });
+        var dom = terms.slice().sort(function (a, b) { return b.share - a.share; })[0];
+
+        AD.setText('nb-ng', NG.toFixed(0) + '   (signal gain ' + G + ')');
+        AD.setText('nb-out', (tot * 1e9).toFixed(1) + ' nV/√Hz');
+        AD.setText('nb-rti', (rti * 1e9).toFixed(2) + ' nV/√Hz');
+        AD.setText('nb-bwn', AD.fmtUnit(bwn, 'Hz') + '  (×' + ENBW[poles].toFixed(2) + ')');
+        AD.setText('nb-int', AD.fmtUnit(integrated, 'V') + ' RMS');
+        AD.setText('nb-dom', dom.n + '  (' + (dom.share * 100).toFixed(0) + '%)');
+
+        // ---- stacked bars: share of the noise POWER --------------------
+        var w = canvas.width, h = canvas.height;
+        var ml = 20, mr = 20, mt = 40, mb = 56;   // room for two label lines
+        var pw = w - ml - mr, ph = h - mt - mb;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        // One bar per contributor, height by share, plus the total.
+        var barW = pw / (terms.length + 1) * 0.6;
+        var gap = pw / (terms.length + 1);
+
+        terms.forEach(function (t, i) {
+            var x = ml + gap * i + gap * 0.2;
+            var hgt = t.share * ph * 0.85;
+            ctx.fillStyle = t.c;
+            ctx.fillRect(x, mt + ph - hgt, barW, hgt);
+            ctx.font = '11px ui-monospace, monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = t.c;
+            ctx.fillText((t.share * 100).toFixed(0) + '%', x + barW / 2, mt + ph - hgt - 6);
+            ctx.fillStyle = 'rgba(255,255,255,0.65)';
+            ctx.fillText((t.v * 1e9).toFixed(1) + ' nV', x + barW / 2, mt + ph + 14);
+            // The label, wrapped onto two lines so it fits under the bar. Both
+            // lines get drawn - computing a wrap and then rendering only the
+            // first half leaves every label truncated mid-phrase.
+            var words = t.n.split(' ');
+            var half = Math.ceil(words.length / 2);
+            ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.45)';
+            ctx.fillText(words.slice(0, half).join(' '), x + barW / 2, mt + ph + 27);
+            if (words.length > half) {
+                ctx.fillText(words.slice(half).join(' '), x + barW / 2, mt + ph + 39);
+            }
+        });
+
+        // Total, as a reference bar at full height.
+        var xt = ml + gap * terms.length + gap * 0.2;
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(xt, mt + ph - ph * 0.85, barW, ph * 0.85);
+        ctx.font = 'bold 11px ui-monospace, monospace';
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.textAlign = 'center';
+        ctx.fillText('TOTAL', xt + barW / 2, mt + ph - ph * 0.85 - 6);
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.fillText((tot * 1e9).toFixed(1) + ' nV', xt + barW / 2, mt + ph + 14);
+
+        ctx.textAlign = 'left';
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillText('share of the noise POWER at the output — this is what a budget is for',
+                     ml + 4, mt - 14);
+
+        AD.setText('nb-note',
+            'At ' + AD.fmtUnit(R1, 'Ω') + ' and ' + AD.fmtUnit(Rf, 'Ω') + ' the output noise is ' +
+            (tot * 1e9).toFixed(1) + ' nV/√Hz, or ' + (rti * 1e9).toFixed(2) +
+            ' referred to the input, and ' + dom.n + ' is ' + (dom.share * 100).toFixed(0) +
+            '% of it. ' +
+            (dom.n.indexOf('eₙ') === 0
+                ? 'The amplifier dominates, so a quieter part would actually buy you something — ' +
+                  'which is not usually true, and is worth confirming before spending.'
+                : dom.n.indexOf('R1') === 0
+                    ? 'The resistors dominate, so a quieter op-amp would change almost nothing. ' +
+                      'Lower R1 and Rf together — the gain is a ratio and will not move.'
+                    : 'The amplifier’s CURRENT noise dominates, flowing through Rf. Either lower ' +
+                      'the resistors or move to a FET-input part, whose in is forty times smaller.') +
+            '  Integrated over ' + AD.fmtUnit(bwn, 'Hz') + ' that is ' +
+            AD.fmtUnit(integrated, 'V') + ' RMS at the output — and note the noise bandwidth is ' +
+            ENBW[poles].toFixed(2) + '× the corner, not equal to it.');
+    }
+
+    ['nb-r1', 'nb-gain', 'nb-en', 'nb-in', 'nb-bw', 'nb-poles'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    update();
+})();
+</script>

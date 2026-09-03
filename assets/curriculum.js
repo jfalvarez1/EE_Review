@@ -215,6 +215,12 @@ const CURRICULUM = {
                     title: 'Interview Prep — Filters, TIAs, Instrumentation and Noise',
                     description: 'The whole module as it gets asked on a whiteboard',
                     topics: ['4 nV/rtHz per kohm', 'Q as positive feedback', 'Why an INA beats a difference amp', 'kT/C and where R cancels']
+                },
+                {
+                    id: 16,
+                    title: 'Noise: the Floor You Cannot Design Below',
+                    description: 'Where noise comes from, which term dominates, and what to change',
+                    topics: ['4 nV/rtHz per kohm', 'Ropt = en/in', 'Noise gain is not signal gain', 'ENBW = 1.57 x f3dB']
                 }
             ]
         },

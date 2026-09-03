@@ -140,7 +140,7 @@ const LEARNING_PATH = (() => {
                 // nearest are 5-17 (device-level BJT noise) and 1-16, which
                 // quotes noise densities without deriving anything. Marked as
                 // the gap it is rather than pointed somewhere plausible.
-                { ref: null, status: 'todo', title: 'Noise analysis',
+                { ref: [2, 16], title: 'Noise analysis',
                   earns: 'The floor you cannot design below, and where it comes from: en and ' +
                          'in, 1/f, resistor thermal noise, and why noise gain is not signal ' +
                          'gain.' },
