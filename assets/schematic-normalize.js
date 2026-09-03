@@ -183,6 +183,21 @@
                                     .toString(16).padStart(2, '0')).join('');
     }
 
+    /**
+     * getComputedStyle hands back "rgb(0, 0, 0)" or "rgba(0, 0, 0, 0)", not a
+     * hex string, and brighten() only speaks hex. Convert what we can and
+     * ignore the rest - a fully transparent fill is deliberate and must not be
+     * turned into visible ink.
+     */
+    function normaliseColour(c) {
+        if (!c || typeof c !== 'string') return null;
+        if (c[0] === '#') return c;
+        const m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+))?/i.exec(c);
+        if (!m) return null;
+        if (m[4] !== undefined && parseFloat(m[4]) < 0.05) return null;
+        return toHex([Math.round(+m[1]), Math.round(+m[2]), Math.round(+m[3])]);
+    }
+
     const brightenCache = Object.create(null);
 
     function brighten(hex) {
@@ -208,15 +223,23 @@
         return out;
     }
 
-    // True when a text element is drawn on top of a light-filled shape, in
-    // which case the author's dark ink is correct and must be left alone.
-    function sitsOnLightPanel(svg, textEl) {
+    /**
+     * The light-filled shape a text element sits on, or null.
+     *
+     * Returns the colour rather than a boolean, because knowing there IS a
+     * panel is only half the problem: text on a pale callout box needs DARK
+     * ink, and once a stylesheet started supplying a light default fill for
+     * unstyled labels, leaving those alone made them vanish into the panel
+     * instead of into the page. Both directions have to be handled.
+     */
+    function lightPanelUnder(svg, textEl) {
         let tb;
-        try { tb = textEl.getBBox(); } catch (e) { return false; }
-        if (!tb || !tb.width) return false;
+        try { tb = textEl.getBBox(); } catch (e) { return null; }
+        if (!tb || !tb.width) return null;
         const cx = tb.x + tb.width / 2;
         const cy = tb.y + tb.height / 2;
         const shapes = svg.querySelectorAll('rect, circle, ellipse, polygon, path');
+        let best = null;
         for (const s of shapes) {
             const f = s.getAttribute('fill');
             if (!f || f === 'none') continue;
@@ -226,9 +249,17 @@
             let b;
             try { b = s.getBBox(); } catch (e) { continue; }
             if (cx >= b.x && cx <= b.x + b.width &&
-                cy >= b.y && cy <= b.y + b.height) return true;
+                cy >= b.y && cy <= b.y + b.height) best = rgb;   // last wins
         }
-        return false;
+        return best;
+    }
+
+    const PANEL_INK = '#1b2430';
+
+    function contrast(a, b) {
+        const l1 = relLum(a), l2 = relLum(b);
+        const hi = Math.max(l1, l2), lo = Math.min(l1, l2);
+        return (hi + 0.05) / (lo + 0.05);
     }
 
     function normalizeContrast(svg) {
@@ -240,7 +271,7 @@
             if (stroke && stroke !== 'none') {
                 const fixed = brighten(stroke);
                 if (fixed) {
-                    el.setAttribute('stroke', fixed);
+                    el.style.stroke = fixed;
                     el.setAttribute('data-contrast-fixed', stroke);
                 }
             }
@@ -252,12 +283,33 @@
             // lightening it makes it disappear. Check what the text is actually
             // drawn on before touching it.
             if (tag === 'text' || tag === 'tspan') {
-                const fill = el.getAttribute('fill');
-                if (fill && fill !== 'none' && !sitsOnLightPanel(svg, el)) {
-                    const fixed = brighten(fill);
-                    if (fixed) {
-                        el.setAttribute('fill', fixed);
-                        el.setAttribute('data-contrast-fixed', fill);
+                // The attribute is the usual case. But 2376 labels across 61
+                // lessons carry class="label" and NO fill attribute, and for a
+                // long time no stylesheet defined that class - so SVG fell back
+                // to its initial value, black, and the text was invisible on
+                // this background. Reading the computed fill catches that, and
+                // catches the next class somebody forgets to define.
+                let fill = el.getAttribute('fill');
+                if (!fill || fill === 'none') {
+                    try { fill = getComputedStyle(el).fill; } catch (e) { fill = null; }
+                    fill = normaliseColour(fill);
+                }
+                if (fill && fill !== 'none') {
+                    const panel = lightPanelUnder(svg, el);
+                    if (panel) {
+                        // On a pale callout, ink must be dark. Only intervene
+                        // when the current colour actually fails against it.
+                        const rgb = hexToRgb(fill);
+                        if (rgb && contrast(rgb, panel) < MIN_CONTRAST) {
+                            el.style.fill = PANEL_INK;
+                            el.setAttribute('data-contrast-fixed', fill);
+                        }
+                    } else {
+                        const fixed = brighten(fill);
+                        if (fixed) {
+                            el.style.fill = fixed;
+                            el.setAttribute('data-contrast-fixed', fill);
+                        }
                     }
                 }
             }
