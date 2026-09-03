@@ -68,10 +68,31 @@ function computeId() {
 
 const TAG = /(<script>\s*window\.BUILD_ID\s*=\s*')([0-9a-f]*)('\s*;\s*<\/script>)/;
 
+/**
+ * The lessons were only half the problem.
+ *
+ * index.html itself is revalidated often, but the assets it points at are
+ * fetched once and kept. So a reader could hold a months-old widgets.js while
+ * receiving today's lesson, and the failure is the worst kind: the lesson calls
+ * a widget option the cached code has never heard of, the widget renders
+ * something almost right, and nothing anywhere reports an error.
+ *
+ * Stamping the same content hash onto every local asset URL fixes it with the
+ * cache still doing its job - one refetch per release, normal caching in
+ * between. Third-party files under assets/vendor/ are left alone: they are
+ * pinned blobs that do not change with the course.
+ */
+function stampAssets(html, id) {
+    return html.replace(
+        /((?:src|href)="assets\/(?!vendor\/)[A-Za-z0-9._\/-]+\.(?:js|css))(?:\?v=[0-9a-f]+)?(")/g,
+        (_, head, tail) => head + '?v=' + id + tail);
+}
+
 const want = computeId();
 let html = fs.readFileSync(INDEX, 'utf8');
 const m = TAG.exec(html);
 const have = m ? m[2] : null;
+const assetsStale = stampAssets(html, want) !== html;
 
 if (process.argv.includes('--check')) {
     if (!m) {
@@ -86,6 +107,12 @@ if (process.argv.includes('--check')) {
         console.log('           node tools/stamp-build.js');
         process.exit(1);
     }
+    if (assetsStale) {
+        console.log('FAIL - some assets/ URLs are not stamped with ' + want + '.');
+        console.log('       A cached widgets.js against a new lesson fails silently.');
+        console.log('       Run: node tools/stamp-build.js');
+        process.exit(1);
+    }
     console.log('PASS - BUILD_ID ' + have + ' matches the content it protects.');
     process.exit(0);
 }
@@ -96,11 +123,12 @@ if (!m) {
     process.exit(1);
 }
 
-if (have === want) {
+if (have === want && !assetsStale) {
     console.log('BUILD_ID already current: ' + want);
     process.exit(0);
 }
 
-html = html.replace(TAG, '$1' + want + '$3');
+html = stampAssets(html.replace(TAG, '$1' + want + '$3'), want);
 fs.writeFileSync(INDEX, html);
-console.log('BUILD_ID ' + (have || '(none)') + ' -> ' + want);
+console.log('BUILD_ID ' + (have || '(none)') + ' -> ' + want +
+            (assetsStale ? '  (asset URLs restamped)' : ''));

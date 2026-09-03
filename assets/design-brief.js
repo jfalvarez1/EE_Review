@@ -124,14 +124,14 @@
         var st = this.state;
 
         var givenHtml = (o.given || []).map(function (g) {
-            return '<div class="db-given"><span class="db-given-k">' + esc(g.label) +
-                   '</span><span class="db-given-v">' + esc(g.value) + '</span></div>';
+            return '<div class="db-given"><span class="db-given-k">' + g.label +
+                   '</span><span class="db-given-v">' + g.value + '</span></div>';
         }).join('');
 
         var inputsHtml = (o.inputs || []).map(function (f) {
             var saved = (st.values && st.values[f.id] != null) ? st.values[f.id] : '';
             return '<label class="db-field">' +
-                   '<span class="db-field-label">' + esc(f.label) +
+                   '<span class="db-field-label">' + f.label +
                    (f.unit ? ' <span class="db-unit">(' + esc(f.unit) + ')</span>' : '') +
                    '</span>' +
                    '<input type="text" class="db-input" data-field="' + esc(f.id) + '" ' +
@@ -263,7 +263,7 @@
             return '<div class="db-crit ' + cls + '">' +
                    '<span class="db-crit-mark">' + (r.pass ? '&#10003;' : '&#10007;') + '</span>' +
                    '<div class="db-crit-body">' +
-                     '<div class="db-crit-name">' + esc(r.name) + '</div>' +
+                     '<div class="db-crit-name">' + r.name + '</div>' +
                      (r.got != null || r.want != null
                         ? '<div class="db-crit-nums">' +
                           (r.got != null ? 'yours: <strong>' + esc(r.got) + '</strong>' : '') +
@@ -358,13 +358,21 @@
             var tolTxt = p.tol != null
                 ? (p.tolPct ? '&plusmn;' + (p.tol * 100) + '%' : '&plusmn;' + p.tol + ' ' + (p.unit || ''))
                 : '';
+            // Some quantities cannot honestly be predicted to a number - a
+            // collector current set by I_S varies three to one between two
+            // transistors out of the same bag. Pretending otherwise would
+            // teach the reader to distrust a correct result. So a probe can
+            // ask to be RECORDED rather than judged, and the checks that
+            // follow are built on ratios of it, which are solid.
+            var expCell = p.record
+                ? '<span class="sc-record">write down what you get</span>'
+                : '<strong>' + esc(p.expect) + '</strong> ' + esc(p.unit || '') +
+                  (tolTxt ? ' <span class="sc-tol">' + tolTxt + '</span>' : '');
             return '<tr>' +
-                '<td class="sc-what">' + esc(p.label) +
+                '<td class="sc-what">' + p.label +
                     (p.node ? ' <span class="mono sc-node">' + esc(p.node) + '</span>' : '') +
                 '</td>' +
-                '<td class="sc-expect"><strong>' + esc(p.expect) + '</strong> ' +
-                    esc(p.unit || '') + (tolTxt ? ' <span class="sc-tol">' + tolTxt + '</span>' : '') +
-                '</td>' +
+                '<td class="sc-expect">' + expCell + '</td>' +
                 '<td class="sc-yours">' +
                     '<input type="text" class="sc-input" data-probe="' + esc(p.id) + '" ' +
                     'value="' + esc(saved) + '" placeholder="what you measured" ' +
@@ -429,7 +437,7 @@
         if (!box) return;
         if (!box.hidden) { box.hidden = true; return; }
         box.innerHTML = (this.o.probes || []).map(function (p) {
-            return '<div class="sc-why-item"><strong>' + esc(p.label) + '</strong> — ' +
+            return '<div class="sc-why-item"><strong>' + p.label + '</strong> &mdash; ' +
                    (p.why || 'No derivation given.') + '</div>';
         }).join('');
         box.hidden = false;
@@ -449,6 +457,11 @@
             if (!isFinite(got)) {
                 if (mark) { mark.textContent = ''; mark.className = 'sc-mark'; }
                 results.push({ id: p.id, state: 'blank' });
+                return;
+            }
+            if (p.record) {
+                if (mark) { mark.textContent = '●'; mark.className = 'sc-mark sc-noted'; }
+                results.push({ id: p.id, state: 'noted' });
                 return;
             }
             var want = parseValue(p.expect);
@@ -481,10 +494,14 @@
         this.host.classList.toggle('sc-solved', !!this.state.passed);
 
         if (!bad.length) {
+            var judged = filled.filter(function (r) { return r.state === 'ok'; }).length;
+            var noted = filled.length - judged;
             box.innerHTML = '<div class="sc-msg sc-pass"><strong>Your build matches.</strong> ' +
-                filled.length + ' of ' + (o.probes || []).length +
-                ' measurements are within tolerance, so the circuit on your screen is ' +
-                'the circuit this lesson describes. Now go and perturb it.</div>';
+                judged + ' of ' + (o.probes || []).filter(function (p) { return !p.record; }).length +
+                ' checked measurements are within tolerance' +
+                (noted ? ' (plus ' + noted + ' recorded, not judged)' : '') +
+                ', so the circuit on your screen is the circuit this lesson ' +
+                'describes. Now go and perturb it.</div>';
             return;
         }
 
@@ -495,7 +512,7 @@
             'and why.</div>' +
             '<ul class="sc-diffs">' + bad.map(function (r) {
                 var off = r.want !== 0 ? ((r.got - r.want) / Math.abs(r.want) * 100) : 0;
-                return '<li><strong>' + esc(r.label) + '</strong>: you have ' +
+                return '<li><strong>' + r.label + '</strong>: you have ' +
                        r.got + ' ' + esc(r.unit) + ', it should be ' + r.want + ' ' +
                        esc(r.unit) + ' (' + (off > 0 ? '+' : '') + off.toFixed(0) + '%)' +
                        (r.why ? '<div class="sc-diff-why">' + r.why + '</div>' : '') +

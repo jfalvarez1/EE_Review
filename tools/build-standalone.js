@@ -77,7 +77,9 @@ let html = read('index.html');
 
 function inlineStylesheet(href) {
     const css = read(href);
-    const tag = new RegExp('<link[^>]*href="' + href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*>');
+    // stamp-build appends ?v=<hash> to every local asset URL so a cached
+    // widgets.js can never be paired with a newer lesson. Match either form.
+    const tag = new RegExp('<link[^>]*href="' + href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:\\?v=[0-9a-f]+)?"[^>]*>');
     if (!tag.test(html)) throw new Error('could not find the stylesheet link for ' + href);
     html = put(html, tag, '<style>\n' + css + '\n</style>');
     return Buffer.byteLength(css);
@@ -85,7 +87,7 @@ function inlineStylesheet(href) {
 
 function inlineScript(src) {
     const js = read(src);
-    const tag = new RegExp('<script[^>]*src="' + src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*>\\s*</script>');
+    const tag = new RegExp('<script[^>]*src="' + src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:\\?v=[0-9a-f]+)?"[^>]*>\\s*</script>');
     if (!tag.test(html)) throw new Error('could not find the script tag for ' + src);
     // A literal </script> inside embedded JS would close the tag early. None of
     // the assets contain one today, but check rather than hope.
