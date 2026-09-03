@@ -115,8 +115,12 @@
                 role: 'img',
                 'aria-label': board.name + ', layer ' + layer
             });
-            svg.style.height = panelH + 'px';
+            // Let the viewBox drive the height rather than pinning it. A fixed
+            // height on a board that is twice as wide as it is tall leaves
+            // bands of dead panel above and below it.
             svg.style.width = '100%';
+            svg.style.height = 'auto';
+            svg.style.maxHeight = panelH + 'px';
             svg.style.display = 'block';
 
             // the board itself

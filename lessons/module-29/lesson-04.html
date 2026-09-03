@@ -299,6 +299,97 @@
 
     <!-- ================================================================= -->
     <div class="card">
+        <h3>3b. Three real boards, measured</h3>
+
+        <p>A clearance table is abstract until you hold a board against it. Here
+        are the tightest copper-to-copper gaps on three real designs, measured
+        from their board files &mdash; every pair of copper objects on different
+        nets and the same layer, closest approach, minus both half-widths.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Board</th><th>Tightest gap</th><th>Between</th><th>Rated to (internal / external / coated)</th></tr></thead>
+                <tbody>
+                    <tr><td>3.3 V LDO</td><td class="t-warn"><strong>0.093 mm</strong></td>
+                        <td>Vout track &harr; GND track, on F.Cu</td>
+                        <td>30 V / <span class="t-bad">below the 15 V minimum</span> / 30 V</td></tr>
+                    <tr><td>TPS564201 buck</td><td>0.234 mm</td>
+                        <td>12Vin track &harr; U1 pin 6 (VBST) pad</td>
+                        <td>300 V / 30 V / 100 V</td></tr>
+                    <tr><td>Ignition controller</td><td>0.315 mm</td>
+                        <td>BTN_DRV track &harr; an unconnected U1 pad, on B.Cu</td>
+                        <td>526 V / 30 V / 100 V</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>The LDO's 0.093 mm</h4>
+        <p>This is the one worth looking at. IPC-2221B's <em>lowest</em> row for
+        an uncoated external conductor &mdash; the 0&ndash;15&nbsp;V row &mdash;
+        asks for <strong>0.10&nbsp;mm</strong>, and this gap is 0.093. The board
+        is a 3.3&nbsp;V regulator and it works perfectly, so nothing about it is
+        dangerous. But it has <em>no margin at all</em>: it sits below the
+        bottom row of the table, and the shortfall is smaller than a typical
+        etch tolerance, which means some boards off the panel will be tighter
+        still.</p>
+
+        <div id="bv-ldo-clearance"></div>
+        <p class="fig-note">The dashed box is where those two nets come closest.
+        Click <span class="mono">/Vout</span> and then <span class="mono">GND</span>
+        in the legend to see both. This is a two-layer board, so the bottom panel
+        is almost entirely the ground pour &mdash; and note that the tightest
+        approach is on the <em>top</em> layer, the uncoated one, which is the
+        column with the harshest requirement.</p>
+
+        <div class="warn">
+            <strong>What actually matters here is reuse.</strong> Nobody is going
+            to be hurt by a 3.3&nbsp;V board with 93&nbsp;&micro;m of spacing.
+            The risk is that this layout gets copied for a 24&nbsp;V or
+            48&nbsp;V rail, where the external requirement jumps to 0.60&nbsp;mm
+            &mdash; six times what is there. A clearance that is adequate only
+            because the voltage happens to be low is a clearance nobody has
+            checked, and it will not be checked the next time either.
+        </div>
+
+        <h4>The ignition controller's 0.315 mm, and why 12 V is not 12 V</h4>
+        <p>0.315&nbsp;mm rates the external layer to 30&nbsp;V by the table, and
+        this is a 12&nbsp;V automotive board, so it looks comfortable. It is
+        not, and the reason is a standard from a different family
+        entirely.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Condition</th><th>Voltage</th><th>Against 0.315 mm external</th></tr></thead>
+                <tbody>
+                    <tr><td>Nominal 12 V system</td><td>13.8 V</td><td class="t-ok">Fine &mdash; rated 30 V</td></tr>
+                    <tr><td>ISO 16750-2 load dump, <strong>Test B</strong> (centralised suppression)</td><td>35 V</td><td class="t-warn">Above the 30 V the gap supports</td></tr>
+                    <tr><td>ISO 16750-2 load dump, <strong>Test A</strong> (no suppression)</td><td class="t-bad">101 V</td><td class="t-bad">Needs 0.60 mm &mdash; nearly twice what is there</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note">A load dump is what happens when the battery is
+        disconnected while the alternator is charging: the alternator's field
+        cannot collapse instantly, so it drives the bus far above nominal for
+        hundreds of milliseconds. ISO 16750-2 puts the clamped case at
+        <strong>35&nbsp;V</strong> and the unclamped case at <strong>101&nbsp;V
+        peak</strong> for a 12&nbsp;V system, with the alternator's internal
+        resistance between 0.5 and 4&nbsp;&Omega; &mdash; so it is a genuinely
+        energetic pulse, not a spike. The board's <em>working</em> voltage is
+        13.8&nbsp;V; the voltage its insulation has to hold off is whichever
+        load-dump case applies. This is exactly the working-voltage versus
+        transient distinction from &sect;1, arriving in a design nobody would
+        describe as high voltage.</p>
+
+        <p class="fig-note">Note also what the measurement found on that board: a
+        signal track running 0.315&nbsp;mm from an <em>unconnected</em> IC pad.
+        Unconnected pins are not exempt from spacing rules &mdash; they are
+        copper, they float, and they will happily hold whatever the surrounding
+        field puts on them.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
         <h3>4. Worked example: a telecom AC/DC front end</h3>
 
         <p>Universal 85&ndash;265&nbsp;V<sub>AC</sub> input, 400&nbsp;V DC link,
@@ -697,6 +788,19 @@
         if (el) el.addEventListener('change', update);
     });
     update();
+
+    // The real board behind section 3b. The annotation box is the bounding box
+    // of the tightest cross-net pair, from tools/measure-clearance.js.
+    if (typeof BoardViewer !== 'undefined') {
+        BoardViewer.mount('#bv-ldo-clearance', 'docs/data/boards/ldo.json', {
+            theme: 'acid',
+            height: 260,
+            annotations: [
+                { x: 86.77, y: 41.58, w: 4.91, h: 3.16,
+                  label: '0.093 mm — Vout to GND', colour: '#FF5C5C', layer: 'F.Cu' }
+            ]
+        });
+    }
 
     if (typeof ChecklistWidget !== 'undefined') {
         new ChecklistWidget('cc-checklist', {
