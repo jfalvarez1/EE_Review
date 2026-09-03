@@ -109,6 +109,14 @@ const CURRICULUM = {
                     title: 'Industry Op-Amp Selection Guide',
                     description: 'Choosing the right op-amp for your application',
                     topics: ['General purpose', 'Precision', 'High-speed', 'Low-power']
+                },
+                {
+                    // Last in the module on purpose: it is a review of everything
+                    // above it, in the form the material actually gets asked.
+                    id: 17,
+                    title: 'Interview Prep — Op-Amps',
+                    description: 'The whole module as it gets asked on a whiteboard',
+                    topics: ['Derive from the golden rules', 'Trace a strange circuit', 'Noise gain', 'The standard traps']
                 }
             ]
         },
