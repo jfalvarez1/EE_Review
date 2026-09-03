@@ -66,6 +66,8 @@ const GATING = [
      'a remembered number that is wrong: every sum downstream of it still checks out'],
     ['check-tables.js',
      'a wrong row in a table of computed values, invisible because its neighbours are right'],
+    ['check-citations.js --gate',
+     'a standards limit with nothing behind it: the reader cannot check what they cannot find'],
     ['validate-path.js',
      'every syllabus step resolves to a lesson that exists on disk'],
     ['stamp-build.js --check',
