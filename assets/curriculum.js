@@ -1513,6 +1513,12 @@ const CURRICULUM = {
                     title: 'BMS Integration',
                     description: 'Putting the gauge, balancer and protection together',
                     topics: ['BMS architecture', 'Host communication', 'Fault handling', 'Qualification']
+                },
+                {
+                    id: 7,
+                    title: 'Pack Architecture: Series, Parallel and the C-Rate',
+                    description: 'How many cells, in what arrangement, and what that costs you',
+                    topics: ['S and P notation', 'C-rate', 'High-discharge vs high-energy cells', 'Cell formats', 'Lead-acid and the LiFePO4 drop-in']
                 }
             ]
         },

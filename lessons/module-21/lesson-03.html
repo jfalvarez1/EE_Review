@@ -1146,73 +1146,82 @@
             if (typeof SchematicSVG !== 'undefined') {
                 const svg = new SchematicSVG('pa-schematic', 750, 450);
 
-                // VDD
-                svg.line(375, 20, 375, 40);
-                svg.text(375, 15, 'VDD');
-                svg.line(325, 20, 425, 20);
+                // The transistor's pins were 15 px away from every wire meant
+                // to reach them, the bypass capacitor tapped the MIDDLE of the
+                // RF choke, and the stability resistor ran off to (280, 40) and
+                // stopped. M1 is placed so its pins land on the rails:
+                //   nmos(x,y) right -> gate (x-20,y), drain (x+15,y-25),
+                //                      source (x+15,y+25)
 
-                // RFC (RF Choke)
+                // ---- supply ----
+                svg.line(325, 20, 470, 20);
+                svg.text(375, 12, 'VDD', { fontSize: 10, anchor: 'middle' });
+                svg.line(375, 20, 375, 40);
+
+                // RF choke: DC in, RF blocked.
                 svg.inductor(375, 40, 375, 100, 'RFC');
 
-                // Bypass capacitor
-                svg.line(375, 70, 420, 70);
-                svg.capacitor(420, 70, 420, 120, 'Cbypass');
-                svg.ground(420, 140);
+                // Bypass belongs ON the rail, not on a tap halfway down the
+                // choke - that node is the choke's own inductance and is the
+                // last place you want a capacitor.
+                svg.capacitor(460, 20, 460, 90, 'C_byp');
+                svg.line(460, 90, 460, 120);
+                svg.ground(460, 140);
 
-                // Drain connection
-                svg.line(375, 100, 375, 130);
-
-                // Power transistor (represented as larger NMOS)
-                svg.nmos(345, 160, 'right', 'M1 (Power FET)');
-
-                // Gate matching network
-                svg.line(320, 160, 250, 160);
-                svg.capacitor(250, 160, 190, 160, 'Cm');
-                svg.inductor(190, 160, 130, 160, 'Lm');
-
-                // Input coupling
-                svg.capacitor(130, 160, 70, 160, 'Cin');
-                svg.line(70, 160, 30, 160);
-                svg.text(20, 155, 'RF_IN');
-
-                // Bias network
-                svg.line(250, 160, 250, 210);
-                svg.resistor(250, 210, 250, 270, 'Rbias');
-                svg.line(250, 270, 250, 290);
-                svg.text(220, 285, 'Vbias');
-
-                // Source to ground
-                svg.line(375, 190, 375, 220);
+                // ---- device ----
+                svg.line(375, 100, 375, 135);
+                svg.nmos(360, 160, 'right', 'M1  power FET');
+                svg.junction(375, 135);
+                svg.line(375, 185, 375, 220);
                 svg.ground(375, 240);
 
-                // Output matching network
-                svg.line(375, 130, 430, 130);
-                svg.capacitor(430, 130, 490, 130, 'Cout');
-                svg.inductor(490, 130, 550, 130, 'Lout');
-                svg.capacitor(550, 130, 610, 130, 'Cmatch');
+                // ---- input: series stabilising R, then the match ----
+                svg.resistor(340, 160, 290, 160, 'R_stab');
+                svg.line(290, 160, 250, 160);
+                svg.junction(250, 160);
+                svg.capacitor(250, 160, 190, 160, 'C_m');
+                svg.inductor(190, 160, 130, 160, 'L_m');
+                svg.capacitor(130, 160, 70, 160, 'C_in');
+                svg.line(70, 160, 35, 160);
+                svg.nodeLabel(35, 160, 'RF_IN', { dy: -12 });
 
-                // Shunt element
-                svg.line(550, 130, 550, 180);
-                svg.capacitor(550, 180, 550, 230, 'Cshunt');
+                // Gate bias, fed in behind the DC-blocking C_m.
+                svg.line(250, 160, 250, 210);
+                svg.resistor(250, 210, 250, 270, 'R_bias');
+                svg.line(250, 270, 250, 290);
+                svg.nodeLabel(250, 290, 'V_bias', { dy: 14 });
+
+                // ---- output match, transforming 50 Ω down to R_opt ----
+                svg.line(375, 135, 430, 135);
+                svg.capacitor(430, 135, 490, 135, 'C_out');
+                svg.inductor(490, 135, 550, 135, 'L_out');
+                svg.junction(550, 135);
+                svg.capacitor(550, 135, 610, 135, 'C_match');
+                svg.line(550, 135, 550, 180);
+                svg.capacitor(550, 180, 550, 230, 'C_shunt');
                 svg.ground(550, 250);
 
-                // Output
-                svg.line(610, 130, 680, 130);
-                svg.text(690, 125, 'RF_OUT');
-
-                // Load resistor (antenna)
-                svg.resistor(680, 130, 680, 200, 'RL 50Ω');
+                svg.line(610, 135, 680, 135);
+                svg.junction(680, 135);
+                svg.nodeLabel(680, 135, 'RF_OUT', { dy: -14 });
+                svg.resistor(680, 135, 680, 200, 'R_L 50Ω');
                 svg.ground(680, 220);
 
-                // Stability resistor (optional)
-                svg.line(250, 160, 250, 120);
-                svg.resistor(250, 120, 250, 60, 'Rstab');
-                svg.line(250, 60, 250, 40);
-                svg.line(250, 40, 280, 40);
-
-                // Labels
-                svg.text(375, 400, 'Class AB Power Amplifier with Matching Networks', 'middle');
-                svg.text(375, 420, 'Output network transforms 50Ω to optimum load impedance', 'middle');
+                // ---- labels ----
+                svg.text(375, 330, 'Class AB power amplifier with input and output matching',
+                         { fontSize: 12, anchor: 'middle' });
+                svg.text(375, 352,
+                         'The output network transforms 50 Ω to R_opt = V_DD²/(2·P_out) —',
+                         { fontSize: 10, anchor: 'middle' });
+                svg.text(375, 366,
+                         'the load that lets the device swing its full voltage AND its full current.',
+                         { fontSize: 10, anchor: 'middle' });
+                svg.text(375, 388,
+                         'R_stab damps the gate resonance; without it the stage can oscillate',
+                         { fontSize: 10, anchor: 'middle' });
+                svg.text(375, 402,
+                         'out of band even though it looks unconditionally stable in band.',
+                         { fontSize: 10, anchor: 'middle' });
             }
 
             // ===== CHECKLIST =====

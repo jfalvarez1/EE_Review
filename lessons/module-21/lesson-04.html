@@ -1357,82 +1357,109 @@
 
             // ===== SCHEMATIC =====
             if (typeof SchematicSVG !== 'undefined') {
-                const svg = new SchematicSVG('mixer-schematic', 700, 400);
+                // Redrawn. The previous version placed every wire 10 px away
+                // from the pin it was meant to reach: the LO wires stopped
+                // short of all four quad gates, and the quad drains connected
+                // to nothing at all. NMOS pin geometry, from schematic-svg.js,
+                // with f = +1 facing right and -1 facing left:
+                //     gate   (x - 20f, y)
+                //     drain  (x + 15f, y - 25)
+                //     source (x + 15f, y + 25)
+                const svg = new SchematicSVG('mixer-schematic', 760, 460);
 
-                // VDD rail
-                svg.line(350, 20, 350, 40);
-                svg.text(350, 15, 'VDD');
-                svg.line(250, 20, 450, 20);
+                const yVdd = 40, yIFp = 125, yIFn = 137, yQuad = 170,
+                      yRF = 250, yTail = 345;
+                const xL1 = 250, xL2 = 510;
 
-                // Load resistors
-                svg.resistor(280, 40, 280, 100, 'RL');
-                svg.resistor(420, 40, 420, 100, 'RL');
-                svg.line(280, 40, 280, 20);
-                svg.line(420, 40, 420, 20);
+                svg.text(380, 20, 'Double-balanced Gilbert cell mixer',
+                         { fontSize: 13, anchor: 'middle' });
 
-                // IF outputs
-                svg.line(280, 100, 280, 120);
-                svg.line(420, 100, 420, 120);
-                svg.text(250, 115, 'IF-');
-                svg.text(450, 115, 'IF+');
+                // ---- supply and loads ----
+                svg.line(220, yVdd, 540, yVdd);
+                svg.vcc(380, yVdd, { label: 'VDD' });
 
-                // Switching quad (LO pairs)
-                svg.nmos(250, 150, 'right', 'M3');
-                svg.nmos(310, 150, 'left', 'M4');
-                svg.nmos(390, 150, 'right', 'M5');
-                svg.nmos(450, 150, 'left', 'M6');
+                svg.resistor(xL1, yVdd + 20, xL1, 110, 'R_L');
+                svg.line(xL1, yVdd + 20, xL1, yVdd);
+                svg.line(xL1, 110, xL1, yIFn);
 
-                // LO inputs
-                svg.line(220, 150, 180, 150);
-                svg.line(340, 150, 350, 150);
-                svg.line(350, 150, 350, 130);
-                svg.line(350, 130, 180, 130);
-                svg.line(180, 130, 180, 150);
-                svg.text(160, 145, 'LO+');
+                svg.resistor(xL2, yVdd + 20, xL2, 110, 'R_L');
+                svg.line(xL2, yVdd + 20, xL2, yVdd);
+                svg.line(xL2, 110, xL2, yIFp);
 
-                svg.line(360, 150, 370, 150);
-                svg.line(480, 150, 520, 150);
-                svg.line(370, 150, 370, 170);
-                svg.line(520, 150, 520, 170);
-                svg.line(370, 170, 520, 170);
-                svg.text(540, 155, 'LO-');
+                svg.text(xL1 - 14, 100, 'IF−', { fontSize: 10, anchor: 'end' });
+                svg.text(xL2 + 14, 100, 'IF+', { fontSize: 10 });
 
-                // Connections from switching quad to loads
-                svg.line(280, 120, 280, 135);
-                svg.line(280, 135, 420, 135);
-                svg.line(340, 135, 340, 165);
-                svg.line(360, 165, 360, 135);
+                // ---- switching quad ----
+                // M3/M6 drains -> IF−;  M4/M5 drains -> IF+  (the cross-couple)
+                svg.nmos(270, yQuad, 'right', 'M3');
+                svg.nmos(350, yQuad, 'left',  'M4');
+                svg.nmos(410, yQuad, 'right', 'M5');
+                svg.nmos(490, yQuad, 'left',  'M6');
 
-                // RF input pair (transconductance stage)
-                svg.nmos(310, 250, 'right', 'M1');
-                svg.nmos(390, 250, 'left', 'M2');
+                // IF− bus, carrying M3 and M6
+                svg.line(xL1, yIFn, 475, yIFn);
+                svg.line(285, 145, 285, yIFn);   svg.junction(285, yIFn);
+                svg.line(475, 145, 475, yIFn);
 
-                // Connections to switching quad
-                svg.line(340, 180, 340, 220);
-                svg.line(360, 180, 360, 220);
+                // IF+ bus, carrying M4 and M5. It crosses the IF− bus twice;
+                // a crossing with no junction dot is not a connection.
+                svg.line(335, yIFp, xL2, yIFp);
+                svg.line(335, 145, 335, yIFp);
+                svg.line(425, 145, 425, yIFp);   svg.junction(425, yIFp);
 
-                // RF inputs
-                svg.line(280, 250, 220, 250);
-                svg.line(420, 250, 480, 250);
-                svg.text(200, 245, 'RF+');
-                svg.text(500, 245, 'RF-');
+                // ---- LO drive. Inner gates route down and out so the two
+                // phases never share a wire. ----
+                svg.line(215, yQuad, 250, yQuad);
+                svg.nodeLabel(215, yQuad, 'LO+', { dy: -12 });
 
-                // Tail current source
-                svg.line(340, 280, 340, 300);
-                svg.line(360, 280, 360, 300);
-                svg.line(340, 300, 360, 300);
-                svg.line(350, 300, 350, 320);
+                svg.line(510, yQuad, 545, yQuad);
+                svg.nodeLabel(545, yQuad, 'LO−', { dy: -12 });
 
-                // Current source symbol
-                svg.line(350, 320, 350, 360);
-                svg.line(340, 340, 360, 340);
-                svg.text(370, 345, 'Ibias');
+                svg.line(370, yQuad, 370, 212);
+                svg.line(370, 212, 340, 212);
+                svg.nodeLabel(340, 212, 'LO−', { dy: -10 });
 
-                // Ground
-                svg.ground(350, 380);
+                svg.line(390, yQuad, 390, 224);
+                svg.line(390, 224, 420, 224);
+                svg.nodeLabel(420, 224, 'LO+', { dy: 14 });
 
-                // Labels
-                svg.text(350, 390, 'Double-Balanced Gilbert Cell Mixer', 'middle');
+                // ---- quad sources tie to the RF pair drains ----
+                svg.line(285, 195, 335, 195);
+                svg.line(310, 195, 310, 225);   svg.junction(310, 195);
+                svg.line(425, 195, 475, 195);
+                svg.line(450, 195, 450, 225);   svg.junction(450, 195);
+
+                // ---- RF transconductance pair ----
+                svg.nmos(295, yRF, 'right', 'M1');
+                svg.nmos(465, yRF, 'left',  'M2');
+
+                svg.line(275, yRF, 205, yRF);
+                svg.nodeLabel(205, yRF, 'RF+', { dy: -12 });
+                svg.line(485, yRF, 555, yRF);
+                svg.nodeLabel(555, yRF, 'RF−', { dy: -12 });
+
+                // ---- tail current source ----
+                svg.line(310, 275, 310, 300);
+                svg.line(450, 275, 450, 300);
+                svg.line(310, 300, 450, 300);
+                svg.line(380, 300, 380, 320);   svg.junction(380, 300);
+
+                svg.nmos(365, yTail, 'right', 'M7');
+                svg.line(345, yTail, 310, yTail);
+                svg.nodeLabel(310, yTail, 'V_BIAS', { dy: -12 });
+                svg.line(380, 370, 380, 395);
+                svg.ground(380, 415);
+
+                // ---- what it is doing ----
+                svg.text(600, 200, 'The quad commutates the RF', { fontSize: 9 });
+                svg.text(600, 213, 'current at the LO rate, so the', { fontSize: 9 });
+                svg.text(600, 226, 'IF carries the product of the', { fontSize: 9 });
+                svg.text(600, 239, 'two — hence f_RF ± f_LO.', { fontSize: 9 });
+                svg.text(600, 262, 'Double-balanced: both LO and', { fontSize: 9 });
+                svg.text(600, 275, 'RF appear differentially, so', { fontSize: 9 });
+                svg.text(600, 288, 'neither leaks to the IF port.', { fontSize: 9 });
+                svg.text(380, 440, 'Conversion gain ≈ (2/π)·g_m1·R_L',
+                         { fontSize: 10, anchor: 'middle' });
             }
 
             // ===== CHECKLIST =====

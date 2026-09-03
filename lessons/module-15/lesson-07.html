@@ -1,0 +1,952 @@
+<!-- Module 15, Lesson 7: Pack Architecture: Series, Parallel and the C-Rate -->
+<div class="lesson-content" data-module="15" data-lesson="7">
+
+    <div class="card">
+        <h2>Pack Architecture: Series, Parallel and the C-Rate</h2>
+        <p>A cell is a fixed thing. It has one voltage, one capacity and one
+        internal resistance, and no amount of design changes any of them. What
+        you choose is <strong>how many, in what arrangement</strong> &mdash; and
+        that single choice sets your pack voltage, your runtime, your voltage
+        sag, your heat, and whether the pack is a nuisance or a fire.</p>
+
+        <p>This lesson is about the arithmetic of that choice, and about the one
+        number datasheets bury and beginners ignore: the cell's internal
+        resistance, which is what actually separates a &ldquo;high-discharge&rdquo;
+        cell from an ordinary one.</p>
+
+        <div class="analogy">
+            <span class="analogy-label">Series and parallel, physically</span>
+            <p>Think of each cell as a <strong>pump with a narrow pipe attached</strong>.
+            The pump sets the pressure it can raise; the pipe's narrowness is the
+            cell's internal resistance.</p>
+            <p><strong>In series</strong> you stack pumps end to end. The pressures
+            add &mdash; you get a higher voltage &mdash; but so do the narrow pipes,
+            so the resistance adds too. <strong>In parallel</strong> you put pumps
+            side by side. The pressure is unchanged, but you now have several pipes
+            carrying the flow, so the resistance divides.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> pumps do not
+            care what their neighbours are doing. Cells in parallel are welded to one
+            another and will forcibly equalise &mdash; a fully charged cell paralleled
+            with an empty one dumps current into it with nothing but the two internal
+            resistances limiting it. That is why cells are matched before they are
+            paralleled, and it has no analogue in the plumbing picture.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>1. The notation, and what it buys you</h3>
+
+        <p>Packs are written <span class="mono">&lt;S&gt;S&lt;P&gt;P</span>:
+        <span class="mono">S</span> cells in series, and each of those series
+        positions made of <span class="mono">P</span> cells in parallel. A
+        <span class="mono">13S4P</span> pack is 52 cells: thirteen groups of four.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ V_{pack} = S \cdot V_{cell}, \qquad Q_{pack} = P \cdot Q_{cell} \]
+                <span class="drv-why">Series multiplies voltage, parallel multiplies
+                charge. Neither one alone changes the other.</span>
+            </div>
+            <div class="drv-step">
+                \[ E_{pack} = S \cdot P \cdot V_{cell} Q_{cell} \]
+                <span class="drv-why">Energy depends only on the <em>total cell
+                count</em>. 4S2P and 2S4P from the same cell store exactly the same
+                watt-hours. The arrangement decides how that energy is delivered,
+                not how much there is.</span>
+            </div>
+            <div class="drv-step">
+                \[ R_{pack} = R_{cell}\frac{S}{P} \]
+                <span class="drv-why">The number that matters most and gets checked
+                least. Series stacks resistance; parallel divides it.</span>
+            </div>
+        </div>
+
+        <p>Since energy is fixed by cell count, the <em>only</em> reasons to prefer
+        one arrangement over another are the ones below.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Push toward more series</th><th>Push toward more parallel</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td>Lower current for the same power, so thinner wire, smaller
+                        connectors and less \(I^2R\) everywhere &mdash; including in the
+                        cells themselves.</td>
+                        <td>Lower pack resistance, so less sag under load and a flatter
+                        voltage at the terminals.</td>
+                    </tr>
+                    <tr>
+                        <td>The rail you need may already be up there. A 48&nbsp;V bus
+                        from a 13S pack needs no boost converter at all.</td>
+                        <td>Each cell shares the current, so ordinary energy cells can
+                        serve a high-current load.</td>
+                    </tr>
+                    <tr>
+                        <td>Motor and inverter efficiency generally improve at higher
+                        voltage for the same power.</td>
+                        <td>Cells in parallel self-balance, so only \(S\) voltages need
+                        monitoring, not \(S \times P\).</td>
+                    </tr>
+                    <tr>
+                        <td class="warn">But: every series cell needs its own sense wire
+                        and balance channel, and above ~60&nbsp;V you cross into
+                        regulatory territory that changes the whole product.</td>
+                        <td class="warn">But: paralleling needs matched cells, and a
+                        shorted cell in a parallel group is fed by its siblings with no
+                        fuse in the way unless you put one there.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>2. The arrangements you will actually meet</h3>
+
+        <p>&ldquo;Nominal&rdquo; is the voltage the pack spends most of its
+        discharge near, and it is what the pack is <em>named</em> after. It is
+        never the voltage your electronics must survive &mdash; that is the
+        <strong>full</strong> column &mdash; nor the voltage they must still work
+        at, which is the <strong>empty</strong> column. Designing to the nominal
+        number is the single most common beginner mistake in battery-powered
+        hardware.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Config</th><th>Chemistry</th><th>Nominal</th><th>Full</th><th>Empty</th><th>Where you see it</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">1S</td><td>Li-ion / LiPo</td><td>3.7&nbsp;V</td><td>4.2&nbsp;V</td><td>3.0&nbsp;V</td><td>Phones, wearables, most single-cell products</td></tr>
+                    <tr><td class="mono">2S</td><td>Li-ion / LiPo</td><td><strong>7.4&nbsp;V</strong></td><td>8.4&nbsp;V</td><td>6.0&nbsp;V</td><td>Small RC, cordless tools, handheld instruments</td></tr>
+                    <tr><td class="mono">3S</td><td>Li-ion / LiPo</td><td><strong>11.1&nbsp;V</strong></td><td>12.6&nbsp;V</td><td>9.0&nbsp;V</td><td>RC models, older laptops, camera rigs</td></tr>
+                    <tr><td class="mono">4S</td><td>Li-ion / LiPo</td><td><strong>14.8&nbsp;V</strong></td><td>16.8&nbsp;V</td><td>12.0&nbsp;V</td><td>FPV drones, power tools, small e-mobility</td></tr>
+                    <tr><td class="mono">6S</td><td>LiPo</td><td>22.2&nbsp;V</td><td>25.2&nbsp;V</td><td>18.0&nbsp;V</td><td>Larger drones, RC boats and cars</td></tr>
+                    <tr><td class="mono">10S</td><td>Li-ion</td><td>36&nbsp;V</td><td>42&nbsp;V</td><td>30&nbsp;V</td><td>&ldquo;36&nbsp;V&rdquo; e-bikes and scooters</td></tr>
+                    <tr><td class="mono">13S</td><td>Li-ion</td><td>48.1&nbsp;V</td><td>54.6&nbsp;V</td><td>39&nbsp;V</td><td>&ldquo;48&nbsp;V&rdquo; e-bikes &mdash; the most common e-mobility pack</td></tr>
+                    <tr><td class="mono">14S</td><td>Li-ion</td><td>51.8&nbsp;V</td><td>58.8&nbsp;V</td><td>42&nbsp;V</td><td>52&nbsp;V e-bikes, light EVs</td></tr>
+                    <tr><td class="mono">4S</td><td><strong>LiFePO<sub>4</sub></strong></td><td><strong>12.8&nbsp;V</strong></td><td>14.6&nbsp;V</td><td>10.0&nbsp;V</td><td>The lead-acid drop-in replacement &mdash; see &sect;6</td></tr>
+                    <tr><td class="mono">8S</td><td>LiFePO<sub>4</sub></td><td>25.6&nbsp;V</td><td>29.2&nbsp;V</td><td>20.0&nbsp;V</td><td>24&nbsp;V marine and industrial</td></tr>
+                    <tr><td class="mono">16S</td><td>LiFePO<sub>4</sub></td><td>51.2&nbsp;V</td><td>58.4&nbsp;V</td><td>40.0&nbsp;V</td><td>48&nbsp;V rack storage, telecom, solar</td></tr>
+                    <tr><td class="mono">6S</td><td>Lead-acid</td><td>12&nbsp;V</td><td>14.4&nbsp;V</td><td>10.5&nbsp;V</td><td>The &ldquo;12&nbsp;V battery&rdquo; &mdash; always six 2&nbsp;V cells</td></tr>
+                    <tr><td class="mono">10S</td><td>NiMH</td><td>12&nbsp;V</td><td>14.5&nbsp;V</td><td>10.0&nbsp;V</td><td>Legacy tools, some medical, RC receiver packs</td></tr>
+                    <tr><td class="mono">96S</td><td>Li-ion NMC</td><td>355&nbsp;V</td><td>403&nbsp;V</td><td>288&nbsp;V</td><td>The classic 400&nbsp;V EV traction pack</td></tr>
+                    <tr><td class="mono">192S</td><td>Li-ion NMC</td><td>710&nbsp;V</td><td>806&nbsp;V</td><td>576&nbsp;V</td><td>800&nbsp;V EV architectures &mdash; halves the charging current</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="warning">
+            <strong>The 4S trap.</strong> A 4S Li-ion pack is called 14.8&nbsp;V and
+            reaches <strong>16.8&nbsp;V</strong> off the charger. Feed that to a
+            regulator rated 16&nbsp;V absolute maximum and it dies on the first
+            charge cycle, having worked perfectly during every bench test done on a
+            half-charged pack. Rate every input for the <em>full</em> column plus
+            margin, and rate the low-voltage behaviour for the <em>empty</em> one.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>3. The C-rate</h3>
+
+        <p>C-rate is current expressed as a multiple of the cell's own capacity.
+        It exists because a 200&nbsp;mAh coin cell and a 200&nbsp;Ah prismatic cell
+        behave identically at the same C-rate and completely differently at the
+        same current, so it is the only way to state a discharge specification that
+        travels across cell sizes.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \text{C-rate} = \frac{I}{Q} \quad\text{with } Q \text{ in ampere-hours} \]
+                <span class="drv-why">A 3000&nbsp;mAh cell at 3&nbsp;A is at 1C. The
+                same 3&nbsp;A from a 1500&nbsp;mAh cell is 2C, and is twice as hard on
+                the cell despite being the same current.</span>
+            </div>
+            <div class="drv-step">
+                \[ t_{run} \approx \frac{1}{\text{C-rate}} \ \text{hours} \]
+                <span class="drv-why">1C for one hour, 0.5C for two, 2C for half.
+                Approximate because capacity itself falls as the rate rises.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>C-rate</th><th>Runtime</th><th>On a 3000&nbsp;mAh cell</th><th>Typical of</th></tr></thead>
+                <tbody>
+                    <tr><td>0.05C</td><td>20&nbsp;h</td><td>150&nbsp;mA</td><td>The rate lead-acid capacity is <em>rated</em> at</td></tr>
+                    <tr><td>0.2C</td><td>5&nbsp;h</td><td>600&nbsp;mA</td><td>Laptops, phones, instruments &mdash; gentle, long life</td></tr>
+                    <tr><td>1C</td><td>1&nbsp;h</td><td>3&nbsp;A</td><td>Ordinary energy cells at their comfortable limit</td></tr>
+                    <tr><td>3C</td><td>20&nbsp;min</td><td>9&nbsp;A</td><td>Cordless tools, e-bike hills</td></tr>
+                    <tr><td>10C</td><td>6&nbsp;min</td><td>30&nbsp;A</td><td>Power cells, drone cruise</td></tr>
+                    <tr><td>30C+</td><td>2&nbsp;min</td><td>90&nbsp;A</td><td>RC LiPo burst only &mdash; never continuous</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="warning">
+            <strong>Read the burst rating sceptically.</strong> A pouch cell marked
+            &ldquo;50C&rdquo; is claiming 150&nbsp;A from 3&nbsp;Ah. If it were true
+            for more than a few seconds, at even 2&nbsp;m&Omega; the cell would be
+            dissipating \(150^2 \times 0.002 = 45\ \mathrm{W}\) inside a package the
+            size of a paperback. It is a marketing number for a ten-second pulse.
+            Size the pack on the <em>continuous</em> rating and treat burst as
+            headroom, not as capability.
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>4. High-discharge versus high-energy: it is all internal resistance</h3>
+
+        <p>Two 18650 cells look identical. One holds 3500&nbsp;mAh and is rated
+        10&nbsp;A; the other holds 2600&nbsp;mAh and is rated 30&nbsp;A. The
+        difference is not magic and it is not a marketing tier &mdash; it is
+        electrode thickness. Thick electrodes hold more lithium and store more
+        energy; thin electrodes give ions a shorter path and so present a lower
+        resistance. You cannot have both, and the resistance is what you are
+        buying.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ V_{term} = V_{OC}(SOC) - I R_{cell} \]
+                <span class="drv-why">Sag. It is not a loss of charge &mdash; the
+                voltage comes back the instant the load goes away &mdash; but while
+                the load is on, this is what your circuit actually sees.</span>
+            </div>
+            <div class="drv-step">
+                \[ P_{cell} = I^2 R_{cell} \]
+                <span class="drv-why">Heat, inside a sealed can with no heatsink. This
+                is the number that decides whether the pack needs cooling or a fire
+                extinguisher.</span>
+            </div>
+            <div class="drv-step">
+                \[ \Delta T \approx P_{cell} \cdot \theta_{cell},\qquad
+                   \theta_{18650} \approx 25\ \mathrm{^\circ C/W} \ \text{in still air} \]
+                <span class="drv-why">A bare 18650 has about 42&nbsp;cm&sup2; of
+                surface. With natural convection at roughly 10&nbsp;W/m&sup2;K that
+                is 25&nbsp;&deg;C per watt. Two watts is warm. Five is a
+                problem.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Cell class</th><th>Capacity</th><th>DCIR</th><th>Cont. rating</th><th>At 10&nbsp;A: sag</th><th>heat</th><th>&Delta;T (free air)</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Energy</strong> (LG MJ1 class)</td><td>3500&nbsp;mAh</td><td>50&nbsp;m&Omega;</td><td>10&nbsp;A (2.9C)</td><td>0.50&nbsp;V</td><td class="warn">5.0&nbsp;W</td><td class="warn">125&nbsp;&deg;C</td></tr>
+                    <tr><td><strong>Balanced</strong> (30Q / HG2 class)</td><td>3000&nbsp;mAh</td><td>25&nbsp;m&Omega;</td><td>15&nbsp;A (5C)</td><td>0.25&nbsp;V</td><td>2.5&nbsp;W</td><td>63&nbsp;&deg;C</td></tr>
+                    <tr><td><strong>Power</strong> (VTC5A / P26A class)</td><td>2600&nbsp;mAh</td><td>13&nbsp;m&Omega;</td><td>25&nbsp;A (9.6C)</td><td>0.13&nbsp;V</td><td>1.3&nbsp;W</td><td>33&nbsp;&deg;C</td></tr>
+                    <tr><td><strong>LiFePO<sub>4</sub></strong> 26650</td><td>3300&nbsp;mAh</td><td>18&nbsp;m&Omega;</td><td>10&nbsp;A (3C)</td><td>0.18&nbsp;V</td><td>1.8&nbsp;W</td><td>36&nbsp;&deg;C</td></tr>
+                    <tr><td><strong>RC LiPo pouch</strong> (per cell)</td><td>5000&nbsp;mAh</td><td>3&nbsp;m&Omega;</td><td>75&nbsp;A (15C)</td><td>0.03&nbsp;V</td><td>0.3&nbsp;W</td><td>&mdash;</td></tr>
+                    <tr><td><strong>CR2032</strong> coin (primary)</td><td>225&nbsp;mAh</td><td class="warn">15&nbsp;&Omega;</td><td>1&nbsp;mA (0.004C)</td><td colspan="3">15&nbsp;m&Omega; would be a good cell; 15&nbsp;&Omega; is a thousand times worse. Ask it for 15&nbsp;mA and the terminal voltage collapses by 0.2&nbsp;V &mdash; which is why coin-cell radios need a bulk capacitor across the cell to supply the transmit burst.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note">The 125&nbsp;&deg;C in the first row is the whole lesson.
+        That cell is being run <em>at its own datasheet rating</em>, and in free air
+        it would cook itself. Nobody runs one cell at 10&nbsp;A; they run four in
+        parallel at 40&nbsp;A, which is the same 10&nbsp;A each &mdash; so the heat
+        per cell is unchanged, and the pack still needs to get 20&nbsp;W out. The
+        parallel arrangement bought current capability, not thermal relief.</p>
+
+        <div class="analogy">
+            <span class="analogy-label">Why thick electrodes are slow</span>
+            <p>A high-energy cell is a <strong>deep warehouse with one loading
+            door</strong>: enormous storage, but everything has to travel the length
+            of the building to get out. A power cell is a <strong>shallow warehouse
+            with the same door</strong>: far less stock, but nothing is more than a
+            few steps from the exit.</p>
+            <p>Lithium ions must physically diffuse through the electrode to the
+            separator. Double the electrode thickness and you roughly double the
+            stored charge, but you also roughly double the distance every ion travels
+            &mdash; which shows up at the terminals as internal resistance.</p>
+            <div class="analogy-breaks"><strong>Where it breaks:</strong> resistance is
+            not only diffusion. Tab welds, the can, the separator and the electrolyte
+            all contribute, and a badly built power cell can be worse than a
+            well-built energy cell. Measure DCIR; do not infer it from the marketing
+            category.</div>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Interactive: pack builder</h3>
+
+        <p>Set an arrangement and a load, and watch the four things that come out
+        of it: the voltage window, the sag, the heat per cell, and the runtime.
+        The plot is the pack's open-circuit voltage against the loaded terminal
+        voltage over one discharge, with the low-voltage cutoff marked.</p>
+
+        <div class="controls">
+            <div class="c4">
+                <label for="pk-chem">Chemistry</label>
+                <select id="pk-chem">
+                    <option value="liion" selected>Li-ion / LiPo (3.7 V)</option>
+                    <option value="lfp">LiFePO4 (3.2 V)</option>
+                    <option value="lead">Lead-acid (2.0 V)</option>
+                    <option value="nimh">NiMH (1.2 V)</option>
+                </select>
+            </div>
+            <div class="c4">
+                <label for="pk-s">Series count (S)</label>
+                <input type="range" id="pk-s" min="1" max="20" step="1" value="13">
+                <span class="range-value" id="pk-s-val">13S</span>
+            </div>
+            <div class="c4">
+                <label for="pk-p">Parallel count (P)</label>
+                <input type="range" id="pk-p" min="1" max="10" step="1" value="4">
+                <span class="range-value" id="pk-p-val">4P</span>
+            </div>
+            <div class="c4">
+                <label for="pk-q">Cell capacity</label>
+                <input type="range" id="pk-q" min="500" max="6000" step="100" value="3000">
+                <span class="range-value" id="pk-q-val">3000 mAh</span>
+            </div>
+            <div class="c4">
+                <label for="pk-r">Cell DCIR</label>
+                <input type="range" id="pk-r" min="2" max="100" step="1" value="25">
+                <span class="range-value" id="pk-r-val">25 mΩ</span>
+            </div>
+            <div class="c4">
+                <label for="pk-w">Load power</label>
+                <input type="range" id="pk-w" min="5" max="2000" step="5" value="500">
+                <span class="range-value" id="pk-w-val">500 W</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="pk-canvas" width="900" height="320"></canvas>
+        </div>
+
+        <div class="kv">
+            <div class="box"><div class="k">Pack voltage (full / nom / empty)</div><div class="v mono" id="pk-v">&mdash;</div></div>
+            <div class="box"><div class="k">Capacity / energy</div><div class="v mono" id="pk-e">&mdash;</div></div>
+            <div class="box"><div class="k">Pack resistance</div><div class="v mono" id="pk-rp">&mdash;</div></div>
+            <div class="box"><div class="k">Current at load</div><div class="v mono" id="pk-i">&mdash;</div></div>
+            <div class="box"><div class="k">Cell C-rate</div><div class="v mono" id="pk-c">&mdash;</div></div>
+            <div class="box"><div class="k">Sag at nominal</div><div class="v mono" id="pk-sag">&mdash;</div></div>
+            <div class="box"><div class="k">Heat per cell / pack</div><div class="v mono" id="pk-heat">&mdash;</div></div>
+            <div class="box"><div class="k">Runtime to cutoff</div><div class="v mono" id="pk-rt">&mdash;</div></div>
+            <div class="box"><div class="k">Cells / rough mass</div><div class="v mono" id="pk-n">&mdash;</div></div>
+        </div>
+        <p class="fig-note" id="pk-note"></p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>5. Worked example: a 48&nbsp;V e-bike pack</h3>
+
+        <p>The requirement: 500&nbsp;W continuous, 1500&nbsp;W on a hill,
+        40&nbsp;km of range at about 12&nbsp;Wh/km, and a controller that expects
+        a nominal 48&nbsp;V bus and cuts out below 40&nbsp;V.</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ E_{req} = 40\,\mathrm{km} \times 12\,\mathrm{Wh/km} = 480\ \mathrm{Wh} \]
+                <span class="drv-why">Before any derating. Real packs are sized 15&ndash;25%
+                above this because the last 10% of capacity is not usable and the pack
+                fades with age.</span>
+            </div>
+            <div class="drv-step">
+                \[ S = \frac{48}{3.7} = 12.97 \Rightarrow \mathbf{13S} \]
+                <span class="drv-why">Nominal 48.1&nbsp;V, full 54.6&nbsp;V, empty
+                39&nbsp;V. Check the empty figure against the controller's 40&nbsp;V
+                cutoff: the pack reaches the controller's limit slightly before its own,
+                so the controller is what ends the ride. Acceptable, and arguably
+                desirable &mdash; it keeps the cells off their floor.</span>
+            </div>
+            <div class="drv-step">
+                \[ P = \left\lceil \frac{480\ \mathrm{Wh}}{13 \times 3.7\,\mathrm{V} \times 3.0\,\mathrm{Ah}} \right\rceil
+                    = \left\lceil \frac{480}{144.3} \right\rceil = \mathbf{4P} \]
+                <span class="drv-why">13S4P of 3000&nbsp;mAh cells: 52 cells,
+                12&nbsp;Ah, <strong>577&nbsp;Wh</strong>. The 20% over the requirement
+                is the derating, not a mistake.</span>
+            </div>
+            <div class="drv-step">
+                \[ R_{pack} = 25\,\mathrm{m\Omega} \times \frac{13}{4} = 81.3\ \mathrm{m\Omega} \]
+            </div>
+        </div>
+
+        <p>A constant-power load does not draw a fixed current, so
+        \(I = P/V_{OC}\) is the wrong sum. The terminal voltage and the current
+        settle together:</p>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ \frac{V(V_{OC}-V)}{R_{pack}} = P
+                   \;\Rightarrow\; V = \frac{V_{OC} + \sqrt{V_{OC}^2 - 4PR_{pack}}}{2} \]
+                <span class="drv-why">Take the larger root &mdash; the smaller one is
+                the high-current solution the supply cannot hold. When the
+                discriminant goes negative there is <em>no</em> operating point: the
+                pack cannot deliver that power at that state of charge, at any
+                current.</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Condition</th><th>V<sub>OC</sub></th><th>Terminal</th><th>Current</th><th>Per cell</th><th>C-rate</th><th>Pack heat</th><th>Verdict</th></tr></thead>
+                <tbody>
+                    <tr><td>500 W cruise, full</td><td>48.1&nbsp;V</td><td>47.24&nbsp;V</td><td>10.6&nbsp;A</td><td>2.65&nbsp;A</td><td>0.88C</td><td>9.1&nbsp;W</td><td class="t-ok">Comfortable. 0.18&nbsp;W per cell is nothing.</td></tr>
+                    <tr><td>1500 W hill, full</td><td>48.1&nbsp;V</td><td>45.42&nbsp;V</td><td>33.0&nbsp;A</td><td>8.26&nbsp;A</td><td>2.75C</td><td>89&nbsp;W</td><td class="t-ok">Cells rated 15&nbsp;A see 8.3&nbsp;A. 1.7&nbsp;W each, and it is transient.</td></tr>
+                    <tr><td>1500 W hill, 10% left</td><td>44.46&nbsp;V</td><td>41.53&nbsp;V</td><td>36.1&nbsp;A</td><td>9.03&nbsp;A</td><td>3.01C</td><td>106&nbsp;W</td><td class="t-ok">Still above the 40&nbsp;V cutoff &mdash; but only by 1.5&nbsp;V.</td></tr>
+                    <tr><td>1500 W hill, 5% left</td><td>42.64&nbsp;V</td><td>39.56&nbsp;V</td><td>37.9&nbsp;A</td><td>9.48&nbsp;A</td><td>3.16C</td><td>117&nbsp;W</td><td class="t-warn">Below the controller's 40&nbsp;V cutoff. The bike loses power on a hill while it would still run happily on the flat.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note">The last two rows are the design's real behaviour, and
+        neither appears if you check the pack at nominal voltage only. Solving for the
+        cutoff exactly: the terminals reach 40&nbsp;V when \(V_{OC} = 43.05\)&nbsp;V,
+        which is 3.31&nbsp;V per cell &mdash; roughly 7% state of charge. So the pack
+        loses its hill capability with about 7% of its energy still in it, while cruise
+        power stays available to nearly 0%. Whether that matters is a product decision,
+        not an electrical one; if it does, 13S5P (65 cells, 65&nbsp;m&Omega;) moves the
+        cutoff down to about 3% and 13&nbsp;m&Omega; power cells would remove it
+        entirely at the cost of a third of the capacity.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>6. Lead-acid, and the LiFePO<sub>4</sub> that replaces it</h3>
+
+        <p>Lead-acid is not legacy &mdash; it still starts nearly every internal
+        combustion engine on earth, and it is still the default for UPS and standby.
+        It has two properties nothing else matches: it tolerates a float charge
+        indefinitely, and it delivers enormous cranking current from a cheap cell.
+        It also has properties that make it awful everywhere else.</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Stage</th><th>Per cell</th><th>12&nbsp;V battery</th><th>What is happening</th></tr></thead>
+                <tbody>
+                    <tr><td>Bulk</td><td>rising</td><td>rising to 14.4&nbsp;V</td><td>Constant current; voltage climbs</td></tr>
+                    <tr><td>Absorption</td><td>2.40&nbsp;V</td><td>14.4&nbsp;V</td><td>Held constant while current tapers</td></tr>
+                    <tr><td>Float</td><td>2.25&nbsp;V</td><td>13.5&nbsp;V</td><td>Indefinite. Offsets self-discharge only.</td></tr>
+                    <tr><td>Equalise (flooded only)</td><td>2.58&nbsp;V</td><td class="warn">15.5&nbsp;V</td><td>Deliberate controlled overcharge to remix the electrolyte</td></tr>
+                    <tr><td>Cutoff</td><td>1.75&nbsp;V</td><td>10.5&nbsp;V</td><td>Below this, sulfation is permanent</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p>Two lead-acid facts that catch people out:</p>
+        <ul>
+            <li><strong>Capacity is quoted at the 20-hour rate</strong> (0.05C). A
+            &ldquo;100&nbsp;Ah&rdquo; battery gives 100&nbsp;Ah at 5&nbsp;A. Draw
+            100&nbsp;A from it and you will get about 45&nbsp;Ah, not 100. This is
+            Peukert's effect, and it is far stronger in lead-acid
+            (\(k \approx 1.25\)) than in lithium (\(k \approx 1.05\)).</li>
+            <li><strong>Charge voltage needs temperature compensation</strong> of
+            about &minus;4&nbsp;mV/&deg;C per cell, so &minus;24&nbsp;mV/&deg;C on a
+            12&nbsp;V battery. A charger set for 25&nbsp;&deg;C will chronically
+            overcharge a battery in a hot engine bay and chronically undercharge one
+            outdoors in winter.</li>
+        </ul>
+
+        <div class="derivation">
+            <div class="drv-step">
+                \[ t = H\left(\frac{Q}{I \cdot H}\right)^{k} \]
+                <span class="drv-why">Peukert. \(H\) is the rating period (20&nbsp;h),
+                \(Q\) the rated capacity, \(k\) the Peukert exponent. At \(k=1\) it
+                reduces to the ideal \(t = Q/I\); every real battery has \(k>1\).</span>
+            </div>
+        </div>
+
+        <h4>The 4S LiFePO<sub>4</sub> drop-in</h4>
+        <p>Four LiFePO<sub>4</sub> cells give 12.8&nbsp;V nominal and charge to
+        14.6&nbsp;V &mdash; almost exactly a lead-acid battery's window. That
+        coincidence is the entire reason LiFePO<sub>4</sub> took over the
+        replacement market. It is not a perfect substitution:</p>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th></th><th>Lead-acid 12&nbsp;V 100&nbsp;Ah</th><th>4S LiFePO<sub>4</sub> 100&nbsp;Ah</th></tr></thead>
+                <tbody>
+                    <tr><td>Usable capacity</td><td>50&nbsp;Ah (50% DoD limit)</td><td class="ok">90&nbsp;Ah+</td></tr>
+                    <tr><td>Mass</td><td>~28&nbsp;kg</td><td class="ok">~12&nbsp;kg</td></tr>
+                    <tr><td>Cycles to 80%</td><td>300&ndash;500</td><td class="ok">3000&ndash;6000</td></tr>
+                    <tr><td>Voltage under load</td><td>Sags steadily all discharge</td><td class="ok">Flat, then falls off a cliff</td></tr>
+                    <tr><td>Charging below 0&nbsp;&deg;C</td><td>Allowed, slowly</td><td class="warn">Forbidden &mdash; plates lithium metal. Needs a BMS that blocks it.</td></tr>
+                    <tr><td>Float charging</td><td>Designed for it</td><td class="warn">Dislikes it. Hold at 13.6&nbsp;V, never 14.6&nbsp;V.</td></tr>
+                    <tr><td>Equalise stage</td><td>Required on flooded</td><td class="warn">15.5&nbsp;V destroys it. Chargers with a non-defeatable equalise stage must not be used.</td></tr>
+                    <tr><td>State of charge from voltage</td><td>Works well &mdash; sloped curve</td><td class="warn">Useless. 3.3&nbsp;V/cell from 90% down to 20%.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="fig-note">The flat curve is worth dwelling on. A LiFePO<sub>4</sub>
+        pack sits at 13.2&nbsp;V for hours and then drops to 10&nbsp;V in minutes,
+        so a voltage gauge shows &ldquo;full&rdquo; right up to the moment the
+        system dies. This is why LiFePO<sub>4</sub> installations need coulomb
+        counting &mdash; the gauge is not a luxury, it is the only way to know
+        anything. See <em>Fuel Gauge Algorithms</em> earlier in this module.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>7. Cell formats</h3>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Format</th><th>Size</th><th>Typical capacity</th><th>Why you would choose it</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">18650</td><td>18 &times; 65&nbsp;mm</td><td>2500&ndash;3500&nbsp;mAh</td><td>The workhorse. Enormous supply, every rating exists, well-understood safety, and the steel can is its own structure.</td></tr>
+                    <tr><td class="mono">21700</td><td>21 &times; 70&nbsp;mm</td><td>4000&ndash;5000&nbsp;mAh</td><td>~35% more energy per cell, so ~35% fewer welds, sense wires and holders for the same pack. Now the default for new e-mobility designs.</td></tr>
+                    <tr><td class="mono">26650</td><td>26 &times; 65&nbsp;mm</td><td>3000&ndash;5000&nbsp;mAh</td><td>Mostly LiFePO<sub>4</sub>. Good thermal mass.</td></tr>
+                    <tr><td class="mono">32700</td><td>32 &times; 70&nbsp;mm</td><td>6000&nbsp;mAh</td><td>LiFePO<sub>4</sub> for solar and storage where volume is cheap.</td></tr>
+                    <tr><td class="mono">4680</td><td>46 &times; 80&nbsp;mm</td><td>~26&nbsp;Ah</td><td>Tabless construction shortens the current path along the whole electrode, so a very large cell keeps a low resistance. The industry's answer to &ldquo;bigger cells are slower&rdquo;.</td></tr>
+                    <tr><td>Pouch (LiPo)</td><td>Any</td><td>Any</td><td>Best volumetric packing &mdash; no wasted space between cylinders &mdash; and the lowest resistance per Ah. But it needs mechanical restraint, it swells as it ages, and it has no vent, so an internal fault has nowhere to go.</td></tr>
+                    <tr><td>Prismatic</td><td>Large, rectangular</td><td>50&ndash;300&nbsp;Ah</td><td>Grid and marine LiFePO<sub>4</sub>. Bolt terminals rather than welds, so a pack can be assembled with a spanner.</td></tr>
+                    <tr><td>Coin (CR2032)</td><td>20 &times; 3.2&nbsp;mm</td><td>225&nbsp;mAh</td><td>Primary lithium for RTCs and remotes. Very high resistance &mdash; design for microamps, and buffer any burst with a capacitor.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="acceptance">
+        <h3>8. Acceptance tests for a pack design</h3>
+
+        <h4>Performance</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Test</th><th>Condition</th><th>Pass criterion</th><th>If it fails</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Full-charge voltage</td>
+                        <td>Charger terminated, measured at the terminals</td>
+                        <td>Within 50&nbsp;mV of \(S \times V_{max}\), and <strong>every downstream part rated above it</strong></td>
+                        <td>Recheck the absolute-maximum column of every input on the load side</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Sag at peak load</td>
+                        <td>Peak current, pack at its <em>lowest</em> usable SOC</td>
+                        <td>Terminal voltage still above the load's undervoltage lockout</td>
+                        <td>Increase P, or move to lower-DCIR cells</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Capacity</td>
+                        <td>Discharge at the rated current, cell to cutoff</td>
+                        <td>&ge; 95% of the calculated \(P \times Q_{cell}\)</td>
+                        <td>Cells not matched, a bad weld adding resistance, or the cells are not what the label says</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Cell temperature</td>
+                        <td>Continuous rated discharge, worst-position cell, still air</td>
+                        <td>&le; 60&nbsp;&deg;C, and &le; 5&nbsp;&deg;C spread across the pack</td>
+                        <td>The spread matters as much as the peak &mdash; an outlier cell ages faster and drags the pack down with it</td></tr>
+                    <tr><td><span class="ac-tag ac-pass">Pass</span> Balance after cycling</td>
+                        <td>20 full cycles, then measure every series group</td>
+                        <td>&le; 30&nbsp;mV spread at full charge</td>
+                        <td>A drifting group is either a weak cell or a balance channel that is not working</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h4>Abuse</h4>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>What is done to it</th><th>What physically happens</th><th>Acceptable outcome</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A 4S Li-ion pack charged by a 5S charger</strong> (21&nbsp;V into a 16.8&nbsp;V pack)</td>
+                        <td>Every cell is driven past 4.2&nbsp;V toward 5.25&nbsp;V. Above about 4.3&nbsp;V the electrolyte begins to oxidise and lithium plates on the anode; the cell gasses, swells, and can go into thermal runaway.</td>
+                        <td><strong>The BMS overvoltage comparator must open the charge FET before any cell exceeds 4.25&nbsp;V.</strong> This is not a nice-to-have: a charger is the one thing in the system with the authority to push energy in, and mismatched chargers are how most consumer lithium fires start.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>Terminals shorted with a spanner</strong> on the 13S4P example</td>
+                        <td>81&nbsp;m&Omega; of pack against milliohms of spanner: \(48/0.085 \approx \mathbf{560\ A}\). Each cell delivers 140&nbsp;A and dissipates \(140^2 \times 0.025 = \mathbf{490\ W}\) internally. The nickel strip vaporises, the spanner glows, and any cell that stays connected goes into runaway within seconds.</td>
+                        <td>A fuse in the main path rated well below the strip's fusing current, <em>and</em> a BMS short-circuit detector with a sub-millisecond response. <strong>Neither alone is sufficient</strong> &mdash; a fuse is too slow to protect a semiconductor, and the BMS FET is destroyed by the fault it is trying to interrupt if the fuse is not there to back it up.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A shorted cell inside one parallel group</strong></td>
+                        <td>The other three cells in that group now discharge into it through the busbar, with only \(25/3 = 8.3\ \mathrm{m\Omega}\) plus the strip limiting them. That is hundreds of amps <em>inside the pack</em>, where no main fuse can see it, because the pack terminals show nothing unusual.</td>
+                        <td>This is the argument for <strong>per-cell fusible links</strong> &mdash; a deliberately thin section of nickel to each cell that opens at a few tens of amps. It costs a little resistance and removes the one failure mode that a pack-level fuse is blind to.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>LiFePO<sub>4</sub> drop-in charged at &minus;10&nbsp;&deg;C</strong> by a lead-acid charger</td>
+                        <td>Lithium cannot intercalate fast enough into cold graphite, so it plates as metal on the anode surface. The plating is permanent, it consumes capacity, and the dendrites it forms can eventually pierce the separator.</td>
+                        <td><strong>The BMS must refuse charge below 0&nbsp;&deg;C</strong> &mdash; the battery cannot rely on the charger, because the charger it is replacing had no such concept. A drop-in that omits this will pass every bench test and fail its first winter.</td>
+                    </tr>
+                    <tr>
+                        <td><span class="ac-tag ac-abuse">Abuse</span> <strong>A fully charged cell paralleled with a fully discharged one</strong> during assembly</td>
+                        <td>4.2&nbsp;V against 3.0&nbsp;V through \(2 \times 25\ \mathrm{m\Omega}\): \(1.2/0.05 = \mathbf{24\ A}\) at the instant of contact, with no load and no switch in the circuit.</td>
+                        <td>Cells must be brought to the same voltage &mdash; typically all to storage charge, around 3.7&nbsp;V &mdash; <em>before</em> they are welded in parallel. There is no protection circuit that can help here; the fault happens on the assembly bench, upstream of the BMS.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Build it in Circuit Toy</h3>
+        <p>The interactive above is a model with the physics written into it. To
+        put the sag behaviour in front of a real solver, build the Th&eacute;venin
+        model of a pack in
+        <a href="https://github.com/jfalvarez1/circuit_toy" target="_blank" rel="noopener">Circuit Toy</a>
+        from the table below. Node names are just labels &mdash; anything sharing
+        a name is one wire.</p>
+
+        <p><strong>13S4P pack driving a step load</strong></p>
+
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
+                <tbody>
+                    <tr><td class="mono">Voc</td><td>Voltage Source</td><td>48.1&nbsp;V DC</td><td>from <span class="mono">oc</span> to ground</td></tr>
+                    <tr><td class="mono">Rpack</td><td>Resistor</td><td>81.3&nbsp;m&Omega;</td><td>between <span class="mono">oc</span> and <span class="mono">term</span></td></tr>
+                    <tr><td class="mono">Rwire</td><td>Resistor</td><td>15&nbsp;m&Omega;</td><td>between <span class="mono">term</span> and <span class="mono">load</span></td></tr>
+                    <tr><td class="mono">Rload</td><td>Resistor</td><td>4.62&nbsp;&Omega;</td><td>between <span class="mono">load</span> and ground</td></tr>
+                    <tr><td class="mono">Cbulk</td><td>Capacitor</td><td>2200&nbsp;&micro;F</td><td>between <span class="mono">load</span> and ground</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p><strong>What to run:</strong> a <strong>DC operating point</strong> first,
+        then sweep <span class="mono">Rload</span> from 4.62&nbsp;&Omega; (500&nbsp;W)
+        down to 1.54&nbsp;&Omega; (1500&nbsp;W).</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(term)</span> against
+        <span class="mono">V(oc)</span>. The gap is the sag, and it grows linearly
+        with current exactly as \(IR_{pack}\) says it must. Then change
+        <span class="mono">Rpack</span> to 65&nbsp;m&Omega; &mdash; the 13S5P
+        version &mdash; and watch how much of the sag a fifth parallel string buys
+        back.</p>
+
+        <p class="fig-note">Note what the model does <em>not</em> capture: it has no
+        state of charge, so \(V(oc)\) never falls. Real sag gets worse through the
+        discharge because \(V_{OC}\) is dropping <em>and</em> the constant-power load
+        is drawing more current as it does. That compounding is the third row of the
+        worked-example table, and it is why a pack that is fine at 50% charge can
+        still cut out at 10%.</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <div class="card">
+        <h3>Design Checklist</h3>
+        <div id="pack-checklist"></div>
+    </div>
+
+    <div class="card">
+        <h3>Practice Exercises</h3>
+        <div id="pack-exercises"></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var canvas = document.getElementById('pk-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var TEK = AD.TEK_COLORS;
+
+    // Open-circuit voltage against state of charge, per chemistry. Each is a
+    // table of [SOC fraction, volts per cell] from 100% down to 0%, linearly
+    // interpolated between points. These are discharge curves at a low rate,
+    // so the loaded terminal voltage is this minus I*R.
+    var CHEM = {
+        liion: {
+            name: 'Li-ion / LiPo', nom: 3.7, max: 4.20, min: 3.00, gPerAh: 13.7,
+            ocv: [[1.00, 4.20], [0.90, 4.06], [0.80, 3.95], [0.60, 3.80],
+                  [0.40, 3.68], [0.20, 3.55], [0.10, 3.42], [0.05, 3.28], [0.00, 3.00]]
+        },
+        lfp: {
+            name: 'LiFePO4', nom: 3.2, max: 3.65, min: 2.50, gPerAh: 21.0,
+            ocv: [[1.00, 3.50], [0.95, 3.35], [0.90, 3.32], [0.60, 3.30],
+                  [0.30, 3.27], [0.20, 3.22], [0.10, 3.10], [0.05, 2.95], [0.00, 2.50]]
+        },
+        lead: {
+            name: 'Lead-acid', nom: 2.0, max: 2.40, min: 1.75, gPerAh: 62.0,
+            ocv: [[1.00, 2.12], [0.80, 2.07], [0.60, 2.02], [0.40, 1.97],
+                  [0.20, 1.91], [0.10, 1.86], [0.00, 1.75]]
+        },
+        nimh: {
+            name: 'NiMH', nom: 1.2, max: 1.45, min: 1.00, gPerAh: 22.0,
+            ocv: [[1.00, 1.40], [0.90, 1.33], [0.70, 1.28], [0.40, 1.24],
+                  [0.20, 1.20], [0.10, 1.15], [0.05, 1.08], [0.00, 1.00]]
+        }
+    };
+
+    function ocvAt(chem, soc) {
+        var t = chem.ocv;
+        if (soc >= t[0][0]) return t[0][1];
+        if (soc <= t[t.length - 1][0]) return t[t.length - 1][1];
+        for (var i = 0; i < t.length - 1; i++) {
+            if (soc <= t[i][0] && soc >= t[i + 1][0]) {
+                var span = t[i][0] - t[i + 1][0];
+                var f = span > 0 ? (soc - t[i + 1][0]) / span : 0;
+                return t[i + 1][1] + f * (t[i][1] - t[i + 1][1]);
+            }
+        }
+        return chem.nom;
+    }
+
+    function update() {
+        var sel = document.getElementById('pk-chem');
+        var chem = CHEM[sel ? sel.value : 'liion'] || CHEM.liion;
+        var S = AD.num('pk-s');
+        var P = AD.num('pk-p');
+        var Qcell = AD.num('pk-q') / 1000;      // Ah
+        var Rcell = AD.num('pk-r') / 1000;      // ohms
+        var Pload = AD.num('pk-w');             // watts
+
+        AD.setText('pk-s-val', S + 'S');
+        AD.setText('pk-p-val', P + 'P');
+        AD.setText('pk-q-val', (Qcell * 1000).toFixed(0) + ' mAh');
+        AD.setText('pk-r-val', (Rcell * 1000).toFixed(0) + ' mΩ');
+        AD.setText('pk-w-val', Pload + ' W');
+
+        var Vnom = S * chem.nom;
+        var Vfull = S * chem.max;
+        var Vempty = S * chem.min;
+        var Qpack = P * Qcell;                  // Ah
+        var Epack = Vnom * Qpack;               // Wh
+        var Rpack = Rcell * S / P;
+        var nCells = S * P;
+        var mass = nCells * Qcell * chem.gPerAh;
+
+        // Current at the nominal operating point, for a constant-power load.
+        var Inom = Pload / Vnom;
+        var sag = Inom * Rpack;
+        var Icell = Inom / P;
+        var crate = Qcell > 0 ? Icell / Qcell : 0;
+        var heatCell = Icell * Icell * Rcell;
+        var heatPack = heatCell * nCells;
+
+        AD.setText('pk-v', Vfull.toFixed(1) + ' / ' + Vnom.toFixed(1) + ' / ' +
+                           Vempty.toFixed(1) + ' V');
+        AD.setText('pk-e', Qpack.toFixed(1) + ' Ah  →  ' + Epack.toFixed(0) + ' Wh');
+        AD.setText('pk-rp', (Rpack * 1000).toFixed(1) + ' mΩ   (' + S + '/' + P + ' × ' +
+                            (Rcell * 1000).toFixed(0) + ' mΩ)');
+        AD.setText('pk-i', Inom.toFixed(1) + ' A pack  /  ' + Icell.toFixed(2) + ' A per cell');
+        AD.setText('pk-c', crate.toFixed(2) + 'C');
+        AD.setText('pk-sag', sag.toFixed(2) + ' V  (' + (sag / Vnom * 100).toFixed(1) + '%)');
+        AD.setText('pk-heat', heatCell.toFixed(2) + ' W / cell,  ' + heatPack.toFixed(0) + ' W total');
+        AD.setText('pk-n', nCells + ' cells,  ≈' + (mass / 1000).toFixed(2) + ' kg of cells');
+
+        // ---- discharge, stepped in state of charge -----------------------
+        // Constant power, so current rises as the pack empties. Integrate the
+        // charge drawn to get the time to the cutoff.
+        var N = 400;
+        var socs = [], vocs = [], vterms = [];
+        var hours = 0, cutSoc = 0, cutHours = 0, hitCut = false;
+        var prevSoc = 1;
+        for (var i = 0; i <= N; i++) {
+            var soc = 1 - i / N;
+            var voc = S * ocvAt(chem, soc);
+            // Terminal voltage under a constant-power load: solve
+            //   V*(Voc - V)/Rpack = Pload  =>  V^2 - Voc*V + Pload*Rpack = 0
+            var disc = voc * voc - 4 * Pload * Rpack;
+            var vt = disc > 0 ? (voc + Math.sqrt(disc)) / 2 : 0;
+            socs.push(soc); vocs.push(voc); vterms.push(vt);
+
+            if (i > 0 && !hitCut) {
+                var I = vt > 0 ? Pload / vt : Infinity;
+                var dQ = (prevSoc - soc) * Qpack;       // Ah drawn in this step
+                if (isFinite(I) && I > 0) hours += dQ / I;
+                if (vt <= Vempty || vt === 0) { hitCut = true; cutSoc = soc; cutHours = hours; }
+            }
+            prevSoc = soc;
+        }
+        if (!hitCut) { cutSoc = 0; cutHours = hours; }
+
+        var rtTxt;
+        if (cutHours >= 1) rtTxt = cutHours.toFixed(2) + ' h';
+        else if (cutHours >= 1 / 60) rtTxt = (cutHours * 60).toFixed(0) + ' min';
+        else rtTxt = (cutHours * 3600).toFixed(0) + ' s';
+        AD.setText('pk-rt', rtTxt + '   (' + ((1 - cutSoc) * 100).toFixed(0) + '% of capacity used)');
+
+        // ---- plot ---------------------------------------------------------
+        var w = canvas.width, h = canvas.height;
+        var ml = 62, mr = 110, mt = 24, mb = 40;
+        var pw = w - ml - mr, ph = h - mt - mb;
+
+        AD.drawGrid(ctx, w, h, 10, 8);
+
+        var vMax = Vfull * 1.05;
+        var vMin = Math.min(Vempty * 0.85, vterms[vterms.length - 1] * 0.95);
+        if (!(vMin < vMax)) vMin = 0;
+        var X = function (soc) { return ml + (1 - soc) * pw; };
+        var Y = function (v) { return mt + ph - (v - vMin) / (vMax - vMin) * ph; };
+
+        // cutoff line
+        ctx.save();
+        ctx.strokeStyle = TEK.ref;
+        ctx.setLineDash([5, 4]);
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(ml, Y(Vempty)); ctx.lineTo(ml + pw, Y(Vempty)); ctx.stroke();
+        ctx.restore();
+
+        function trace(arr, colour, width) {
+            ctx.save();
+            ctx.strokeStyle = colour;
+            ctx.lineWidth = width;
+            ctx.beginPath();
+            for (var k = 0; k < arr.length; k++) {
+                var x = X(socs[k]), y = Y(arr[k]);
+                if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+        trace(vocs, TEK.ideal, 1.5);
+        trace(vterms, TEK.ch1, 2);
+
+        // where it crosses the cutoff
+        if (hitCut && cutSoc > 0) {
+            ctx.save();
+            ctx.fillStyle = TEK.ref;
+            ctx.beginPath();
+            ctx.arc(X(cutSoc), Y(Vempty), 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // axes
+        ctx.save();
+        ctx.fillStyle = TEK.text;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'right';
+        for (var g = 0; g <= 4; g++) {
+            var vv = vMin + (vMax - vMin) * g / 4;
+            ctx.fillText(vv.toFixed(1) + ' V', ml - 6, Y(vv) + 4);
+        }
+        ctx.textAlign = 'center';
+        for (var d = 0; d <= 4; d++) {
+            var dd = d / 4;
+            ctx.fillText((dd * 100).toFixed(0) + '%', X(1 - dd), mt + ph + 18);
+        }
+        ctx.fillText('depth of discharge', ml + pw / 2, h - 6);
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = TEK.ch1;
+        ctx.fillText('terminal, loaded', ml + pw + 8, mt + 14);
+        ctx.fillStyle = TEK.ideal;
+        ctx.fillText('open circuit', ml + pw + 8, mt + 30);
+        ctx.fillStyle = TEK.ref;
+        ctx.fillText('cutoff ' + Vempty.toFixed(1) + ' V', ml + pw + 8, mt + 46);
+        ctx.restore();
+
+        // ---- verdict ------------------------------------------------------
+        var verdict;
+        if (vterms[0] <= 0) {
+            verdict = 'The load demands more power than this pack can deliver at any ' +
+                      'state of charge — the constant-power solution has no real root, ' +
+                      'which physically means the pack collapses rather than supplying it. ' +
+                      'More parallel strings or lower-resistance cells.';
+        } else if (crate > 10) {
+            verdict = 'Each cell is at ' + crate.toFixed(1) + 'C. Only pouch cells and ' +
+                      'dedicated power cells sustain that, and only briefly. ' +
+                      heatCell.toFixed(1) + ' W inside one can is roughly ' +
+                      (heatCell * 25).toFixed(0) + ' °C of rise in still air.';
+        } else if (heatCell > 2) {
+            verdict = heatCell.toFixed(2) + ' W per cell is about ' + (heatCell * 25).toFixed(0) +
+                      ' °C of rise for a bare cylindrical cell in free air. The pack needs a ' +
+                      'deliberate thermal path, not just a plastic case.';
+        } else if (sag / Vnom > 0.10) {
+            verdict = 'Sag is ' + (sag / Vnom * 100).toFixed(0) + '% of nominal before the pack ' +
+                      'has even started to empty, and it gets worse as it does — a constant-power ' +
+                      'load draws more current at lower voltage. Raise P.';
+        } else if (cutSoc > 0.25) {
+            verdict = 'The pack hits its voltage floor with ' + (cutSoc * 100).toFixed(0) +
+                      '% of its charge still in it. That charge is not lost, it is simply ' +
+                      'unreachable at this load — the sag gets there first. Lower resistance ' +
+                      'or a lower cutoff would recover it.';
+        } else {
+            verdict = 'A workable pack: ' + crate.toFixed(2) + 'C per cell, ' +
+                      (sag / Vnom * 100).toFixed(1) + '% sag, ' + heatCell.toFixed(2) +
+                      ' W per cell, and ' + ((1 - cutSoc) * 100).toFixed(0) +
+                      '% of the stored charge reachable at this load.';
+        }
+
+        AD.setText('pk-note',
+            S + 'S' + P + 'P of ' + chem.name + ': ' + nCells + ' cells, ' +
+            Epack.toFixed(0) + ' Wh, ' + (Rpack * 1000).toFixed(1) + ' mΩ. ' +
+            'Note the gap between the two traces widening toward the right — that is ' +
+            'the constant-power load pulling harder as the voltage falls. ' + verdict);
+    }
+
+    ['pk-s', 'pk-p', 'pk-q', 'pk-r', 'pk-w'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', update);
+    });
+    var chemSel = document.getElementById('pk-chem');
+    if (chemSel) chemSel.addEventListener('change', update);
+    update();
+
+    // ---- checklist and exercises -----------------------------------------
+    if (typeof ChecklistWidget !== 'undefined') {
+        new ChecklistWidget('pack-checklist', {
+            title: 'Pack Architecture Checklist',
+            items: [
+                {id: 'energy', text: 'Energy requirement in Wh, with 15-25% derating applied', category: 'Sizing'},
+                {id: 'series', text: 'S chosen from the load bus, then checked against the FULL voltage', category: 'Sizing'},
+                {id: 'empty', text: 'Empty pack voltage still above the load undervoltage lockout', category: 'Sizing'},
+                {id: 'parallel', text: 'P chosen from capacity, then re-checked against peak current per cell', category: 'Sizing'},
+                {id: 'crate', text: 'Continuous and peak C-rate both within the cell datasheet, not the burst number', category: 'Sizing'},
+                {id: 'dcir', text: 'Pack resistance calculated as R_cell x S/P and sag checked at the worst case', category: 'Electrical'},
+                {id: 'worstcase', text: 'Sag verified at LOW state of charge and PEAK current together, not separately', category: 'Electrical'},
+                {id: 'wire', text: 'Interconnect and connector resistance added to the pack resistance', category: 'Electrical'},
+                {id: 'heat', text: 'Per-cell dissipation calculated and a thermal path provided for it', category: 'Thermal'},
+                {id: 'spread', text: 'Hottest and coolest cell positions identified; spread budgeted', category: 'Thermal'},
+                {id: 'coldchg', text: 'Charging below 0 C blocked in the BMS for any lithium chemistry', category: 'Safety'},
+                {id: 'fuse', text: 'Main fuse sized below the interconnect fusing current', category: 'Safety'},
+                {id: 'link', text: 'Per-cell fusible links considered for any pack with P > 1', category: 'Safety'},
+                {id: 'match', text: 'Cells matched in capacity and voltage before parallel welding', category: 'Assembly'},
+                {id: 'sense', text: 'One balance sense wire per series group, fused or current-limited', category: 'Assembly'}
+            ]
+        });
+    }
+
+    if (typeof ExerciseWidget !== 'undefined') {
+        new ExerciseWidget('pack-exercises', {
+            exercises: [
+                {
+                    id: 'ex1',
+                    title: 'Choose the arrangement',
+                    problem: 'A cordless drill needs 400 W peak and 60 Wh of energy, from 3000 mAh 25 mOhm Li-ion cells. Compare 5S2P against 10S1P: give the nominal voltage, pack resistance, current at 400 W, per-cell C-rate and sag for each. Which would you build, and why?',
+                    hints: [
+                        'Both are 10 cells, so both store the same energy - that is the point of the comparison',
+                        'R_pack = R_cell x S/P',
+                        'At constant power, I = P/V, so the higher-voltage pack draws less current',
+                        'Then check the per-cell current against a 15 A cell rating'
+                    ],
+                    answer: '5S2P: 18.5 V nominal, R = 25 x 5/2 = 62.5 mOhm, I = 400/18.5 = 21.6 A, per cell 10.8 A = 3.6C, sag = 21.6 x 0.0625 = 1.35 V (7.3%). 10S1P: 37 V nominal, R = 25 x 10/1 = 250 mOhm, I = 400/37 = 10.8 A, per cell 10.8 A = 3.6C, sag = 10.8 x 0.25 = 2.70 V (7.3%). Note the per-cell current and the PERCENTAGE sag are identical - that is not a coincidence, it follows from both packs having the same cells and the same total power. The real decision is elsewhere: 5S2P needs half as many balance channels and stays under 20 V, which keeps the motor controller simple and the product out of higher-voltage safety requirements; 10S1P halves the current so the trigger switch, wiring and connector all get smaller and cheaper. For a handheld drill, 5S2P - tool motors are cheap at 18 V and the cell count per series group gives some redundancy against a single weak cell.'
+                },
+                {
+                    id: 'ex2',
+                    title: 'The cell that cooks itself',
+                    problem: 'A designer picks 3500 mAh energy cells (50 mOhm, rated 10 A) for a 4S1P pack driving a 300 W load. Calculate the current, per-cell C-rate, dissipation and free-air temperature rise. Is the design within the datasheet? Is it safe? Explain why those two questions have different answers.',
+                    hints: [
+                        'Nominal pack voltage is 4 x 3.7 V',
+                        'With P = 1 the cell current is the pack current',
+                        'Use 25 C/W for a bare 18650 in still air',
+                        'Compare the answer to the 10 A continuous rating'
+                    ],
+                    answer: 'V_nom = 14.8 V, so I = 300/14.8 = 20.3 A. With P = 1 every cell carries all 20.3 A, which is 5.8C on a 3500 mAh cell and TWICE the 10 A datasheet rating - so no, it is not within spec. Dissipation is 20.3^2 x 0.050 = 20.6 W per cell, giving 20.6 x 25 = over 500 C of rise in free air; the cell would vent long before reaching that. Even at the datasheet-legal 10 A the numbers are alarming: 5.0 W and 125 C of rise. That is the difference between the two questions. The datasheet rating is what the cell survives when it is heatsunk, in a pack, with airflow, for the manufacturer test duration - it is a limit, not a recommendation. Safety needs the thermal calculation done separately for YOUR mechanical design. Fix: 4S3P of the same cells (60 cells-worth of current shared three ways, 6.8 A each, 2.3 W each, 58 C rise - still warm), or 4S2P of 13 mOhm power cells (10.2 A each, 1.35 W each, 34 C rise) at the cost of capacity.'
+                },
+                {
+                    id: 'ex3',
+                    title: 'Lead-acid to LiFePO4',
+                    problem: 'A solar shed uses a 12 V 100 Ah lead-acid battery and a charge controller with bulk 14.4 V, float 13.6 V and a monthly equalise at 15.5 V that cannot be disabled. The owner wants to fit a 4S LiFePO4 100 Ah drop-in. Work out the usable energy each way, then list every reason this specific charge controller is a problem.',
+                    hints: [
+                        'Lead-acid is limited to about 50% depth of discharge for reasonable cycle life',
+                        'Peukert also matters if the load is heavy',
+                        'Check each charger stage voltage against 4 x 3.65 V and 4 x 3.4 V',
+                        'Think about what the float stage does to a chemistry that does not want one'
+                    ],
+                    answer: 'Usable energy: lead-acid 12 V x 100 Ah x 50% = 600 Wh; LiFePO4 12.8 V x 100 Ah x 90% = 1150 Wh - nearly double from the same nameplate. If the load is heavy the gap widens further, because Peukert costs the lead-acid capacity at high rates (k = 1.25) and barely touches lithium (k = 1.05). Problems with this controller: (1) The 15.5 V equalise is 3.88 V per cell, well past the 3.65 V maximum - it will drive the pack into overvoltage every month, and either the BMS disconnects mid-charge (leaving the shed with no battery, which is its own failure) or the cells are damaged. This alone disqualifies the controller. (2) The 13.6 V float is 3.4 V per cell held indefinitely; LiFePO4 does not need or want a maintenance charge, and sitting at high SOC accelerates calendar ageing. Better to float at 13.4 V or let it rest. (3) No low-temperature charge inhibit - the controller has no concept of it, so the BMS must block charging below 0 C on its own. (4) The controller almost certainly estimates SOC from voltage, which is meaningless on a curve that sits at 3.3 V/cell from 90% to 20%; its display will read full until the moment the pack is empty. Correct answer: replace the charge controller with a lithium-capable one at the same time as the battery. A drop-in is a mechanical and voltage-window drop-in, not a charging-profile one.'
+                },
+                {
+                    id: 'ex4',
+                    title: 'Peukert on a winch',
+                    problem: 'A 12 V 100 Ah lead-acid battery (rated at the 20 hour rate, Peukert exponent 1.25) runs a winch drawing 80 A. Estimate the runtime with and without Peukert, and comment on the difference.',
+                    hints: [
+                        't = H (Q/(I*H))^k, with H = 20 h',
+                        'The naive answer is just Q/I',
+                        'Compute Q/(I*H) first, then raise it to the power'
+                    ],
+                    answer: 'Naive: 100 Ah / 80 A = 1.25 h = 75 minutes. Peukert: Q/(I*H) = 100/(80 x 20) = 0.0625. Raised to 1.25: 0.0625^1.25 = 0.0313. Times H = 20 x 0.0313 = 0.625 h = 37.5 minutes - half the naive answer. The effective capacity delivered is 80 A x 0.625 h = 50 Ah, so the battery gives 50% of its nameplate at this rate. This is why lead-acid winch and starter batteries are specified in cold cranking amps rather than amp-hours: the amp-hour number, measured at 5 A, tells you almost nothing about behaviour at 80 A. A LiFePO4 pack of the same nameplate, with k around 1.05, would deliver roughly 100 x (0.0625)^0.05 x 20 / 1.25... more directly: its effective capacity falls only a few percent, so it would run the winch for close to the full 75 minutes.'
+                }
+            ]
+        });
+    }
+})();
+</script>

@@ -1088,75 +1088,98 @@
         // Schematic
         function createAudioSchematic() {
             const container = document.getElementById('audio-schematic');
-            const svg = new SchematicSVG(700, 280);
+            if (!container) return;
+            container.innerHTML = '';
 
-            // Supply rails
-            svg.addText(30, 30, '+Vcc', '10px', 'end', '#FF0000');
-            svg.line(40, 30, 600, 30, '#FF0000', 1);
-            svg.addText(30, 250, '-Vee', '10px', 'end', '#0000FF');
-            svg.line(40, 250, 600, 250, '#0000FF', 1);
+            // Drawn with the library's component primitives. The previous
+            // version used rectangles for the transistors and for every
+            // resistor, and three of its wires stopped 10 px short of the
+            // devices they were meant to reach - so the bias network was not
+            // actually connected to either base.
+            const svg = new SchematicSVG(760, 390);
 
-            // Bias transistor (Vbe multiplier)
-            svg.circle(200, 140, 15, '#181818', '#FFFF00');
-            svg.addText(200, 145, 'Q3', '9px', 'middle');
+            const yVcc = 45, yVee = 330;
+            const xBias = 250, xOut = 320, xLoad = 500;
+            const yQ1 = 115, yQ2 = 255, yMid = 185;
 
-            // R1, R2 for Vbe multiplier
-            svg.rect(175, 80, 15, 30, '#181818', '#FFFF00');
-            svg.addText(165, 95, 'R1', '8px', 'end');
-            svg.rect(175, 170, 15, 30, '#181818', '#FFFF00');
-            svg.addText(165, 185, 'R2', '8px', 'end');
+            svg.text(380, 22, 'Class AB output stage with V_BE multiplier bias',
+                     { fontSize: 13, anchor: 'middle' });
 
-            svg.line(182, 30, 182, 80);
-            svg.line(182, 110, 182, 125);
-            svg.line(182, 155, 182, 170);
-            svg.line(182, 200, 182, 250);
+            // ---- supply rails ----
+            svg.line(150, yVcc, 620, yVcc);
+            svg.text(140, yVcc, '+Vcc', { fontSize: 10, anchor: 'end' });
+            svg.line(150, yVee, 620, yVee);
+            svg.text(140, yVee, '−Vee', { fontSize: 10, anchor: 'end' });
 
-            // Connections
-            svg.line(215, 140, 280, 140);
-            svg.line(280, 140, 280, 95);
-            svg.line(280, 140, 280, 185);
+            // ---- output pair ----
+            // npn(x,y): base at (x-15,y), collector (x+20,y-30), emitter (x+20,y+30)
+            // pnp(x,y): base at (x-15,y), emitter  (x+20,y-30), collector (x+20,y+30)
+            svg.npn(xOut - 20, yQ1, 'right', 'Q1');
+            svg.line(xOut, yQ1 - 30, xOut, yVcc);            // collector to +Vcc
 
-            // Output transistors
-            // NPN high side
-            svg.rect(290, 70, 50, 40, '#181818', '#00FFFF');
-            svg.addText(315, 95, 'Q1', '11px', 'middle', '#00FFFF');
-            svg.addText(315, 55, 'NPN', '9px', 'middle');
+            svg.pnp(xOut - 20, yQ2, 'right', 'Q2');
+            svg.line(xOut, yQ2 + 30, xOut, yVee);            // collector to −Vee
 
-            svg.line(315, 30, 315, 70);
-            svg.line(340, 90, 400, 90);
-            svg.line(400, 90, 400, 140);
+            // ---- emitter degeneration, meeting at the output node ----
+            svg.resistor(xOut, yQ1 + 30, xOut, yMid - 5, 'Re1 0.22Ω');
+            svg.resistor(xOut, yMid + 5, xOut, yQ2 - 30, 'Re2 0.22Ω');
+            svg.line(xOut, yMid - 5, xOut, yMid + 5);
+            svg.junction(xOut, yMid);
 
-            // PNP low side
-            svg.rect(290, 170, 50, 40, '#181818', '#FF66FF');
-            svg.addText(315, 195, 'Q2', '11px', 'middle', '#FF66FF');
-            svg.addText(315, 225, 'PNP', '9px', 'middle');
+            // ---- output to the speaker ----
+            svg.line(xOut, yMid, xLoad, yMid);
+            svg.text(xLoad - 60, yMid - 12, 'OUT', { fontSize: 11, anchor: 'middle' });
+            svg.line(xLoad, yMid, xLoad, yMid + 30);
+            svg.resistor(xLoad, yMid + 30, xLoad, yMid + 90, 'R_L 8Ω');
+            svg.line(xLoad, yMid + 90, xLoad, yMid + 120);
+            svg.ground(xLoad, yMid + 140);
 
-            svg.line(315, 210, 315, 250);
-            svg.line(340, 190, 400, 190);
-            svg.line(400, 190, 400, 140);
+            // ---- V_BE multiplier: R1 and R2 across Q3, tap on Q3's base ----
+            svg.resistor(xBias, yQ1, xBias, yMid - 17, 'R1');
+            svg.resistor(xBias, yMid + 17, xBias, yQ2, 'R2');
+            svg.line(xBias, yMid - 17, xBias, yMid + 17);
+            svg.junction(xBias, yMid);
 
-            // Emitter resistors
-            svg.rect(360, 90, 30, 12, '#181818', '#888');
-            svg.addText(375, 80, 'Re', '8px', 'middle');
-            svg.rect(360, 178, 30, 12, '#181818', '#888');
+            // Q3 faces left, so its base lead points right at the R1/R2 tap.
+            svg.npn(190, yMid, 'left', 'Q3');
+            svg.line(205, yMid, xBias, yMid);                // base to the tap
+            svg.line(170, yMid - 30, 170, yQ1);              // collector up
+            svg.line(170, yQ1, xBias, yQ1);
+            svg.line(170, yMid + 30, 170, yQ2);              // emitter down
+            svg.line(170, yQ2, xBias, yQ2);
 
-            // Output
-            svg.line(400, 140, 500, 140);
-            svg.addText(520, 140, 'OUT', '12px', 'start', '#00FF00');
+            // The two bases hang off the ends of the multiplier.
+            svg.line(xBias, yQ1, xOut - 35, yQ1);
+            svg.junction(xBias, yQ1);
+            svg.line(xBias, yQ2, xOut - 35, yQ2);
+            svg.junction(xBias, yQ2);
 
-            // Feedback network (simplified)
-            svg.line(450, 140, 450, 220);
-            svg.rect(430, 220, 40, 15, '#181818', '#888');
-            svg.addText(450, 245, 'Rf', '9px', 'middle');
-            svg.line(450, 235, 450, 250);
+            // ---- drive in ----
+            svg.line(105, yQ1, 170, yQ1);
+            svg.junction(170, yQ1);
+            svg.text(100, yQ1, 'from VAS', { fontSize: 9, anchor: 'end' });
 
-            // Speaker symbol
-            svg.rect(550, 120, 30, 40, '#181818', '#00FF00');
-            svg.addText(565, 145, '8Ω', '10px', 'middle');
-            svg.line(500, 140, 550, 140);
+            // ---- global feedback tap, terminated at a named node ----
+            svg.line(430, yMid, 430, yMid + 55);
+            svg.junction(430, yMid);
+            svg.resistor(430, yMid + 55, 430, yMid + 115, 'Rf');
+            svg.nodeLabel(430, yMid + 135, 'FB', { dy: 14 });
+            svg.line(430, yMid + 115, 430, yMid + 135);
 
-            // Labels
-            svg.addText(315, 145, 'Class AB', '10px', 'middle', '#888');
+            // ---- annotations ----
+            svg.text(xOut + 46, yQ1 - 46,
+                     'Q1 sources; Q2 sinks. Re sets the', { fontSize: 9 });
+            svg.text(xOut + 46, yQ1 - 34,
+                     'quiescent current and stops thermal runaway.', { fontSize: 9 });
+            svg.text(120, yMid + 62,
+                     'V_CE = V_BE(1 + R1/R2) — set it to about 2·V_BE so',
+                     { fontSize: 9 });
+            svg.text(120, yMid + 74,
+                     'both devices idle just barely on. Mount Q3 on the',
+                     { fontSize: 9 });
+            svg.text(120, yMid + 86,
+                     'output heatsink so the bias tracks their temperature.',
+                     { fontSize: 9 });
 
             container.appendChild(svg.svg);
         }

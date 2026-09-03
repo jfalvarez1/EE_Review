@@ -218,6 +218,49 @@
         const matchCanvas = document.getElementById('match-canvas');
         const matchCtx = matchCanvas.getContext('2d');
 
+        // ---- small complex helpers, so the match can be CHECKED not asserted ----
+        function cAdd(a, b) { return [a[0] + b[0], a[1] + b[1]]; }
+        function cMul(a, b) { return [a[0]*b[0] - a[1]*b[1], a[0]*b[1] + a[1]*b[0]]; }
+        function cDiv(a, b) {
+            const d = b[0]*b[0] + b[1]*b[1];
+            return [(a[0]*b[0] + a[1]*b[1]) / d, (a[1]*b[0] - a[0]*b[1]) / d];
+        }
+        function cAbs(a) { return Math.hypot(a[0], a[1]); }
+        function cPar(a, b) { return cDiv(cMul(a, b), cAdd(a, b)); }
+
+        // Nearest E24 value - the real constraint on how good a match can be.
+        const E24 = [1.0,1.1,1.2,1.3,1.5,1.6,1.8,2.0,2.2,2.4,2.7,3.0,
+                     3.3,3.6,3.9,4.3,4.7,5.1,5.6,6.2,6.8,7.5,8.2,9.1];
+        function e24(v) {
+            if (!(v > 0)) return v;
+            const decade = Math.pow(10, Math.floor(Math.log10(v)));
+            const m = v / decade;
+            let best = E24[0], err = Infinity;
+            E24.concat([10]).forEach(function (c) {
+                const e = Math.abs(Math.log(c / m));
+                if (e < err) { err = e; best = c; }
+            });
+            return best * decade;
+        }
+
+        // True return loss of the network as built, at frequency f.
+        //   low-pass : series L, then shunt C across the load
+        //   high-pass: series C, then shunt L across the load
+        function inputZ(res, L, C, f) {
+            const w = 2 * Math.PI * f;
+            const zL = [0, w * L];
+            const zC = [0, -1 / (w * C)];
+            const Rl = [res.Rl, 0];
+            return res.type === 'lowpass'
+                ? cAdd(zL, cPar(zC, Rl))
+                : cAdd(zC, cPar(zL, Rl));
+        }
+        function returnLossDb(res, L, C, f) {
+            const zin = inputZ(res, L, C, f);
+            const g = cAbs(cDiv(cAdd(zin, [-res.Rs, 0]), cAdd(zin, [res.Rs, 0])));
+            return g <= 1e-12 ? Infinity : -20 * Math.log10(g);
+        }
+
         function calculateLNetwork(Rs, Rl, f, type) {
             // Always work with Rl > Rs for formulas
             const swapped = Rl < Rs;
@@ -225,19 +268,37 @@
 
             const Q = Math.sqrt(Rl / Rs - 1);
 
+            // The two reactance magnitudes are set by the transformation ratio
+            // alone, not by which one you make an L and which a C:
+            //
+            //   the SHUNT element, across the high-R side, has |X| = Rl / Q
+            //   the SERIES element, in the low-R side,  has |X| = Q * Rs
+            //
+            // Derivation: with a shunt X across Rl, the parallel combination is
+            //   Rl*X^2/(Rl^2+X^2) + j*Rl^2*X/(Rl^2+X^2).
+            // Forcing the real part to Rs gives X^2 = Rs*Rl^2/(Rl-Rs), i.e.
+            // |X| = Rl/sqrt(Rl/Rs - 1) = Rl/Q; substituting back makes the
+            // leftover imaginary part Q*Rs, which the series element cancels.
+            //
+            // Low-pass puts the L in series and the C in shunt; high-pass swaps
+            // WHICH COMPONENT sits in each position, so the reactances swap
+            // roles too - they do not swap values.
+            const Xshunt = Rl / Q;
+            const Xseries = Q * Rs;
+
             let Xl, Xc;
             if (type === 'lowpass') {
-                Xl = Q * Rs;
-                Xc = Rl / Q;
+                Xl = Xseries;   // series inductor
+                Xc = Xshunt;    // shunt capacitor
             } else {
-                Xc = Rs / Q;
-                Xl = Q * Rl;
+                Xc = Xseries;   // series capacitor
+                Xl = Xshunt;    // shunt inductor
             }
 
             const L = Xl / (2 * Math.PI * f);
             const C = 1 / (2 * Math.PI * f * Xc);
 
-            return {Q, L, C, Xl, Xc, swapped};
+            return {Q, L, C, Xl, Xc, Xshunt, Xseries, Rs, Rl, f, type, swapped};
         }
 
         function drawMatchNetwork() {
@@ -259,7 +320,21 @@
             document.getElementById('match-q').textContent = result.Q.toFixed(2);
             document.getElementById('match-l').textContent = (result.L * 1e9).toFixed(2) + ' nH';
             document.getElementById('match-c').textContent = (result.C * 1e12).toFixed(2) + ' pF';
-            document.getElementById('match-rl-db').textContent = result.Q < 10 ? '>30 dB' : '~20 dB';
+
+            // Return loss, actually calculated rather than asserted.
+            //
+            // The previous version printed ">30 dB" whenever Q < 10 and
+            // "~20 dB" otherwise, which is not a measurement of anything - an
+            // ideal L-network is a PERFECT match at its design frequency for
+            // any Q, so the honest ideal answer is "infinite". What actually
+            // limits it in hardware is that you cannot buy the exact value.
+            // So: snap both parts to the nearest E24 value, then compute the
+            // true reflection coefficient the built circuit would present.
+            const Le = e24(result.L), Ce = e24(result.C);
+            const rl = returnLossDb(result, Le, Ce, result.f);
+            document.getElementById('match-rl-db').textContent =
+                (isFinite(rl) ? rl.toFixed(1) + ' dB' : '∞') +
+                '  (E24: ' + (Le * 1e9).toFixed(1) + ' nH, ' + (Ce * 1e12).toFixed(2) + ' pF)';
 
             // Draw network schematic
             const netX = 100, netY = 150;
@@ -615,70 +690,118 @@
             smithCtx.fillText(quality, infoX + 15, y);
         }
 
-        // Event listeners
+        // Event listeners. The schematic redraws with the calculator, so the
+        // figure can never disagree with the numbers printed beside it.
+        function refreshMatch() {
+            drawMatchNetwork();
+            drawMatchSchematic();
+        }
+
         ['match-rs', 'match-rl', 'match-freq', 'match-type'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawMatchNetwork);
-            document.getElementById(id).addEventListener('change', drawMatchNetwork);
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('input', refreshMatch);
+            el.addEventListener('change', refreshMatch);
         });
 
         ['smith-r', 'smith-x', 'smith-z0'].forEach(id => {
-            document.getElementById(id).addEventListener('input', drawSmithChart);
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', drawSmithChart);
         });
 
         // Initialize
-        drawMatchNetwork();
+        refreshMatch();
         drawSmithChart();
 
-        // Schematic
-        document.addEventListener('SchematicSVGReady', function() {
+        // ---- Schematic ----------------------------------------------------
+        //
+        // Redrawn from the library's component primitives rather than hand-placed
+        // circles and loose lines, and redrawn on every control change so the
+        // picture always shows the topology and the values the calculator above
+        // actually produced. A static drawing that contradicts the interactive
+        // beside it is worse than no drawing.
+        function drawMatchSchematic() {
             const container = document.getElementById('match-schematic');
             if (!container || typeof SchematicSVG === 'undefined') return;
+            container.innerHTML = '';
 
-            const svg = new SchematicSVG(900, 280);
+            const Rs = AD.num('match-rs');
+            const Rl = AD.num('match-rl');
+            const f  = AD.num('match-freq') * 1e6;
+            const typeSel = document.getElementById('match-type');
+            const type = typeSel ? typeSel.value : 'lowpass';
+            const res = calculateLNetwork(Rs, Rl, f, type);
 
-            svg.text(450, 25, 'L-Network Matching Circuit', '14px', '#fff', 'middle');
+            const Le = e24(res.L), Ce = e24(res.C);
+            const lTxt = (Le * 1e9).toFixed(1) + ' nH';
+            const cTxt = (Ce * 1e12).toFixed(2) + ' pF';
+            const lowpass = (type === 'lowpass');
 
-            // Source
-            svg.rect(80, 100, 60, 80);
-            svg.text(110, 145, 'Source', '10px', '#fff', 'middle');
-            svg.text(110, 160, '50Ω', '9px', '#888', 'middle');
+            const svg = new SchematicSVG(900, 300);
+            const y = 130;                       // the signal rail
+            const xSrc = 120, xSer = 300, xShunt = 470, xLoad = 660;
 
-            // Source connection
-            svg.line(140, 140, 200, 140);
+            svg.text(450, 26,
+                (lowpass ? 'Low-pass L-network' : 'High-pass L-network') +
+                ' — ' + res.Rs.toFixed(0) + ' Ω to ' + res.Rl.toFixed(0) +
+                ' Ω at ' + (f / 1e6).toFixed(0) + ' MHz',
+                { fontSize: 14, anchor: 'middle' });
 
-            // Series inductor
-            svg.text(260, 110, 'L', '12px');
-            for (let i = 0; i < 5; i++) {
-                svg.circle(220 + i * 20, 140, 8);
-            }
-            svg.line(200, 140, 212, 140);
-            svg.line(308, 140, 350, 140);
+            // Source: a resistor to ground with its own rail, which is what a
+            // 50 ohm source IS - not a mystery rectangle.
+            svg.resistor(xSrc, y + 40, xSrc, y + 100, 'R_S ' + res.Rs.toFixed(0) + 'Ω');
+            svg.line(xSrc, y, xSrc, y + 40);
+            svg.line(xSrc, y + 100, xSrc, y + 130);
+            svg.ground(xSrc, y + 150);
+            svg.text(xSrc - 46, y + 74, 'source', { fontSize: 9, anchor: 'middle' });
 
-            // Shunt capacitor
-            svg.line(350, 140, 350, 160);
-            svg.line(335, 160, 365, 160);
-            svg.line(335, 170, 365, 170);
-            svg.line(350, 170, 350, 200);
-            svg.ground(350, 200);
-            svg.text(380, 170, 'C', '12px');
+            svg.line(xSrc, y, xSer - 30, y);
 
-            // Load connection
-            svg.line(350, 140, 450, 140);
+            // Series element: L for low-pass, C for high-pass.
+            if (lowpass) svg.inductor(xSer - 30, y, xSer + 30, y, 'L  ' + lTxt);
+            else         svg.capacitor(xSer - 30, y, xSer + 30, y, 'C  ' + cTxt);
 
-            // Load
-            svg.rect(450, 100, 60, 80);
-            svg.text(480, 145, 'Load', '10px', '#fff', 'middle');
-            svg.text(480, 160, 'Z_L', '9px', '#888', 'middle');
+            svg.line(xSer + 30, y, xShunt, y);
+            svg.junction(xShunt, y);
 
-            // Annotations
-            svg.text(260, 80, 'Series L transforms R', '9px', '#888', 'middle');
-            svg.text(350, 230, 'Shunt C cancels reactance', '9px', '#888', 'middle');
+            // Shunt element: C for low-pass, L for high-pass.
+            if (lowpass) svg.capacitor(xShunt, y + 20, xShunt, y + 80, 'C  ' + cTxt);
+            else         svg.inductor(xShunt, y + 20, xShunt, y + 80, 'L  ' + lTxt);
+            svg.line(xShunt, y, xShunt, y + 20);
+            svg.line(xShunt, y + 80, xShunt, y + 130);
+            svg.ground(xShunt, y + 150);
+
+            // Load.
+            svg.line(xShunt, y, xLoad, y);
+            svg.line(xLoad, y, xLoad, y + 40);
+            svg.resistor(xLoad, y + 40, xLoad, y + 100, 'R_L ' + res.Rl.toFixed(0) + 'Ω');
+            svg.line(xLoad, y + 100, xLoad, y + 130);
+            svg.ground(xLoad, y + 150);
+
+            // What each element is doing, which is the whole point of the figure.
+            svg.text(xSer, y - 44,
+                'series ' + (lowpass ? 'L' : 'C') + ':  |X| = Q·R_S = ' +
+                res.Xseries.toFixed(1) + ' Ω',
+                { fontSize: 10, anchor: 'middle' });
+            svg.text(xSer, y - 30, 'cancels the leftover reactance',
+                { fontSize: 9, anchor: 'middle' });
+
+            svg.text(xShunt + 90, y + 46,
+                'shunt ' + (lowpass ? 'C' : 'L') + ':  |X| = R_L/Q = ' +
+                res.Xshunt.toFixed(1) + ' Ω',
+                { fontSize: 10, anchor: 'start' });
+            svg.text(xShunt + 90, y + 60, 'drops the resistance R_L → R_S',
+                { fontSize: 9, anchor: 'start' });
+
+            const rl = returnLossDb(res, Le, Ce, f);
+            svg.text(450, 280,
+                'Q = ' + res.Q.toFixed(2) +
+                '   ·   fractional bandwidth ≈ 1/Q = ' + (100 / res.Q).toFixed(0) + '%' +
+                '   ·   with E24 parts, return loss ' +
+                (isFinite(rl) ? rl.toFixed(1) + ' dB' : '∞'),
+                { fontSize: 10, anchor: 'middle' });
 
             container.appendChild(svg.svg);
-        });
-
-        if (typeof SchematicSVG !== 'undefined') {
-            document.dispatchEvent(new Event('SchematicSVGReady'));
         }
 
         // Checklist widget
