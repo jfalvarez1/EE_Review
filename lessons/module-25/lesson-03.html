@@ -393,6 +393,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m25l03-cc"></div>
     </div>
 
     <div class="card">
@@ -1219,6 +1221,106 @@
         div.style.marginBottom = '15px';
         container.appendChild(div);
         new ExerciseWidget(`exercise-m23l3-${i}`, ex);
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m25l03-cc', {
+        id: 'm25l03-cc',
+        title: 'Two resistors and a voltage that means an ampere rating',
+        intro: 'USB-C advertises how much current a source can deliver using nothing but ' +
+               'a pull-up resistor and a divider. The whole negotiation, before any ' +
+               'digital protocol runs at all, is a DC voltage on one pin &mdash; so the ' +
+               'numbers matter to a hundred millivolts, and they are worth checking ' +
+               'against the thresholds rather than eyeballed.',
+        probes: [
+            { id: 'cc', label: 'V(cc) with Rp = 22 kΩ',
+              expect: '940.96', unit: 'mV', tol: 10,
+              why: '5&nbsp;V &times; 5.1/(22&nbsp;+&nbsp;5.1). The sink\'s R<sub>d</sub> is ' +
+                   'always 5.1&nbsp;k&Omega; and the source picks R<sub>p</sub>, so the ' +
+                   'divider ratio <em>is</em> the advertisement. 0.941&nbsp;V lands in the ' +
+                   '<strong>0.70&ndash;1.16&nbsp;V band, which means 1.5&nbsp;A</strong>.' },
+            { id: 'cc2', label: 'V(cc2) with Rp = 10 kΩ',
+              expect: '1.68874', unit: 'V', tol: 0.02,
+              why: '5&nbsp;V &times; 5.1/(10&nbsp;+&nbsp;5.1) = 1.689&nbsp;V, inside the ' +
+                   '<strong>1.31&ndash;2.04&nbsp;V band, which means 3.0&nbsp;A</strong>. ' +
+                   'Same sink, same 5.1&nbsp;k, different source: the cable and the device ' +
+                   'have not changed and the permitted current has tripled.' },
+            { id: 'margin_lo', label: 'How far V(cc) sits above the 1.5 A lower threshold of 0.70 V',
+              expect: '241', unit: 'mV', tol: 15,
+              why: 'And this is why the question is worth asking numerically. The band is ' +
+                   '460&nbsp;mV wide and the nominal sits 241&nbsp;mV inside its lower edge ' +
+                   '&mdash; not a lot, when R<sub>p</sub> and R<sub>d</sub> are each ' +
+                   '&plusmn;5% parts. <strong>Work the corners: 22&nbsp;k high with ' +
+                   '5.1&nbsp;k low gives 0.867&nbsp;V and the other corner gives ' +
+                   '1.020&nbsp;V</strong>, both still inside &mdash; but the low corner has ' +
+                   'only 167&nbsp;mV left. That margin is why the ' +
+                   'standard specifies 1% resistors on this pin and why substituting an ' +
+                   'E24 value is not a free saving.' },
+            { id: 'ileak', label: 'Current through Rd on the 22 kΩ side',
+              expect: '184.5', unit: '&micro;A', tol: 10,
+              why: '0.941&nbsp;V/5.1&nbsp;k&Omega;. Small, and it is the reason the scheme ' +
+                   'works at all: the advertisement costs almost nothing to maintain, so a ' +
+                   'source can hold it indefinitely with the port otherwise dead. Note that ' +
+                   'it also flows when the device is off, which is why a plugged-in cable ' +
+                   'still draws a little.' },
+            { id: 'open', label: 'V(cc) if the sink is unplugged (remove Rd)',
+              expect: '5.000', unit: 'V', tol: 0.02,
+              why: 'The pull-up takes the pin to the full supply, and <strong>that is how ' +
+                   'the source knows nothing is attached</strong>. Detection and current ' +
+                   'advertisement are the same mechanism read at different levels: open is ' +
+                   '5&nbsp;V, a sink pulls it into one of three bands, and a full short is ' +
+                   '0&nbsp;V. One pin, one resistor, four distinguishable states.' }
+        ],
+        experiments: [
+            { action: 'Make Rp2 56 kΩ, the third standard value.',
+              expect: 'V(cc2) drops to <strong>417 mV</strong>.',
+              why: 'Into the 0.25&ndash;0.61&nbsp;V band, which advertises only default USB ' +
+                   'power &mdash; 500&nbsp;mA at USB 2.0 rates. The three standard values ' +
+                   '56&nbsp;k, 22&nbsp;k and 10&nbsp;k are the entire vocabulary of the ' +
+                   'analogue negotiation, and everything above 3&nbsp;A needs the digital ' +
+                   'protocol on top.' },
+            { action: 'Short cc to ground — a damaged cable or a wet connector.',
+              expect: '0 V, and the source sees it as <strong>vRa</strong>, not as a sink.',
+              why: 'Worth knowing because it is a real failure and the response is not ' +
+                   '"deliver nothing". Below about 0.2&nbsp;V the source reads the pin as an ' +
+                   'electronically marked cable\'s R<sub>a</sub> rather than as a device, so ' +
+                   'it will not enable V<sub>BUS</sub> at all. <strong>A shorted CC line ' +
+                   'presents as a cable rather than as a fault</strong>, which is why a ' +
+                   'device with a wet port charges nothing and reports no error.' },
+            { action: 'Put Rd on both CC lines at once, as an incorrectly wired sink would.',
+              expect: 'Both pins sit at 941 mV and the source <strong>cannot tell which way ' +
+                      'round the plug is</strong>.',
+              why: 'Orientation detection is the other job this pin does: a correctly built ' +
+                   'sink pulls down exactly ONE of CC1 and CC2, and which one tells the ' +
+                   'source which way the connector went in and therefore which set of ' +
+                   'high-speed pairs to use. Pull both and the source has no orientation to ' +
+                   'resolve. <strong>The same resistor answers three questions &mdash; is ' +
+                   'something there, which way up, and how much current &mdash; which is ' +
+                   'most of why the connector is reversible without a switch in the ' +
+                   'cable.</strong>' },
+            { action: 'Add a 1 MΩ leakage path from cc to ground, modelling a contaminated ' +
+                      'connector.',
+              expect: 'V(cc) falls only to <strong>937 mV</strong>, still comfortably in ' +
+                      'band.',
+              why: 'A megohm against 5.1&nbsp;k changes nothing, which is the useful half of ' +
+                   'the answer: this divider is deliberately low-impedance so that ordinary ' +
+                   'contamination cannot move it. Try 10&nbsp;k instead and V(cc) falls to ' +
+                   '<strong>665&nbsp;mV</strong>, which is worse than a downgrade. It lands ' +
+                   'in the <em>gap</em> between the default band, which ends at ' +
+                   '0.61&nbsp;V, and the 1.5&nbsp;A band, which begins at 0.70&nbsp;V, and ' +
+                   'the standard does not say what a sink should do there. <strong>Two ' +
+                   'compliant implementations may legitimately disagree</strong>, so the ' +
+                   'same charger and the same dirty port work with one device and not ' +
+                   'another &mdash; which is why this failure almost always gets blamed on ' +
+                   'the cable.' }
+        ]
     });
 })();
 </script>

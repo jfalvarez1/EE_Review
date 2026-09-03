@@ -281,6 +281,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m18l06-4wire"></div>
     </div>
 
         <div class="card">
@@ -1376,3 +1378,95 @@
         })();
     });
     </script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m18l06-4wire', {
+        id: 'm18l06-4wire',
+        title: 'Two leads carry current, two carry none',
+        intro: 'The whole of a four-wire measurement is one comparison: check the two ' +
+               'force nodes against the two sense nodes. If the sense pair reads exactly ' +
+               'what the element itself has across it, the lead resistance has been ' +
+               'removed. If it does not, adding wires has bought you nothing.',
+        probes: [
+            { id: 'ref', label: 'V(rtd_force_n) — across the reference resistor',
+              expect: '100.00', unit: 'mV', tol: 1,
+              why: '1&nbsp;mA through 100&nbsp;&Omega;. Every bit of the excitation returns ' +
+                   'through here, which is what makes it usable as a reference and is also ' +
+                   'the return path this table used to be missing.' },
+            { id: 'sensep', label: 'V(sense_p)',
+              expect: '240.51', unit: 'mV', tol: 1,
+              why: 'And now the comparison that matters: <strong>V(rtd_p) reads ' +
+                   '240.51&nbsp;mV as well &mdash; identically, to every digit</strong>. ' +
+                   'R_lead3 sits between them and drops nothing, because the amplifier\'s ' +
+                   'input takes no current. That is the Kelvin connection, and it is the ' +
+                   'entire reason for the extra two wires.' },
+            { id: 'diff', label: 'V(sense_p) − V(sense_n)',
+              expect: '138.51', unit: 'mV', tol: 1,
+              why: '1&nbsp;mA &times; 138.51&nbsp;&Omega;, which is a Pt100 at ' +
+                   '100&nbsp;&deg;C by Callendar&ndash;Van&nbsp;Dusen. Compare it with ' +
+                   'V(rtd_force_p) &minus; V(rtd_force_n) = 142.51&nbsp;mV: the force pair ' +
+                   'reads <strong>4&nbsp;mV too high</strong>, because it includes both ' +
+                   '2&nbsp;&Omega; leads. <strong>That 4&nbsp;mV is 2.9% of the reading and ' +
+                   'over ten degrees of error</strong>, and it is what a two-wire ' +
+                   'measurement would have handed you.' },
+            { id: 'out', label: 'V(out)',
+              expect: '1.38510', unit: 'V', tol: 0.01,
+              why: '138.51&nbsp;mV &times; 10. The gain is 10 rather than 100 because a ' +
+                   'Pt100 across &minus;50 to 500&nbsp;&deg;C runs 80.31 to ' +
+                   '280.98&nbsp;&Omega;, so 80 to 281&nbsp;mV, and &times;10 lands that span ' +
+                   'inside a 3.3&nbsp;V converter with headroom at both ends. &times;100 ' +
+                   'would ask for 28&nbsp;V.' },
+            { id: 'forcep', label: 'V(rtd_force_p)',
+              expect: '242.51', unit: 'mV', tol: 1,
+              why: 'The whole loop: 100 across the reference, 2 across a lead, 138.51 ' +
+                   'across the sensor, 2 across the other lead. Worth reading once as a ' +
+                   'sanity check that the current really is 1&nbsp;mA everywhere, because ' +
+                   'every other number here assumes it.' }
+        ],
+        experiments: [
+            { action: 'Make all four leads 20 Ω instead of 2 Ω — a long cable, or a cold one.',
+              expect: 'V(out) does <strong>not move at all</strong>. V(rtd_force_p) climbs ' +
+                      'to 278.5 mV.',
+              why: 'Ten times the lead resistance and the measurement is unchanged to the ' +
+                   'last digit, because the sense leads still carry no current and 20 times ' +
+                   'zero is zero. The force leads absorb all of it, and all that costs is ' +
+                   'compliance voltage from the current source. <strong>This is the property ' +
+                   'you are buying, and it is total rather than approximate</strong> &mdash; ' +
+                   'which is why four-wire is specified for platinum sensors and why nobody ' +
+                   'bothers characterising the cable.' },
+            { action: 'Simulate a two-wire measurement: read V(rtd_force_p) − V(rtd_force_n) ' +
+                      'instead of the sense pair.',
+              expect: '142.51 mV instead of 138.51 — <strong>10.4 °C of error</strong>.',
+              why: 'A Pt100 changes about 0.385&nbsp;&Omega; per degree, so the 4&nbsp;&Omega; ' +
+                   'of lead resistance reads as 10.4&nbsp;&deg;C that is not there. And it ' +
+                   'is not a fixed offset you can calibrate away: copper has a temperature ' +
+                   'coefficient of 0.39%/&deg;C, almost identical to platinum\'s, so ' +
+                   '<strong>the error tracks the cable temperature rather than the sensor ' +
+                   'temperature</strong> and moves when someone reroutes the harness.' },
+            { action: 'Break one sense lead: make R_lead3 1 GΩ.',
+              expect: 'The output goes to a rail, or to something meaningless.',
+              why: 'Worth doing once so the failure is recognisable. A broken force lead ' +
+                   'stops the current and is obvious &mdash; everything reads zero. A broken ' +
+                   '<em>sense</em> lead leaves the current flowing and the reading merely ' +
+                   'wrong, because the amplifier input is now floating at whatever its bias ' +
+                   'current drives it to. <strong>Half the failures in a four-wire ' +
+                   'installation are silent</strong>, which is why instruments that care run ' +
+                   'a periodic open-lead check rather than trusting the number.' },
+            { action: 'Change R_ref from 100 Ω to 1 kΩ.',
+              expect: 'V(out) is unchanged; every node in the force loop rises by 900 mV.',
+              why: 'The reference resistor does not participate in the measurement at all ' +
+                   'here &mdash; it only gives the current somewhere to go and provides a ' +
+                   'voltage to be ratiometric against. What it does change is compliance: ' +
+                   'the current source now needs an extra 0.9&nbsp;V of headroom to keep ' +
+                   'delivering 1&nbsp;mA. <strong>Make it large enough and the source runs ' +
+                   'out of supply and the current quietly falls</strong>, which looks exactly ' +
+                   'like the sensor getting colder.' }
+        ]
+    });
+})();
+</script>
