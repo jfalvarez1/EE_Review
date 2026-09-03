@@ -27,7 +27,8 @@ think from time to time.* Not a lecture, and not a puzzle book either.
 
 | | baseline | now |
 | --- | --- | --- |
-| build sections stating what a correct build shows | 3 / 173 | **22 / 173** |
+| build sections stating what a correct build shows | 3 / 173 | **42 / 172** |
+| build tables with a wiring problem | 55 / 196 | **0 / 196** |
 | expected values stated | ~8 | **72** |
 | perturbations with a predicted outcome | 0 | **88** |
 | lessons with an acceptance check | 7% | **12%** |
@@ -36,6 +37,19 @@ think from time to time.* Not a lecture, and not a puzzle book either.
 Done so far: M1 L2–L5, M2 L1–L4, M5 L1/L3/L5/L6/L7, M6 L1/L7/L8/L9,
 M7 L1–L3, M9 L1–L2. One `DesignBriefWidget` (M5 L5, bias design) and one
 `FaultFindWidget` (M5 L6, the stage with no gain).
+
+**The wiring backlog is closed.** check-build-nets found 55 tables with a
+node touching only one component or a watched node the table never built, and
+all 55 are now fixed - along with a dozen more found by hand before the checker
+existed. `tools/build-nets-baseline.json` is empty and should stay empty; an
+entry appearing there again is a regression, not debt.
+
+About half were not missing a component but wired as a DIFFERENT CIRCUIT from
+the one named above them: a Darlington that was a CE stage feeding a follower,
+a Schmitt trigger with negative feedback, an R-2R ladder whose rungs all
+landed on one node, two MOSFET half-bridges with gate and source swapped, two
+ESRs in parallel with their capacitors instead of in series. None of these are
+visible on the page and all of them pass every other checker.
 
 **Nine netlists were unbuildable as written and were found only because
 stating an expected value forces you to solve the circuit.** M2 L3's
