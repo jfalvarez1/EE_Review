@@ -3081,22 +3081,51 @@ const Router = {
         const esc = (s) => String(s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+        // Where "start reading" actually goes: the first step that has a lesson
+        // behind it, and the next unfinished one if any progress exists.
+        const withRef = LEARNING_PATH.steps().filter(s => s.ref);
+        const firstStep = withRef[0];
+        const nextStep = withRef.find(s => !done['m' + s.ref[0] + 'l' + s.ref[1]]) || firstStep;
+        const resuming = complete > 0 && nextStep !== firstStep;
+        const ctaHref = nextStep
+            ? `#module-${nextStep.ref[0]}/lesson-${nextStep.ref[1]}`
+            : '#module-1/lesson-1';
+        const ctaTitle = nextStep ? esc(nextStep.title) : 'The ideal amplifier';
+
+        // The explanation of WHY the order is what it is used to be three
+        // paragraphs at the top, ahead of anything you could click. It is worth
+        // reading once and never again, so it now sits behind a disclosure and
+        // the first thing on the page is the way in.
         let html = `
-            <div class="card">
+            <div class="card path-hero">
                 <h2>The learning path</h2>
-                <p>Four semesters. Two of them cover Electronics I and II as those courses are
-                actually taught; the other two go past them, into the design judgement, real
-                parts and bench work a first pass never has room for.</p>
-                <p>The order is deliberately not the traditional one. A standard Electronics I
-                opens on semiconductor physics and spends weeks inside the device before you
-                build anything. Here the ideal op-amp comes first &mdash; you can use one long
-                before you can explain one &mdash; and the transistor arrives as the answer to
-                &ldquo;how was that built&rdquo;. The physics is not skipped; it is stage 1.5,
-                where it explains something you have already used.</p>
-                <p>The sidebar runs in this same order. <strong>${complete} of ${total} steps
+                <p class="path-hero-sub">Four semesters, ${total} steps, in the order that
+                makes each one make sense.</p>
+
+                <a class="path-cta" href="${ctaHref}">
+                    <span class="path-cta-kicker">${resuming ? 'Continue where you left off' : 'Start here'}</span>
+                    <span class="path-cta-title">${ctaTitle}</span>
+                    <span class="path-cta-go">Read it &rarr;</span>
+                </a>
+
+                <p class="path-progress"><strong>${complete} of ${total} steps
                 complete${LEARNING_PATH.todo().length
                     ? `, ${LEARNING_PATH.todo().length} still to write`
-                    : ''}.</strong></p>
+                    : ''}.</strong> The sidebar runs in this same order, so you can follow it
+                top to bottom or jump straight to what you need.</p>
+
+                <details class="path-why">
+                    <summary>Why this order, and not the traditional one</summary>
+                    <p>Two semesters cover Electronics I and II as those courses are actually
+                    taught; the other two go past them, into the design judgement, real parts
+                    and bench work a first pass never has room for.</p>
+                    <p>A standard Electronics I opens on semiconductor physics and spends weeks
+                    inside the device before you build anything. Here the ideal op-amp comes
+                    first &mdash; you can use one long before you can explain one &mdash; and
+                    the transistor arrives as the answer to &ldquo;how was that built&rdquo;.
+                    The physics is not skipped; it is stage 1.5, where it explains something you
+                    have already used.</p>
+                </details>
             </div>`;
 
         // Grouped by semester, because the shape of the thing is four terms and
@@ -3128,14 +3157,20 @@ const Router = {
                     const tag = step.ref
                         ? `<span class="topic-tag">M${step.ref[0]}&middot;${step.ref[1]}</span>`
                         : `<span class="topic-tag is-todo">not yet written</span>`;
-                    const title = href
-                        ? `<a href="${href}">${esc(step.title)}</a>`
-                        : `<span class="step-todo">${esc(step.title)}</span>`;
 
-                    html += `<li class="path-step${isDone ? ' is-done' : ''}${step.ref ? '' : ' is-todo'}">
-                        <div class="path-step-head">${isDone ? '&#10003; ' : ''}${title} ${tag}</div>
-                        <div class="path-step-earns">${esc(step.earns)}</div>
-                    </li>`;
+                    // The WHOLE step is the click target, not a few words of it.
+                    // A row that looks like a row and behaves like a link is the
+                    // commonest UI failure in an index like this.
+                    const inner = `
+                        <span class="path-step-head">${isDone ? '&#10003; ' : ''}<span class="path-step-title">${esc(step.title)}</span> ${tag}</span>
+                        <span class="path-step-earns">${esc(step.earns)}</span>
+                        ${href ? '<span class="path-step-go" aria-hidden="true">&rarr;</span>' : ''}`;
+
+                    html += `<li class="path-step${isDone ? ' is-done' : ''}${step.ref ? '' : ' is-todo'}">`
+                        + (href
+                            ? `<a class="path-step-link" href="${href}">${inner}</a>`
+                            : `<span class="path-step-link is-todo">${inner}</span>`)
+                        + `</li>`;
                 });
 
                 html += `</ol></div>`;

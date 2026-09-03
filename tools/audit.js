@@ -50,6 +50,8 @@ const GATING = [
      'a colour key that does not exist: undefined on strokeStyle is a silent no-op'],
     ['check-element-ids.js',
      'getElementById for an id the markup lacks: the throw kills the rest of the handler'],
+    ['check-widget-args.js',
+     'a widget given an argument shape it cannot render - the [object Object] class of bug'],
     ['check-toy-parts.js',
      'a build table naming a part Circuit Toy does not have, which sends readers to the wrong one'],
     ['validate-path.js',

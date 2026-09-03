@@ -395,14 +395,41 @@ class ChecklistWidget extends BaseWidget {
     }
 
     init() {
+        // Items arrive in two shapes, because half the course was written each
+        // way: a plain string, or {id, text, category}. This used to render
+        // `${item}` unconditionally, so every object-shaped item printed the
+        // string "[object Object]" - 480 checklist lines across 38 lessons,
+        // silently, because it is valid JavaScript that simply interpolates
+        // the wrong thing.
+        //
+        // Both shapes are now supported, and `category` does what it always
+        // looked like it should: it groups the list under subheadings.
+        const norm = this.items.map((item, i) => {
+            if (item && typeof item === 'object') {
+                return {
+                    key: item.id ? `item-${item.id}` : `item-${i}`,
+                    text: item.text != null ? String(item.text) : '',
+                    category: item.category || null
+                };
+            }
+            return { key: `item-${i}`, text: String(item), category: null };
+        });
+
+        const esc = (s) => String(s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
         let html = '<div class="checklist">';
-        this.items.forEach((item, i) => {
-            const key = `item-${i}`;
-            const checked = AD.isChecklistItemDone(this.lessonKey, key);
+        let lastCategory = null;
+        norm.forEach(item => {
+            if (item.category && item.category !== lastCategory) {
+                html += `<div class="checklist-category">${esc(item.category)}</div>`;
+                lastCategory = item.category;
+            }
+            const checked = AD.isChecklistItemDone(this.lessonKey, item.key);
             html += `
                 <label class="checklist-item">
-                    <input type="checkbox" data-key="${key}" ${checked ? 'checked' : ''}>
-                    <span>${item}</span>
+                    <input type="checkbox" data-key="${item.key}" ${checked ? 'checked' : ''}>
+                    <span>${esc(item.text)}</span>
                 </label>
             `;
         });
