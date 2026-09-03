@@ -99,23 +99,52 @@ function probes(src) {
     // Split on probe boundaries first, so a `dc: true` in one probe cannot be
     // read as belonging to the probe before it.
     arr[1].split(/\n\s*(?=\{\s*id:)/).forEach(chunk => {
-        if (!/\bdc:\s*true\b/.test(chunk)) return;
         const id = /id:\s*'([^']+)'/.exec(chunk);
-        const node = /node:\s*'([^']+)'/.exec(chunk);
         const expect = /expect:\s*'([^']*)'/.exec(chunk);
         const unit = /unit:\s*'([^']*)'/.exec(chunk);
         const tol = /\btol:\s*([\d.]+)/.exec(chunk);
-        if (!id || !node || !expect || !unit || !tol) return;
-        found.push({ id: id[1], node: node[1], expect: expect[1], unit: unit[1], tol: parseFloat(tol[1]) });
+        if (!id || !expect || !unit || !tol) return;
+        const base = { id: id[1], expect: expect[1], unit: unit[1], tol: parseFloat(tol[1]) };
+
+        if (/\bdc:\s*true\b/.test(chunk)) {
+            const node = /node:\s*'([^']+)'/.exec(chunk);
+            if (node) found.push(Object.assign({ kind: 'dc', node: node[1] }, base));
+            return;
+        }
+        const acNode = /acNode:\s*'([^']+)'/.exec(chunk);
+        if (!acNode) return;
+        const acAt = /acAt:\s*([\d.eE+\-]+)/.exec(chunk);
+        const acCorner = /acCorner:\s*(\d+)/.exec(chunk);
+        if (acAt) found.push(Object.assign({ kind: 'acAt', node: acNode[1], at: parseFloat(acAt[1]) }, base));
+        else if (acCorner) found.push(Object.assign({ kind: 'acCorner', node: acNode[1], nth: parseInt(acCorner[1], 10) }, base));
     });
     return found;
 }
 
 const UNIT = { 'V': 1, 'mV': 1e-3, '&micro;V': 1e-6, 'uV': 1e-6, 'V peak': 1, 'mV peak': 1e-3 };
+const FREQ = { 'Hz': 1, 'kHz': 1e3, 'MHz': 1e6, 'GHz': 1e9, 'mHz': 1e-3 };
+
+/** Ask solve-ac for one lesson's response, as JSON. */
+function acResponse(rel, extra) {
+    let out;
+    try {
+        out = execFileSync(process.execPath,
+            [path.join(ROOT, 'tools', 'solve-ac.js'), rel, '--json'].concat(extra || []),
+            { cwd: ROOT, encoding: 'utf8' });
+    } catch (e) { return null; }
+    const lines = out.trim().split('\n').filter(Boolean);
+    if (lines.length !== 1) return null;              // none, or ambiguous
+    try { return JSON.parse(lines[0]).nodes; } catch (e) { return null; }
+}
 
 const files = walk(LESSONS, []).sort();
 const bad = [];
-let compared = 0, lessons = 0, skipped = 0;
+let compared = 0, acCompared = 0, lessons = 0, skipped = 0;
+
+const fail = (rel, id, msg) => {
+    bad.push({ rel, id, msg });
+    console.log('  FAIL ' + rel + '  ' + id + '  ' + msg);
+};
 
 files.forEach(file => {
     const src = fs.readFileSync(file, 'utf8');
@@ -125,10 +154,61 @@ files.forEach(file => {
     if (!ps.length) return;
 
     lessons++;
+
+    // --- AC claims: a corner frequency, or a gain at one frequency -----------
+    const acProbes = ps.filter(p => p.kind !== 'dc');
+    if (acProbes.length) {
+        const sweep = acResponse(rel);
+        const atCache = new Map();
+        acProbes.forEach(p => {
+            const want = parseFloat(p.expect);
+            if (!isFinite(want)) return;
+            if (p.kind === 'acCorner') {
+                if (!sweep) { skipped++; return; }
+                const n = sweep[p.node];
+                if (!n) { fail(rel, p.id, 'names node "' + p.node + '", not in the netlist'); return; }
+                const scale = FREQ[p.unit];
+                if (scale === undefined) return;
+                if (!n.corners || n.corners.length < p.nth) {
+                    fail(rel, p.id, 'expects corner #' + p.nth + ' on V(' + p.node + '), and the sweep finds ' +
+                         ((n.corners || []).length));
+                    return;
+                }
+                const got = n.corners[p.nth - 1] / scale;
+                acCompared++;
+                const ok = Math.abs(got - want) <= p.tol;
+                if (LIST || !ok) {
+                    console.log((ok ? '  ok   ' : '  FAIL ') + rel + '  ' + p.id + '  says ' + want + ' ' +
+                        p.unit + ', sweep gives ' + got.toPrecision(5) + (ok ? '' : '   (tolerance ' + p.tol + ')'));
+                }
+                if (!ok) bad.push({ rel, id: p.id });
+            } else if (p.kind === 'acAt') {
+                if (!atCache.has(p.at)) atCache.set(p.at, acResponse(rel, ['--at', String(p.at)]));
+                const r = atCache.get(p.at);
+                if (!r) { skipped++; return; }
+                const n = r[p.node];
+                if (!n) { fail(rel, p.id, 'names node "' + p.node + '", not in the netlist'); return; }
+                const got = p.unit === 'dB' ? n.db : (UNIT[p.unit] === undefined ? null : n.mag / UNIT[p.unit]);
+                if (got === null) return;
+                acCompared++;
+                const ok = Math.abs(got - want) <= p.tol;
+                if (LIST || !ok) {
+                    console.log((ok ? '  ok   ' : '  FAIL ') + rel + '  ' + p.id + '  says ' + want + ' ' +
+                        p.unit + ' at ' + p.at + ' Hz, sweep gives ' + got.toPrecision(5) +
+                        (ok ? '' : '   (tolerance ' + p.tol + ')'));
+                }
+                if (!ok) bad.push({ rel, id: p.id });
+            }
+        });
+    }
+
+    // --- DC claims -----------------------------------------------------------
+    const dcProbes = ps.filter(p => p.kind === 'dc');
+    if (!dcProbes.length) return;
     const op = operatingPoint(rel);
     if (!op) { skipped++; return; }
 
-    ps.forEach(p => {
+    dcProbes.forEach(p => {
         // Earlier SimChecks wrote node: 'V(out)' and later ones write node:
         // 'out'. Both mean the same node; accept either rather than making the
         // older ones wrong.
@@ -168,11 +248,12 @@ console.log('SIMCHECK VALUES AGAINST THE CIRCUIT\n');
 console.log('  lessons with node probes  ' + String(lessons).padStart(4));
 console.log('  build table not solvable  ' + String(skipped).padStart(4) + '   (skipped, not failed)');
 console.log('  DC values compared        ' + String(compared).padStart(4));
+console.log('  AC values compared        ' + String(acCompared).padStart(4));
 console.log('  disagreeing               ' + String(bad.length).padStart(4));
 console.log('');
 
 if (bad.length) {
-    console.log('FAIL - ' + bad.length + ' stated value(s) disagree with the netlist on the same page.');
+    console.log('FAIL - ' + bad.length + ' stated value(s) disagree with the circuit on the same page.');
     process.exit(1);
 }
-console.log('PASS - every DC value a SimCheck states matches the circuit it describes.');
+console.log('PASS - every DC and AC value a SimCheck states matches the circuit it describes.');
