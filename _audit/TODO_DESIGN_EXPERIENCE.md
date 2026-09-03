@@ -23,6 +23,31 @@ think from time to time.* Not a lecture, and not a puzzle book either.
 
 ---
 
+## Progress
+
+| | baseline | now |
+| --- | --- | --- |
+| build sections stating what a correct build shows | 3 / 173 | **22 / 173** |
+| expected values stated | ~8 | **72** |
+| perturbations with a predicted outcome | 0 | **88** |
+| lessons with an acceptance check | 7% | **12%** |
+| lessons asking the reader to do nothing | 237 | **221** |
+
+Done so far: M1 L2–L5, M2 L1–L4, M5 L1/L3/L5/L6/L7, M6 L1/L7/L8/L9,
+M7 L1–L3, M9 L1–L2. One `DesignBriefWidget` (M5 L5, bias design) and one
+`FaultFindWidget` (M5 L6, the stage with no gain).
+
+**Nine netlists were unbuildable as written and were found only because
+stating an expected value forces you to solve the circuit.** M2 L3's
+Sallen-Key had C2 across a single node and a design table demanding an
+impossible Q; M2 L4's Schmitt had ideal sources on both comparator inputs
+and therefore no hysteresis; M2 L2's in-amp had its difference stage
+inverted; M7 L2's class AB had a VCVS wired to double its own input; M7 L3
+had a PMOS upside down; M1 L5 swept a source that did not exist; M1 L3
+specified a pulse of period zero. M5 L6 promised an unloaded gain for a
+loaded stage. That is the strongest argument for finishing the remaining
+151.
+
 ## Where we actually stand
 
 `node tools/survey-design-practice.js` scores every lesson on four properties.
