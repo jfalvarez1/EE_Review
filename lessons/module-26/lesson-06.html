@@ -152,14 +152,14 @@
         <!-- Interactive 4: Grounding Strategy -->
         <div class="card">
             <h3>Interactive: Grounding and Layout</h3>
-            <p>Visualize the star-ground topology for precision analog systems:</p>
+            <p>Compare the three grounding topologies. The ranking here agrees with module&nbsp;14 lesson&nbsp;3, which solves the solid and split paths side by side: a single solid plane is the reference case, a split forces the return current around the slot and raises the impedance where it matters, and a star ground only wins at frequencies low enough that its extra inductance is irrelevant.</p>
 
             <div class="controls">
                 <label>Ground Topology:
                     <select id="ground-topology">
-                        <option value="star">Star Ground (Recommended)</option>
-                        <option value="split">Split Ground Planes</option>
-                        <option value="single">Single Ground (Poor)</option>
+                        <option value="single">Single Solid Plane (Recommended)</option>
+                        <option value="star">Star Ground (audio / low frequency only)</option>
+                        <option value="split">Split Ground Planes (usually worse)</option>
                     </select>
                 </label>
                 <label>Digital Noise (mVpp):
@@ -726,7 +726,7 @@
         const gndImpedance = document.getElementById('gnd-impedance');
 
         function drawGrounding() {
-            const topology = groundTopology.value || 'star';
+            const topology = groundTopology.value || 'single';
             let digNoise = parseFloat(digitalNoise.value);
             let gndZ = parseFloat(gndImpedance.value);
             if (!Number.isFinite(digNoise)) digNoise = 100;
@@ -745,24 +745,36 @@
             const digitalCurrent = 50; // mA
             document.getElementById('dig-current').textContent = digitalCurrent + ' mA';
 
-            let gndBounce = digitalCurrent * gndZ * 0.01;
+            // Ohm's law first, units second: mA x mohm is uV, so /1000 for mV.
+            // The previous version omitted that and displayed 5 mV for a case
+            // whose own default readout said 0.5 mV.
+            //
+            // The multipliers come from module 14 lesson 3, which solves the
+            // two paths: a slot in a plane forces the return current around
+            // it, and that path is ten times the resistance at low frequency
+            // and twenty times the inductance at high. A single solid plane is
+            // the reference case and the one Ott, Kester (MT-031) and Johnson &
+            // Graham recommend for mixed-signal; a star ground only wins where
+            // the wavelength is long enough that its extra inductance does not
+            // matter, which is audio and below.
+            const ohm = digitalCurrent * gndZ / 1000;   // mV
+            let gndBounce = ohm;
             let coupling = -80;
-            let resolution;
             switch(topology) {
-                case 'star':
-                    gndBounce = digitalCurrent * gndZ * 0.01;
+                case 'single':
+                    gndBounce = ohm;
                     coupling = -80;
                     break;
-                case 'split':
-                    gndBounce = digitalCurrent * gndZ * 0.1;
-                    coupling = -60;
+                case 'star':
+                    gndBounce = ohm;          // no shared return at LF; more inductance at HF
+                    coupling = -70;
                     break;
-                case 'single':
-                    gndBounce = digitalCurrent * gndZ;
-                    coupling = -40;
+                case 'split':
+                    gndBounce = ohm * 10;     // the return current goes around the slot
+                    coupling = -50;
                     break;
                 default:
-                    gndBounce = digitalCurrent * gndZ * 0.01;
+                    gndBounce = ohm;
                     coupling = -80;
                     break;
             }
@@ -799,11 +811,14 @@
             }
 
             // Effectiveness indicator
-            const qualityColors = { star: '#00FF00', split: '#FFFF00', single: '#FF0000' };
+            // Ranking matches module 14 lesson 3 and the layout literature: a
+            // solid plane is the reference, a split is the one that makes the
+            // frequencies you care about worse, a star is a special case.
+            const qualityColors = { single: '#00FF00', star: '#FFFF00', split: '#FF0000' };
             groundCtx.fillStyle = qualityColors[topology];
             groundCtx.font = 'bold 14px monospace';
-            groundCtx.fillText(topology === 'star' ? 'OPTIMAL' :
-                              topology === 'split' ? 'ACCEPTABLE' : 'POOR', centerX, h - 20);
+            groundCtx.fillText(topology === 'single' ? 'RECOMMENDED' :
+                              topology === 'star' ? 'LOW FREQUENCY ONLY' : 'USUALLY WORSE', centerX, h - 20);
         }
 
         function drawStarGround(ctx, cx, cy) {
@@ -1364,18 +1379,28 @@
                    'below Nyquist, which is the correct relationship.' },
             { action: 'Make Rin+ 10 kΩ and Rin− 1 kΩ, so the two input resistors no longer ' +
                       'match.',
-              expect: 'The differential response barely changes, but a common-mode signal ' +
-                      'now <strong>appears at the output</strong>.',
-              why: 'Try it properly: set both Vin+ and Vin&minus; to the same 1&nbsp;V AC ' +
-                   'source, so the differential input is zero. With matched resistors the ' +
-                   'output stays at zero. With 10&nbsp;k against 1&nbsp;k the common-mode ' +
-                   'signal reaches N1 and N2 through different impedances, arrives with ' +
-                   'different phase above the filter corner, and the amplifier faithfully ' +
-                   'amplifies the difference &mdash; which is now a real difference. ' +
-                   '<strong>CMRR is a property of the resistors in front of the ' +
-                   'amplifier at least as much as of the amplifier</strong>, which is why ' +
-                   'instrumentation amps are sold with the gain resistors on-die and why ' +
-                   'input filters are built from matched pairs.' }
+              expect: 'Set both inputs to the same 1 V AC. <strong>Nothing appears at the ' +
+                      'output</strong> — and that is the model, not the physics.',
+              why: 'Try it properly: drive Vin+ and Vin&minus; from the same 1&nbsp;V AC ' +
+                   'source so the differential input is zero, then mismatch the resistors. ' +
+                   'The output stays at zero however badly you mismatch them, and the ' +
+                   'reason is worth seeing. Nothing in this table draws current from N1 or ' +
+                   'N2 to ground &mdash; C1 sits <em>between</em> them, and the amplifier\'s ' +
+                   'inputs take none &mdash; so for a common-mode signal no current flows ' +
+                   'through either input resistor at all, and a resistor carrying no ' +
+                   'current drops no voltage. 10&nbsp;k against 1&nbsp;k is indistinguishable ' +
+                   'from 10&nbsp;k against 10&nbsp;k.</p><p>On a real board there is always ' +
+                   'something from each input to ground: the amplifier\'s common-mode input ' +
+                   'capacitance, the cable\'s, the ESD diodes\'. <strong>Add 100&nbsp;pF ' +
+                   'from N1 to ground and from N2 to ground and run it again.</strong> Now ' +
+                   'each input is an RC divider to ground, the two have different corners, ' +
+                   'the common-mode signal arrives at N1 and N2 with different phase, and ' +
+                   'the amplifier faithfully amplifies the difference &mdash; which is now a ' +
+                   'real difference. <strong>CMRR is a property of the impedances in front ' +
+                   'of the amplifier at least as much as of the amplifier</strong>, which is ' +
+                   'why instrumentation amps put the gain resistors on-die, why input filters ' +
+                   'are built from matched pairs, and why a differential filter capacitor is ' +
+                   'often paired with two smaller common-mode ones that are chosen to match.' }
         ]
     });
 })();
