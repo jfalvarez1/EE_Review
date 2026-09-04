@@ -62,6 +62,8 @@ const GATING = [
      'a build table you cannot wire up: a lead going nowhere, or a node it never builds'],
     ['check-build-values.js',
      'a component with no value: perfectly wired, and nothing a reader can actually enter'],
+    ['check-lesson-key.js',
+     'a checklist keyed to another lesson, so two lessons share progress and neither can tell'],
     ['check-sim-values.js',
      'a SimCheck that disagrees with the circuit above it - the reader builds it right and blames themselves'],
     ['check-toy-parts.js',
