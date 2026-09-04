@@ -123,7 +123,11 @@ N.walk(LESSONS, []).sort().forEach(file => {
                 nodes: p.n,
                 value: p.v !== undefined ? p.v : null,
                 stated: byRef[p.part] ? byRef[p.part][2] : null,
-                model: p.modelName || null
+                model: p.modelName || null,
+                // npn | pnp | diode | nmos | pmos - so an importer can refuse
+                // what it cannot identify instead of defaulting to something
+                family: p.model ? p.model.type : null,
+                params: p.model || null
             }));
         }
         const settled = rec.solver.dc === 'solved' || rec.solver.op === 'solved';

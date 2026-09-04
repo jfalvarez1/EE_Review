@@ -52,7 +52,7 @@ const TARGET = args.find(a => !a.startsWith('--'));
 
 const VT = 0.025852;             // kT/q at 300.15 K
 const GMIN = 1e-12;
-const MAXIT = 200;
+const MAXIT = parseInt(process.env.OP_MAXIT, 10) || 200;
 
 /** Gauss-Jordan with partial pivoting. Null when singular. */
 function solve(A, b) {
@@ -205,10 +205,18 @@ function newton(parts, idx, gmin, seed) {
                         vccs(cc, ee, bb, cc, -gir);
                         isrc(cc, ee, It - gif * vbe + gir * vbc);
                     } else {
+                        // PNP: vbe here is Ve - Vb and vbc is Vc - Vb, so the
+                        // controlling pairs are reversed too. An earlier draft
+                        // copied (bb, ee) and (bb, cc) from the NPN block, which
+                        // gave the Jacobian the negative of the transconductance
+                        // while the companion current below kept the right sign;
+                        // Newton then walked away from the solution by a factor
+                        // of ten a step, and every circuit with a PNP in it
+                        // "did not converge".
                         isrc(ee, bb, Ibe - gbe * vbe);
                         isrc(cc, bb, Ibc - gbc * vbc);
-                        vccs(ee, cc, bb, ee, gif);
-                        vccs(ee, cc, bb, cc, -gir);
+                        vccs(ee, cc, ee, bb, gif);
+                        vccs(ee, cc, cc, bb, -gir);
                         isrc(ee, cc, It - gif * vbe + gir * vbc);
                     }
                 } else if (M.type === 'nmos' || M.type === 'pmos') {
@@ -307,6 +315,44 @@ function operatingPoint(parts, idx) {
     return last ? { v: last.v, iters: last.iters, stepped: 'source' } : null;
 }
 
+/**
+ * A converged answer that is not a circuit. Newton can settle on a
+ * self-consistent solution in which a junction carries a megaamp - the
+ * circuit_toy session's solver did exactly that on a class AB stage whose
+ * bias diodes and transistors had mismatched models, and reported success
+ * because it checked for NaN and not for absurdity. Refuse to report any
+ * operating point where a device carries more than 100 A or a node sits
+ * beyond a kilovolt; a lesson would rather have nothing than that number.
+ */
+function absurdity(parts, v) {
+    const V = n => (N.isGround(n) ? 0 : (v[n] || 0));
+    for (const n of Object.keys(v)) {
+        if (Math.abs(v[n]) > 1e3) return 'V(' + n + ') = ' + v[n].toExponential(2) + ' V';
+    }
+    for (const q of parts) {
+        if (q.type !== 'SEMI') continue;
+        const M = q.model;
+        let i = 0;
+        if (M.type === 'diode') {
+            const vd = V(q.n[0]) - V(q.n[1]);
+            i = M.Is * (Math.exp(Math.min(vd / ((M.N || 1) * VT), 80)) - 1);
+        } else if (M.type === 'npn' || M.type === 'pnp') {
+            const s = M.type === 'npn' ? 1 : -1;
+            const vbe = s * (V(q.n[1]) - V(q.n[2])), vbc = s * (V(q.n[1]) - V(q.n[0]));
+            const ef = Math.exp(Math.min(vbe / VT, 80)), er = Math.exp(Math.min(vbc / VT, 80));
+            i = M.Is * (ef - er) - M.Is / M.BR * (er - 1);
+        } else {
+            const s = M.type === 'nmos' ? 1 : -1;
+            let vgs = s * (V(q.n[1]) - V(q.n[2])), vds = s * (V(q.n[0]) - V(q.n[2]));
+            if (vds < 0) { vds = -vds; vgs = s * (V(q.n[1]) - V(q.n[0])); }
+            const vov = vgs - M.Vth;
+            if (vov > 0) i = vds < vov ? M.K * (vov * vds - vds * vds / 2) : M.K / 2 * vov * vov * (1 + M.lambda * vds);
+        }
+        if (Math.abs(i) > 100) return q.part + ' carries ' + fmtI(i);
+    }
+    return null;
+}
+
 /** Device operating points, for the report. */
 function devices(parts, v) {
     const V = n => (N.isGround(n) ? 0 : (v[n] || 0));
@@ -403,6 +449,13 @@ files.forEach(file => {
                 ? 'no unique operating point: an ideal op-amp around a nonlinear stage (a deadband admits a range of answers)'
                 : 'did not converge, even with gmin and source stepping';
             skips.set(why.replace(/:.*$/, ''), (skips.get(why.replace(/:.*$/, '')) || 0) + 1);
+            if (LIST || TARGET) console.log('skip    ' + tag + '   ' + why);
+            return;
+        }
+        const absurd = absurdity(p.parts, r.v);
+        if (absurd) {
+            const why = 'absurd operating point: ' + absurd + ' - self-consistent, and not a circuit';
+            skips.set('absurd operating point', (skips.get('absurd operating point') || 0) + 1);
             if (LIST || TARGET) console.log('skip    ' + tag + '   ' + why);
             return;
         }

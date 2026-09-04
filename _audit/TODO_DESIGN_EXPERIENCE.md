@@ -31,7 +31,7 @@ think from time to time.* Not a lecture, and not a puzzle book either.
 | build tables with a wiring problem | 55 / 196 | **0 / 196** |
 | components with no value a reader could enter | 46 | **0** |
 | stated values checked against the circuit itself | 0 | **61** |
-| build tables a solver can settle (dc + op) | 0 | **94 / 193** |
+| build tables a solver can settle (dc + op) | 0 | **97 / 194** |
 | expected values stated | ~8 | **72** |
 | perturbations with a predicted outcome | 0 | **88** |
 | lessons with an acceptance check | 7% | **12%** |
@@ -67,6 +67,20 @@ against a per-lesson baseline that should only go down. M01 L06 is redrawn on
 the system, its PSRR table is sourced row by row (every number was wrong; see
 `_audit/review/05-psrr-format.md`), and it gained its first metric - the RC
 supply filter, four AC probes held by `check-sim-values`.
+
+**Where the simulation stops being the circuit.** Two solvers agreeing bounds
+arithmetic error and says nothing about physics, because they share the same
+idealisations. The course now says so at the points where it bites: M07 L02's
+14 mA idle current exists only because the generic diode and transistor models
+share one saturation current (real part numbers give 1.5–2.9 mA and 11 mV on
+the output; real parts spread I<sub>S</sub> two or three to one, which is why
+a V<sub>BE</sub> multiplier has a trimmer); M05 L11's active-load pair has no
+usable operating point because the models have no Early voltage, and a DC
+solve saturating Q2 is the correct answer for that table. A SimCheck quotes
+the model-insensitive quantities and records the rest. The circuit_toy
+session found the same thing from the other side: its solver converged on
+megaamps, self-consistent and not a circuit, and now refuses any operating
+point where a branch carries more than a kiloamp.
 
 **The bottleneck moved.** Stating an expected value meant solving the circuit by
 hand, which is slow and is where three of my own numbers went wrong. `solve-dc`
