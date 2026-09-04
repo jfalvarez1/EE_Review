@@ -100,8 +100,13 @@ const MODELS = {
     'SCHOTTKY': { type: 'diode', Is: 3.17e-5, N: 1.37 },
     'MBR1060':  { type: 'diode', Is: 3.17e-5, N: 1.37 },
     'ZENER':  { type: 'diode', Is: 1e-14, N: 1, BV: 5.1 },
-    'NMOS':   { type: 'nmos', Vth: 2.0, K: 1.0, lambda: 0.01 },
-    'PMOS':   { type: 'pmos', Vth: 2.0, K: 1.0, lambda: 0.01 }
+    // The generic MOSFET is Circuit Toy's small-signal device: Vth 0.7 V,
+    // Kp 110 uA/V^2, W/L 10, so K = Kp * W/L = 1.1 mA/V^2. An earlier draft
+    // used a 2 V / 1 A/V^2 power-FET generic, which never turned on a cascode
+    // biased the textbook way and compared the wrong device to Circuit Toy's.
+    // A Value cell may state "W/L = 90"; modelFor scales K accordingly.
+    'NMOS':   { type: 'nmos', Vth: 0.7, Kp: 110e-6, WL: 10, K: 1.1e-3, lambda: 0.04 },
+    'PMOS':   { type: 'pmos', Vth: 0.7, Kp: 110e-6, WL: 10, K: 1.1e-3, lambda: 0.04 }
 };
 
 /** Pick a model from a Value cell, or null if it names none we know. */
@@ -109,7 +114,19 @@ function modelFor(value, what) {
     const hay = (value + ' ' + what).toUpperCase();
     // Longest names first, so "D1N4148" is not matched as "DIODE".
     const keys = Object.keys(MODELS).sort((a, b) => b.length - a.length);
-    for (const k of keys) if (hay.indexOf(k) !== -1) return { name: k, m: MODELS[k] };
+    for (const k of keys) {
+        if (hay.indexOf(k) === -1) continue;
+        const m = MODELS[k];
+        // "NMOS, W/L = 90": geometry stated in the cell scales K for a MOSFET
+        // that carries Kp. Bias voltages in a lesson are statements about
+        // W/L as much as about Vth, so the table has to be able to say it.
+        const wl = /W\s*\/\s*L\s*=?\s*(\d+(?:\.\d+)?)/i.exec(value);
+        if (wl && m.Kp) {
+            const WL = parseFloat(wl[1]);
+            return { name: k + ' W/L=' + WL, m: Object.assign({}, m, { WL, K: m.Kp * WL }) };
+        }
+        return { name: k, m };
+    }
     return null;
 }
 

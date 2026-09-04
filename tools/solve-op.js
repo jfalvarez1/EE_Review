@@ -52,7 +52,8 @@ const TARGET = args.find(a => !a.startsWith('--'));
 
 const VT = 0.025852;             // kT/q at 300.15 K
 const GMIN = 1e-12;
-const MAXIT = parseInt(process.env.OP_MAXIT, 10) || 200;
+const MAXIT = parseInt(process.env.OP_MAXIT, 10) || 400;
+const MAXSTEP = 2;             // volts a node may move per Newton iteration
 
 /** Gauss-Jordan with partial pivoting. Null when singular. */
 function solve(A, b) {
@@ -233,9 +234,16 @@ function newton(parts, idx, gmin, seed) {
                     let Id = 0, gm = 0, gds = 0;
                     if (vov > 0) {
                         if (vds < vov) {              // triode
-                            Id = M.K * (vov * vds - vds * vds / 2);
-                            gm = M.K * vds;
-                            gds = M.K * (vov - vds);
+                            // The (1 + lambda*vds) factor belongs here too, as
+                            // in SPICE level 1. Without it the current jumps by
+                            // lambda*vds*Id at the boundary and Newton cycles
+                            // across it forever - a 10 V / 1 k / VGS 4 V stage
+                            // sat at that boundary and never converged.
+                            const l = 1 + M.lambda * vds;
+                            const tri = M.K * (vov * vds - vds * vds / 2);
+                            Id = tri * l;
+                            gm = M.K * vds * l;
+                            gds = M.K * (vov - vds) * l + tri * M.lambda;
                         } else {                      // saturation
                             const l = 1 + M.lambda * vds;
                             Id = M.K / 2 * vov * vov * l;
@@ -254,22 +262,58 @@ function newton(parts, idx, gmin, seed) {
             }
         }
 
+        // The residual of the NONLINEAR equations at x, before stepping. The
+        // companion stamps built at x reproduce each device's actual current
+        // at x, so A.x - rhs is Kirchhoff's current law evaluated exactly -
+        // amps at node rows, volts at the branch rows of sources and op-amps.
+        // A convergence test on step size alone cannot tell a root from a
+        // stall: Newton against a near-singular Jacobian takes tiny steps
+        // while sitting nowhere near a solution, and the circuit_toy session's
+        // solver reported such a stall as success (353 A of KCL violation) on
+        // a seven-transistor amplifier. Tolerance is SPICE's shape: absolute
+        // plus a relative part scaled by the currents actually flowing.
+        let res = 0, scale = 0;
+        for (let i = 0; i < size; i++) {
+            let ax = 0, mag = 0;
+            for (let j = 0; j < size; j++) { const t = A[i][j] * x[j]; ax += t; mag += Math.abs(t); }
+            res = Math.max(res, Math.abs(ax - rhs[i]));
+            scale = Math.max(scale, mag, Math.abs(rhs[i]));
+        }
+        // OP_NORES=1 restores the step-only test, for finding out which
+        // answers were resting on it.
+        const resOk = process.env.OP_NORES ? true : res < 1e-9 + 1e-6 * scale;
+
         const xn = solve(A, rhs);
         if (!xn) return null;
         if (xn.some(v => !isFinite(v))) return null;
+
+        // Damping: no node moves more than MAXSTEP volts in one iteration.
+        // A current source feeding a cut-off MOSFET sees only the gmin leak,
+        // and the first undamped step put that node at 120 MV; forty
+        // iterations went on walking it back down and the cap ran out before
+        // the answer. SPICE limits junction and gate voltages per device;
+        // one global limit does the same job here, and the residual test
+        // means a damped step can never be mistaken for convergence.
+        for (let i = 0; i < size; i++) {
+            const d = xn[i] - x[i];
+            if (Math.abs(d) > MAXSTEP) xn[i] = x[i] + Math.sign(d) * MAXSTEP;
+        }
 
         let worst = 0;
         for (let i = 0; i < size; i++) worst = Math.max(worst, Math.abs(xn[i] - x[i]));
         if (process.env.OP_DEBUG && iter < 40) {
             console.error('    iter ' + iter + '  worst step ' + worst.toExponential(3) +
+                          '  residual ' + res.toExponential(3) +
                           '  x0..2 = ' + xn.slice(0, 3).map(v => v.toFixed(4)).join(', '));
         }
-        x = xn;
-        if (worst < 1e-9 && iter > 2) {
+        if (worst < 1e-9 && resOk && iter > 2) {
+            // x already satisfies the equations; keep it rather than xn so the
+            // reported residual is the one that was tested.
             const v = {};
             idx.forEach((i, n) => { v[n] = x[i]; });
-            return { v, iters: iter + 1, x };
+            return { v, iters: iter + 1, x, res };
         }
+        x = xn;
     }
     return null;
 }
@@ -294,7 +338,7 @@ function operatingPoint(parts, idx) {
         if (!r) { ok = false; break; }
         seed = r.x; last = r;
     }
-    if (ok && last) return { v: last.v, iters: last.iters, stepped: 'gmin' };
+    if (ok && last) return { v: last.v, iters: last.iters, res: last.res, stepped: 'gmin' };
 
     // Source stepping: bring every supply up from zero. At zero volts every
     // junction is off and the answer is trivially all-zero; each step then
@@ -312,7 +356,7 @@ function operatingPoint(parts, idx) {
         }
         seed = r.x; last = r;
     }
-    return last ? { v: last.v, iters: last.iters, stepped: 'source' } : null;
+    return last ? { v: last.v, iters: last.iters, res: last.res, stepped: 'source' } : null;
 }
 
 /**
@@ -346,7 +390,7 @@ function absurdity(parts, v) {
             let vgs = s * (V(q.n[1]) - V(q.n[2])), vds = s * (V(q.n[0]) - V(q.n[2]));
             if (vds < 0) { vds = -vds; vgs = s * (V(q.n[1]) - V(q.n[0])); }
             const vov = vgs - M.Vth;
-            if (vov > 0) i = vds < vov ? M.K * (vov * vds - vds * vds / 2) : M.K / 2 * vov * vov * (1 + M.lambda * vds);
+            if (vov > 0) i = (vds < vov ? M.K * (vov * vds - vds * vds / 2) : M.K / 2 * vov * vov) * (1 + M.lambda * vds);
         }
         if (Math.abs(i) > 100) return q.part + ' carries ' + fmtI(i);
     }
@@ -383,7 +427,7 @@ function devices(parts, v) {
             const vov = vgs - M.Vth;
             let id = 0, region = 'cutoff';
             if (vov > 0) {
-                if (vds < vov) { id = M.K * (vov * vds - vds * vds / 2); region = 'triode'; }
+                if (vds < vov) { id = M.K * (vov * vds - vds * vds / 2) * (1 + M.lambda * vds); region = 'triode'; }
                 else { id = M.K / 2 * vov * vov * (1 + M.lambda * vds); region = 'saturation'; }
             }
             out.push('  ' + q.part.padEnd(10) + M.type.toUpperCase() +
@@ -460,7 +504,8 @@ files.forEach(file => {
             return;
         }
         solved++;
-        console.log('OP      ' + tag + '   (' + r.iters + ' iterations)');
+        console.log('OP      ' + tag + '   (' + r.iters + ' iterations' +
+                    (r.res !== undefined ? ', KCL residual ' + r.res.toExponential(1) + ' A' : '') + ')');
         Object.keys(r.v).sort().forEach(n => console.log('           V(' + n + ') = ' + fmtV(r.v[n])));
         devices(p.parts, r.v).forEach(l => console.log('         ' + l));
     });

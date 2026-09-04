@@ -30,8 +30,8 @@ think from time to time.* Not a lecture, and not a puzzle book either.
 | build sections stating what a correct build shows | 3 / 173 | **47 / 173** |
 | build tables with a wiring problem | 55 / 196 | **0 / 196** |
 | components with no value a reader could enter | 46 | **0** |
-| stated values checked against the circuit itself | 0 | **61** |
-| build tables a solver can settle (dc + op) | 0 | **97 / 194** |
+| stated values checked against the circuit itself | 0 | **64** |
+| build tables a solver can settle (dc + op) | 0 | **98 / 194** |
 | expected values stated | ~8 | **72** |
 | perturbations with a predicted outcome | 0 | **88** |
 | lessons with an acceptance check | 7% | **12%** |
