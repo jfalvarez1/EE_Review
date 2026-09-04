@@ -37,6 +37,7 @@
 const fs = require('fs');
 const path = require('path');
 const N = require('./netlist');
+const OP = require('./solve-op');     // the operating point to linearise about
 
 const ROOT = path.dirname(__dirname);
 const LESSONS = path.join(ROOT, 'lessons');
@@ -102,6 +103,11 @@ function at(parts, idx, f) {
             else y = w * q.v === 0 ? cx(1e12) : cx(0, -1 / (w * q.v));
             G(a, a, y); G(b, b, y);
             G(a, b, cx(-y.re, -y.im)); G(b, a, cx(-y.re, -y.im));
+        } else if (q.type === 'G') {
+            // Transconductance: current from n[0] to n[1], g times (n[2] - n[3]).
+            const p = a, m = b, cp = nd(q.n[2]), cm = nd(q.n[3]);
+            const g = cx(q.v), ng = cx(-q.v);
+            G(p, cp, g); G(p, cm, ng); G(m, cp, ng); G(m, cm, g);
         } else if (q.type === 'I') {
             if (b >= 0) rhs[b] = add(rhs[b], cx(q.v));
             if (a >= 0) rhs[a] = sub(rhs[a], cx(q.v));
@@ -152,9 +158,76 @@ const eng = f => {
 };
 const dB = g => (20 * Math.log10(g)).toFixed(2) + ' dB';
 
+/**
+ * Small-signal equivalents about a DC operating point, so a transistor
+ * amplifier can be swept. Each device becomes what the textbook draws for it:
+ * a diode its dynamic resistance; a BJT the hybrid-pi pair, r_pi from base to
+ * emitter and a transconductance g_m = I_C / V_T from collector to emitter
+ * controlled by v_be (the same model serves NPN and PNP, which is why the
+ * textbook draws one); a MOSFET g_m and g_ds. No junction capacitances and no
+ * Early voltage, because the DC models have none - so the high-frequency
+ * roll-off a reader sees here is only what the lesson's own capacitors make,
+ * and the lesson has to say so.
+ */
+function linearise(parts, v) {
+    const V = n => (N.isGround(n) ? 0 : (v[n] || 0));
+    const VT = OP.VT;
+    const out = [];
+    for (const q of parts) {
+        if (q.type !== 'SEMI') { out.push(q); continue; }
+        const M = q.model;
+        if (M.type === 'diode') {
+            const nvt = (M.N || 1) * VT;
+            const vd = V(q.n[0]) - V(q.n[1]);
+            const gd = M.Is * Math.exp(Math.min(vd / nvt, 80)) / nvt + 1e-12;
+            out.push({ type: 'R', part: q.part + '.rd', n: [q.n[0], q.n[1]], v: 1 / gd });
+        } else if (M.type === 'npn' || M.type === 'pnp') {
+            const s = M.type === 'npn' ? 1 : -1;
+            const [c, b, e] = q.n;
+            const vbe = s * (V(b) - V(e));
+            const ic = M.Is * Math.exp(Math.min(vbe / VT, 80));
+            const gm = ic / VT + 1e-12;
+            out.push({ type: 'R', part: q.part + '.rpi', n: [b, e], v: M.BF / gm });
+            out.push({ type: 'G', part: q.part + '.gm', n: [c, e, b, e], v: gm });
+        } else {
+            const s = M.type === 'nmos' ? 1 : -1;
+            let [d, g, src] = q.n;
+            let vgs = s * (V(g) - V(src)), vds = s * (V(d) - V(src));
+            if (vds < 0) { [d, src] = [src, d]; vgs = s * (V(g) - V(src)); vds = s * (V(d) - V(src)); }
+            const vov = vgs - M.Vth;
+            let gm = 0, gds = 1e-12;
+            if (vov > 0) {
+                const l = 1 + M.lambda * vds;
+                if (vds < vov) {
+                    const tri = M.K * (vov * vds - vds * vds / 2);
+                    gm = M.K * vds * l; gds += M.K * (vov - vds) * l + tri * M.lambda;
+                } else {
+                    gm = M.K * vov * l; gds += M.K / 2 * vov * vov * M.lambda;
+                }
+            }
+            out.push({ type: 'R', part: q.part + '.ro', n: [d, src], v: 1 / gds });
+            if (gm > 0) out.push({ type: 'G', part: q.part + '.gm', n: [d, src, g, src], v: gm });
+        }
+    }
+    return out;
+}
+
 function report(rel, rows, tableNo) {
-    const p = N.parse(rows, 'ac');
+    let p = N.parse(rows, 'ac');
     const tag = rel + (tableNo > 0 ? ' [table ' + (tableNo + 1) + ']' : '');
+    let bias = null;
+    if (p.error && /nonlinear or switched part/.test(p.error)) {
+        // A transistor amplifier: find its operating point, linearise, sweep.
+        const ss = N.parse(rows, 'ss');
+        const op = N.parse(rows, 'op');
+        if (!ss.error && !op.error) {
+            bias = OP.operatingPoint(op.parts, N.nodeIndex(op.parts));
+            if (!bias) return { skip: 'no operating point to linearise about', tag };
+            const absurd = OP.absurdity(op.parts, bias.v);
+            if (absurd) return { skip: 'absurd operating point: ' + absurd, tag };
+            p = { parts: linearise(ss.parts, bias.v) };
+        }
+    }
     if (p.error) return { skip: p.error, tag };
     const parts = p.parts;
     if (!parts.some(q => (q.type === 'V' || q.type === 'I') && q.v !== 0)) {
@@ -215,6 +288,29 @@ function report(rel, rows, tableNo) {
         let ref = null, target = null, refEnd = '';
         if (loFlat && (!hiFlat || lo >= hi)) { ref = lo; refEnd = 'LF'; target = hi > lo ? lo * Math.SQRT2 : lo / Math.SQRT2; }
         else if (hiFlat) { ref = hi; refEnd = 'HF'; target = lo > hi ? hi * Math.SQRT2 : hi / Math.SQRT2; }
+        else {
+            // Neither end is flat: an AC-coupled amplifier is a band-pass, and
+            // its passband is the longest run of grid samples that stay within
+            // half a decibel of their neighbours. The midband gain is that
+            // run's mean, and the corners are wherever the response crosses
+            // 3 dB below it - on either side. A single peaked sample (shunt
+            // peaking) does not join the run, so it shows up as 'peaks'.
+            let best = null, start = 0;
+            const db = m => (m > 1e-18 ? 20 * Math.log10(m) : -400);
+            for (let i = 1; i <= pts.length; i++) {
+                const cont = i < pts.length && Math.abs(db(pts[i][1]) - db(pts[i - 1][1])) < 0.5;
+                if (!cont) {
+                    if (!best || i - start > best.len) best = { start, len: i - start };
+                    start = i;
+                }
+            }
+            if (best && best.len >= 4) {
+                const run = pts.slice(best.start, best.start + best.len);
+                ref = run.reduce((s, p) => s + p[1], 0) / run.length;
+                if (ref > peak * 1e-6) { refEnd = 'midband'; target = ref / Math.SQRT2; }
+                else ref = null;
+            }
+        }
 
         const corners = [];
         if (target !== null) {
@@ -238,7 +334,8 @@ function report(rel, rows, tableNo) {
         data[node] = { ref, refDb: ref === null ? null : 20 * Math.log10(ref),
                        corners, hiSlope, peak };
     });
-    return { tag, lines, data };
+    if (bias && lines.length) lines.unshift('  small-signal about the solve-op operating point (no junction capacitances, no Early voltage)');
+    return { tag, lines, data, linearised: !!bias };
 }
 
 const files = TARGET ? [path.resolve(ROOT, TARGET)] : N.walk(LESSONS, []).sort();

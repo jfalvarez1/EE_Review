@@ -158,11 +158,11 @@
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
                     <tr><td class="mono">VCC</td><td>Voltage source</td><td>12&nbsp;V DC</td><td>from <span class="mono">vcc</span> to ground</td></tr>
-                    <tr><td class="mono">VIN</td><td>Voltage source</td><td>AC 1&nbsp;mV for a frequency sweep</td><td>from <span class="mono">in</span> to ground</td></tr>
+                    <tr><td class="mono">VIN</td><td>Voltage source</td><td>AC 1&nbsp;V for a frequency sweep (an AC sweep is linear, so VDB(out) then reads the gain directly)</td><td>from <span class="mono">in</span> to ground</td></tr>
                     <tr><td class="mono">R1</td><td>Resistor</td><td>47&nbsp;k&Omega;</td><td>between <span class="mono">vcc</span> and <span class="mono">base</span></td></tr>
                     <tr><td class="mono">R2</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">base</span> and ground</td></tr>
                     <tr><td class="mono">RC</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">vcc</span> and <span class="mono">col</span></td></tr>
-                    <tr><td class="mono">LP</td><td>Inductor</td><td>1&nbsp;&micro;H</td><td>between <span class="mono">col</span> and <span class="mono">col2</span></td></tr>
+                    <tr><td class="mono">LP</td><td>Inductor</td><td>4.1&nbsp;&micro;H (m = L/R<sub>C</sub>&sup2;C<sub>L</sub> = 0.41, the maximally flat value; 1&nbsp;&micro;H is m = 0.1 and buys almost nothing)</td><td>between <span class="mono">col</span> and <span class="mono">col2</span></td></tr>
                     <tr><td class="mono">Q1</td><td>Transistor (BJT)</td><td><span class="mono">2N3904</span></td><td>collector <span class="mono">col2</span>, base <span class="mono">base</span>, emitter <span class="mono">emitter</span></td></tr>
                     <tr><td class="mono">RE</td><td>Resistor</td><td>330&nbsp;&Omega; <em>(not 100: the 47k/10k divider puts the base near 2.1&nbsp;V, and 100&nbsp;&Omega; there asks for 12&nbsp;mA through a 1&nbsp;k collector load &mdash; 12&nbsp;V of drop from a 12&nbsp;V supply. The stage was saturated as tabulated. 330&nbsp;&Omega; gives 4.2&nbsp;mA and 6.5&nbsp;V across the transistor.)</em></td><td>between <span class="mono">emitter</span> and ground</td></tr>
                     <tr><td class="mono">CIN</td><td>Capacitor</td><td>1&nbsp;&micro;F</td><td>between <span class="mono">in</span> and <span class="mono">base</span></td></tr>
@@ -178,6 +178,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="sim-check-m05l24"></div>
     </div>
 
     <div class="card">
@@ -481,5 +483,74 @@
         exContainer.appendChild(div);
         new ExerciseWidget(`exercise-m1l24-${i}`, ex);
     });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('sim-check-m05l24', {
+            id: 'm05l24-peaking',
+            title: 'What one inductor buys, measured',
+            intro: 'This is the lesson&rsquo;s claim &mdash; bandwidth &times;&nbsp;1.7 for ' +
+                   'L = 0.4R&sup2;C &mdash; put in front of a solver. The only high-frequency ' +
+                   'element in the model is the 10&nbsp;pF load; the transistor has no ' +
+                   'capacitance here, so the corner you measure is the load&rsquo;s alone, and what ' +
+                   'the inductor does to it is the whole experiment.',
+            probes: [
+                { id: 'vb', node: 'V(base)', dc: true, label: 'V(base)',
+                  expect: '2.03', unit: 'V', tol: 0.05,
+                  why: '47&nbsp;k / 10&nbsp;k from 12&nbsp;V is 2.105&nbsp;V, less the base current through the ' +
+                       'divider&rsquo;s 8.25&nbsp;k: 2.03&nbsp;V.' },
+                { id: 've', node: 'V(emitter)', dc: true, label: 'V(emitter)',
+                  expect: '1.33', unit: 'V', tol: 0.05,
+                  why: 'One V<sub>BE</sub> down. 1.33&nbsp;V across 330&nbsp;&Omega; is 4.0&nbsp;mA.' },
+                { id: 'vc', node: 'V(col)', dc: true, label: 'V(col)',
+                  expect: '7.99', unit: 'V', tol: 0.2,
+                  why: '12 &minus; 4.0&nbsp;mA &times; 1&nbsp;k. The inductor drops nothing at DC, so col and ' +
+                       'col2 read the same, and there are 6.7&nbsp;V across the transistor. This is ' +
+                       'the number that needed R<sub>E</sub> = 330&nbsp;&Omega;: the original 100&nbsp;&Omega; asked ' +
+                       'for 12&nbsp;mA through the same 1&nbsp;k, and the stage was saturated as tabulated.' },
+                { id: 'mid', acNode: 'out', acAt: 1e6, label: 'VDB(out) at 1 MHz, the midband gain',
+                  expect: '9.4', unit: 'dB', tol: 0.5,
+                  why: '&minus;R<sub>C</sub>/(R<sub>E</sub> + r<sub>e</sub>) = &minus;1000/(330 + 6.5) = &minus;2.97, which is ' +
+                       '9.5&nbsp;dB. With the emitter unbypassed the gain is a ratio of two resistors ' +
+                       'and barely depends on the transistor at all.' },
+                { id: 'fh', acNode: 'out', acCorner: 2, label: 'Upper 3 dB corner',
+                  expect: '27.5', unit: 'MHz', tol: 2,
+                  why: 'Without the inductor the corner is 1/(2&pi; &times; 1&nbsp;k &times; 10&nbsp;pF) = ' +
+                       '15.9&nbsp;MHz. With m = L/(R<sub>C</sub>&sup2;C<sub>L</sub>) = 0.41 the inductor holds the ' +
+                       'collector impedance up as the capacitor pulls it down, and the corner moves ' +
+                       'to 1.72 &times; 15.9 = 27.4&nbsp;MHz with the response flat to within 0.1&nbsp;dB ' +
+                       'below it. <strong>That is the maximally flat case</strong>; more inductance ' +
+                       'buys more bandwidth at the price of a bump.' }
+            ],
+            experiments: [
+                { action: 'Remove LP (set it to 1 pH).',
+                  expect: 'The midband is unchanged and the corner falls to <strong>15.9 MHz</strong>.',
+                  why: 'The bare RC: 1/(2&pi; &times; 1&nbsp;k &times; 10&nbsp;pF). Everything above it was the inductor.' },
+                { action: 'Set LP to 8 µH (m = 0.8).',
+                  expect: 'The response <strong>peaks by about 0.9 dB</strong> near 20 MHz and the ' +
+                          'corner reaches about 30 MHz.',
+                  why: 'Past m &asymp; 0.41 the inductor overshoots: it holds the impedance up ' +
+                       'harder than the capacitor pulls it down over a band, and that band is a ' +
+                       'bump. Another 10% of bandwidth for a decibel of ripple and ringing on a ' +
+                       'step &mdash; the trade every peaked amplifier makes somewhere.' },
+                { action: 'Set CL to 22 pF, leaving LP at 4.1 µH.',
+                  expect: 'The corner falls to <strong>about 9.4 MHz</strong>.',
+                  why: 'The bare corner is now 7.2&nbsp;MHz, and m has fallen to 4.1&nbsp;&micro;H/(1&nbsp;k&sup2; ' +
+                       '&times; 22&nbsp;pF) = 0.19, which is only a 1.3&times; extension. The inductor ' +
+                       'was chosen for one load capacitance; change the load and it is the wrong ' +
+                       'inductor.' },
+                { action: 'Set LP to 1 µH, the value this table used to carry.',
+                  expect: 'The corner is <strong>about 18 MHz</strong>: 1.1 times the bare stage.',
+                  why: 'm = 0.1 buys almost nothing, which is why the table was changed. Shunt ' +
+                       'peaking is not &ldquo;add an inductor&rdquo;; it is a specific ratio, and ' +
+                       'the wrong ratio is a part that costs money and does nothing.' }
+            ]
+        });
 })();
 </script>

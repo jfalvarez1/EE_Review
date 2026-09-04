@@ -135,7 +135,7 @@
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
                     <tr><td class="mono">Q1</td><td>Transistor (BJT)</td><td><span class="mono">NPN BJT</span></td><td>collector <span class="mono">vin</span>, base <span class="mono">base</span>, emitter <span class="mono">out</span></td></tr>
-                    <tr><td class="mono">RSENSE</td><td>Resistor</td><td>100&nbsp;m&Omega;</td><td>between <span class="mono">out</span> and <span class="mono">load</span></td></tr>
+                    <tr><td class="mono">RSENSE</td><td>Resistor</td><td>1&nbsp;&Omega; (sets the limit at V<sub>BE</sub>/R &asymp; 0.65&nbsp;A; 100&nbsp;m&Omega; would ask for 6.5&nbsp;A, more than a 1&nbsp;k&Omega; base resistor can drive, and Q2 would never turn on)</td><td>between <span class="mono">out</span> and <span class="mono">load</span></td></tr>
                     <tr><td class="mono">Q2</td><td>Transistor (BJT)</td><td><span class="mono">NPN BJT</span></td><td>collector <span class="mono">base</span>, base <span class="mono">out</span>, emitter <span class="mono">load</span></td></tr>
                     <tr><td class="mono">VIN</td><td>Voltage source</td><td>15&nbsp;V DC</td><td>from <span class="mono">vin</span> to ground</td></tr>
                     <tr><td class="mono">RBIAS</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">vin</span> and <span class="mono">base</span></td></tr>
@@ -144,12 +144,14 @@
             </table>
         </div>
 
-        <p><strong>What to run:</strong> a <strong>DC sweep</strong> of <span class="mono">RLOAD</span> from 100&nbsp; to 100&nbsp;m.</p>
+        <p><strong>What to run:</strong> a <strong>DC sweep</strong> of <span class="mono">RLOAD</span> from 100&nbsp;&Omega; down to 100&nbsp;m&Omega;.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(out)</span>, <span class="mono">I(RSENSE)</span>.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="sim-check-m07l04"></div>
     </div>
 
     <div class="card">
@@ -322,5 +324,65 @@
         solution: 'Ilimit = 0.6V / 0.2Ω = 3A',
         explanation: 'When current through Rsense creates 0.6V drop, Q2 conducts and steals base drive from the pass transistor, limiting current.'
     });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('sim-check-m07l04', {
+            id: 'm07l04-limit',
+            title: 'Where the limit sits, and what sets it',
+            intro: 'At the tabulated 10&nbsp;&Omega; the load would like 1.4&nbsp;A and the limiter is ' +
+                   'already holding it to about 0.65&nbsp;A, so the operating point <em>is</em> the ' +
+                   'limit. Read it, then sweep the load and watch the current refuse to move.',
+            probes: [
+                { id: 'vsense', node: 'out,load', dc: true, label: 'V(out) − V(load), across RSENSE',
+                  expect: '0.65', unit: 'V', tol: 0.07,
+                  why: 'One V<sub>BE</sub>. Q2 turns on when the drop across R<sub>SENSE</sub> reaches its ' +
+                       'base-emitter voltage and then steals Q1&rsquo;s base drive, so the sense ' +
+                       'voltage cannot rise past about 0.65&nbsp;V and the current cannot rise past ' +
+                       '0.65&nbsp;V / 1&nbsp;&Omega;. <strong>The limit is a V<sub>BE</sub> divided by a ' +
+                       'resistor</strong>, which is why it drifts by &minus;2&nbsp;mV/&deg;C and why ' +
+                       'precision limiters use something better than a bare junction.' },
+                { id: 'vload', node: 'V(load)', dc: true, label: 'V(load)',
+                  expect: '6.46', unit: 'V', tol: 0.4,
+                  why: '0.65&nbsp;A into 10&nbsp;&Omega;. Not the 13.6&nbsp;V a follower would give: the ' +
+                       'limiter is active, and the other 8&nbsp;V is across Q1, which is dissipating ' +
+                       '5&nbsp;W. That dissipation is the hidden cost of a simple limiter and the ' +
+                       'reason foldback exists.' },
+                { id: 'vbase', node: 'V(base)', label: 'V(base)', unit: 'V', record: true,
+                  why: 'R<sub>BIAS</sub> supplies Q1&rsquo;s base and Q2&rsquo;s collector; what is left after ' +
+                       'Q2 takes its share sets Q1&rsquo;s current. The number depends on the generic ' +
+                       'transistor&rsquo;s &beta; and V<sub>BE</sub>, so record it rather than check it: ' +
+                       'the model-insensitive fact is that it sits about one V<sub>BE</sub> above out.' }
+            ],
+            experiments: [
+                { action: 'RLOAD 100 Ω.',
+                  expect: 'V(load) &asymp; <strong>12.8 V</strong> at 0.13 A, the sense voltage is ' +
+                          '0.13 V, and Q2 is off: no limiting.',
+                  why: 'The load wants less than the limit, so Q2 never reaches a V<sub>BE</sub> and the ' +
+                       'stage is a plain follower: 15&nbsp;V less Q1&rsquo;s V<sub>BE</sub> less what its own ' +
+                       'base current drops in R<sub>BIAS</sub>.' },
+                { action: 'RLOAD 1 Ω, then 0.1 Ω.',
+                  expect: 'V(load) tracks 0.7 A &times; RLOAD: <strong>0.71 V, then 0.07 V</strong>. ' +
+                          'The current does not move.',
+                  why: 'That is the limiter working. The volts the load no longer takes land on ' +
+                       'Q1: at 0.1&nbsp;&Omega; it has 14.2&nbsp;V across it at 0.7&nbsp;A, ten watts. A short ' +
+                       'circuit is the worst case for the pass transistor, not for the load, and ' +
+                       'the heatsink is sized for the fault rather than the job.' },
+                { action: 'Put RSENSE back to 100 mΩ with RLOAD at 0.1 Ω.',
+                  expect: 'The current settles at <strong>about 1.4 A</strong> with only 0.14 V across ' +
+                          'RSENSE, and Q2 never conducts.',
+                  why: 'The limit would be 6.5&nbsp;A, but a 1&nbsp;k&Omega; base resistor into &beta; = 100 ' +
+                       'can only drive about 1.4&nbsp;A, so the current flattens at the base-drive ' +
+                       'limit instead. It looks like current limiting and it is not: the sense ' +
+                       'voltage is a fifth of a V<sub>BE</sub>. <strong>A limit you cannot reach is not ' +
+                       'a limit</strong>, and the sweep is how you find out which one you built.' }
+            ]
+        });
 })();
 </script>

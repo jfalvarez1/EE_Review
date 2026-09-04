@@ -456,6 +456,11 @@ const fmtV = v => {
     return v.toPrecision(6) + ' V';
 };
 
+// solve-ac linearises each device about the point this finds, to sweep
+// transistor amplifiers; it needs the solver and nothing below this line.
+module.exports = { operatingPoint, newton, devices, absurdity, VT, GMIN };
+if (require.main !== module) return;
+
 const files = TARGET ? [path.resolve(ROOT, TARGET)] : N.walk(LESSONS, []).sort();
 let tables = 0, solved = 0, withSemi = 0;
 const skips = new Map();

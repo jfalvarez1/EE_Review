@@ -68,6 +68,8 @@ const GATING = [
      'a checklist keyed to another lesson, so two lessons share progress and neither can tell'],
     ['check-sim-values.js',
      'a SimCheck that disagrees with the circuit above it - the reader builds it right and blames themselves'],
+    ['check-feedback-polarity.js',
+     'an op-amp fed back to the wrong input: every DC solve passes it, and on the bench it latches to a rail'],
     ['check-toy-parts.js',
      'a build table naming a part Circuit Toy does not have, which sends readers to the wrong one'],
     ['check-arithmetic.js',

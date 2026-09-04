@@ -391,10 +391,13 @@
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
                     <tr><td class="mono">VCC</td><td>Voltage source</td><td>12&nbsp;V DC</td><td>from <span class="mono">1</span> to ground</td></tr>
-                    <tr><td class="mono">VIN</td><td>Voltage source</td><td>AC 1&nbsp;V for a frequency sweep</td><td>from <span class="mono">5</span> to ground</td></tr>
+                    <tr><td class="mono">VIN</td><td>Voltage source</td><td>AC 1&nbsp;V for a frequency sweep</td><td>from <span class="mono">src</span> to ground</td></tr>
+                    <tr><td class="mono">RS</td><td>Resistor</td><td>1&nbsp;k&Omega; (the source's own resistance &mdash; without it the Miller capacitance has nothing to work against and the high end never rolls off)</td><td>between <span class="mono">src</span> and <span class="mono">5</span></td></tr>
                     <tr><td class="mono">R1</td><td>Resistor</td><td>47&nbsp;k&Omega;</td><td>between <span class="mono">1</span> and <span class="mono">2</span></td></tr>
                     <tr><td class="mono">R2</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">2</span> and ground</td></tr>
-                    <tr><td class="mono">Q1</td><td>Transistor (BJT)</td><td><span class="mono">NPN BJT</span></td><td>collector <span class="mono">3</span>, base <span class="mono">2</span>, emitter <span class="mono">4</span></td></tr>
+                    <tr><td class="mono">Q1</td><td>Transistor (BJT)</td><td><span class="mono">2N3904</span></td><td>collector <span class="mono">3</span>, base <span class="mono">2</span>, emitter <span class="mono">4</span></td></tr>
+                    <tr><td class="mono">CPI</td><td>Capacitor</td><td>25&nbsp;pF (C<sub>&pi;</sub>: g<sub>m</sub>/2&pi;f<sub>T</sub> &minus; C<sub>&mu;</sub> for a 2N3904 at 1.4&nbsp;mA, f<sub>T</sub> = 300&nbsp;MHz)</td><td>between <span class="mono">2</span> and <span class="mono">4</span></td></tr>
+                    <tr><td class="mono">CMU</td><td>Capacitor</td><td>4&nbsp;pF (C<sub>&mu;</sub>: the 2N3904's C<sub>obo</sub>)</td><td>between <span class="mono">2</span> and <span class="mono">3</span></td></tr>
                     <tr><td class="mono">RC</td><td>Resistor</td><td>2.20&nbsp;k&Omega;</td><td>between <span class="mono">1</span> and <span class="mono">3</span></td></tr>
                     <tr><td class="mono">RE</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">4</span> and ground</td></tr>
                     <tr><td class="mono">CE</td><td>Capacitor</td><td>10&nbsp;&micro;F</td><td>between <span class="mono">4</span> and ground</td></tr>
@@ -410,6 +413,8 @@
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="sim-check-m05l15"></div>
     </div>
 
     <div class="card">
@@ -1113,5 +1118,85 @@
         ]
     });
 
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('sim-check-m05l15', {
+            id: 'm05l15-freq',
+            title: 'Both ends of the band, from parts that are on the page',
+            intro: 'The low end is the bypass capacitor against the few ohms looking into the ' +
+                   'emitter. The high end is the 4&nbsp;pF between base and collector, ' +
+                   'multiplied by the gain, against the source resistance. Nothing else in ' +
+                   'this model rolls off &mdash; there are no transistor parasitics beyond the ' +
+                   'two capacitors in the table &mdash; so what you see at the top is exactly ' +
+                   'what C<sub>&pi;</sub> and C<sub>&mu;</sub> make, and nothing you did not put there.',
+            probes: [
+                { id: 'vb', node: 'V(2)', dc: true, label: 'V(2), the base',
+                  expect: '2.08', unit: 'V', tol: 0.1,
+                  why: '47&nbsp;k over 10&nbsp;k from 12&nbsp;V is 2.105&nbsp;V; the 3.4&nbsp;&micro;A of ' +
+                       'base current through the divider&rsquo;s 8.25&nbsp;k drops 28&nbsp;mV of it.' },
+                { id: 've', node: 'V(4)', dc: true, label: 'V(4), the emitter',
+                  expect: '1.40', unit: 'V', tol: 0.1,
+                  why: 'One V<sub>BE</sub> below the base, and 1.40&nbsp;V across 1&nbsp;k is the ' +
+                       '1.4&nbsp;mA that everything below depends on.' },
+                { id: 'vc', node: 'V(3)', dc: true, label: 'V(3), the collector',
+                  expect: '8.92', unit: 'V', tol: 0.3,
+                  why: '12&nbsp;V minus 1.40&nbsp;mA through 2.2&nbsp;k. Seven and a half volts across ' +
+                       'the transistor: mid-rail, with room to swing.' },
+                { id: 'mid', acNode: '6', acAt: 10000, label: 'VDB(6) at 10 kHz, the midband gain',
+                  expect: '37.7', unit: 'dB', tol: 0.7,
+                  why: 'r<sub>e</sub> = 25.85&nbsp;mV / 1.40&nbsp;mA = 18.4&nbsp;&Omega;, and ' +
+                       'R<sub>C</sub>||R<sub>L</sub> = 1.80&nbsp;k, so the stage alone gives ' +
+                       '1800/18.4 = 98. But the source has 1&nbsp;k of its own and the stage&rsquo;s ' +
+                       'input is R1||R2||r<sub>&pi;</sub> = 8.25&nbsp;k || 7.7&nbsp;k = 4.0&nbsp;k, so only ' +
+                       '80% of the source reaches the base: 78, which is 37.8&nbsp;dB. <strong>A ' +
+                       'stage&rsquo;s gain is a property of what drives it</strong>, and the datasheet ' +
+                       'number is the one you get from a source that costs nothing.' },
+                { id: 'fl', acNode: '6', acCorner: 1, label: 'Lower 3 dB corner',
+                  expect: '778', unit: 'Hz', tol: 80,
+                  why: 'C<sub>E</sub> against the resistance looking into the emitter: r<sub>e</sub> plus ' +
+                       'the base-side resistance divided by &beta;, 18.4 + (1&nbsp;k || 8.25&nbsp;k)/416 = ' +
+                       '20.5&nbsp;&Omega;. 1/(2&pi; &times; 10&nbsp;&micro;F &times; 20.5&nbsp;&Omega;) = 776&nbsp;Hz. ' +
+                       'The two coupling capacitors are far below it &mdash; they see kilohms, ' +
+                       'the bypass sees twenty ohms &mdash; which is why the bypass capacitor is ' +
+                       'always the big one.' },
+                { id: 'fh', acNode: '6', acCorner: 2, label: 'Upper 3 dB corner',
+                  expect: '481', unit: 'kHz', tol: 40,
+                  why: 'Miller. The 4&nbsp;pF from base to collector is charged through the voltage ' +
+                       'gain, so the base sees C<sub>&pi;</sub> + C<sub>&mu;</sub>(1 + 98) = 421&nbsp;pF. ' +
+                       'Against the 1&nbsp;k source in parallel with the 4.0&nbsp;k input, 800&nbsp;&Omega;: ' +
+                       '1/(2&pi; &times; 800 &times; 421&nbsp;pF) = 473&nbsp;kHz. <strong>Four picofarads ' +
+                       'became four hundred.</strong> That multiplication is the whole reason ' +
+                       'high-gain stages are slow, and the reason cascodes exist.' }
+            ],
+            experiments: [
+                { action: 'Set CMU to 0.01 pF — a transistor with no collector-base capacitance.',
+                  expect: 'The midband is unchanged and the upper corner leaps to <strong>about ' +
+                          '8 MHz</strong>, seventeen times higher.',
+                  why: 'The 25&nbsp;pF of C<sub>&pi;</sub> is all that is left: 1/(2&pi; &times; 800 &times; ' +
+                       '25&nbsp;pF) = 8&nbsp;MHz. Everything between 480&nbsp;kHz and 8&nbsp;MHz was the ' +
+                       '4&nbsp;pF, multiplied.' },
+                { action: 'Change RS to 50 Ω — drive it from a low-impedance source.',
+                  expect: 'The midband rises to <strong>39.6 dB</strong> and the upper corner moves ' +
+                          'out past several megahertz; the response is flat to 1 MHz within 0.1 dB.',
+                  why: 'Both for the same reason: the input divider. 50&nbsp;&Omega; against 4&nbsp;k ' +
+                       'loses almost nothing, so the gain is the stage&rsquo;s own 98, and the Miller ' +
+                       'capacitance now charges through 50&nbsp;&Omega; instead of 800, so its pole ' +
+                       'moves up by the same ratio. The high-frequency limit of a CE stage is set ' +
+                       'by what drives it as much as by the transistor.' },
+                { action: 'Remove CE.',
+                  expect: 'Gain falls to <strong>3.9 dB</strong> (1.57 times) and the upper corner ' +
+                          'disappears from the sweep.',
+                  why: '(R<sub>C</sub>||R<sub>L</sub>)/(R<sub>E</sub> + r<sub>e</sub>) = 1800/1018. And with the ' +
+                       'gain sixty times smaller, the Miller capacitance is sixty times smaller: ' +
+                       'this is the gain-bandwidth trade the lesson describes, seen from the other end.' }
+            ]
+        });
 })();
 </script>

@@ -24,7 +24,10 @@ const text = html => html
     .replace(/&nbsp;|&thinsp;/g, ' ')
     .replace(/&minus;|&#8722;|&ndash;/g, '-')
     .replace(/&Omega;/g, 'ohm')
-    .replace(/&micro;|&mu;/g, 'u')
+    // The entity AND the characters: a literal micro sign (U+00B5) or Greek mu
+    // (U+03BC) in a Value cell otherwise falls through magnitude()'s prefix
+    // class and "1 µH" reads as one henry - a million times out, silently.
+    .replace(/&micro;|&mu;|[µμ]/g, 'u')
     .replace(/&amp;/g, '&')
     .replace(/&frac12;/g, '0.5')
     .replace(/\s+/g, ' ')
@@ -228,11 +231,14 @@ function parse(rows, mode) {
         // Decide what the part IS before reading its terminals. A BJT's
         // "collector a, base b, emitter c" is not a form terminals() parses, and
         // reporting that as an unparsed row buries the real reason.
-        const semi = mode === 'op' && SEMI.test(what) && !SWITCHED.test(what);
+        // 'ss' is the small-signal mode solve-ac uses to sweep a transistor
+        // amplifier: semiconductors kept (to be linearised about the solve-op
+        // point), reactive parts kept, sources read for their AC amplitude.
+        const semi = (mode === 'op' || mode === 'ss') && SEMI.test(what) && !SWITCHED.test(what);
         if (!semi && (NONLINEAR.test(what) || /real op-?amp/i.test(value))) {
             return { error: 'nonlinear or switched part: ' + part + ' (' + what + ')' };
         }
-        if (mode === 'op' && SWITCHED.test(what)) {
+        if ((mode === 'op' || mode === 'ss') && SWITCHED.test(what)) {
             return { error: 'switched or behavioural part: ' + part + ' (' + what + ')' };
         }
         if (/op-?amp/i.test(what) && /open loop|comparator/i.test(value)) {
@@ -247,21 +253,21 @@ function parse(rows, mode) {
             if (!mag) return { error: 'no resistance for ' + part };
             parts.push({ type: 'R', part, n: t.nodes, v: mag });
         } else if (/capacitor/i.test(what)) {
-            if (mode === 'ac') {
+            if (mode === 'ac' || mode === 'ss') {
                 if (!mag) return { error: 'no capacitance for ' + part };
                 parts.push({ type: 'C', part, n: t.nodes, v: mag });
             } else parts.push({ type: 'open', part, n: t.nodes });
         } else if (/inductor/i.test(what)) {
-            if (mode === 'ac') {
+            if (mode === 'ac' || mode === 'ss') {
                 if (!mag) return { error: 'no inductance for ' + part };
                 parts.push({ type: 'L', part, n: t.nodes, v: mag });
             } else parts.push({ type: 'short', part, n: t.nodes });
         } else if (/voltage source/i.test(what)) {
-            const s = mode === 'ac' ? sourceAC(value) : sourceDC(value);
+            const s = (mode === 'ac' || mode === 'ss') ? sourceAC(value) : sourceDC(value);
             if (s.skip) return { error: s.skip + ': ' + part };
             parts.push({ type: 'V', part, n: t.nodes, v: s.v });
         } else if (/current source/i.test(what)) {
-            const s = mode === 'ac' ? sourceAC(value) : sourceDC(value);
+            const s = (mode === 'ac' || mode === 'ss') ? sourceAC(value) : sourceDC(value);
             if (s.skip) return { error: s.skip + ': ' + part };
             parts.push({ type: 'I', part, n: t.nodes, v: s.v });
         } else if (/vcvs|controlled source/i.test(what)) {
