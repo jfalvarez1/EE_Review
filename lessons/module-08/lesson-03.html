@@ -167,7 +167,8 @@
                     <tr><td class="mono">SW_MOD</td><td>DPDT Switch</td><td>DPDT Switch &mdash; <strong>the modulator</strong></td><td>pins <span class="mono">input</span>, ground, <span class="mono">mod_p</span>, <span class="mono">mod_n</span>, <span class="mono">clk</span> <em>(swaps which input goes to which output every half cycle)</em></td></tr>
                     <tr><td class="mono">VOFFSET</td><td>Voltage source</td><td>100&nbsp;&micro;V DC &mdash; the amplifier's <strong>input</strong> offset</td><td>from <span class="mono">mod_p</span> to <span class="mono">amp_p</span></td></tr>
                     <tr><td class="mono">E_AMP</td><td>VCVS</td><td>gain 100</td><td>output <span class="mono">amp_out</span> to ground, sensing <span class="mono">amp_p</span> to <span class="mono">mod_n</span></td></tr>
-                    <tr><td class="mono">SW_DEMOD</td><td>DPDT Switch</td><td>DPDT Switch &mdash; <strong>the demodulator</strong></td><td>pins <span class="mono">amp_out</span>, ground, <span class="mono">demod</span>, <span class="mono">demod_n</span>, <span class="mono">clk</span> <em>(the same clock &mdash; that is what unwinds the signal and leaves the offset chopped)</em></td></tr>
+                    <tr><td class="mono">E_AMP_N</td><td>VCVS</td><td>gain &minus;100 &mdash; the complementary output</td><td>output <span class="mono">amp_out_n</span> to ground, sensing <span class="mono">amp_p</span> to <span class="mono">mod_n</span> <em>(the demodulator has to choose between the amplifier and its INVERSE. Switching against ground instead gives half-wave chopping, and the output comes out at half amplitude.)</em></td></tr>
+                    <tr><td class="mono">SW_DEMOD</td><td>DPDT Switch</td><td>DPDT Switch &mdash; <strong>the demodulator</strong></td><td>pins <span class="mono">amp_out</span>, <span class="mono">amp_out_n</span>, <span class="mono">demod</span>, <span class="mono">demod_n</span>, <span class="mono">clk</span> <em>(the same clock &mdash; that is what unwinds the signal and leaves the offset chopped)</em></td></tr>
                     <tr><td class="mono">R_LPF</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">demod</span> and <span class="mono">output</span></td></tr>
                     <tr><td class="mono">C_LPF</td><td>Capacitor</td><td>100&nbsp;nF</td><td>between <span class="mono">output</span> and ground</td></tr>
                 </tbody>
@@ -520,13 +521,22 @@
                    'signal is now at 20&nbsp;kHz and the offset is at DC, which is the ' +
                    'opposite of how they arrived.' },
             { id: 'ripple', label: 'Peak-to-peak ripple on V(output)',
-              expect: '80', unit: '&micro;V', tol: 20,
+              expect: '250', unit: '&micro;V', tol: 40,
               why: 'The offset, and all that is left of it. 100&nbsp;&micro;V &times; 100 ' +
-                   'is 10&nbsp;mV, but it enters <em>after</em> the modulator so it is ' +
-                   'chopped only once, arriving at the filter as a 20&nbsp;kHz square wave. ' +
-                   'The filter corners at 1/(2&pi;&nbsp;&times;&nbsp;10&nbsp;k&nbsp;&times;' +
-                   '&nbsp;100&nbsp;nF) = 159&nbsp;Hz, so it is attenuated by ' +
-                   '20000/159 = 126: <strong>10&nbsp;mV becomes 80&nbsp;&micro;V</strong>.' },
+                   'is a &plusmn;10&nbsp;mV square wave at 20&nbsp;kHz &mdash; ' +
+                   '20&nbsp;mV peak to peak &mdash; because the offset enters <em>after</em> ' +
+                   'the modulator and so is chopped only once.</p><p>Getting from there to ' +
+                   'the answer is worth doing carefully, because the obvious route is ' +
+                   'wrong. Dividing by f/f<sub>c</sub> = 20000/159 = 126 is the attenuation ' +
+                   'a single-pole filter applies to a <em>sinusoid</em>, and this is not ' +
+                   'one. Far above the corner the RC barely responds within a half period, ' +
+                   'so it integrates the square wave into a <strong>triangle</strong>: the ' +
+                   'capacitor ramps at A/&tau; for T/2, giving ' +
+                   '&Delta;V<sub>pp</sub> = A&nbsp;T/(2&tau;) = ' +
+                   '10&nbsp;mV&nbsp;&times;&nbsp;50&nbsp;&micro;s/(2&nbsp;&times;&nbsp;1&nbsp;ms) ' +
+                   '= <strong>250&nbsp;&micro;V</strong>. Three times what the sinusoidal ' +
+                   'shortcut predicts, and triangular rather than sinusoidal on the ' +
+                   'screen.' },
             { id: 'dcoff', label: 'DC error in V(output) — how far it sits from 1.000 V',
               expect: '0', unit: 'V', tol: 0.001,
               why: 'None, and this is the real result. The offset is not merely attenuated, ' +
@@ -558,16 +568,20 @@
                    'and a hundred times more accurate</strong>, which is a useful thing to ' +
                    'have seen once.' },
             { action: 'Chop four times faster: make VCLK\'s period 12.5 µs, 80 kHz.',
-              expect: 'The ripple drops to about <strong>20 µV</strong>.',
-              why: 'Four times the separation between the chop frequency and the filter ' +
-                   'corner is four times the attenuation, because the filter is falling at ' +
-                   '6&nbsp;dB per octave up there. <strong>The rejection is a ratio of two ' +
-                   'frequencies and contains nothing about the amplifier</strong>, so you ' +
-                   'improve it by chopping faster or filtering harder, not by buying a ' +
-                   'better op-amp. What eventually stops you is charge injection: real ' +
-                   'switches dump a little charge at every transition, and that error grows ' +
-                   'with frequency while the offset rejection also grows. Real parts land ' +
-                   'between 10&nbsp;kHz and a few hundred kHz for exactly this reason.' },
+              expect: 'The ripple drops to <strong>62.5 µV</strong>, exactly a quarter.',
+              why: 'A quarter of the period is a quarter of the time the capacitor gets to ' +
+                   'ramp, so &Delta;V = A&nbsp;T/(2&tau;) is a quarter as well. <strong>In ' +
+                   'this ideal circuit the rejection is a ratio of two frequencies and ' +
+                   'contains nothing about the amplifier</strong> &mdash; so you improve it ' +
+                   'by chopping faster or filtering harder rather than by buying a better ' +
+                   'op-amp.</p><p>That last sentence is a statement about the model, and it ' +
+                   'is worth saying where it stops being true of hardware. Real switches ' +
+                   'inject a little charge at every transition, and that error grows with ' +
+                   'frequency while the offset rejection also grows &mdash; so there is a ' +
+                   'best chop rate rather than a monotonic improvement, and it does depend ' +
+                   'on the switches you bought. Real parts land between 10&nbsp;kHz and a ' +
+                   'few hundred kHz for exactly that reason, which is a fact about ' +
+                   'components that this simulation cannot show you.' },
             { action: 'Make the chop asymmetric: 60% duty instead of 50%.',
               expect: 'A DC error reappears in V(output), around <strong>2 mV</strong>.',
               why: 'The reason the offset vanished from DC was that a symmetric square wave ' +
