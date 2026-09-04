@@ -126,6 +126,13 @@ function newton(parts, idx, gmin, seed) {
         // A fixed current from p to m.
         const isrc = (p, m, i) => { inj(p, -i); inj(m, i); };
 
+        // A leak from every node to ground. A node that touches only
+        // capacitors - an AC-coupled output, a sample-and-hold top plate - has
+        // no DC path anywhere and makes the matrix singular, which came back
+        // as "did not converge" and hid the real reason. SPICE does exactly
+        // this; 1e-12 S moves nothing measurable and lets such a node read 0 V.
+        for (let i = 0; i < nn; i++) A[i][i] += GMIN;
+
         let bi = 0;
         for (const q of parts) {
             if (q.type === 'R') {
@@ -245,6 +252,10 @@ function newton(parts, idx, gmin, seed) {
 
         let worst = 0;
         for (let i = 0; i < size; i++) worst = Math.max(worst, Math.abs(xn[i] - x[i]));
+        if (process.env.OP_DEBUG && iter < 40) {
+            console.error('    iter ' + iter + '  worst step ' + worst.toExponential(3) +
+                          '  x0..2 = ' + xn.slice(0, 3).map(v => v.toFixed(4)).join(', '));
+        }
         x = xn;
         if (worst < 1e-9 && iter > 2) {
             const v = {};
@@ -267,13 +278,33 @@ function newton(parts, idx, gmin, seed) {
 function operatingPoint(parts, idx) {
     const plain = newton(parts, idx, GMIN, null);
     if (plain) return plain;
-    let seed = null, last = null;
+
+    // gmin stepping: shunt every junction hard, then relax.
+    let seed = null, last = null, ok = true;
     for (const g of [1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11, GMIN]) {
         const r = newton(parts, idx, g, seed);
-        if (!r) return null;
+        if (!r) { ok = false; break; }
         seed = r.x; last = r;
     }
-    return last ? { v: last.v, iters: last.iters, stepped: true } : null;
+    if (ok && last) return { v: last.v, iters: last.iters, stepped: 'gmin' };
+
+    // Source stepping: bring every supply up from zero. At zero volts every
+    // junction is off and the answer is trivially all-zero; each step then
+    // starts from the previous answer, so a complementary output stage is
+    // never asked to guess which of its two devices is conducting - it is
+    // walked there. This is what rescues class-AB stages, where plain Newton
+    // oscillates between the two devices at the crossover.
+    const scaled = a => parts.map(q => (q.type === 'V' || q.type === 'I') ? Object.assign({}, q, { v: q.v * a }) : q);
+    seed = null; last = null;
+    for (const a of [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0]) {
+        const r = newton(scaled(a), idx, GMIN, seed);
+        if (!r) {
+            if (process.env.OP_DEBUG) console.error('  source stepping failed at alpha = ' + a);
+            return null;
+        }
+        seed = r.x; last = r;
+    }
+    return last ? { v: last.v, iters: last.iters, stepped: 'source' } : null;
 }
 
 /** Device operating points, for the report. */
@@ -370,7 +401,7 @@ files.forEach(file => {
             const nullorPlusSemi = p.parts.some(q => q.type === 'OA');
             const why = nullorPlusSemi
                 ? 'no unique operating point: an ideal op-amp around a nonlinear stage (a deadband admits a range of answers)'
-                : 'did not converge, even with gmin stepping';
+                : 'did not converge, even with gmin and source stepping';
             skips.set(why.replace(/:.*$/, ''), (skips.get(why.replace(/:.*$/, '')) || 0) + 1);
             if (LIST || TARGET) console.log('skip    ' + tag + '   ' + why);
             return;

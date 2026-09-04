@@ -44,6 +44,8 @@ const GATING = [
      'an SVG class no stylesheet defines: black ink on a black panel, invisibly'],
     ['check-hand-drawn.js',
      'a component faked from rectangles and circles when the library has a real symbol'],
+    ['check-schematic-format.js',
+     'a circuit written as literal <svg> markup with hard-coded ink, outside the schematic system'],
     ['check-bias.js',
      'no drawn BJT stage demands more voltage than its supply has'],
     ['check-canvas-circuits.js',

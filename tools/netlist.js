@@ -146,6 +146,9 @@ function sourceDC(value) {
     const off = /\boffset\s+(-?\d+(?:\.\d+)?)\s*([TGMkKmunpf])?/i.exec(value);
     if (off) return { v: parseFloat(off[1]) * (off[2] ? SI[off[2]] : 1) };
     if (/\bsine\b/i.test(value)) return { v: 0 };            // AC only, no offset
+    // "AC 1 mV for a frequency sweep" with no DC term in front of it is a
+    // zero-DC stimulus; magnitude() would otherwise read the 1 mV as DC.
+    if (/^\s*AC\b/i.test(value)) return { v: 0 };
     const m = magnitude(value);
     return m === null ? { skip: 'no value' } : { v: m };
 }

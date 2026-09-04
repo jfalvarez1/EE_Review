@@ -27,14 +27,46 @@ think from time to time.* Not a lecture, and not a puzzle book either.
 
 | | baseline | now |
 | --- | --- | --- |
-| build sections stating what a correct build shows | 3 / 173 | **46 / 172** |
+| build sections stating what a correct build shows | 3 / 173 | **47 / 173** |
 | build tables with a wiring problem | 55 / 196 | **0 / 196** |
 | components with no value a reader could enter | 46 | **0** |
-| stated values checked against the circuit itself | 0 | **41** |
+| stated values checked against the circuit itself | 0 | **61** |
+| build tables a solver can settle (dc + op) | 0 | **94 / 193** |
 | expected values stated | ~8 | **72** |
 | perturbations with a predicted outcome | 0 | **88** |
 | lessons with an acceptance check | 7% | **12%** |
 | lessons asking the reader to do nothing | 237 | **221** |
+
+**Four adversarial reviews were run and worked through** (`_audit/review/`):
+literature grounding, derivation verification, non-ideal constraints, and a red
+team. Roughly forty findings survived independent verification and were fixed;
+about a dozen were declined with a stated reason. The most common class, by a
+wide margin, was *an experiment claiming an outcome its own netlist cannot
+produce* - broken sense leads, mismatched electrodes, an RLD "oscillating" -
+because a model built from resistors and ideal sources has no bias current, no
+parasitic capacitance and no poles. Those now say what the model omits and what
+to add to see the effect, which teaches more than the original claim did. Two
+findings were topology errors in circuits I had just written (a servo "integrator"
+that was a low-pass, a chopper demodulator switching against ground), both of
+which check-sim-values would have caught had the probes been marked `dc: true`.
+That is the argument for marking them.
+
+Separately, every lesson's `lessonKey` - the localStorage key its design
+checklist stores under - followed an older module numbering. All 131 rewritten
+from their paths; `check-lesson-key` gates it.
+
+**The figures have a format, and most of the course does not follow it.** The
+user pasted M01 L06 back with its circuit labels spilling as loose text. Its
+four figures were literal `<svg>` markup with hard-coded hex ink, and the first
+was the wrong circuit (both op-amp inputs grounded, labelled as a PSRR
+measurement). Four checkers look at SVG and all four passed it, each correctly
+answering a different question; the gap between them - a circuit as literal
+markup with hard-coded colour - turned out to be **333 figures in 141 lessons**,
+against 20 lessons on `AD.Schematic`. `check-schematic-format` now gates it
+against a per-lesson baseline that should only go down. M01 L06 is redrawn on
+the system, its PSRR table is sourced row by row (every number was wrong; see
+`_audit/review/05-psrr-format.md`), and it gained its first metric - the RC
+supply filter, four AC probes held by `check-sim-values`.
 
 **The bottleneck moved.** Stating an expected value meant solving the circuit by
 hand, which is slow and is where three of my own numbers went wrong. `solve-dc`
