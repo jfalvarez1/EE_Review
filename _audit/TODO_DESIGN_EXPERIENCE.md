@@ -77,7 +77,12 @@ the output; real parts spread I<sub>S</sub> two or three to one, which is why
 a V<sub>BE</sub> multiplier has a trimmer); M05 L11's active-load pair has no
 usable operating point because the models have no Early voltage, and a DC
 solve saturating Q2 is the correct answer for that table. A SimCheck quotes
-the model-insensitive quantities and records the rest. The circuit_toy
+the model-insensitive quantities and records the rest. Where two solvers
+*can* agree, the agreement is now proven rather than assumed: both compute
+the Kirchhoff residual from their own stamps at the final iterate, and the
+circuit_toy session has reproduced m18l07, m17l01 and m17l16 (twelve held
+values, including the deliberate 20 k&Omega; and 1.5 k&Omega; parts) to every
+stated digit with a third solver that shares no code with either. The circuit_toy
 session found the same thing from the other side: its solver converged on
 megaamps, self-consistent and not a circuit, and now refuses any operating
 point where a branch carries more than a kiloamp.
