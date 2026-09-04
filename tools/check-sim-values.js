@@ -63,19 +63,25 @@ function walk(dir, out) {
     return out;
 }
 
-/** Ask solve-dc for one lesson's operating point. */
-function operatingPoint(rel) {
+/**
+ * One lesson's DC operating point, from whichever solver can produce it.
+ *
+ * solve-dc for linear tables; solve-op, which is Newton-Raphson over the same
+ * matrix, for the ones with transistors and diodes in them. A bias point from
+ * solve-op depends on the device model, so a probe checked this way needs a
+ * tolerance that reflects that - which is the SimCheck author's business, not
+ * this tool's.
+ */
+function runSolver(tool, marker, rel) {
     let out;
     try {
-        out = execFileSync(process.execPath,
-            [path.join(ROOT, 'tools', 'solve-dc.js'), rel],
-            { cwd: ROOT, encoding: 'utf8' });
-    } catch (e) {
-        return null;
-    }
-    if (!/^SOLVED/m.test(out)) return null;
+        out = execFileSync(process.execPath, [path.join(ROOT, 'tools', tool), rel],
+                           { cwd: ROOT, encoding: 'utf8' });
+    } catch (e) { return null; }
+    const re = new RegExp('^' + marker, 'gm');
+    if (!re.test(out)) return null;
     // More than one solvable table in a file makes "V(out)" ambiguous.
-    if ((out.match(/^SOLVED/gm) || []).length > 1) return null;
+    if ((out.match(new RegExp('^' + marker, 'gm')) || []).length > 1) return null;
     const v = {};
     out.split('\n').forEach(line => {
         const m = /V\(([^)]+)\)\s*=\s*(-?[\d.]+(?:e[-+]?\d+)?)\s*(uV|mV|V)/.exec(line);
@@ -83,7 +89,11 @@ function operatingPoint(rel) {
         const scale = m[3] === 'uV' ? 1e-6 : m[3] === 'mV' ? 1e-3 : 1;
         v[m[1]] = parseFloat(m[2]) * scale;
     });
-    return v;
+    return Object.keys(v).length ? v : null;
+}
+
+function operatingPoint(rel) {
+    return runSolver('solve-dc.js', 'SOLVED', rel) || runSolver('solve-op.js', 'OP', rel);
 }
 
 /** The probe objects out of a lesson's SimCheck script block. */
