@@ -170,10 +170,10 @@
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
                     <tr><td class="mono">VSET</td><td>Voltage source</td><td>2.50&nbsp;V DC</td><td>from <span class="mono">setpoint</span> to ground</td></tr>
-                    <tr><td class="mono">EAMP</td><td>Controlled source</td><td>1</td><td>output <span class="mono">error</span> to ground, sensing <span class="mono">setpoint</span> to <span class="mono">feedback</span></td></tr>
-                    <tr><td class="mono">RINT</td><td>Resistor</td><td>100&nbsp;k&Omega;</td><td>between <span class="mono">error</span> and <span class="mono">integ</span></td></tr>
-                    <tr><td class="mono">CINT</td><td>Capacitor</td><td>1&nbsp;&micro;F</td><td>between <span class="mono">integ</span> and ground</td></tr>
-                    <tr><td class="mono">EBUF</td><td>Controlled source</td><td>1</td><td>output <span class="mono">ctrl</span> to ground, sensing <span class="mono">integ</span> to ground</td></tr>
+                    <tr><td class="mono">EAMP</td><td>VCVS</td><td>gain 1 &mdash; the error amplifier</td><td>output <span class="mono">error</span> to ground, sensing <span class="mono">feedback</span> to <span class="mono">setpoint</span> <em>(feedback first: the inverting integrator below adds 180&deg;, and this is what keeps the loop negative)</em></td></tr>
+                    <tr><td class="mono">RINT</td><td>Resistor</td><td>100&nbsp;k&Omega;</td><td>between <span class="mono">error</span> and <span class="mono">inv</span></td></tr>
+                    <tr><td class="mono">CINT</td><td>Capacitor</td><td>1&nbsp;&micro;F</td><td>between <span class="mono">inv</span> and <span class="mono">ctrl</span> <em>(across the amplifier &mdash; in the FEEDBACK path, not to ground. To ground it is a low-pass with a DC gain of one, and the loop settles at half the setpoint instead of at it.)</em></td></tr>
+                    <tr><td class="mono">UINT</td><td>Op-amp</td><td>Op-Amp</td><td>+ input ground, &minus; input <span class="mono">inv</span>, output <span class="mono">ctrl</span></td></tr>
                     <tr><td class="mono">EDAC</td><td>VCVS</td><td>gain 1 &mdash; an ideal DAC, for now</td><td>output <span class="mono">dac_out</span> to ground, sensing <span class="mono">ctrl</span> to ground</td></tr>
                     <tr><td class="mono">RMOTOR</td><td>Resistor</td><td>100&nbsp;&Omega;</td><td>between <span class="mono">dac_out</span> and <span class="mono">position</span></td></tr>
                     <tr><td class="mono">CMOTOR</td><td>Capacitor</td><td>100&nbsp;&micro;F</td><td>between <span class="mono">position</span> and ground</td></tr>
@@ -790,7 +790,7 @@
                'of the lesson.',
         probes: [
             { id: 'final', label: 'V(position) at the end of the run',
-              expect: '2.500', unit: 'V', tol: 0.01,
+              node: 'position', dc: true, expect: '2.500', unit: 'V', tol: 0.01,
               why: 'Exactly the setpoint, and this is the first thing to be clear about: ' +
                    '<strong>the integrator forces it there regardless of the DAC\'s ' +
                    'gain</strong>. As long as any error remains, the integrator keeps ' +
@@ -798,13 +798,13 @@
                    'this number does not move at all. That is what makes the next few ' +
                    'probes the interesting ones.' },
             { id: 'err', label: 'V(error) at the end of the run',
-              expect: '0.000', unit: 'V', tol: 0.005,
+              node: 'error', dc: true, expect: '0.000', unit: 'V', tol: 0.005,
               why: 'The same statement from the other side. A finite output from a zero ' +
                    'input is what an integrator is for, and it is why this loop has no ' +
                    'steady-state error while a proportional-only loop would have one ' +
                    'proportional to 1/(1 + loop gain).' },
             { id: 'ctrl', label: 'V(ctrl) at the end of the run',
-              expect: '2.500', unit: 'V', tol: 0.01,
+              node: 'ctrl', dc: true, expect: '2.500', unit: 'V', tol: 0.01,
               why: 'With a DAC gain of 1 and a plant that has no DC loss, the control ' +
                    'signal has to equal the output. Worth recording rather than skipping: ' +
                    '<strong>when you halve the DAC gain later, this is the number that ' +
@@ -866,15 +866,24 @@
                    'the expensive component in a precision servo is the sensor and its ' +
                    'amplifier, never the driver.' },
             { action: 'Speed up the integrator: make RINT 10 kΩ instead of 100 kΩ.',
-              expect: 'Ten times faster, and now <strong>visible overshoot</strong>.',
-              why: 'Crossover moves to 100&nbsp;rad/s, where the plant\'s 10&nbsp;ms pole is ' +
-                   'no longer negligible: arctan(100&nbsp;&times;&nbsp;0.01) = 45&deg;, so ' +
-                   'the phase margin falls from 84&deg; to <strong>45&deg;</strong> and the ' +
-                   'step response starts to ring. Take RINT to 1&nbsp;k and crossover lands ' +
-                   'at 1000&nbsp;rad/s, ten times past the plant pole, with about 6&deg; of ' +
-                   'margin left. <strong>You cannot design a loop faster than the thing it ' +
-                   'is controlling</strong>, and the plant pole is where the budget runs ' +
-                   'out.' }
+              expect: 'Faster, and the phase margin falls from 84&deg; to <strong>52&deg;</strong>.',
+              why: 'And here the obvious shortcut stops working, which is worth more than ' +
+                   'the answer. 1/(R<sub>INT</sub>C<sub>INT</sub>) is where the integrator ' +
+                   '<em>alone</em> would cross, so you might expect 100&nbsp;rad/s. But the ' +
+                   'plant pole at 100&nbsp;rad/s is now attenuating too, which pulls the ' +
+                   'real crossover down to <strong>78.6&nbsp;rad/s</strong>. There the ' +
+                   'plant contributes arctan(0.786) = 38&deg; and the margin is ' +
+                   '<strong>52&deg;</strong> &mdash; not the 45&deg; the shortcut predicts.</p>' +
+                   '<p>Take R<sub>INT</sub> to 1&nbsp;k and the gap widens: crossover is ' +
+                   '308&nbsp;rad/s rather than 1000, and the margin is ' +
+                   '<strong>18&deg;</strong> rather than the 6&deg; you get by assuming ' +
+                   'crossover follows 1/RC. Solve for it: |L| = 1 means ' +
+                   '1/(&omega;RC) = &radic;(1 + (0.01&omega;)&sup2;).</p><p><strong>Once a ' +
+                   'plant pole sits at or below crossover, crossover stops being ' +
+                   '1/RC</strong> &mdash; and it is exactly then, when the margin is ' +
+                   'getting interesting, that the shortcut becomes optimistic. <strong>You ' +
+                   'cannot design a loop faster than the thing it is controlling</strong>, ' +
+                   'and the plant pole is where the budget runs out.' }
         ]
     });
 })();
