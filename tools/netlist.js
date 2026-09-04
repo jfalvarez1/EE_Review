@@ -58,10 +58,59 @@ function terminals(cell) {
     if ((m = /\+\s*input\s+([A-Za-z0-9_+\-]+)\s*,\s*-\s*input\s+([A-Za-z0-9_+\-]+)\s*,\s*output\s+([A-Za-z0-9_+\-]+)/i.exec(s))) {
         return { kind: 'opamp', nodes: [m[1], m[2], m[3]] };
     }
+    if ((m = /\banode\s+([A-Za-z0-9_+\-]+)\s*,\s*cathode\s+([A-Za-z0-9_+\-]+)/i.exec(s))) {
+        return { kind: 'diode', nodes: [m[1], m[2]] };
+    }
+    if ((m = /\bcollector\s+([A-Za-z0-9_+\-]+)\s*,\s*base\s+([A-Za-z0-9_+\-]+)\s*,\s*emitter\s+([A-Za-z0-9_+\-]+)/i.exec(s))) {
+        return { kind: 'bjt', nodes: [m[1], m[2], m[3]] };
+    }
+    if ((m = /\bdrain\s+([A-Za-z0-9_+\-]+)\s*,\s*gate\s+([A-Za-z0-9_+\-]+)\s*,\s*source\s+([A-Za-z0-9_+\-]+)/i.exec(s))) {
+        return { kind: 'fet', nodes: [m[1], m[2], m[3]] };
+    }
     if ((m = /\bfrom\s+([A-Za-z0-9_+\-]+)\s+to\s+([A-Za-z0-9_+\-]+)/i.exec(s))) {
         return { kind: 'two', nodes: [m[1], m[2]] };
     }
     return { kind: null, nodes: [] };
+}
+
+/**
+ * Device models, by the name the build tables use.
+ *
+ * These are ordinary SPICE parameters for ordinary parts, and they matter more
+ * than the linear element values do: a bipolar stage's collector current
+ * depends on Is and BF, so two simulators with different models give different
+ * answers to the same table. That is a real property of the circuit rather than
+ * a defect in the tool, and it is why solve-op prints the model it used and why
+ * a bias point derived from it deserves a wider tolerance than a divider does.
+ *
+ * The quantities that are NOT model-sensitive - a V_BE near 0.65 V, a collector
+ * current set by an emitter resistor and a divider, a diode clamp one drop from
+ * a rail - are the ones worth putting in a SimCheck.
+ */
+const MODELS = {
+    '2N3904': { type: 'npn', Is: 6.734e-15, BF: 416.4, BR: 0.7371, NF: 1 },
+    '2N3906': { type: 'pnp', Is: 1.41e-15, BF: 180.7, BR: 4.977, NF: 1 },
+    '2N2222': { type: 'npn', Is: 1.4e-14, BF: 200, BR: 3, NF: 1 },
+    'Q2N2222':{ type: 'npn', Is: 1.4e-14, BF: 200, BR: 3, NF: 1 },
+    'NPN':    { type: 'npn', Is: 1e-14, BF: 100, BR: 1, NF: 1 },
+    'PNP':    { type: 'pnp', Is: 1e-14, BF: 100, BR: 1, NF: 1 },
+    '1N4148': { type: 'diode', Is: 2.52e-9, N: 1.752 },
+    'D1N4148':{ type: 'diode', Is: 2.52e-9, N: 1.752 },
+    'DIODE':  { type: 'diode', Is: 1e-14, N: 1 },
+    'SCHOTTKY': { type: 'diode', Is: 3.17e-5, N: 1.37 },
+    'MBR1060':  { type: 'diode', Is: 3.17e-5, N: 1.37 },
+    'ZENER':  { type: 'diode', Is: 1e-14, N: 1, BV: 5.1 },
+    'NMOS':   { type: 'nmos', Vth: 2.0, K: 1.0, lambda: 0.01 },
+    'PMOS':   { type: 'pmos', Vth: 2.0, K: 1.0, lambda: 0.01 }
+};
+
+/** Pick a model from a Value cell, or null if it names none we know. */
+function modelFor(value, what) {
+    const hay = (value + ' ' + what).toUpperCase();
+    // Longest names first, so "D1N4148" is not matched as "DIODE".
+    const keys = Object.keys(MODELS).sort((a, b) => b.length - a.length);
+    for (const k of keys) if (hay.indexOf(k) !== -1) return { name: k, m: MODELS[k] };
+    return null;
 }
 
 const isGround = n => /^(?:ground|gnd|agnd|dgnd|0)$/i.test(n);
@@ -150,12 +199,21 @@ function tablesIn(src) {
  */
 function parse(rows, mode) {
     const parts = [];
+    // Semiconductors are solvable in 'op' mode by Newton-Raphson, and simply
+    // out of scope for the two linear ones.
+    const SEMI = /diode|transistor|mosfet|nmos|pmos|\bbjt\b|darlington|\bujt\b|jfet/i;
+    const SWITCHED = /switch|latch|\bgate\b|flip-flop|counter|shift register|adder|\bmux\b|decoder|block|sub-circuit|transmission line|crystal|transformer|coupling|motor|lamp|opto|memristor|\bmcu\b|\badc\b|\bdac\b|\bpll\b|\bvco\b|antenna|tri-state|programmable/i;
+
     for (const [part, what, value, connect] of rows) {
         // Decide what the part IS before reading its terminals. A BJT's
         // "collector a, base b, emitter c" is not a form terminals() parses, and
         // reporting that as an unparsed row buries the real reason.
-        if (NONLINEAR.test(what) || /real op-?amp/i.test(value)) {
+        const semi = mode === 'op' && SEMI.test(what) && !SWITCHED.test(what);
+        if (!semi && (NONLINEAR.test(what) || /real op-?amp/i.test(value))) {
             return { error: 'nonlinear or switched part: ' + part + ' (' + what + ')' };
+        }
+        if (mode === 'op' && SWITCHED.test(what)) {
+            return { error: 'switched or behavioural part: ' + part + ' (' + what + ')' };
         }
         if (/op-?amp/i.test(what) && /open loop|comparator/i.test(value)) {
             return { error: 'open-loop comparator: ' + part };
@@ -193,6 +251,16 @@ function parse(rows, mode) {
         } else if (/op-?amp/i.test(what)) {
             if (t.kind !== 'opamp') return { error: 'op-amp terminals not recognised: ' + part };
             parts.push({ type: 'OA', part, n: t.nodes });
+        } else if (semi) {
+            const mod = modelFor(value, what);
+            if (!mod) return { error: 'no model for ' + part + ' ("' + value + '")' };
+            const want = { diode: 'diode', bjt: 'bjt', fet: 'fet' }[t.kind];
+            if (!want) return { error: 'semiconductor terminals not recognised: ' + part };
+            const kindOf = { diode: 'diode', npn: 'bjt', pnp: 'bjt', nmos: 'fet', pmos: 'fet' }[mod.m.type];
+            if (kindOf !== want) {
+                return { error: part + ' is wired as a ' + want + ' but its model "' + mod.name + '" is a ' + kindOf };
+            }
+            parts.push({ type: 'SEMI', part, n: t.nodes, model: mod.m, modelName: mod.name });
         } else {
             return { error: 'unknown part type: ' + part + ' (' + what + ')' };
         }
@@ -220,4 +288,4 @@ function walk(dir, out) {
     return out;
 }
 
-module.exports = { text, magnitude, terminals, isGround, NONLINEAR, sourceDC, sourceAC, tablesIn, parse, nodeIndex, walk, SI };
+module.exports = { text, magnitude, terminals, isGround, NONLINEAR, sourceDC, sourceAC, tablesIn, parse, nodeIndex, walk, SI, MODELS, modelFor };
