@@ -276,4 +276,5 @@ function main() {
     return 0;
 }
 
-process.exit(main());
+module.exports = { scan, lessonFiles, rel, svgBlocks, classify };
+if (require.main === module) process.exit(main());
