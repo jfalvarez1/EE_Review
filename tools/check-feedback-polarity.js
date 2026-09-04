@@ -19,6 +19,14 @@
  * rail and stays. The reader who built the table as written would blame
  * themselves.
  *
+ * The same session then showed where the blindness actually lives: its own
+ * template solver, whose op-amp clips at its rails, catches the swap at once,
+ * because positive feedback drives a railed output nowhere near the expected
+ * value. The nullor and a bare VCVS have no rails, so the swap is invisible to
+ * them. It is a property of a RAIL-LESS model, not of DC solving or of
+ * op-amps - which is why this check reads the authored connection text and
+ * asks no solver anything.
+ *
  * What it checks
  * --------------
  * For every op-amp in a build table, which of its inputs the output reaches
