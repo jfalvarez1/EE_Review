@@ -477,7 +477,13 @@
                    '<strong>1&nbsp;V becomes 29&nbsp;mV: 30.7&nbsp;dB of ' +
                    'reduction</strong>. Note where it happens &mdash; the interference is ' +
                    'cancelled <em>at the patient</em>, before the amplifier sees it, which ' +
-                   'is the only place it can be cancelled without also being amplified.' },
+                   'is the only place it can be cancelled without also being amplified.</p>' +
+                   '<p>Read the 2 in that expression carefully, because it is doing more ' +
+                   'work than it looks. It is (1&nbsp;+&nbsp;G) with a drive gain of 1, and ' +
+                   'the two terms are different things: one is the drive path simply ' +
+                   '<em>existing</em> as 60&nbsp;k&Omega; to ground, and one is the ' +
+                   'amplifier actively driving it. The first experiment separates them, and ' +
+                   'the split is not the one most people would guess.' },
             { id: 'sig', label: 'V(inap, inan) — the differential ECG at the amplifier',
               expect: '1.000', unit: 'mV peak', tol: 0.05,
               why: '&plusmn;500&nbsp;&micro;V from the two electrodes is 1&nbsp;mV ' +
@@ -504,38 +510,70 @@
                    'fast-recovery path that shorts it after a saturation.' }
         ],
         experiments: [
-            { action: 'Disable the right-leg drive: set both Erld gains to 0.',
-              expect: 'V(cm) returns to the full <strong>1 V</strong>, and V(out) may still ' +
-                      'look fine.',
-              why: 'And that second half is the trap. With ideal amplifiers the ' +
-                   'instrumentation amp rejects the common mode perfectly and the output is ' +
-                   'unchanged, so <strong>the simulation says the RLD is unnecessary</strong>. ' +
-                   'A real INA has finite CMRR &mdash; 90&nbsp;dB is good &mdash; so a volt ' +
-                   'of common mode leaks 32&nbsp;&micro;V into a 1&nbsp;mV signal, 3% ' +
-                   'distortion at exactly 60&nbsp;Hz. Worse, a volt of common mode swings ' +
-                   'the inputs around and can exceed the amplifier\'s input range entirely. ' +
-                   'Swap the ideal INA for a real model and the RLD stops looking optional.' },
+            { action: 'Disable the right-leg drive: set both Erld gains to 0, leaving the ' +
+                      'electrode connected. Then a second run with Rrld_out and Rbody ' +
+                      'removed as well.',
+              expect: 'Gains to zero gives <strong>56.6 mV</strong>, not 1 V. Removing the ' +
+                      'electrode gives the full <strong>1 V</strong>.',
+              why: 'Do both, because the difference between them is the honest accounting ' +
+                   'and it is not flattering to the drive. With the gains at zero the ' +
+                   'amplifier output is held at 0&nbsp;V, so the 60&nbsp;k&Omega; path to ' +
+                   'the patient is still there and is now simply a resistor to ground. ' +
+                   'Against the 1&nbsp;M&Omega; coupling impedance that alone divides the ' +
+                   'interference to 56.6&nbsp;mV &mdash; <strong>24.9&nbsp;dB of the ' +
+                   'headline 30.7 is passive loading, and only 5.8&nbsp;dB is the active ' +
+                   'drive</strong>. Pull the electrode off and you get the real baseline ' +
+                   'of 1&nbsp;V.</p><p>That is worth knowing before quoting an RLD figure. ' +
+                   'Most of what a low-impedance connection to the patient buys you, it ' +
+                   'buys by being low impedance; the amplifier multiplies that by roughly ' +
+                   '(1+gain) and the gain here is 1. Raising it is the next experiment, and ' +
+                   'so is the reason you cannot raise it far.</p><p>Note also what does ' +
+                   '<em>not</em> change: V(out). With ideal amplifiers the INA rejects ' +
+                   'common mode perfectly, so <strong>the simulation says the RLD is ' +
+                   'unnecessary</strong>. A real INA at 90&nbsp;dB CMRR leaks 32&nbsp;&micro;V ' +
+                   'of a 1&nbsp;V common mode into a 1&nbsp;mV signal &mdash; 3% distortion ' +
+                   'at 60&nbsp;Hz &mdash; and a volt of common mode can swing the inputs out ' +
+                   'of range entirely.' },
             { action: 'Mismatch the electrodes: make Rp 10 kΩ and Rn 60 kΩ, which is an ' +
                       'ordinary difference between a fresh gel electrode and a drying one.',
-              expect: '<strong>60 Hz appears in the output</strong>, and the RLD does not ' +
-                      'remove it.',
-              why: 'The common mode now reaches the two amplifier inputs through different ' +
-                   'impedances, so it arrives as a genuine <em>differential</em> signal ' +
-                   '&mdash; and no amount of common-mode rejection removes something that ' +
-                   'is no longer common mode. <strong>Electrode impedance mismatch converts ' +
-                   'interference into signal</strong>, and it is the single most common ' +
-                   'reason a real recording is unusable. This is why the clinical fix for a ' +
-                   'noisy trace is to re-prep the skin rather than to adjust the machine.' },
+              expect: '<strong>Nothing changes</strong> — and on hardware this is the single ' +
+                      'most common reason a recording is unusable.',
+              why: 'The mechanism is real and this netlist cannot show it, which is worth ' +
+                   'understanding rather than working around. Rp and Rn feed an ideal INA ' +
+                   'input and an ideal VCVS sense terminal, both of which draw exactly zero ' +
+                   'current &mdash; so any resistance in series with them drops exactly zero ' +
+                   'volts, and 10&nbsp;k against 60&nbsp;k is indistinguishable from ' +
+                   '10&nbsp;k against 10&nbsp;k.</p><p>What converts common mode into ' +
+                   'differential on a real patient is those resistances working against ' +
+                   '<em>capacitance</em> to form two unequal dividers: the amplifier\'s own ' +
+                   'input capacitance, the cable\'s, and the body\'s. Unequal RC means ' +
+                   'unequal phase shift, and the difference between two differently delayed ' +
+                   'copies of the same interference is a genuine differential signal that no ' +
+                   'common-mode rejection can touch. <strong>To see it here you would have ' +
+                   'to add a capacitor from each of inap and inan to ground</strong> &mdash; ' +
+                   'try 100&nbsp;pF and 100&nbsp;pF first, then 100 and 150.</p><p>This is ' +
+                   'why the clinical fix for a noisy trace is to re-prep the skin rather than ' +
+                   'to adjust the machine, and why electrode impedance is something ECG ' +
+                   'front ends measure continuously rather than assume.' },
             { action: 'Turn the RLD up: make both Erld gains −2 instead of −0.5.',
-              expect: 'Better rejection at first, and then it <strong>oscillates</strong>.',
-              why: 'The right-leg drive is a feedback loop around the patient, and its loop ' +
-                   'gain is what you just multiplied by four. The body and the electrodes ' +
-                   'have capacitance, the amplifier has bandwidth, and at some frequency ' +
-                   'the accumulated phase shift turns the negative feedback positive. ' +
-                   '<strong>An RLD is a stability problem before it is a rejection ' +
-                   'problem</strong>, which is why real designs put a deliberate low-pass ' +
-                   'in the drive path and why the standard limits how much current may be ' +
-                   'delivered into a patient anyway.' },
+              expect: 'Rejection improves to <strong>38.5 dB</strong> — 11.9 mV — and it ' +
+                      'does <strong>not</strong> oscillate here, however far you push it.',
+              why: 'Take both halves of that. The improvement is real and follows the ' +
+                   '(1+2G) divider: four times the gain buys another 8&nbsp;dB, and you can ' +
+                   'keep going.</p><p>The stability limit is real too, and this netlist ' +
+                   'cannot express it. Every element in the RLD loop here is a resistor or a ' +
+                   'memoryless VCVS: <strong>zero poles, zero phase shift at any frequency, ' +
+                   'unconditionally stable</strong>. A model with no energy storage cannot ' +
+                   'oscillate no matter what you set the gain to, so a stable answer here is ' +
+                   'evidence about the model rather than about the design.</p><p>On a patient ' +
+                   'the loop encircles the body\'s capacitance, the electrode impedances and ' +
+                   'the amplifier\'s own bandwidth, and the accumulated phase turns negative ' +
+                   'feedback positive somewhere. <strong>An RLD is a stability problem before ' +
+                   'it is a rejection problem</strong>, which is why real designs put a ' +
+                   'deliberate low-pass in the drive path, and why the standard caps the ' +
+                   'current that may be delivered into a patient regardless. To make this ' +
+                   'circuit capable of showing it, give the drive path a pole &mdash; a ' +
+                   'capacitor from rld to ground &mdash; and give the body one too.' },
             { action: 'Look at the amplitudes at each node in order: cm_src, cm, inap–inan, ' +
                       'out1, out.',
               expect: '1 V, 29 mV, 1 mV, then rising.',
