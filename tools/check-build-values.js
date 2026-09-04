@@ -58,6 +58,18 @@ const noValue = v =>
     (/^set by\b/i.test(v) && !/\d/.test(v)) ||
     /^\{.*\}$/.test(v);
 
+/**
+ * A semiconductor's value has to NAME A DEVICE, not be a number.
+ *
+ * Four transistors in module 16 lesson 2's push-pull output stage carried the
+ * value "0", which sails past the check above because it contains a digit and
+ * past every other checker because the row is wired correctly. It is still
+ * unbuildable: there is no part called 0, and no way to know whether the
+ * complementary half was meant to be an NPN or a PNP.
+ */
+const SEMI = /diode|transistor|mosfet|nmos|pmos|\bbjt\b|jfet|darlington/i;
+const numericOnly = v => /^[\d.\s]+$/.test(v);
+
 /** Parts whose name IS their value. */
 const NAMED = /^(op-amp|real op-amp|opamp|nmos|pmos|npn|pnp|n-jfet|2n\d|1n\d|mbr|schottky|diode|led|photodiode|zener|sub-circuit|sr latch|not gate|and gate|or gate|xor gate|nor gate|buffer|analog switch|spdt switch|dpdt switch|spst switch|transmission line|d flip-flop|t flip-flop|counter|shift register|half adder|full adder|open loop|crystal|thermistor|photoresistor|ldr|optocoupler|memristor|varactor|tunnel diode|ujt|test point|magnetic coupling)/i;
 
@@ -78,7 +90,9 @@ walk(LESSONS, []).sort().forEach(file => {
             if (c.length < 4) return;
             rowsSeen++;
             const [part, what, value] = c;
-            if (!noValue(value) || NAMED.test(value)) return;
+            const bad = (noValue(value) && !NAMED.test(value)) ||
+                        (SEMI.test(what) && numericOnly(value));
+            if (!bad) return;
             findings.push({ rel, part, what, value });
         });
     }
