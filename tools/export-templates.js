@@ -57,12 +57,21 @@ function runWatch(src, from) {
 }
 
 /**
- * Expected values a solver has confirmed.
+ * Every expected value a lesson states, each labelled with how far it can be
+ * trusted.
  *
- * Only probes carrying `dc: true` or an `acNode` are exported, because those
- * are the ones check-sim-values holds to the netlist on every build. A probe
- * without one of those markers is a real measurement the reader takes, but it
- * is not one this repository can promise agrees with the circuit.
+ *   verified: true   check-sim-values holds this to the netlist on every build,
+ *                    via solve-dc, solve-ac or solve-op. If it drifts, the
+ *                    build fails here.
+ *   verified: false  the lesson states it and nothing checks it. Usually
+ *                    because it is a swept condition, a device-model-dependent
+ *                    bias point, a slope, a duty cycle or a peak-to-peak
+ *                    ripple - all real measurements, none of them a default
+ *                    operating point this repository can promise.
+ *
+ * Both are exported, because a consumer that reports a disagreement on an
+ * unverified value is doing something useful: it means one of us is wrong, and
+ * neither side knew.
  */
 function verifiedValues(src) {
     const out = [];
@@ -82,12 +91,13 @@ function verifiedValues(src) {
         const acNode = /acNode:\s*'([^']+)'/.exec(chunk);
         const acAt = /acAt:\s*([\d.eE+\-]+)/.exec(chunk);
         const acCorner = /acCorner:\s*(\d+)/.exec(chunk);
-        if (!dc && !acNode) return;
+        const checked = dc || !!acNode;
         out.push({
             id: id[1],
             label: label ? strip(label[1]) : '',
-            kind: dc ? 'dc' : (acAt ? 'gain-at-frequency' : 'corner-frequency'),
-            node: dc ? (node ? node[1] : null) : acNode[1],
+            verified: checked,
+            kind: dc ? 'dc' : (acNode ? (acAt ? 'gain-at-frequency' : 'corner-frequency') : 'stated'),
+            node: dc ? (node ? node[1] : null) : (acNode ? acNode[1] : (node ? node[1] : null)),
             atHz: acAt ? parseFloat(acAt[1]) : undefined,
             corner: acCorner ? parseInt(acCorner[1], 10) : undefined,
             expect: expect[1], unit: strip(unit[1]), tolerance: parseFloat(tol[1])
@@ -132,26 +142,27 @@ N.walk(LESSONS, []).sort().forEach(file => {
             // Values checked against solve-dc / solve-ac / solve-op on every
             // build. Only present on the first table of a lesson, because a
             // SimCheck belongs to the lesson rather than to one of its tables.
-            verifiedValues: idx === 1 ? values : []
+            expectedValues: idx === 1 ? values : []
         };
-        if (ONLY_VERIFIED && !rec.verifiedValues.length) continue;
+        if (ONLY_VERIFIED && !rec.expectedValues.some(v => v.verified)) continue;
         out.push(rec);
     }
 });
 
 if (SUMMARY) {
-    const withVals = out.filter(r => r.verifiedValues.length);
+    const withVals = out.filter(r => r.expectedValues.some(v => v.verified));
     console.log('BUILD TABLES AS TEMPLATES\n');
     console.log('  tables                ' + String(out.length).padStart(4));
     console.log('  with verified values  ' + String(withVals.length).padStart(4));
-    console.log('  total checked values  ' + String(withVals.reduce((s, r) => s + r.verifiedValues.length, 0)).padStart(4));
+    console.log('  values, solver-checked' + String(out.reduce((s,r)=>s+r.expectedValues.filter(v=>v.verified).length,0)).padStart(4));
+    console.log('  values, stated only   ' + String(out.reduce((s,r)=>s+r.expectedValues.filter(v=>!v.verified).length,0)).padStart(4));
     console.log('');
     const byMod = new Map();
     out.forEach(r => byMod.set(r.module, (byMod.get(r.module) || 0) + 1));
     console.log('  by module: ' + [...byMod.entries()].sort((a, b) => a[0] - b[0])
         .map(([k, v]) => k + ':' + v).join('  '));
     console.log('');
-    withVals.forEach(r => console.log('  ' + r.id.padEnd(10) + r.verifiedValues.length + ' checked   ' + r.title.slice(0, 56)));
+    out.filter(r=>r.expectedValues.length).forEach(r => console.log('  ' + r.id.padEnd(10) + String(r.expectedValues.filter(v=>v.verified).length).padStart(2) + ' checked, ' + String(r.expectedValues.filter(v=>!v.verified).length).padStart(2) + ' stated   ' + r.title.slice(0, 46)));
 } else {
     console.log(JSON.stringify(out, null, 2));
 }
