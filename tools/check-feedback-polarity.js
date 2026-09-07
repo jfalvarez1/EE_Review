@@ -63,6 +63,7 @@ const INTENDED = /schmitt|hysteresis|relaxation|oscillator|astable|multivibrator
 const files = ONLY ? [path.resolve(ROOT, ONLY)] : N.walk(LESSONS, []).sort();
 let tables = 0, opamps = 0;
 const bad = [];
+const dead = [];
 
 files.forEach(file => {
     const src = fs.readFileSync(file, 'utf8');
@@ -83,10 +84,18 @@ files.forEach(file => {
         const union = (a, b) => { const ra = find(a), rb = find(b); if (!parent.has(ra)) parent.set(ra, ra); if (!parent.has(rb)) parent.set(rb, rb); if (ra !== rb) parent.set(ra, rb); };
         const oas = [];
         const passiveRows = [];
+        // Nodes an independent voltage source holds against ground. Such a node
+        // is at a fixed potential no matter what current arrives at it.
+        const pinned = new Set();
         for (const [part, what, value, connect] of rows) {
             const t = N.terminals(connect);
             if (!t.kind) continue;
             if (/op-?amp/i.test(what) && t.kind === 'opamp') { oas.push({ part, value, n: t.nodes }); continue; }
+            if (/voltage source/i.test(what) && t.kind === 'two') {
+                if (N.isGround(t.nodes[1])) pinned.add(t.nodes[0]);
+                if (N.isGround(t.nodes[0])) pinned.add(t.nodes[1]);
+                continue;
+            }
             if (/resistor|capacitor|inductor|potentiometer/i.test(what) && t.kind === 'two') {
                 passiveRows.push(t.nodes);
                 if (!N.isGround(t.nodes[0]) && !N.isGround(t.nodes[1])) union(t.nodes[0], t.nodes[1]);
@@ -100,6 +109,18 @@ files.forEach(file => {
             const [plus, minus, out] = oa.n;
             const reach = n => !N.isGround(n) && !N.isGround(out) && find(n) === find(out) && parent.has(find(out));
             const toMinus = reach(minus), toPlus = reach(plus);
+            // A feedback network that lands on a node a voltage source holds
+            // is not feedback. The summing node cannot move, so nothing the
+            // output does comes back, and the amplifier runs open loop into a
+            // rail. m20l04 had exactly this: RF1 and RG1 divided amp_out down
+            // to fb, and the inverting input was wired to vmid - the 1.65 V
+            // reference itself - so the divider tap drove nothing and the
+            // stage saturated at -165 kV in a finite-gain solve. An ideal
+            // op-amp forces V+ = V- by construction and reports it as clean.
+            if (toMinus && pinned.has(minus)) {
+                dead.push({ rel, table: ti + 1, part: oa.part, minus, out });
+                continue;
+            }
             if (toMinus) continue;                         // negative or mixed: fine
             if (!toPlus) continue;                         // open loop: parse() polices it
             if (INTENDED.test(oa.value) || INTENDED.test(tableText) || INTENDED.test(heading)) continue;
@@ -108,17 +129,27 @@ files.forEach(file => {
     });
 });
 
-if (LIST || bad.length) {
+if (LIST || bad.length || dead.length) {
     for (const b of bad) {
         console.log('  FAIL  ' + b.rel + (b.table > 1 ? ' [table ' + b.table + ']' : '') + '   ' + b.part +
                     ': output ' + b.out + ' returns only to the + input (' + b.plus + '); the - input (' + b.minus + ') has no feedback path');
+    }
+    for (const d of dead) {
+        console.log('  FAIL  ' + d.rel + (d.table > 1 ? ' [table ' + d.table + ']' : '') + '   ' + d.part +
+                    ': feedback from ' + d.out + ' lands on ' + d.minus + ', which a voltage source holds - the summing node cannot move');
     }
 }
 console.log('');
 console.log('  build tables checked   ' + String(tables).padStart(4));
 console.log('  op-amps checked        ' + String(opamps).padStart(4));
 console.log('  positive feedback, unintended ' + String(bad.length).padStart(4));
+console.log('  feedback into a pinned node   ' + String(dead.length).padStart(4));
 console.log('');
+if (dead.length && !bad.length) {
+    console.log('FAIL - an op-amp whose feedback returns to a node held at a fixed potential.');
+    console.log('       No solver with an ideal op-amp can see this; a finite-gain one saturates.');
+    process.exit(1);
+}
 if (bad.length) {
     console.log('FAIL - an op-amp wired with positive feedback where the lesson does not intend it.');
     console.log('       A DC solve cannot see this (the ideal op-amp solves identically either way); on the bench it latches to a rail.');

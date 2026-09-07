@@ -30,6 +30,10 @@ const text = html => html
     .replace(/&micro;|&mu;|[µμ]/g, 'u')
     .replace(/&amp;/g, '&')
     .replace(/&frac12;/g, '0.5')
+    // A table states channel-length modulation the way the prose does, as
+    // "&lambda; = 0.02". Left as an entity the trailing semicolon separates
+    // the name from its value and modelFor never sees the number.
+    .replace(/&lambda;/g, 'lambda')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -133,15 +137,28 @@ function modelFor(value, what) {
     for (const k of keys) {
         if (hay.indexOf(k) === -1) continue;
         const m = MODELS[k];
+        let out = m, name = k;
         // "NMOS, W/L = 90": geometry stated in the cell scales K for a MOSFET
         // that carries Kp. Bias voltages in a lesson are statements about
         // W/L as much as about Vth, so the table has to be able to say it.
         const wl = /W\s*\/\s*L\s*=?\s*(\d+(?:\.\d+)?)/i.exec(value);
         if (wl && m.Kp) {
             const WL = parseFloat(wl[1]);
-            return { name: k + ' W/L=' + WL, m: Object.assign({}, m, { WL, K: m.Kp * WL }) };
+            out = Object.assign({}, out, { WL, K: m.Kp * WL });
+            name += ' W/L=' + WL;
         }
-        return { name: k, m };
+        // "NMOS, lambda = 0.02": a lesson that teaches at one channel-length
+        // modulation and tabulates a part that defaults to another sends the
+        // reader's hand answer and their simulation to different places.
+        // m06l09 taught the mirror error at 0.02 throughout and tabulated a
+        // bare NMOS, which is 0.04 - so the error came out twice what the
+        // lesson's own exercises said, and nothing in either was wrong.
+        const lam = /\b(?:lambda|λ)\s*=?\s*(\d+(?:\.\d+)?)/i.exec(value);
+        if (lam && out.lambda !== undefined) {
+            out = Object.assign({}, out, { lambda: parseFloat(lam[1]) });
+            name += ' lambda=' + parseFloat(lam[1]);
+        }
+        return { name, m: out };
     }
     return null;
 }

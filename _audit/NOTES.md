@@ -321,6 +321,35 @@ in the export's `params` all along, but a bare `NMOS` on a netlist line let the 
 back to an ideal stamp with infinite output resistance, and a cascode of ideal devices has no
 operating point at all.
 
+### The second round: a fourth bug, and the pattern behind three of them
+
+**m20l04's feedback loop was open.** U1's inverting input was wired to `vmid` — the 1.65 V
+reference itself — while the divider tap `fb` (amp_out −32k→ fb −1k→ vmid) drove nothing. The
+amplifier saw a fixed −1.65 V differential. Circuit Toy's finite-gain solve saturated at
+−165 kV; ours reported it clean, because an ideal op-amp forces V+ = V− by construction and a
+dead summing node is invisible to it. VIN was also ground-referenced, which saturates the stage
+on a single supply even once the loop is closed, so both were fixed: VIN now sits on `vmid`, and
+the inverting input is `fb`. The chain idles at mid-rail 1.65 V throughout, gain 33× (1.65 V out
+for 50 mV in), −3 dB at 6.44 kHz, −40 dB/decade.
+
+**The pattern, which is worth more than any of the four bugs.** m15l06's missing ground, m20l04's
+dead summing node and the zener that carried nothing were all invisible to the *more idealised*
+model and obvious to the less idealised one. gmin regularises a singular matrix into a plausible
+answer; a nullor op-amp forces its inputs equal whatever they are wired to; a diode without
+breakdown is simply absent in reverse. In each case the idealisation did not degrade the answer,
+it removed the evidence. `check-feedback-polarity` now carries a second rule for this: feedback
+that lands on a node an independent voltage source holds is not feedback, and no solver with an
+ideal op-amp can see it. 59 op-amps clean; the original m20l04 wiring fails it as a negative
+control.
+
+**m06l09 now agrees to every printed digit, across two solvers.** The lesson teaches at
+λ = 0.02 — its interactive defaults there and both practice exercises use it — but tabulated a
+bare `NMOS`, which is the simulator default 0.04. A reader working the exercise by hand and then
+building the table got an error twice what the lesson said, with nothing wrong in either.
+`modelFor` now reads a stated λ from the Value cell (and `text()` decodes `&lambda;`), and the
+table states it. Both solvers: nout1 1.02137 V, nout2 1.00178 V, Id 198.9 µA and 199.9 µA,
+M1C Vgs 0.899, M3C Vds 0.1929, M4C Vds 0.1252.
+
 ### Still open
 
 - **Six lessons name "Zener Diode" with no voltage** — m18l02, m22l04, m23l04, m23l05, m24l01,
@@ -328,13 +357,26 @@ operating point at all.
   answer, and the reader's result depends entirely on which part they place. m23l04 no longer
   converges at all under the generic 5.1 V, because its two clamps sit across a 24 V rail and a
   5.1 V part is in hard breakdown there. The table has to state the voltage.
+
+  Circuit Toy settles how: there is **one** generic zener part, `COMP_ZENER`, refdes `DZ`, with an
+  editable breakdown voltage (`vz`, default 5.1 V) and a series `rz` of 7 Ω. There are no
+  per-voltage zener parts on the palette, so the part will never supply the number — each table
+  has to name it, as "Zener Diode, 15 V" or whatever that lesson's design answer is. Six design
+  decisions, one per lesson.
 - **m15l06's control sources short the pass FETs.** `V_chg_ctrl` ties `chg_gate` to `pack_plus`,
   which is also `M_chg`'s drain, so the device sits at Vds = 0. Along with the missing ground,
   the table needs its topology looked at, not just a node renamed.
-- **m06l09's cascode devices land in triode**, Vds of 173 mV and 126 mV against an overdrive of
-  about 200 mV. The lesson's teaching point survives — the cascode error is still an order down
-  on the simple mirror — but `vb = 1.8 V` is biasing the cascode at the edge of the region the
-  lesson says it is in.
+- **m06l09's cascode devices land in triode**, and both solvers agree independently: M3C by
+  7.9 mV, M4C by 98 mV, against an overdrive near 200 mV. The lesson's own compliance line says
+  Vout,min ≈ 2·Vov, which presumes saturation, so the stated bias contradicts the stated formula.
+  The teaching point survives — the error ratio is still an order apart — but a student who
+  checks the operating region against the compliance claim will find they disagree.
+
+  Do not re-bias it on a guess: a sweep of `vb` from 1.3 V to 1.6 V does not converge for us at
+  all, and at 1.7 V the reference branch runs away to V(nref2) = 149 V, because IREF2 is an ideal
+  current source with no compliance limit and nothing diode-connects the cascode reference. The
+  neighbourhood is badly behaved and the fix is a topology question — diode-connect the cascode
+  reference, or generate `vb` from the reference branch — not a number to nudge.
 
 ---
 
