@@ -350,6 +350,53 @@ building the table got an error twice what the lesson said, with nothing wrong i
 table states it. Both solvers: nout1 1.02137 V, nout2 1.00178 V, Id 198.9 µA and 199.9 µA,
 M1C Vgs 0.899, M3C Vds 0.1929, M4C Vds 0.1252.
 
+### The third round: the export was shorting nets
+
+**Polarity was collapsing in `export-spice`.** The sanitiser mapped every character outside
+`[A-Za-z0-9_]` to `_`, so `VIN+` and `VIN-` both became `VIN_`. Three files carried two elements
+under one refdes, which real SPICE refuses. The nodes went the same way, and that is the damage
+that matters: m26l06's `IN+` and `IN-` collapsed to `IN_`, which does not rename a net — it welds
+two distinct nets together and puts the two halves of a differential input across one node pair.
+Polarity maps to a letter now, and two guards fail the export loudly: a refdes that is not unique
+after sanitising, and two authored nodes that sanitise to one.
+
+**The cascode reference was never diode-connected.** M1C's gate went to its own drain, leaving
+`nref2` — the top of the reference branch — facing nothing but an ideal current source. No finite
+voltage there carries I<sub>REF</sub>, so it ran away to 149 V in both solvers. Circuit Toy swept
+`vb` at 10 mV and proved no value works: M4C leaves saturation at 1.705 V where `nref2` is still
+at 130 V, and `nref2` only becomes sane at 1.80 V where M4C is 98 mV into triode. The two
+requirements move apart and never overlap. The reference is now diode-connected *through* the
+cascode — the M1C/M2C gate bus comes from `nref2` — which is the standard wide-swing mirror and
+makes the branch self-biasing. At vb = V<sub>GS</sub> + 2V<sub>OV</sub> = 1.30 V all four devices
+sit in saturation, `nref2` is pinned at 900 mV, and it converges in 4 iterations. The window runs
+1.20–1.50 V, which is the tell that the topology was the fault and not the number.
+
+**The zener has 7 Ω of series resistance now**, matching Circuit Toy's `COMP_ZENER`. There is no
+internal node, so the junction voltage comes from a bracketed solve on u = −(v<sub>j</sub>+BV)/nV<sub>T</sub>
+and the branch conductance is folded as g/(1+gR<sub>Z</sub>). Iterating v<sub>j</sub> = v<sub>d</sub> − i·R<sub>Z</sub>
+directly does *not* work — at 11 V of reverse bias it overshoots to 1e32, returns exactly to
+v<sub>d</sub>, and oscillates, reporting a zener 6 V past its knee as carrying nothing. That is
+the same symptom as the bug it was fixing, which is why it survived a run.
+
+**Two AC lessons now say the transistor is ideal.** m05l15's C<sub>PI</sub>/C<sub>MU</sub> and
+m05l24's C<sub>L</sub> are a 2N3904's own capacitances written as discrete parts — a good
+teaching choice, because it makes Miller something you can delete and re-add, but any simulator
+with a real device model counts them twice: 276 kHz against our 481, and a peaking improvement of
+1.53 against 1.73. Both lessons say so now.
+
+**m05l24's output node had no DC return** — `out` sat between COUT and CL with nothing resistive
+on it. It has a 1 MΩ now, which with the 10 pF is a scope probe and moves the measured corner not
+at all (27.51 MHz before and after). `check-build-nets` carries the general rule: a node whose
+only connections are capacitors has no operating point. Structural, so it needs no solver — which
+is the point, since the solvers are what cannot see it.
+
+**m05l11-4 is the one where a saturating device is the answer.** Circuit Toy's Newton rings on it
+forever; ours settles at V(out) = −508.22 mV, residual 3.1e-17 A. The reason is that the output
+node is a PNP collector facing an NPN collector, so while both stay forward-active it is two
+current sources in series and nothing determines the node at all. What ends it is Q2 saturating
+at V<sub>CE</sub> = 139 mV. A solver whose BJT has no hard region transition may never find the
+corner the solution sits on.
+
 ### Still open
 
 - **Six lessons name "Zener Diode" with no voltage** — m18l02, m22l04, m23l04, m23l05, m24l01,
@@ -366,17 +413,8 @@ M1C Vgs 0.899, M3C Vds 0.1929, M4C Vds 0.1252.
 - **m15l06's control sources short the pass FETs.** `V_chg_ctrl` ties `chg_gate` to `pack_plus`,
   which is also `M_chg`'s drain, so the device sits at Vds = 0. Along with the missing ground,
   the table needs its topology looked at, not just a node renamed.
-- **m06l09's cascode devices land in triode**, and both solvers agree independently: M3C by
-  7.9 mV, M4C by 98 mV, against an overdrive near 200 mV. The lesson's own compliance line says
-  Vout,min ≈ 2·Vov, which presumes saturation, so the stated bias contradicts the stated formula.
-  The teaching point survives — the error ratio is still an order apart — but a student who
-  checks the operating region against the compliance claim will find they disagree.
-
-  Do not re-bias it on a guess: a sweep of `vb` from 1.3 V to 1.6 V does not converge for us at
-  all, and at 1.7 V the reference branch runs away to V(nref2) = 149 V, because IREF2 is an ideal
-  current source with no compliance limit and nothing diode-connects the cascode reference. The
-  neighbourhood is badly behaved and the fix is a topology question — diode-connect the cascode
-  reference, or generate `vb` from the reference branch — not a number to nudge.
+- ~~m06l09's cascode devices land in triode~~ — fixed by diode-connecting the reference through
+  the cascode; see above.
 
 ---
 
