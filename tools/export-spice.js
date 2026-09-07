@@ -327,9 +327,24 @@ function emit(row) {
         // Blocks, switches, gates, latches: a sub-circuit instance, which is
         // exactly the X line the reader does not have yet.
         const pins = nodes.length ? nodes : pinsFrom(row.connect);
-        const name = (value && !/^Sub-Circuit$/i.test(value) ? value : what)
-            .replace(/^Block\s*\(|\)$/g, '').replace(/[^A-Za-z0-9]+/g, '_')
-            .replace(/^_|_$/g, '').toUpperCase() || 'BLOCK';
+        // "Block (analog switch) &mdash; charge phase" must not become
+        // ANALOG_SWITCH_MDASH_CHARGE_PHASE: an aside after a dash is prose, and
+        // an entity text() does not decode is not part of anybody's part name.
+        // Prefer the `what` cell, which names the block; fall back to `value`
+        // only when `what` says nothing more than "Sub-Circuit".
+        const clean = s => String(s)
+            .replace(/&[a-z]+;/gi, ' ')                 // any entity left over
+            .replace(/\s+[-–—]\s+.*$/, '')    // an aside after a dash
+            .replace(/^Block\s*\(|\)\s*$/g, '')
+            .replace(/[^A-Za-z0-9]+/g, '_')
+            .replace(/^_|_$/g, '')
+            .toUpperCase();
+        const fromWhat = clean(what);
+        // "Sub-Circuit , gain 1" says nothing about what the block IS, so it
+        // never wins - but it must be recognised with its trailing clause on.
+        const fromValue = /^\s*Sub-?Circuit\b/i.test(value) ? '' : clean(value);
+        const name = (fromWhat && !/^SUB_?CIRCUIT$/.test(fromWhat) ? fromWhat : fromValue)
+            || 'BLOCK';
         lines.push(`${named('X')} ${pins.join(' ')} ${name}`);
         unsupported.push(`${ref}: subcircuit instance (${what})`);
     }
