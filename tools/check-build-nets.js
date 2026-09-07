@@ -196,6 +196,12 @@ files.forEach(file => {
 
         const degree = new Map();
         const driven = new Set();
+        // Nodes reached by anything that carries current at DC. A node touched
+        // ONLY by capacitors has no DC operating point - the solver reports a
+        // number for it anyway, because gmin conditions the matrix, and in
+        // transient it drifts. m05l24's `out` sat between COUT and CL with
+        // nothing resistive on it and solved confidently to 0.000000 V.
+        const conductive = new Set();
         const parts = [];
 
         rows.forEach(cells => {
@@ -211,6 +217,7 @@ files.forEach(file => {
             uniq.forEach(n => {
                 if (isGround(n) || isRail(n)) return;
                 degree.set(n, (degree.get(n) || 0) + 1);
+                if (!/^capacitor$/i.test(what.trim())) conductive.add(n);
                 if (isSource(what)) driven.add(n);
             });
         });
@@ -235,10 +242,15 @@ files.forEach(file => {
         // reason they were skipped there.
         const unknown = [...watched].filter(n => !degree.has(n) && !isRail(n));
 
-        if (dangling.length || unknown.length) {
-            findings.push({ rel, dangling, unknown, rows: rows.length });
+        // A node every one of whose connections is a capacitor. Purely
+        // structural, so it needs no solver - which is the point, because the
+        // solvers are precisely what cannot see it.
+        const floating = [...degree.keys()].filter(n => !conductive.has(n));
+
+        if (dangling.length || unknown.length || floating.length) {
+            findings.push({ rel, dangling, unknown, floating, rows: rows.length });
         } else if (LIST) {
-            findings.push({ rel, dangling: [], unknown: [], rows: rows.length, ok: true });
+            findings.push({ rel, dangling: [], unknown: [], floating: [], rows: rows.length, ok: true });
         }
     }
 });
@@ -277,7 +289,7 @@ if (BLESS) {
 }
 
 findings.forEach(f => {
-    const n = f.dangling.length + f.unknown.length;
+    const n = f.dangling.length + f.unknown.length + (f.floating ? f.floating.length : 0);
     const allowed = base[f.rel] || 0;
     const isNew = n > allowed;
     console.log('  ' + (n ? (isNew ? 'FAIL' : 'debt') : 'ok  ') + '  ' + f.rel +
@@ -289,9 +301,12 @@ findings.forEach(f => {
         console.log('          watched but never built: ' +
                     f.unknown.map(u => 'V(' + u + ')').join(', '));
     }
+    if (f.floating && f.floating.length) {
+        console.log('          no DC return path, only capacitors: ' + f.floating.join(', '));
+    }
 });
 
-const regressions = bad.filter(f => (f.dangling.length + f.unknown.length) > (base[f.rel] || 0));
+const regressions = bad.filter(f => (f.dangling.length + f.unknown.length + (f.floating ? f.floating.length : 0)) > (base[f.rel] || 0));
 
 console.log('');
 console.log('  tables with a wiring problem  ' + String(bad.length).padStart(4) +

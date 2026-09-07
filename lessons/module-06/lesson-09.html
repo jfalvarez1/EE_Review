@@ -117,10 +117,10 @@
                     <tr><td class="mono">RLOAD1</td><td>Resistor</td><td>20&nbsp;k&Omega;</td><td>between <span class="mono">vdd</span> and <span class="mono">nout1</span></td></tr>
                     <tr><td colspan="4"><strong>Cascode mirror (external Vb)</strong></td></tr>
                     <tr><td class="mono">IREF2</td><td>Current source</td><td>200&nbsp;&micro;A DC</td><td>from <span class="mono">vdd</span> to <span class="mono">nref2</span></td></tr>
-                    <tr><td class="mono">VBIAS</td><td>Voltage source</td><td>1.80&nbsp;V</td><td>from <span class="mono">vb</span> to ground</td></tr>
-                    <tr><td class="mono">M1C</td><td>Transistor (MOSFET)</td><td><span class="mono">NMOS, W/L = 90, &lambda; = 0.02</span></td><td>drain <span class="mono">n1</span>, gate <span class="mono">n1</span>, source ground</td></tr>
+                    <tr><td class="mono">VBIAS</td><td>Voltage source</td><td>1.30&nbsp;V &mdash; V<sub>GS</sub> + 2V<sub>OV</sub></td><td>from <span class="mono">vb</span> to ground</td></tr>
+                    <tr><td class="mono">M1C</td><td>Transistor (MOSFET)</td><td><span class="mono">NMOS, W/L = 90, &lambda; = 0.02</span></td><td>drain <span class="mono">n1</span>, gate <span class="mono">nref2</span>, source ground</td></tr>
                     <tr><td class="mono">M3C</td><td>Transistor (MOSFET)</td><td><span class="mono">NMOS, W/L = 90, &lambda; = 0.02</span></td><td>drain <span class="mono">nref2</span>, gate <span class="mono">vb</span>, source <span class="mono">n1</span></td></tr>
-                    <tr><td class="mono">M2C</td><td>Transistor (MOSFET)</td><td><span class="mono">NMOS, W/L = 90, &lambda; = 0.02</span></td><td>drain <span class="mono">n2</span>, gate <span class="mono">n1</span>, source ground</td></tr>
+                    <tr><td class="mono">M2C</td><td>Transistor (MOSFET)</td><td><span class="mono">NMOS, W/L = 90, &lambda; = 0.02</span></td><td>drain <span class="mono">n2</span>, gate <span class="mono">nref2</span>, source ground</td></tr>
                     <tr><td class="mono">M4C</td><td>Transistor (MOSFET)</td><td><span class="mono">NMOS, W/L = 90, &lambda; = 0.02</span></td><td>drain <span class="mono">nout2</span>, gate <span class="mono">vb</span>, source <span class="mono">n2</span></td></tr>
                     <tr><td class="mono">RLOAD2</td><td>Resistor</td><td>20&nbsp;k&Omega;</td><td>between <span class="mono">vdd</span> and <span class="mono">nout2</span></td></tr>
                 </tbody>
@@ -242,10 +242,16 @@
         sch.dot(m1.gate.x, gateBusY);
         sch.dot(m2.gate.x, gateBusY);
 
-        // Diode-connection for reference bottom device: tie gate to drain node (at m1.drain)
-        const diodeY = m1.drain.y - 15;
-        sch.wire([[m1.drain.x, m1.drain.y], [m1.drain.x, diodeY], [m1.gate.x, diodeY], [m1.gate.x, gateBusY]]);
-        sch.dot(m1.drain.x, diodeY);
+        // The reference is diode-connected THROUGH the cascode: the M1/M2 gate
+        // bus comes from M3's DRAIN, not M1's. Tying it to M1's drain instead
+        // leaves the top of the reference branch connected to nothing but an
+        // ideal current source, so no finite voltage there carries Iref and the
+        // node runs away - 149 V in both solvers before this was corrected.
+        const refTapY = topY + 20;
+        const refBusX = (x1 + x2) / 2;
+        sch.wire([[m3.drain.x, refTapY], [refBusX, refTapY], [refBusX, gateBusY]]);
+        sch.dot(m3.drain.x, refTapY);
+        sch.dot(refBusX, gateBusY);
 
         // Cascode gate bias (Vb) to M3/M4 gates
         const vbY = m3.gate.y;
@@ -412,17 +418,26 @@
                    'same 20&nbsp;k&Omega;, so at this load they should agree to ' +
                    'within a few tens of millivolts. A large difference here means ' +
                    'one of the two is not in saturation &mdash; check that ' +
-                   'V<sub>BIAS</sub> = 1.8&nbsp;V is high enough to keep M1C and M2C ' +
+                   'V<sub>BIAS</sub> = 1.3&nbsp;V is high enough to keep M1C and M2C ' +
                    'out of triode, given the V<sub>GS</sub> you recorded in row 1. ' +
-                   'That 1.8&nbsp;V is V<sub>th</sub> + 2V<sub>ov</sub> with ' +
-                   '0.2&nbsp;V of overdrive, and 0.2&nbsp;V at 200&nbsp;&micro;A is a ' +
-                   'statement about device width: with K&prime; = 110&nbsp;&micro;A/V&sup2; ' +
-                   'it takes W/L &asymp; 90, which is why the table says so on the cascode ' +
-                   'devices. Build them at W/L = 10 and the same 1.8&nbsp;V leaves the ' +
-                   'cascode transistor below threshold, the reference current has ' +
-                   'nowhere to go, and the simulator either fails to converge or reports ' +
-                   'a node at some absurd voltage. A bias voltage copied from a textbook ' +
-                   'carries the textbook&rsquo;s geometry with it.' }
+                   'That 1.3&nbsp;V is V<sub>GS</sub> + 2V<sub>ov</sub> &mdash; about ' +
+                   '0.9&nbsp;V plus 0.4&nbsp;V &mdash; and 0.2&nbsp;V of overdrive at ' +
+                   '200&nbsp;&micro;A is a statement about device width: with ' +
+                   'K&prime; = 110&nbsp;&micro;A/V&sup2; it takes W/L &asymp; 90, which is ' +
+                   'why the table says so on the cascode devices. Build them at W/L = 10 ' +
+                   'and the same 1.3&nbsp;V leaves the cascode transistor barely on, the ' +
+                   'reference current has nowhere to go, and the simulator either fails to ' +
+                   'converge or reports a node at some absurd voltage. A bias voltage ' +
+                   'copied from a textbook carries the textbook&rsquo;s geometry with it.' +
+                   '<br><br>Note where the M1C/M2C gate bus comes from: <span class="mono">nref2</span>, ' +
+                   'the top of the reference branch, not <span class="mono">n1</span>. ' +
+                   'Diode-connecting M1C at its own drain instead leaves ' +
+                   '<span class="mono">nref2</span> facing nothing but an ideal current ' +
+                   'source, and no finite voltage there carries I<sub>REF</sub>: two ' +
+                   'independent solvers put that node at about 149&nbsp;V before this was ' +
+                   'corrected, and no V<sub>BIAS</sub> anywhere in 1.3&ndash;1.9&nbsp;V ' +
+                   'saved it. Diode-connecting through the cascode is what makes the ' +
+                   'branch self-biasing.' }
         ],
         experiments: [
             { action: 'Move the output voltage. Change both RLOAD resistors from ' +

@@ -113,11 +113,43 @@ function brkExp(M, vd, nvt) {
     return Math.exp(Math.min(-(vd + M.BV) / nvt, 80));
 }
 
+/**
+ * The junction voltage inside a zener with series resistance, at terminal vd.
+ *
+ * A real zener's clamp voltage rises with current - Circuit Toy's COMP_ZENER
+ * carries 7 ohm of it - and a model without that says a shunt regulator holds
+ * exactly BV at every load, which is the one thing a regulation lesson exists
+ * to deny. There is no internal node here, so the drop is taken against the
+ * current at the previous estimate and folded once. In breakdown the current
+ * is negative, so vj comes out less negative than vd: part of the terminal
+ * voltage sits across RZ rather than across the junction.
+ */
+function zenerVj(M, vd, nvt) {
+    if (!M.BV || !M.RZ) return vd;
+    const IBV = M.IBV || 1e-3;
+    // Substituting u = -(vj + BV)/nvt turns vd = vj + i(vj)*RZ into
+    //   f(u) = -BV - nvt*u - IBV*RZ*exp(u) - vd = 0
+    // which is strictly decreasing in u, so it brackets and bisects. Iterating
+    // vj = vd - i(vj)*RZ directly does NOT work: at 11 V of reverse bias the
+    // first step overshoots to 1e32, the second returns exactly to vd, and the
+    // loop oscillates between them - which silently reported a zener 6 V past
+    // its knee as carrying no current at all.
+    const f = u => -M.BV - nvt * u - IBV * M.RZ * Math.exp(Math.min(u, 80)) - vd;
+    let lo = -50, hi = 80;
+    if (f(lo) < 0) return -M.BV - nvt * lo;
+    if (f(hi) > 0) return -M.BV - nvt * hi;
+    for (let k = 0; k < 60; k++) {
+        const mid = (lo + hi) / 2;
+        if (f(mid) > 0) lo = mid; else hi = mid;
+    }
+    return -M.BV - nvt * (lo + hi) / 2;
+}
+
 /** Diode current including breakdown. The one place the two branches meet. */
 function diodeI(M, vd) {
     const nvt = (M.N || 1) * VT;
     return M.Is * (Math.exp(Math.min(vd / nvt, 80)) - 1)
-         - (M.IBV || 1e-3) * brkExp(M, vd, nvt);
+         - (M.IBV || 1e-3) * brkExp(M, zenerVj(M, vd, nvt), nvt);
 }
 
 /**
@@ -210,9 +242,19 @@ function newton(parts, idx, gmin, seed) {
                     let Id = M.Is * (e - 1);
                     let gd = M.Is * e / nvt + gmin;
                     if (M.BV) {
-                        const eb = brkExp(M, vd, nvt);
-                        Id -= (M.IBV || 1e-3) * eb;
-                        gd += (M.IBV || 1e-3) * eb / nvt;
+                        // Evaluate the breakdown branch at the JUNCTION voltage
+                        // and fold RZ into its conductance: a branch of slope
+                        // gb behind a series RZ presents gb/(1 + gb*RZ) at the
+                        // terminals. Without the fold the stamp would carry the
+                        // junction's own slope, which at a few hundred
+                        // microamps is already steeper than the resistor allows.
+                        const vj = zenerVj(M, vd, nvt);
+                        const eb = brkExp(M, vj, nvt);
+                        const ib = (M.IBV || 1e-3) * eb;
+                        let gb = ib / nvt;
+                        if (M.RZ) gb = gb / (1 + gb * M.RZ);
+                        Id -= ib;
+                        gd += gb;
                     }
                     cond(a, c, gd);
                     isrc(a, c, Id - gd * vd);

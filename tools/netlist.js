@@ -106,7 +106,11 @@ const MODELS = {
     'DIODE':  { type: 'diode', Is: 1e-14, N: 1 },
     'SCHOTTKY': { type: 'diode', Is: 3.17e-5, N: 1.37 },
     'MBR1060':  { type: 'diode', Is: 3.17e-5, N: 1.37 },
-    'ZENER':  { type: 'diode', Is: 1e-14, N: 1, BV: 5.1 },
+    // RZ is Circuit Toy's own 7 ohm of dynamic resistance on COMP_ZENER. A
+    // zener without it clamps at exactly BV at every current, which overstates
+    // how good a reference it is - the whole point of a regulation lesson is
+    // that the clamp voltage moves with load.
+    'ZENER':  { type: 'diode', Is: 1e-14, N: 1, BV: 5.1, RZ: 7 },
     // The generic MOSFET is Circuit Toy's small-signal device: Vth 0.7 V,
     // Kp 110 uA/V^2, W/L 10, so K = Kp * W/L = 1.1 mA/V^2. An earlier draft
     // used a 2 V / 1 A/V^2 power-FET generic, which never turned on a cascode

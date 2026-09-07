@@ -74,6 +74,19 @@ function trim(v) {
 const mag = cell => N.magnitude(text(cell));
 
 /**
+ * A name safe for a netlist line, WITHOUT collapsing polarity.
+ *
+ * The obvious sanitiser maps every character outside [A-Za-z0-9_] to "_", and
+ * that silently merges the two halves of every differential pair in the course:
+ * VIN+ and VIN- both became VIN_, so three files carried two elements sharing
+ * one refdes, which real SPICE refuses outright. Worse, m26l06's NODES did it
+ * too - IN+ and IN- collapsed to IN_, which does not rename a net, it welds two
+ * distinct nets into one and puts two independent sources across the result.
+ * Polarity is the whole content of a differential name, so it maps to a letter.
+ */
+const safe = s => text(s).replace(/\+/g, 'P').replace(/-/g, 'N').replace(/[^A-Za-z0-9_]/g, '_');
+
+/**
  * A node name safe for a netlist line.
  *
  * Ground collapses to 0 through netlist.js's own isGround, which also takes
@@ -83,7 +96,7 @@ const mag = cell => N.magnitude(text(cell));
  * it. Keeping it means a disagreement is about physics, not about grounding.
  */
 function node(n) {
-    const s = text(n).replace(/[^A-Za-z0-9_]/g, '_');
+    const s = safe(n);
     return N.isGround(s) ? '0' : s;
 }
 
@@ -238,7 +251,7 @@ function modelName(value, what) {
 
 /** One row as netlist lines. Returns { lines, unsupported }. */
 function emit(row) {
-    const ref = text(row.ref).replace(/[^A-Za-z0-9_]/g, '_');
+    const ref = safe(row.ref);
     const what = text(row.what);
     const value = text(row.value);
     const nodes = (row.nodes || []).map(node);
@@ -352,6 +365,31 @@ function main() {
             const { lines, unsupported } = emit(row);
             for (const l of lines) body.push(l);
             for (const u of unsupported) gaps.push(u);
+        }
+
+        // Two guards for the class of fault that produced VIN_ twice: a name
+        // that is not unique after sanitising, and two DISTINCT authored nodes
+        // that sanitise to one. The second is the dangerous one - it welds two
+        // nets together and every downstream number stays plausible.
+        const seen = new Map();
+        for (const l of body) {
+            if (/^\*/.test(l)) continue;
+            const ref = l.split(/\s+/)[0];
+            seen.set(ref, (seen.get(ref) || 0) + 1);
+        }
+        for (const [ref, n] of seen) {
+            if (n > 1) gaps.push(`DUPLICATE REFDES ${ref} appears ${n} times - real SPICE refuses this`);
+        }
+        const collide = new Map();
+        for (const row of rec.rows || []) {
+            for (const raw of row.nodes || []) {
+                const k = node(raw);
+                const was = collide.get(k);
+                if (was && was !== text(raw)) {
+                    gaps.push(`NODE COLLISION: "${was}" and "${text(raw)}" both sanitise to ${k}`);
+                }
+                collide.set(k, text(raw));
+            }
         }
 
         const head = [
