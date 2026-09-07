@@ -284,6 +284,60 @@ gets a fresh context.
 
 ---
 
+## What the second solver found
+
+Circuit Toy ran `netlists.json` through its own MNA solver. 102 of our 105 parsed circuits
+solved there, every part shape mapped, and the disagreements were worth more than the
+agreements. Four things came out of it, three of them bugs on our side.
+
+**The zener was never a zener.** `modelFor` sorted its model names longest-first so that
+`D1N4148` would not match as `DIODE`. `ZENER` and `DIODE` are both five characters, so the tie
+fell to insertion order and every "Zener Diode" in the course resolved to a plain silicon
+diode. Eleven tables, and two circuits — m23l04 and m24l01 — that our solvers reported as
+*solved*. Generic families now lose every tie.
+
+**And the stamp ignored breakdown anyway.** `ZENER` carries `BV: 5.1` and the diode stamp was a
+bare Shockley exponential, so a zener held twenty volts past its knee carried nothing. m24l01
+put its 5.1 V reference at −10.99 V and 0 A, which is not a thing that happens. With breakdown
+stamped it clamps at −5.09 V and 672 µA. Both branches are linearised about one limited `vd`;
+limiting a separate breakdown voltage leaves the two halves evaluated at different points and
+the residual never settles.
+
+**m15l06 has no ground node.** Not one net in its build table is a ground. The MNA matrix is
+therefore singular, `gmin` regularised it into one arbitrary member of a family of solutions,
+and we reported an operating point with a residual of 1.8e-12 A for a four-cell pack floating
+symmetrically about zero. Circuit Toy refused it outright and was right to. `netlist.js` now
+refuses a table with no ground before any solver sees it. It is the only one of the 194.
+
+Two circuits moved from "solved" to skipped as a result. Both were previously answered wrongly,
+so the count going down is the honest direction.
+
+**Where we still disagree, and it is a parameter not a physics.** m06l09's mirror errors differ
+between the two solvers by almost exactly 2:1 — because our generic NMOS uses `lambda = 0.04`
+and theirs was run at `0.02`. Error proportional to λ is what the lesson teaches, so the two
+implementations agree about the mechanism and differ about one number. The netlist line now
+carries `LAMBDA`, `VTO` and `KP` explicitly rather than leaving them to a default: the value was
+in the export's `params` all along, but a bare `NMOS` on a netlist line let the far side fall
+back to an ideal stamp with infinite output resistance, and a cascode of ideal devices has no
+operating point at all.
+
+### Still open
+
+- **Six lessons name "Zener Diode" with no voltage** — m18l02, m22l04, m23l04, m23l05, m24l01,
+  m24l02. Every one is about clamping or protection, where the breakdown voltage *is* the design
+  answer, and the reader's result depends entirely on which part they place. m23l04 no longer
+  converges at all under the generic 5.1 V, because its two clamps sit across a 24 V rail and a
+  5.1 V part is in hard breakdown there. The table has to state the voltage.
+- **m15l06's control sources short the pass FETs.** `V_chg_ctrl` ties `chg_gate` to `pack_plus`,
+  which is also `M_chg`'s drain, so the device sits at Vds = 0. Along with the missing ground,
+  the table needs its topology looked at, not just a node renamed.
+- **m06l09's cascode devices land in triode**, Vds of 173 mV and 126 mV against an overdrive of
+  about 200 mV. The lesson's teaching point survives — the cascode error is still an order down
+  on the simple mirror — but `vb = 1.8 V` is biasing the cascode at the edge of the region the
+  lesson says it is in.
+
+---
+
 ## Notes for contributors
 
 **Reading inputs.** Use `AD.num('element-id')`, never `parseFloat(el.value)`. `AD.num` falls

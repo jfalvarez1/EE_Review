@@ -112,11 +112,24 @@ const MODELS = {
     'PMOS':   { type: 'pmos', Vth: 0.7, Kp: 110e-6, WL: 10, K: 1.1e-3, lambda: 0.04 }
 };
 
+/**
+ * The generic families, which must lose every tie.
+ *
+ * Longest-first alone is not enough: ZENER and DIODE are both five characters,
+ * so the tie fell to insertion order and "Zener Diode" resolved to DIODE - a
+ * 0.7 V drop with no breakdown at all, in eleven tables and in two circuits
+ * (m23l04, m24l01) that our solvers reported as solved. SCHOTTKY only escaped
+ * this by being three characters longer.
+ */
+const GENERIC = new Set(['DIODE', 'NPN', 'PNP', 'NMOS', 'PMOS']);
+
 /** Pick a model from a Value cell, or null if it names none we know. */
 function modelFor(value, what) {
     const hay = (value + ' ' + what).toUpperCase();
-    // Longest names first, so "D1N4148" is not matched as "DIODE".
-    const keys = Object.keys(MODELS).sort((a, b) => b.length - a.length);
+    // Longest names first, so "D1N4148" is not matched as "DIODE"; and a named
+    // part ahead of its family at equal length, so ZENER beats DIODE.
+    const keys = Object.keys(MODELS).sort((a, b) =>
+        (GENERIC.has(a) - GENERIC.has(b)) || (b.length - a.length));
     for (const k of keys) {
         if (hay.indexOf(k) === -1) continue;
         const m = MODELS[k];
@@ -292,6 +305,14 @@ function parse(rows, mode) {
         }
     }
     if (!parts.length) return { error: 'no parts' };
+    // Every node voltage is measured from somewhere. A table that names no
+    // ground has no reference, its MNA matrix is singular, and gmin quietly
+    // regularises it into one arbitrary member of a family of solutions - so
+    // the solver reports an operating point and a residual near zero for a
+    // circuit that does not have one. m15l06 came back "solved" that way, with
+    // a four-cell pack floating symmetrically about zero, until Circuit Toy's
+    // solver refused it outright and was right to.
+    if (!parts.some(p => p.n.some(isGround))) return { error: 'no ground node: nothing to measure from' };
     return { parts };
 }
 

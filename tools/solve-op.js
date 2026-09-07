@@ -97,6 +97,30 @@ function pnjlim(vnew, vold, vt, vcrit) {
 const vcritOf = Is => VT * Math.log(VT / (Math.SQRT2 * Is));
 
 /**
+ * The reverse-breakdown exponential of a diode that has a BV, at vd.
+ *
+ * Zero for a model without one, so every diode site can call it unguarded.
+ * The scale is set at the knee - IBV amps flow at exactly vd = -BV - which is
+ * what makes a 5.1 V part clamp at 5.1 V rather than at whatever voltage a
+ * saturation current of 1e-14 would put the knee.
+ *
+ * Without this the forward exponential is the whole model, and a zener held
+ * 20 V past its knee carries nothing: m23l04 and m24l01 both reported an
+ * operating point solved as though their reference diode were not there.
+ */
+function brkExp(M, vd, nvt) {
+    if (!M.BV) return 0;
+    return Math.exp(Math.min(-(vd + M.BV) / nvt, 80));
+}
+
+/** Diode current including breakdown. The one place the two branches meet. */
+function diodeI(M, vd) {
+    const nvt = (M.N || 1) * VT;
+    return M.Is * (Math.exp(Math.min(vd / nvt, 80)) - 1)
+         - (M.IBV || 1e-3) * brkExp(M, vd, nvt);
+}
+
+/**
  * One Newton-Raphson solve at a given gmin. Returns {v, iters} or null.
  *
  * `gmin` is a small conductance placed across every junction. At its normal
@@ -168,10 +192,28 @@ function newton(parts, idx, gmin, seed) {
                     const nvt = (M.N || 1) * VT, vcrit = vcritOf(M.Is);
                     let vd = V(q.n[0]) - V(q.n[1]);
                     vd = pnjlim(vd, prev.get(q.part) || 0, nvt, vcrit);
+                    if (M.BV) {
+                        // Limit the breakdown knee too, then fold the result
+                        // back into vd so BOTH branches are evaluated at one
+                        // voltage. Limiting a separate vb would linearise the
+                        // two halves about different points and the residual
+                        // would never settle; leaving it unlimited lets Newton
+                        // step 20 V into an exponential that is 2 A per 200 mV,
+                        // which is what stopped m23l04 converging at all.
+                        const IBV = M.IBV || 1e-3;
+                        const vbOld = -((prev.get(q.part) || 0) + M.BV);
+                        const vb = pnjlim(-(vd + M.BV), vbOld, nvt, vcritOf(IBV));
+                        vd = -(vb + M.BV);
+                    }
                     prev.set(q.part, vd);
                     const e = Math.exp(Math.min(vd / nvt, 80));
-                    const Id = M.Is * (e - 1);
-                    const gd = M.Is * e / nvt + gmin;
+                    let Id = M.Is * (e - 1);
+                    let gd = M.Is * e / nvt + gmin;
+                    if (M.BV) {
+                        const eb = brkExp(M, vd, nvt);
+                        Id -= (M.IBV || 1e-3) * eb;
+                        gd += (M.IBV || 1e-3) * eb / nvt;
+                    }
                     cond(a, c, gd);
                     isrc(a, c, Id - gd * vd);
                 } else if (M.type === 'npn' || M.type === 'pnp') {
@@ -378,8 +420,7 @@ function absurdity(parts, v) {
         const M = q.model;
         let i = 0;
         if (M.type === 'diode') {
-            const vd = V(q.n[0]) - V(q.n[1]);
-            i = M.Is * (Math.exp(Math.min(vd / ((M.N || 1) * VT), 80)) - 1);
+            i = diodeI(M, V(q.n[0]) - V(q.n[1]));
         } else if (M.type === 'npn' || M.type === 'pnp') {
             const s = M.type === 'npn' ? 1 : -1;
             const vbe = s * (V(q.n[1]) - V(q.n[2])), vbc = s * (V(q.n[1]) - V(q.n[0]));
@@ -406,9 +447,10 @@ function devices(parts, v) {
         const M = q.model;
         if (M.type === 'diode') {
             const vd = V(q.n[0]) - V(q.n[1]);
-            const id = M.Is * (Math.exp(Math.min(vd / ((M.N || 1) * VT), 80)) - 1);
+            const id = diodeI(M, vd);
             out.push('  ' + q.part.padEnd(10) + M.type + ' ' + q.modelName +
-                     '   Vd = ' + vd.toFixed(4) + ' V, Id = ' + fmtI(id));
+                     '   Vd = ' + vd.toFixed(4) + ' V, Id = ' + fmtI(id) +
+                     (M.BV && vd < -M.BV * 0.9 ? '  (in breakdown)' : ''));
         } else if (M.type === 'npn' || M.type === 'pnp') {
             const s = M.type === 'npn' ? 1 : -1;
             const vbe = s * (V(q.n[1]) - V(q.n[2])), vbc = s * (V(q.n[1]) - V(q.n[0]));
