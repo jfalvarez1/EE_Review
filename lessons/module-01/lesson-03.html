@@ -28,11 +28,11 @@
         <div style="display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; margin: 1rem 0;">
             <div style="flex: 1; min-width: 300px;">
                 <h4 style="text-align: center; margin-bottom: 0.5rem;">Integrator with DC Stabilization</h4>
-                <div id="integrator-schematic"></div>
+                <div id="integrator-schematic" tabindex="-1"></div>
             </div>
             <div style="flex: 1; min-width: 300px;">
                 <h4 style="text-align: center; margin-bottom: 0.5rem;">Differentiator with HF Rolloff</h4>
-                <div id="differentiator-schematic"></div>
+                <div id="differentiator-schematic" tabindex="-1"></div>
             </div>
         </div>
 
@@ -246,6 +246,7 @@
         from the table below. Node names are just labels &mdash; anything
         sharing a name is one wire.</p>
 
+<div class="build-visual"><strong>Circuit templates already shown above</strong><div class="build-actions"><button type="button" onclick="document.getElementById('integrator-schematic').scrollIntoView({block: 'center', behavior: 'smooth'}); document.getElementById('integrator-schematic').focus({preventScroll: true})">View integrator circuit ↑</button><button type="button" onclick="document.getElementById('differentiator-schematic').scrollIntoView({block: 'center', behavior: 'smooth'}); document.getElementById('differentiator-schematic').focus({preventScroll: true})">View differentiator circuit ↑</button></div><p class="fig-note">Build these two stages independently. In the integrator drawing, Vin / Vout are in1 / int_out, and Rf is RF_DC. In the differentiator, Vin / Vout are in2 / diff_out, R is RDIFF, and C is CDIFF. The capacitor-to-resistor junction is n1. Source returns go to ground; use the table for values.</p></div>
         <p><strong>Integrator and Differentiator</strong></p>
 
         <div class="table-wrap">
@@ -489,9 +490,9 @@
         sch.wire([[350, 95], [420, 95]]);
         sch.nodeLabel(350, 95, 'Sq', { dx: -8, dy: -8, anchor: 'end' });
         sch.wire([[400, 95], [400, 140]]);
-        sch.wire([[400, 140], [50, 140]]);
-        sch.wire([[50, 140], [50, 95]]);
-        sch.nodeLabel(50, 95, 'FB', { dx: -8, dy: -8, anchor: 'end' });
+        // Give the feedback input a visible lead; the return must not trace the block edge.
+        sch.wire([[400, 140], [20, 140], [20, 95], [50, 95]]);
+        sch.nodeLabel(50, 95, 'FB', { dx: -8, dy: -12, anchor: 'end' });
         sch.junction(400, 95);
         sch.text(225, 150, 'Square wave feedback', { fontSize: '10px', textAnchor: 'middle', color: 'rgba(52, 211, 153, 0.8)' });
 
@@ -823,29 +824,19 @@
                 triAmp * (3 - 4 * phase);
             triangle.push(triVal);
             // Square (comparator output)
-            square.push(phase < 0.5 ? vsat : -vsat);
+            // Inverting integrator: negative square voltage produces a rising ramp.
+            square.push(phase < 0.5 ? -vsat : vsat);
         }
 
         const vPerDiv = vsat * 1.3 / 3;
 
-        // Plot triangle
-        AD.plotWave(wgCtx, w, h, triangle, vPerDiv, 0, T / 10, {
-            color: 'rgba(110, 231, 255, 0.9)',
-            label: 'Triangle Out'
+        // One render preserves both traces and gives the legend its own rows.
+        AD.plotMultiWave(wgCtx, w, h, [
+            { samples: triangle, name: 'Triangle Out', color: 'rgba(110, 231, 255, 0.9)' },
+            { samples: square, name: 'Square / feedback', color: 'rgba(52, 211, 153, 0.9)' }
+        ], vPerDiv, 0, periods * T / 10, {
+            label: `f = ${AD.fmtUnit(freq, 'Hz')}  |  τ = ${AD.fmtUnit(tau, 's')}  |  Vsat = ±${vsat}V`
         });
-
-        // Plot square
-        AD.plotWave(wgCtx, w, h, square, vPerDiv, 0, T / 10, {
-            color: 'rgba(52, 211, 153, 0.9)',
-            label: 'Square Out'
-        });
-
-        // Labels
-        wgCtx.save();
-        wgCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        wgCtx.font = '12px ui-sans-serif, system-ui, sans-serif';
-        wgCtx.fillText(`f = ${AD.fmtUnit(freq, 'Hz')}  |  τ = ${AD.fmtUnit(tau, 's')}  |  Vsat = ±${vsat}V`, 10, 18);
-        wgCtx.restore();
     }
 
     // Bind wave generator events

@@ -1,0 +1,36 @@
+# Introductory lab and diagram review — 2026-09-10
+
+Scope: the user's annotated M01 L01–L05 and L08 review, the introductory lab/build pattern through L07, and the audio-diagram handoff for M25 L01. This is a targeted review, not a claim that every course diagram or statement has been verified.
+
+## Changes and sources
+
+- **M01 L01:** a buildable TL071 input-loading fixture, pin/wiring table, probe locations, three visual experiment cards, and a live R/R||C preview. The added 100 kΩ input resistor is explicitly part of the fixture. A same-frequency half-amplitude measurement gives Rtest = Rin + Rs only for a resistive input. For a reactive input, one amplitude ratio does not determine complex Z; the pure-capacitor half-amplitude case contains a √3 factor. Equations are derived from the lesson's divider model, including the generator's 50 Ω example source resistance. Predictions are identified as calculated, not measurements.
+  - [TI TL07xx datasheet, SLOS080W](https://www.ti.com/lit/ds/symlink/tl071.pdf), Fig. 4-3 and §§8.3–8.4: TL071 PDIP pins and supply bypassing.
+  - [Keysight, Output Load Impedance](https://helpfiles.keysight.com/Standalone_BenchVueSoftware_PW_HelpFiles/PWScopeApp/Content/GUI/WaveGen%20Option/Waveform%20Configuration/Output%20Load%20Impedance.htm): High-Z display setting versus physical 50 Ω output resistance.
+  - [Tektronix, How Oscilloscope Probes Affect Your Measurement](https://www.tek.com/en/documents/application-note/how-oscilloscope-probes-affect-your-measurement): resistive and capacitive probe loading; no universal assumed probe capacitance.
+- **M01 L02–L06:** build templates immediately beside the wiring tables in L02, L04 and L05. L03 and L06 have buttons to focus the matching existing circuit, with a mapping between figure and table names. L04 explicitly says to use one of its two alternative sources at a time. Ideal/model supplies are identified.
+- **M01 L03:** feedback lead exits left of the integrator block. Oscillator traces now share one canvas render, so the second trace does not erase the first; its header no longer collides with the scale labels. Square polarity agrees with an inverting integrator's slope. This remains the lesson's ideal waveform model, not a transistor-level oscillator simulation.
+- **M01 L04:** logarithmic 0.1–about 50 V/µs slider, physical units in the required-slope readout, margin explanation, and two experiment buttons. Threshold and square-edge behavior follow the stated derivative limit.
+- **M01 L05:** both bias-current arrows point toward their respective input terminals, defining positive input current. The input +/- labels do not define current direction. Vos is drawn as an equivalent series source.
+  - [ADI MT-038](https://www.analog.com/media/en/training-seminars/tutorials/MT-038.pdf), pp. 1–4: bias-current direction, mismatch, and measurement by changing input resistance.
+- **M01 L07:** TL072 offset/bias lab schematic, package connections, bypasses and unused-channel termination. Correct noise gain is 1001, not exactly 1000. Bias-current estimation uses the change from the same-temperature reference and the stated current sign. Removed the unsupported prediction that a five-part sample must be better than typical; drift requires measured temperature.
+  - TI TL07xx Fig. 4-5 and §8.4; ADI MT-038 Fig. 4.
+- **M01 L08:** all six literal circuit SVGs replaced with shared-library drawings. Resistors are actual series elements, input returns are explicit, CL returns to ground, and the isolation resistor's feedback takeoff is before Riso. Loop-gain annotation is outside the signal path. Captions distinguish poles/zeros of β from those of 1/β; the return convention uses denominator 1+Aβ and critical point -1.
+  - [TI Precision Labs: Phase margin](https://www.ti.com/video/4080254925001): negative-feedback sign convention.
+  - [TI SLYT087](https://www.ti.com/lit/an/slyt087/slyt087.pdf), Eqs. 1, 2 and 4: resistive feedback, input capacitance, and feedback-capacitor compensation. For the shown circuit, matching Rf Cf = R1 Cin cancels the modeled β pole/zero pair, not every device pole.
+  - [ADI, Op Amps Driving Capacitive Loads](https://www.analog.com/en/resources/analog-dialogue/articles/ask-the-applications-engineer-25.html): output resistance, capacitive loading and out-of-loop isolation.
+  - Calculator now uses the shared case-sensitive SI parser (10M is 10 MHz), solves loaded |L| = 1, and plots the same two-pole model. Removed a universal Riso recommendation and device-stability verdict unsupported by that model.
+- **M25 L01:** reviewed the transferred architecture/PDM/tablet spacing changes, corrected bidirectional interface arrows, and fixed the shared SVG marker attribute casing. Separated block headings and port labels. Corrected the series 47 pF headphone path to a ground-referenced DirectDrive output, and reconciled the surrounding capless-output explanation. The tablet drawing is explicitly a selected-connections overview. Replaced the similar raw microphone drawing with an AC-coupled, biased amplifier template; its corner is set by Rbias and C1, subject to source resistance. Fixed the rms/peak current arithmetic beside it.
+  - [MAX98090 datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/MAX98090.pdf), Headphone Ground Sense and DirectDrive sections, pp. 138–139.
+  - [ADI AN-937](https://www.analog.com/en/resources/app-notes/an-937.html): DC bias-current return for an AC-coupled input.
+
+## Verification
+
+- `tools/test-diagram-geometry.js` runs the real renderer for 18 named diagrams. It checks labels against one another, component keepouts and wire segments, requires orthogonal connectors, verifies case-sensitive marker attributes, and fails if a required diagram is missing. It deliberately reinstates the original codec-heading collision and introduces wire/title overlap, a diagonal connector and bad marker casing to prove those defects are detected. `validate:false` does not bypass this gate.
+- `tools/test-intro-interactives.js` runs authored scripts and handlers: resistive and capacitive loading, two oscillator traces and correct slope sign, logarithmic slew scale/presets/square-wave limit, SI prefixes, loaded crossover/phase margin and invalid input.
+- Both checks join the course audit. SVG text bounds are approximate; browser review complements them.
+- Browser review includes the lab circuit and R/C experiment, build-template switching, same-lesson figure navigation, feedback lead clearance, stability loop/isolation diagrams, and audio architecture/PDM/tablet drawings. At a 390 px viewport, the page remains 390 px wide while wide circuits scroll within their own containers. The lab waveform redraws at its displayed width.
+
+## Authoring rule carried forward
+
+Every new or revised introductory build/lab should have a circuit visible before its wiring steps, or an explicit button to the matching existing circuit. Keep component/node names aligned with the table. State the source, return, probe points and model/supply assumptions. A bench build needs a real package pinout and local bypassing from its datasheet. Caption formulas belong below the drawing. Label sample values and calculated predictions as examples; do not turn a model into a datasheet claim.

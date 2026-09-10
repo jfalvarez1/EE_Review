@@ -233,7 +233,10 @@ const SchematicLib = (() => {
         const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
         for (const [k, v] of Object.entries(attrs)) {
             if (v !== undefined && v !== null) {
-                el.setAttribute(k.replace(/([A-Z])/g, '-$1').toLowerCase(), v);
+                // SVG geometry attributes are case-sensitive. Only presentation
+                // properties (strokeWidth, fontSize, etc.) use kebab-case.
+                const svgCase = /^(viewBox|refX|refY|markerWidth|markerHeight|markerUnits|preserveAspectRatio)$/;
+                el.setAttribute(svgCase.test(k) ? k : k.replace(/([A-Z])/g, '-$1').toLowerCase(), v);
             }
         }
         return el;

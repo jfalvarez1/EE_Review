@@ -11,7 +11,9 @@ attributes and contains an op-amp triangle, a resistor zig-zag, or two or more
 circuit labels. Such a figure has no course palette, no component symbols from
 the library, no connectivity validation, and its labels copy out as loose text.
 
-**333 figures in 141 lessons.** 21 lessons use `schematic-container` + `AD.Schematic`.
+Original inventory: **333 figures in 141 lessons.**
+
+2026-09-10: migrated all six M01 L08 circuits and the M25 L01 microphone preamp to the shared library. The current gate reports the remaining inventory. The introductory/audio review also adds a rendered geometry gate; see [the review ledger](review/2026-09-10-intro-visuals.md).
 
 ## How to fix one
 
@@ -1157,4 +1159,3 @@ Line numbers are as of this commit. "labels" are the first few text strings in t
   labels: 2-Wire Transmitter Block Diagram | Loop+ | Protect | Power | Mgmt
 - line 386 - op-amp triangle - colours #e6edf3, #fb7185, #34d399, #6ee7ff, #a78bfa, #fbbf24 - introduced 985cbf9 2026-08-31
   labels: Loop+ | Rs | 250Ω 0.1% | V+ | V-
-

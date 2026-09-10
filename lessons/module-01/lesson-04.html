@@ -89,9 +89,9 @@
 
         <div class="controls">
             <div class="c3">
-                <label for="sr-rate">Slew Rate (V/µs)</label>
-                <input type="range" id="sr-rate" min="0.5" max="50" step="0.5" value="5">
-                <span id="sr-rate-val" class="mono">5 V/µs</span>
+                <label for="sr-rate">Slew rate (log scale)</label>
+                <input type="range" id="sr-rate" min="-1" max="1.7" step="0.01" value="0" aria-describedby="sr-control-note">
+                <span id="sr-rate-val" class="mono">1.00 V/µs</span>
             </div>
             <div class="c3">
                 <label for="sr-vpk">V<sub>pk</sub> (V)</label>
@@ -115,6 +115,14 @@
         <div class="canvas-wrap">
             <canvas id="sr-canvas" width="980" height="320"></canvas>
         </div>
+
+        <p class="fig-note" id="sr-control-note">Equal slider travel multiplies slew rate: 0.1 to about 50 V/µs.
+        Start at 5 V peak and 50 kHz, then move through 1.57 V/µs to see the sine recover.</p>
+        <div class="build-actions" aria-label="Slew-rate experiments">
+            <button type="button" id="sr-limited">Show distortion</button>
+            <button type="button" id="sr-clean">Clear the sine threshold</button>
+        </div>
+        <p class="fig-note" id="sr-margin" aria-live="polite"></p>
 
         <div class="kv">
             <div class="box">
@@ -356,6 +364,7 @@
         from the table below. Node names are just labels &mdash; anything
         sharing a name is one wire.</p>
 
+<div class="build-visual"><strong>Circuit template &middot; match these node names to the table</strong><div class="schematic-container" id="sch-build-bandwidth"></div><p class="fig-note">Connect <strong>one source at a time</strong>: VIN_AC for the frequency sweep, or VIN_SLEW for the transient run. Both source returns go to ground. Set the Real Op-Amp supply properties to &plusmn;15 V.</p></div>
         <p><strong>Bandwidth and Slew Rate Analysis</strong></p>
 
         <div class="table-wrap">
@@ -683,12 +692,14 @@
     }
 
     function updateSlewRate() {
-        const sr = AD.num('sr-rate') * 1e6; // V/µs to V/s
+        const sr = Math.pow(10, AD.num('sr-rate')) * 1e6; // log10(V/µs) to V/s
         const vpk = AD.num('sr-vpk');
         const freq = AD.num('sr-freq') * 1000;
         const waveType = document.getElementById('sr-wave').value;
 
-        document.getElementById('sr-rate-val').textContent = (sr / 1e6).toFixed(1) + ' V/µs';
+        const rateText = (sr / 1e6).toFixed(2) + ' V/µs';
+        document.getElementById('sr-rate-val').textContent = rateText;
+        document.getElementById('sr-rate').setAttribute('aria-valuetext', rateText);
         document.getElementById('sr-vpk-val').textContent = vpk + 'V';
         document.getElementById('sr-freq-val').textContent = (freq / 1000).toFixed(0) + 'kHz';
 
@@ -704,10 +715,16 @@
         const isSlewing = requiredSR > sr;
 
         document.getElementById('sr-required').textContent = requiredSR < 1e9 ?
-            AD.fmtUnit(requiredSR, 'V/s') : '∞ (step)';
+            (requiredSR / 1e6).toFixed(2) + ' V/µs' : '∞ (ideal step)';
         document.getElementById('sr-fpbw').textContent = AD.fmtUnit(fpbw, 'Hz');
         document.getElementById('sr-status').textContent = isSlewing ? 'SLEW LIMITED' : 'Linear';
         document.getElementById('sr-status').style.color = isSlewing ? 'var(--bad)' : 'var(--ok)';
+        document.getElementById('sr-margin').textContent = waveType === 'sine' ?
+            'Available / required slew rate: ' + (sr / requiredSR).toFixed(2) +
+            '×. Below 1×, this slope-limited model cannot follow the sine.' :
+            'An ideal square edge requires infinite slew rate. The ramp time between −Vpk and +Vpk is ' +
+            (2 * vpk / sr * 1e6).toFixed(2) + ' µs; compare it with the half-period, ' +
+            (0.5 / freq * 1e6).toFixed(2) + ' µs.';
 
         plotSlewRate(sr, vpk, freq, waveType);
     }
@@ -769,6 +786,14 @@
     });
 
     updateBandwidth();
+    function setSlewExample(factor) {
+        document.getElementById('sr-wave').value = 'sine';
+        const threshold = 2 * Math.PI * AD.num('sr-freq') * 1000 * AD.num('sr-vpk') / 1e6;
+        document.getElementById('sr-rate').value = Math.max(-1, Math.min(1.7, Math.log10(threshold * factor)));
+        updateSlewRate();
+    }
+    document.getElementById('sr-limited').addEventListener('click', () => setSlewExample(0.4));
+    document.getElementById('sr-clean').addEventListener('click', () => setSlewExample(1.5));
     updateSlewRate();
     drawMillerIllustration();
 
@@ -1011,5 +1036,36 @@
                    'because knowing one tells you nothing about the others.' }
         ]
     });
+})();
+</script>
+
+<script>
+(function () {
+    (function () {
+        const host = document.getElementById('sch-build-bandwidth');
+        if (!host) return;
+        const S = AD.Schematic, s = S.create(host, { width: 700, height: 300 });
+        // PowerNetDeclaration: Circuit Toy Real Op-Amp supplies are model properties.
+        s.opamp(390, 155, { label: 'U1' });
+        s.resistor(395, 55, 'horizontal', { label: 'RF' });
+        s.wire([[445, 55], [510, 55], [510, 155]]);
+        s.wire([[455, 155], [510, 155], [580, 155]]); s.junction(510, 155);
+        s.nodeLabel(580, 155, 'out', { dx: 10, dy: 0, anchor: 'start' });
+        s.wire([[375, 140], [340, 140], [340, 55], [395, 55]]);
+        s.nodeLabel(340, 140, 'inv', { dx: -10, dy: -15, anchor: 'end' });
+        s.voltageSource(65, 195, 'vertical', { label: 'VIN' });
+        s.wire([[65, 245], [65, 270]]); s.ground(65, 270);
+
+        s.wire([[65, 195], [65, 170], [375, 170]]);
+        s.nodeLabel(140, 170, 'inp', { dy: -18 });
+        s.wire([[340, 95], [270, 95]]); s.junction(340, 95);
+        s.resistor(220, 95, 'horizontal', { label: 'R1' });
+        s.wire([[220, 95], [180, 95], [180, 120]]); s.ground(180, 120);
+
+        s.wire([[550, 155], [550, 195]]); s.junction(550, 155);
+        s.resistor(550, 195, 'vertical', { label: 'RLOAD' });
+        s.wire([[550, 245], [550, 270]]); s.ground(550, 270);
+        s.finalize();
+    })();
 })();
 </script>

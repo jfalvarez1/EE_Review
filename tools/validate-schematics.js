@@ -851,4 +851,6 @@ function main() {
   }
 }
 
-main();
+// Reuse the actual renderer and its DOM harness in focused regression gates.
+module.exports = { createLessonContext, extractScripts };
+if (require.main === module) main();
