@@ -25,7 +25,7 @@
         </div>
 
         <div class="notice">
-            <strong>Why 4-20mA?</strong> Current loops are immune to voltage drops over long cables, reject common-mode noise, and the 4mA "live zero" distinguishes zero signal from broken wire. Industry standard since the 1950s.
+            <strong>Why 4-20mA?</strong> Current remains accurate only while the transmitter has sufficient compliance voltage. Cable drop consumes that headroom; grounding, isolation and filtering still determine interference performance. The 4mA live zero can distinguish a minimum reading from an open loop.
         </div>
     </div>
 
@@ -117,7 +117,7 @@
             <tr>
                 <td>Filtering</td>
                 <td>RC 100Hz LPF</td>
-                <td>Reject 50/60Hz noise, VFD harmonics</td>
+                <td>Attenuate high-frequency pickup; a 100 Hz pole provides little mains rejection</td>
             </tr>
             <tr>
                 <td>Isolation</td>
@@ -135,7 +135,7 @@
     <div class="card">
         <h3>Error Budget Analysis</h3>
         <div style="background:#111; padding:15px; border-radius:4px; font-family:monospace; font-size:12px;">
-            <p><strong>Total Error Budget: ±0.5% = ±0.08mA</strong></p>
+            <p><strong>Target: ±0.5% of reading; at 12mA that permits ±0.06mA</strong></p>
             <table style="width:100%; color:#aaa; margin-top:10px;">
                 <tr><td>Transmitter accuracy</td><td style="text-align:right;">±0.25%</td></tr>
                 <tr><td>Sense resistor tolerance</td><td style="text-align:right;">±0.10%</td></tr>
@@ -143,7 +143,7 @@
                 <tr><td>Temperature drift</td><td style="text-align:right;">±0.08%</td></tr>
                 <tr style="border-top:1px solid #444;"><td><strong>RSS Total</strong></td><td style="text-align:right;"><strong>±0.29%</strong></td></tr>
             </table>
-            <p style="color:#4af; margin-top:10px;">✓ Meets ±0.5% requirement with margin</p>
+            <p style="color:#4af; margin-top:10px;">These illustrative independent errors omit loading; the build below does not meet the target uncalibrated. RSS is not a worst-case bound.</p>
         </div>
     </div>
 
@@ -167,8 +167,8 @@
                     <tr><td class="mono">Rcable2</td><td>Resistor</td><td>10&nbsp;&Omega;</td><td>between <span class="mono">sensor_n</span> and <span class="mono">rcv_n</span></td></tr>
                     <tr><td class="mono">Lcable2</td><td>Inductor</td><td>100&nbsp;&micro;H</td><td>between <span class="mono">rcv_n</span> and <span class="mono">rcv_n2</span></td></tr>
                     <tr><td class="mono">Itx</td><td>Current source</td><td>12&nbsp;mA DC</td><td>from <span class="mono">sensor_p2</span> to <span class="mono">sensor_n</span></td></tr>
-                    <tr><td class="mono">D1</td><td>Diode</td><td><span class="mono">Zener Diode</span></td><td>anode <span class="mono">rcv_n2</span>, cathode <span class="mono">supply</span> <em>(to the 24&nbsp;V rail &mdash; it had been going to a node nothing else touched)</em></td></tr>
-                    <tr><td class="mono">D2</td><td>Diode</td><td><span class="mono">Zener Diode</span></td><td>anode ground, cathode <span class="mono">rcv_n2</span></td></tr>
+                    <tr><td class="mono">D1</td><td>Diode</td><td>1N4148</td><td>anode <span class="mono">rcv_n2</span>, cathode <span class="mono">supply</span></td></tr>
+                    <tr><td class="mono">D2</td><td>Diode</td><td>Zener Diode, 8.2 V</td><td>anode ground, cathode <span class="mono">rcv_n2</span></td></tr>
                     <tr><td class="mono">Rprot</td><td>Resistor</td><td>100&nbsp;&Omega;</td><td>between <span class="mono">rcv_n2</span> and <span class="mono">vsense</span></td></tr>
                     <tr><td class="mono">Rsense</td><td>Resistor</td><td>250&nbsp;&Omega;</td><td>between <span class="mono">vsense</span> and ground</td></tr>
                     <tr><td class="mono">Rfilter</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">vsense</span> and <span class="mono">vfilt</span></td></tr>
@@ -181,12 +181,39 @@
 
         <p><strong>What to run:</strong> a <strong>DC operating point</strong>; then a <strong>transient run</strong> of 100&nbsp;ms in steps of 1&nbsp;ms.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(vsense)</span>, <span class="mono">V(vfilt)</span>, <span class="mono">V(rcv_n2)</span>.</p>
-        <p>12&nbsp;mA through the 250&nbsp;&Omega; shunt is <strong>3.000&nbsp;V</strong>, and the reason 250 was chosen is at the ends of the range: 4&nbsp;mA gives 1.000&nbsp;V and 20&nbsp;mA gives 5.000&nbsp;V, which lands the whole span inside a 5&nbsp;V converter with the live zero intact. <strong>That live zero is the point of 4&ndash;20&nbsp;mA</strong> &mdash; a broken wire reads 0&nbsp;mA, which is distinguishable from a genuine minimum reading, and no voltage-output sensor can make that distinction.</p>
-        <p>The filter corners at 1/(2&pi;&nbsp;&times;&nbsp;10&nbsp;k&nbsp;&times;&nbsp;160&nbsp;nF) = <strong>99.5&nbsp;Hz</strong>, just under the mains frequency it is there to reject. Note that Rfilter and Rsense are in the same current path, so the 10&nbsp;k is not free: it sees the converter's input current, and that is why Radc is in the table.</p>
+        <p>At DC, the converter model loads the shunt through Rfilter + Radc = 1.01&nbsp;M&Omega;.
+        Thus R<sub>eq</sub> = 250&nbsp;&Omega; || 1.01&nbsp;M&Omega; = 249.938&nbsp;&Omega;,
+        V(vsense) = 12&nbsp;mA &times; R<sub>eq</sub> = 2.99926&nbsp;V, and
+        V(vfilt) = V(vsense) &times; 1&nbsp;M&Omega;/1.01&nbsp;M&Omega; = 2.96956&nbsp;V.
+        <strong>The nominal ADC reading is already 1.015% low</strong> relative to 3.000&nbsp;V.
+        Calibration or a buffer is required before claiming the stated &plusmn;0.5% accuracy.</p>
+        <p>The low-frequency pole is approximately 1/[2&pi; &times;
+        ((10&nbsp;k&Omega; + 250&nbsp;&Omega;) || 1&nbsp;M&Omega;) &times; 160&nbsp;nF]
+        = 98.0&nbsp;Hz. Relative to DC this attenuates 50&nbsp;Hz by only 1.00&nbsp;dB
+        and 60&nbsp;Hz by 1.38&nbsp;dB. It is not a mains notch.</p>
+
+        <h4>Compliance and protection are separate checks</h4>
+        <p>The upper diode is now an ordinary diode; a 5.1&nbsp;V zener tied to the 24&nbsp;V
+        rail would conduct continuously and corrupt the measurement. The lower clamp is
+        explicitly 8.2&nbsp;V, above the approximately 7.0&nbsp;V receiver-terminal voltage
+        at 20&nbsp;mA. This is a nominal clamp model, not a qualified TVS design.</p>
+        <p>At 20&nbsp;mA, subtract both cable drops, Rprot and the loaded shunt drop from
+        24&nbsp;V: approximately 16.60&nbsp;V remains across the transmitter. Check this
+        against its actual minimum supply at worst-case cable resistance. An ideal current
+        source will keep forcing current even when that real transmitter would drop out.</p>
+        <p><strong>Bench acceptance:</strong> use a loop calibrator at 4, 12 and 20&nbsp;mA,
+        record both shunt and ADC voltages, and distinguish offset from gain error. Measure
+        at the ADC pins and include resistor tolerance, leakage, temperature and ADC acquisition
+        settling. The simple Radc/Cadc load is not an isolation barrier or a switched-capacitor ADC.</p>
+        <p><strong>Reference:</strong> <a href="https://www.ti.com/lit/pdf/slvaf40" target="_blank" rel="noopener">TI SLVAF40, sections 2 and 3.2</a> discusses burden-resistor stress and field miswiring.
+        A nominal 8.2&nbsp;V clamp cannot by itself protect a 5&nbsp;V ADC or survive sustained
+        24&nbsp;V miswiring; those require a separately rated protection/current-limit path.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m23l04-verified-practice"></div>
     </div>
 
     <div class="card">
@@ -425,5 +452,85 @@
     drawSchematic();
     initChecklist();
     initExercises();
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m23l04-verified-practice', { id: 'm23l04-verified-practice',
+        title: 'Separate shunt accuracy from ADC loading error',
+        intro: 'Use the corrected clamp types and the 8.2 V breakdown setting. Restore the printed 12 mA source between cases. These are nominal steady-state values, not surge, isolation or transmitter-compliance qualification.',
+        probes: [
+            { id: 'shunt',
+                label: 'Default: shunt voltage',
+                node: 'vsense',
+                dc: true,
+                expect: '2.99926',
+                unit: 'V',
+                tol: 0.002,
+                why: 'The 250 ohm shunt is loaded by 10 kohm + 1 Mohm, giving an effective 249.938 ohm.'
+            },
+            { id: 'adc',
+                label: 'Default: voltage at the ADC load',
+                node: 'vfilt',
+                dc: true,
+                expect: '2.96956',
+                unit: 'V',
+                tol: 0.002,
+                why: 'The shunt voltage is further multiplied by 1 Mohm / 1.01 Mohm.'
+            },
+            { id: 'zero',
+                label: 'Itx = 4 mA: ADC voltage',
+                node: 'vfilt',
+                dc: true,
+                expect: '0.989855',
+                unit: 'V',
+                tol: 0.002,
+                why: 'The linear loaded transfer has one third of the 12 mA output.',
+                dcValues: { Itx: '4 mA DC'
+                }
+            },
+            { id: 'full',
+                label: 'Itx = 20 mA: ADC voltage',
+                node: 'vfilt',
+                dc: true,
+                expect: '4.94927',
+                unit: 'V',
+                tol: 0.002,
+                why: 'Five thirds of the 12 mA reading; the 8.2 V input clamp stays below breakdown.',
+                dcValues: { Itx: '20 mA DC'
+                }
+            },
+            { id: 'loading',
+                label: 'Radc = 10 Mohm: ADC voltage',
+                node: 'vfilt',
+                dc: true,
+                expect: '2.99693',
+                unit: 'V',
+                tol: 0.002,
+                why: 'The smaller loading current reduces the DC error, but does not model acquisition kickback.',
+                dcValues: { Radc: '10 Mohm'
+                }
+            }
+        ],
+        experiments: [
+            { action: 'Inject 4 mA and 20 mA with Itx.',
+                expect: 'ADC readings about 0.98985 V and 4.94927 V.',
+                why: 'Both differ from the unloaded 1 V and 5 V values by the same gain error, so a two-point calibration can identify it.'
+            },
+            { action: 'Restore 12 mA and increase Radc to 10 Mohm.',
+                expect: 'ADC voltage rises to about 2.99693 V.',
+                why: 'This isolates the loading error. A buffer could address it, but its bias current, input range and acquisition settling must then enter the budget.'
+            },
+            { action: 'Inject a small 50 Hz variation in Itx around 12 mA.',
+                expect: 'Only about 1.0 dB attenuation relative to DC; at 60 Hz, about 1.38 dB.',
+                why: 'A 98 Hz pole does little to mains pickup. A mains notch or appropriate ADC digital rejection needs a separate specified design.'
+            }
+        ]
+    });
 })();
 </script>

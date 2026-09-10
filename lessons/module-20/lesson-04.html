@@ -119,25 +119,31 @@
             <tr>
                 <td>1st order</td>
                 <td>20 dB/decade</td>
-                <td>~20 dB (fc = fs/10)</td>
+                <td>14.15 dB (Butterworth, fc = fs/10)</td>
                 <td>8-10 bit ADCs</td>
             </tr>
             <tr>
                 <td>2nd order</td>
                 <td>40 dB/decade</td>
-                <td>~40 dB (fc = fs/10)</td>
+                <td>27.97 dB (Butterworth, fc = fs/10)</td>
                 <td>12 bit ADCs</td>
             </tr>
             <tr>
                 <td>4th order</td>
                 <td>80 dB/decade</td>
-                <td>~80 dB (fc = fs/10)</td>
+                <td>55.92 dB (Butterworth, fc = fs/10)</td>
                 <td>16+ bit ADCs</td>
             </tr>
         </table>
 
         <div class="warn">
-            <strong>Rule of Thumb:</strong> For an N-bit ADC, the anti-alias filter should provide at least 6×N dB attenuation at f<sub>s</sub>/2. For a 12-bit ADC, that's 72dB minimum.
+            <strong>Set an alias-error budget:</strong> required attenuation is
+            20 log<sub>10</sub>(unfiltered interferer amplitude / allowed alias amplitude),
+            at each frequency that folds into the measurement band. Resolution alone does not
+            specify either amplitude. The calculator below assumes a full-scale sine interferer
+            (V<sub>ref</sub>/2 peak) and allows half an LSB, giving 6.0206N&nbsp;dB.
+            Change that budget for the actual interferers and noise; also check passband loss.
+            <a href="https://www.analog.com/en/resources/technical-articles/guide-to-antialiasing-filter-basics.html" target="_blank" rel="noopener">Analog Devices, Filter Basics: Anti-Aliasing</a>.
         </div>
     </div>
 
@@ -180,7 +186,7 @@
                 <tbody>
                     <tr><td class="mono">VIN</td><td>Voltage source</td><td>sine 50&nbsp;mV amplitude at 1&nbsp;kHz</td><td>from <span class="mono">input</span> to <span class="mono">vmid</span></td></tr>
                     <tr><td class="mono">U1</td><td>Op-amp</td><td><span class="mono">Op-Amp</span></td><td>+ input <span class="mono">input</span>, &minus; input <span class="mono">fb</span>, output <span class="mono">amp_out</span></td></tr>
-                    <tr><td class="mono">RF1</td><td>Resistor</td><td>32&nbsp;k&Omega;</td><td>between <span class="mono">amp_out</span> and <span class="mono">fb</span></td></tr>
+                    <tr><td class="mono">RF1</td><td>Resistor</td><td>27&nbsp;k&Omega;</td><td>between <span class="mono">amp_out</span> and <span class="mono">fb</span></td></tr>
                     <tr><td class="mono">RG1</td><td>Resistor</td><td>1&nbsp;k&Omega;</td><td>between <span class="mono">fb</span> and <span class="mono">vmid</span></td></tr>
                     <tr><td class="mono">VMID</td><td>Voltage source</td><td>1.65&nbsp;V DC</td><td>from <span class="mono">vmid</span> to ground</td></tr>
                     <tr><td class="mono">R1</td><td>Resistor</td><td>1.59&nbsp;k&Omega;</td><td>between <span class="mono">amp_out</span> and <span class="mono">node1</span></td></tr>
@@ -199,9 +205,31 @@
         <p><strong>What to run:</strong> a <strong>transient run</strong> of 5&nbsp;ms in steps of 10&nbsp;&micro;s.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(input)</span>, <span class="mono">V(amp_out)</span>, <span class="mono">V(filt_out)</span>.</p>
 
+        <h4>A numerical acceptance contract</h4>
+        <p>U1 now has gain 1 + 27&nbsp;k&Omega;/1&nbsp;k&Omega; = <strong>28</strong>.
+        The 50&nbsp;mV peak input becomes 1.40&nbsp;V peak about 1.65&nbsp;V, leaving nominal
+        0.25&nbsp;V margins to a 0&ndash;3.3&nbsp;V range. Those margins are a design target;
+        check the selected amplifier&rsquo;s input common-mode and loaded output-swing limits.</p>
+        <p>For this equal-R, equal-C unity-gain Sallen-Key stage, Q = 1/(3 &minus; 1) = 0.5
+        and f<sub>0</sub> = 1/(2&pi;RC) = 10.01&nbsp;kHz. Its response is
+        H(s) = 1/(1 + sRC)&sup2;, so f<sub>&minus;3dB</sub> is only
+        0.644f<sub>0</sub>, about <strong>6.44&nbsp;kHz</strong>. It is not the Butterworth
+        example used by the general calculator. At 1&nbsp;kHz the expected output is
+        1.40/[1 + (2&pi;fRC)&sup2;] = 1.386&nbsp;V peak.</p>
+        <p><strong>Bench acceptance:</strong> verify the 1.65&nbsp;V bias first; then measure
+        amplitude and phase across both stages. Inject an out-of-band tone of known amplitude
+        and inspect the acquired ADC spectrum at its alias frequency. The build contains no
+        sampling capacitor, acquisition timing, op-amp rails or settling model, so it cannot
+        establish ADC accuracy, rail compliance or clamp survival. Rail diodes also require
+        current limiting and a supply that can accept their current.</p>
+        <p><strong>Reference:</strong> <a href="https://www.ti.com/lit/an/sloa024b/sloa024b.pdf" target="_blank" rel="noopener">TI SLOA024B, sections 3.4 and 3.5</a> supplies the Sallen-Key equations and
+        explains where finite amplifier bandwidth changes the response.</p>
+
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m20l04-verified-practice"></div>
     </div>
 
     <div class="card">
@@ -242,7 +270,7 @@
 
         // Attenuation at Nyquist (assuming Butterworth response)
         // H(f) = 1 / sqrt(1 + (f/fc)^(2n))
-        const attenDb = 10 * order * Math.log10(1 + Math.pow(fnyquist / fc, 2));
+        const attenDb = 10 * Math.log10(1 + Math.pow(fnyquist / fc, 2 * order));
 
         document.getElementById('adc-gain').textContent = gain.toFixed(1) + '×';
         document.getElementById('adc-lsb').textContent = AD.fmtUnit(lsb, 'V');
@@ -251,7 +279,7 @@
 
         // Check if attenuation is sufficient
         const aliasEl = document.getElementById('adc-alias');
-        const requiredAtten = 6 * bits;
+        const requiredAtten = 20 * Math.log10(2) * bits;
         if (attenDb >= requiredAtten) {
             aliasEl.style.color = 'var(--ok)';
         } else if (attenDb >= requiredAtten * 0.7) {
@@ -296,7 +324,7 @@
             fData.push(logF);
 
             // Butterworth magnitude response
-            const mag = -10 * order * Math.log10(1 + Math.pow(f / fc, 2));
+            const mag = -10 * Math.log10(1 + Math.pow(f / fc, 2 * order));
             magData.push(mag);
         }
 
@@ -368,7 +396,7 @@
         ctx.restore();
 
         // Draw required attenuation line
-        const requiredAtten = -6 * bits;
+        const requiredAtten = -20 * Math.log10(2) * bits;
         if (requiredAtten > -100) {
             ctx.save();
             ctx.strokeStyle = 'rgba(251, 113, 133, 0.5)';
@@ -412,7 +440,7 @@
         lessonKey: 'm20l4',
         items: [
             'Calculate gain to fill ADC range (80%)',
-            'Know filter attenuation ≥ 6N dB at fs/2',
+            'Specify interferer amplitude and allowed alias error before choosing attenuation',
             'Set filter fc ≤ 0.4 × fs for margin',
             'Add input protection (clamp to Vref, GND)',
             'Consider level shift for bipolar signals'
@@ -422,13 +450,13 @@
     new ExerciseWidget('exercise-container', {
         id: 'M4-4',
         type: 'numeric',
-        question: 'A 16-bit ADC samples at 1 MHz. What minimum attenuation (dB) should the anti-alias filter provide at 500 kHz?',
-        hint: 'Required attenuation ≥ 6 × N bits',
-        expected: 96,
+        question: 'A 16-bit ADC sees a full-scale sine interferer at 500 kHz. If the allowed alias is half an LSB, what attenuation (dB) is required at that frequency?',
+        hint: 'Use 20 log10[(Vref/2)/(Vref/(2 × 2^16))].',
+        expected: 96.33,
         tolerance: 0.05,
         unit: 'dB',
-        solution: 'Minimum attenuation = 6 × 16 = 96 dB',
-        explanation: 'A 16-bit ADC has 96dB dynamic range. The anti-alias filter must attenuate out-of-band signals below the noise floor to prevent aliasing errors.'
+        solution: '20 log10(2^16) = 96.33 dB for the stated amplitudes.',
+        explanation: 'This is a peak alias-error budget for a specified interferer, not a universal ADC requirement or a noise-floor prediction.'
     });
 })();
 
@@ -523,8 +551,86 @@
     ctx.font = '10px monospace';
     ctx.fillStyle = '#e6edf3';
     ctx.fillText('1. Set gain to fill ADC input range (leave 10% margin)', 30, 200);
-    ctx.fillText('2. Choose filter fc ≤ 0.4 × fs for adequate attenuation', 30, 218);
+    ctx.fillText('2. Set stopband loss from interferer and alias budget', 30, 218);
     ctx.fillText('3. Add input protection (ESD clamps)', 30, 236);
     ctx.fillText('4. Consider offset adjustment if signal is AC-coupled', 30, 254);
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m20l04-verified-practice', { id: 'm20l04-verified-practice',
+        title: 'Verify bias, gain and the actual filter corner',
+        intro: 'The printed sine source has zero DC voltage relative to vmid. Restore it after the two DC injection tests. The AC checks use the stated 50 mV peak amplitude and ideal amplifiers; they do not test clipping, ADC acquisition or a real amplifier bandwidth.',
+        probes: [
+            { id: 'bias',
+                label: 'Default: filtered DC bias',
+                node: 'filt_out',
+                dc: true,
+                expect: '1.65',
+                unit: 'V',
+                tol: 0.001,
+                why: 'Both stages pass the 1.65 V reference at DC; the input sine has zero mean relative to vmid.'
+            },
+            { id: 'positive',
+                label: 'VIN = +40 mV DC relative to vmid',
+                node: 'filt_out',
+                dc: true,
+                expect: '2.77',
+                unit: 'V',
+                tol: 0.002,
+                why: '1.65 + 28 times 0.040 = 2.77 V.',
+                dcValues: { VIN: '40 mV DC'
+                }
+            },
+            { id: 'negative',
+                label: 'VIN = -40 mV DC relative to vmid',
+                node: 'filt_out',
+                dc: true,
+                expect: '0.53',
+                unit: 'V',
+                tol: 0.002,
+                why: '1.65 - 28 times 0.040 = 0.53 V.',
+                dcValues: { VIN: '-40 mV DC'
+                }
+            },
+            { id: 'amplitude',
+                label: 'Default sine: output amplitude at 1 kHz',
+                acNode: 'filt_out',
+                acAt: 1000,
+                expect: '1.38617',
+                unit: 'V peak',
+                tol: 0.002,
+                why: '1.4 / [1 + (2 pi times 1000 times 1590 times 10 nF)^2].'
+            },
+            { id: 'corner',
+                label: 'Output -3 dB frequency relative to low frequency',
+                acNode: 'filt_out',
+                acCorner: 1,
+                expect: '6.4422',
+                unit: 'kHz',
+                tol: 0.02,
+                why: 'The equal-component unity-gain stage has Q = 0.5, so f3dB = sqrt(sqrt(2)-1)/(2 pi RC).'
+            }
+        ],
+        experiments: [
+            { action: 'Replace the sine with +40 mV DC, then -40 mV DC, still referenced to vmid.',
+                expect: 'Outputs 2.770 V and 0.530 V respectively.',
+                why: 'This separates sign, gain and reference errors before investigating a waveform.'
+            },
+            { action: 'Restore the sine and replace RF1 with 10 kohm.',
+                expect: 'Gain becomes 11; output at 1 kHz is about 0.5446 V peak around the same bias.',
+                why: 'The gain-setting pair does not set the filter pole. A large bias shift points to reference wiring.'
+            },
+            { action: 'Attach a 10 kohm load from filt_out to ground.',
+                expect: 'The ideal model keeps the waveform unchanged; the DC load current is 165 uA.',
+                why: 'Then select a real amplifier and repeat its loaded swing and settling checks. A rail-less ideal source cannot validate that selection.'
+            }
+        ]
+    });
 })();
 </script>

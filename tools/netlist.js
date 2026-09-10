@@ -162,6 +162,12 @@ function modelFor(value, what) {
             out = Object.assign({}, out, { lambda: parseFloat(lam[1]) });
             name += ' lambda=' + parseFloat(lam[1]);
         }
+        // A protection threshold is an authored value, not a library default.
+        const bv = /\b(?:BV\s*=?\s*)?(\d+(?:\.\d+)?)\s*V\b/i.exec(value);
+        if (k === 'ZENER' && bv) {
+            out = Object.assign({}, out, { BV: parseFloat(bv[1]) });
+            name += ' BV=' + out.BV;
+        }
         return { name, m: out };
     }
     return null;

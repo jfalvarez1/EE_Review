@@ -25,6 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const N = require('./netlist');
+const DC = require('./sim-dc-case');
 
 const ROOT = path.dirname(__dirname);
 const LESSONS = path.join(ROOT, 'lessons');
@@ -96,7 +97,8 @@ function verifiedValues(src) {
             id: id[1],
             label: label ? strip(label[1]) : '',
             verified: checked,
-            kind: dc ? 'dc' : (acNode ? (acAt ? 'gain-at-frequency' : 'corner-frequency') : 'stated'),
+            kind: dc ? (DC.overrides(chunk) ? 'dc-variant' : 'dc') : (acNode ? (acAt ? 'gain-at-frequency' : 'corner-frequency') : 'stated'),
+            dcValues: DC.overrides(chunk) || undefined,
             node: dc ? (node ? node[1] : null) : (acNode ? acNode[1] : (node ? node[1] : null)),
             atHz: acAt ? parseFloat(acAt[1]) : undefined,
             corner: acCorner ? parseInt(acCorner[1], 10) : undefined,

@@ -146,12 +146,32 @@
             </table>
         </div>
 
-        <p><strong>What to run:</strong> a <strong>DC sweep</strong> of <span class="mono">VIN</span> from 0&nbsp; to 5&nbsp;.</p>
+        <p><strong>What to run:</strong> a <strong>DC sweep</strong> of <span class="mono">VIN</span> from 0&nbsp;V to 5&nbsp;V.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(coll)</span>, <span class="mono">I(RC)</span>, <span class="mono">V(base)</span>.</p>
+
+        <h4>Predict, measure, diagnose</h4>
+        <p>The 100&nbsp;k&Omega; base resistor is deliberately weak drive. At VIN = 5&nbsp;V,
+        a 0.7&nbsp;V first estimate gives I<sub>B</sub> = 43&nbsp;&micro;A; with the
+        course model&rsquo;s &beta; = 200 that requests 8.6&nbsp;mA, below the
+        12&nbsp;mA load-line intercept. <strong>This sweep does not have to reach saturation.</strong>
+        Then hold VIN at 5&nbsp;V and replace RB with 3.3&nbsp;k&Omega; to supply about
+        1.3&nbsp;mA of base drive. Measure both V<sub>BE</sub> and V<sub>BC</sub>:
+        an NPN in saturation has both junctions forward biased.</p>
+        <p><strong>Bench acceptance:</strong> record VIN, V(base) and V(coll), then calculate
+        I<sub>B</sub> = (VIN &minus; V(base))/RB and I<sub>C</sub> = (12 &minus; V(coll))/RC.
+        Compare the measured I<sub>C</sub>/I<sub>B</sub> with the active-region gain;
+        do not infer saturation from a universal 0.2&nbsp;V threshold. Verify the actual
+        package pinout before wiring. The tight checks below apply to the declared course
+        model; transistor spread, Early effect, charge storage and temperature are outside it.</p>
+        <p><strong>Reference:</strong> <a href="https://www.onsemi.com/download/data-sheet/pdf/2n2222a-d.pdf" target="_blank" rel="noopener">onsemi 2N2222A/D, electrical characteristics and package drawing</a>.
+        Its 0.3&nbsp;V maximum V<sub>CE(sat)</sub> is specified at 150&nbsp;mA collector current
+        and 15&nbsp;mA base current; it is not a guaranteed voltage at this lab&rsquo;s 12&nbsp;mA.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m12l11-verified-practice"></div>
     </div>
 
     <div class="card">
@@ -533,6 +553,78 @@
         unit: 'mA',
         solution: 'IC = (5V - 0.2V) / 1kΩ = 4.8mA',
         explanation: 'In saturation, the transistor acts like a closed switch with ~0.2V drop. The current is determined by the load, not by β×IB.'
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m12l11-verified-practice', { id: 'm12l11-verified-practice',
+        title: 'Identify the region from measured junction voltages',
+        intro: 'Use the build as printed for the first row. For later rows make exactly the changes in the label, restoring the build before each case. Tolerances check the declared course model; a real device is judged by the junction polarities and measured currents explained above.',
+        probes: [
+            { id: 'off',
+                label: 'Default: collector with VIN = 0 V',
+                node: 'coll',
+                dc: true,
+                expect: '12',
+                unit: 'V',
+                tol: 0.01,
+                why: 'With no base drive, RC has negligible voltage drop.'
+            },
+            { id: 'active',
+                label: 'VIN = 5 V: collector, with RB still 100 kohm',
+                node: 'coll',
+                dc: true,
+                expect: '3.40342',
+                unit: 'V',
+                tol: 0.02,
+                why: 'The model gives VBE = 0.70171 V; IB = (5 - 0.70171)/100k and IC = 200 IB. Subtract IC times 1k from 12 V.',
+                dcValues: { VIN: '5 V DC'
+                }
+            },
+            { id: 'base',
+                label: 'VIN = 5 V: base',
+                node: 'base',
+                dc: true,
+                expect: '0.70171',
+                unit: 'V',
+                tol: 0.01,
+                why: 'This is the junction voltage of the declared Is = 1.4e-14 A, BF = 200 model, not a fixed silicon turn-on threshold.',
+                dcValues: { VIN: '5 V DC'
+                }
+            },
+            { id: 'sat',
+                label: 'VIN = 5 V and RB = 3.3 kohm: collector',
+                node: 'coll',
+                dc: true,
+                expect: '0.03956',
+                unit: 'V',
+                tol: 0.01,
+                why: 'IB is about 1.30 mA; the load limits IC to about 11.96 mA. The forward-biased base-collector junction makes IC = beta IB invalid.',
+                dcValues: { VIN: '5 V DC',
+                    RB: '3.3 kohm'
+                }
+            }
+        ],
+        experiments: [
+            { action: 'Inject 5 V DC at VIN, retaining the 100 kohm RB.',
+                expect: 'Collector near 3.403 V in this model, still above the base; the NPN remains active.',
+                why: 'A 0-to-5 V sweep with weak base drive need not enter saturation. A collector stuck near 12 V instead suggests absent drive, a wrong pinout or an open base path.'
+            },
+            { action: 'At VIN = 5 V, replace RB with 3.3 kohm.',
+                expect: 'Collector near 0.040 V in this model; VBC is positive.',
+                why: 'The resistor now supplies enough current to drive both junctions forward. Record the actual bench VCE and compare with the datasheet at the applicable currents.'
+            },
+            { action: 'Restore RB = 100 kohm and VIN = 5 V, then reduce RC to 500 ohm.',
+                expect: 'Hand estimate: collector near 7.70 V if IC remains about 8.6 mA.',
+                why: 'The model has no Early effect. A real collector-current change with VCE is useful evidence of finite output resistance; a DC test says nothing about switching storage time.'
+            }
+        ]
     });
 })();
 </script>

@@ -163,9 +163,9 @@ Soft Start Resistor (RC timing):
     Tss ≈ 3 × Rss × Css
     (time to reach ~95% of final value)
 
-Power Dissipation (series R method):
-    P_dissipated = 0.5 × Cout × Vout²
-    All capacitor charging energy lost in R!
+Energy Dissipated (series R, initially uncharged capacitor, no load):
+    E_dissipated = 0.5 × Cout × Vout²
+    Units are joules; average power also requires a charging interval.
 
 Active Soft Start (current limit mode):
     Tss = Cout × Vout / Ilimit
@@ -193,7 +193,7 @@ Active Soft Start (current limit mode):
                 <tbody>
                                         <tr><td class="mono">Iss</td><td>Current source</td><td>10&nbsp;&micro;A</td><td>from ground to <span class="mono">ss</span></td></tr>
                     <tr><td class="mono">Css</td><td>Capacitor</td><td>100&nbsp;nF</td><td>between <span class="mono">ss</span> and ground</td></tr>
-                    <tr><td class="mono">Dclamp</td><td>Diode</td><td><span class="mono">Diode</span></td><td>anode <span class="mono">ss</span>, cathode <span class="mono">ref</span></td></tr>
+                    <tr><td class="mono">Dclamp</td><td>Diode</td><td>1N4148</td><td>anode <span class="mono">ss</span>, cathode <span class="mono">ref</span></td></tr>
                     <tr><td class="mono">Vref</td><td>Voltage source</td><td>1.25&nbsp;V DC</td><td>from <span class="mono">ref</span> to ground</td></tr>
                     <tr><td class="mono">Eamp</td><td>Controlled source</td><td>1</td><td>output <span class="mono">ctrl</span> to ground, sensing <span class="mono">ss</span> to ground</td></tr>
                     <tr><td class="mono">Eduty</td><td>VCVS</td><td>gain 0.4 &mdash; D = 0.4&nbsp;&times;&nbsp;V(ctrl)</td><td>output <span class="mono">duty</span> to ground, sensing <span class="mono">ctrl</span> to ground</td></tr>
@@ -208,12 +208,36 @@ Active Soft Start (current limit mode):
 
         <p><strong>What to run:</strong> a <strong>transient run</strong> of 30&nbsp;ms in steps of 10&nbsp;&micro;s.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(out)</span>, <span class="mono">V(ss)</span>, <span class="mono">V(duty)</span>, <span class="mono">I(L1)</span>.</p>
-        <p>V(ss) ramps at I<sub>ss</sub>/C<sub>ss</sub> = 10&nbsp;&micro;A/100&nbsp;nF = <strong>100&nbsp;V/s</strong> and stops at V<sub>ref</sub> plus a diode drop, 1.95&nbsp;V, after 19.5&nbsp;ms. Everything downstream is proportional, so V(out) ramps at 12&nbsp;&times;&nbsp;0.4&nbsp;&times;&nbsp;100 = <strong>480&nbsp;V/s</strong> and settles at 9.36&nbsp;V.</p>
-        <p>The number that justifies the circuit is I(L1) during the ramp. Charging 1&nbsp;mF of output capacitance takes C&nbsp;&times;&nbsp;dV/dt = <strong>0.48&nbsp;A</strong>, on top of the 1.87&nbsp;A the load eventually draws. Remove the soft start &mdash; step V(ss) straight to 1.95&nbsp;V &mdash; and that same capacitor is charged by whatever the inductor and the supply can deliver, which is tens of amps. <strong>Soft start is a current limit you get by controlling dV/dt</strong>, and the two are the same statement: I = C&nbsp;dV/dt, so choosing a ramp rate <em>is</em> choosing an inrush current.</p>
+        <p>Before the clamp conducts appreciably, dV(ss)/dt = 10&nbsp;&micro;A/100&nbsp;nF
+        = <strong>100&nbsp;V/s</strong>. The averaged stage multiplies this by 12 &times; 0.4,
+        giving a commanded 480&nbsp;V/s output ramp. A following 1&nbsp;mF capacitor requires
+        <strong>0.48&nbsp;A of charging current</strong>, in addition to V(out)/5&nbsp;&Omega;
+        the LC startup dynamics can add excursions.</p>
+        <p>The endpoint is not a fixed 0.7&nbsp;V diode drop. This course&rsquo;s simplified
+        1N4148 model uses I<sub>S</sub> = 2.52&nbsp;nA, n = 1.752 and V<sub>T</sub> = 25.852&nbsp;mV.
+        At 10&nbsp;&micro;A, V<sub>D</sub> = nV<sub>T</sub> ln(1 + I/I<sub>S</sub>) is about
+        0.375&nbsp;V. Therefore V(ss) settles near 1.625&nbsp;V and V(out) near 7.802&nbsp;V.
+        These are calculated model results, not measured 1N4148 specifications.</p>
+
+        <h4>Where the model stops</h4>
+        <p>This is an <strong>open-loop averaged ramp demonstrator</strong>. It has no output-error
+        feedback, duty clamp, switch losses, current-limit loop, or thermal model. A shorted
+        output is not protected merely because the commanded ramp is slow. The DC checks
+        establish endpoints only; measure startup with initially discharged capacitors and
+        halve the time step until the recorded peak and rise time stop changing materially.</p>
+        <p><strong>Bench transfer:</strong> capture output voltage and inductor current together.
+        Calculate C<sub>out</sub>dV/dt and subtract the load current before comparing the charging
+        component. Repeat at the intended maximum load and input voltage. For a real controller,
+        use its SS threshold and charging-current limits to calculate capacitor tolerance effects.</p>
+        <p><strong>Reference:</strong> <a href="https://www.ti.com/lit/ds/symlink/tps54331.pdf" target="_blank" rel="noopener">TI TPS54331, section 7.3.5</a> explains a real reference-limited soft start.
+        That device uses the lower of the SS voltage and internal reference; the diode-clamped
+        circuit here is an educational example, not its macromodel.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m14l08-verified-practice"></div>
     </div>
 
     <div class="card">
@@ -566,5 +590,74 @@ Active Soft Start (current limit mode):
     drawSchematic();
     initChecklist();
     initExercises();
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m14l08-verified-practice', { id: 'm14l08-verified-practice',
+        title: 'Check the clamp endpoint before judging the ramp',
+        intro: 'Run a DC operating point with the listed 1N4148 model. The endpoint tolerances are numerical model checks. Ramp slope, overshoot and peak inductor current require a transient run and are not certified by these DC rows.',
+        probes: [
+            { id: 'ss',
+                label: 'Default: soft-start node',
+                node: 'ss',
+                dc: true,
+                expect: '1.62531',
+                unit: 'V',
+                tol: 0.002,
+                why: 'Vref + n VT ln(1 + Iss/Is), with Iss = 10 uA, Is = 2.52 nA and n = 1.752.'
+            },
+            { id: 'out',
+                label: 'Default: output after settling',
+                node: 'out',
+                dc: true,
+                expect: '7.80149',
+                unit: 'V',
+                tol: 0.01,
+                why: 'The open-loop gain is 12 times 0.4 = 4.8; the ideal inductor has zero DC drop.'
+            },
+            { id: 'load',
+                label: 'Rload = 2.5 ohm: settled output',
+                node: 'out',
+                dc: true,
+                expect: '7.80149',
+                unit: 'V',
+                tol: 0.01,
+                why: 'The ideal controlled source maintains the same voltage while load current doubles. It has no current or power limit.',
+                dcValues: { Rload: '2.5 ohm'
+                }
+            },
+            { id: 'iss',
+                label: 'Iss = 20 uA: settled output',
+                node: 'out',
+                dc: true,
+                expect: '7.95216',
+                unit: 'V',
+                tol: 0.01,
+                why: 'Doubling diode current increases the clamp by approximately n VT ln(2); multiplying by 4.8 increases output by about 151 mV.',
+                dcValues: { Iss: '20 uA'
+                }
+            }
+        ],
+        experiments: [
+            { action: 'Halve Rload to 2.5 ohm.',
+                expect: 'Settled voltage remains about 7.801 V, while load current rises from 1.56 A to 3.12 A.',
+                why: 'This exposes the unlimited source: a real converter may current-limit, droop or overheat. Add its actual limits before predicting fault behavior.'
+            },
+            { action: 'Restore the load and double Iss to 20 uA.',
+                expect: 'The unclamped command slope doubles; the settled output becomes about 7.952 V.',
+                why: 'This circuit changes both ramp rate and clamp voltage. An actual reference-limited controller need not change its final output.'
+            },
+            { action: 'Restore Iss and double Css to 200 nF; start both capacitors discharged.',
+                expect: 'The initial SS slope halves to 50 V/s; the commanded charging current halves to 0.24 A. The DC endpoint is unchanged.',
+                why: 'These are I/C and C dV/dt predictions. Record transient deviations caused by the LC response instead of treating an endpoint check as proof of the waveform.'
+            }
+        ]
+    });
 })();
 </script>

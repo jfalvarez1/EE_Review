@@ -397,7 +397,7 @@
             '<div class="sc-head">' +
                 '<span class="sc-tag">Verify it</span>' +
                 '<h4 class="sc-title">' + esc(o.title || 'Check your simulation') + '</h4>' +
-                (st.passed ? '<span class="sc-badge">Verified</span>' : '') +
+                (st.passed ? '<span class="sc-badge">Checks matched</span>' : '') +
             '</div>' +
             (o.intro ? '<div class="sc-intro">' + o.intro + '</div>' : '') +
             (probeRows
@@ -496,25 +496,27 @@
         if (!bad.length) {
             var judged = filled.filter(function (r) { return r.state === 'ok'; }).length;
             var noted = filled.length - judged;
-            box.innerHTML = '<div class="sc-msg sc-pass"><strong>Your build matches.</strong> ' +
+            box.innerHTML = '<div class="sc-msg sc-pass"><strong>Entered measurements are within tolerance.</strong> ' +
                 judged + ' of ' + (o.probes || []).filter(function (p) { return !p.record; }).length +
                 ' checked measurements are within tolerance' +
                 (noted ? ' (plus ' + noted + ' recorded, not judged)' : '') +
-                ', so the circuit on your screen is the circuit this lesson ' +
-                'describes. Now go and perturb it.</div>';
+                '. This checks the listed values under the stated model and run conditions; ' +
+                'matching numbers do not establish behavior outside these checks. ' +
+                'Complete any remaining rows, then try the perturbations.</div>';
             return;
         }
 
         box.innerHTML = '<div class="sc-msg sc-fail"><strong>' + bad.length +
             ' measurement' + (bad.length === 1 ? ' does' : 's do') + ' not match.</strong> ' +
-            'That means the build differs from the one described — a value, a ' +
-            'connection, or the run settings. Each one below says what it should be ' +
-            'and why.</div>' +
+            'Compare the model parameters, run settings, component values and connections. ' +
+            'A difference does not by itself identify a wiring fault. The reference ' +
+            'values and their derivations follow.</div>' +
             '<ul class="sc-diffs">' + bad.map(function (r) {
                 var off = r.want !== 0 ? ((r.got - r.want) / Math.abs(r.want) * 100) : 0;
                 return '<li><strong>' + r.label + '</strong>: you have ' +
                        r.got + ' ' + esc(r.unit) + ', it should be ' + r.want + ' ' +
-                       esc(r.unit) + ' (' + (off > 0 ? '+' : '') + off.toFixed(0) + '%)' +
+                       esc(r.unit) + (r.want !== 0 ? ' (' + (off > 0 ? '+' : '') + off.toFixed(0) + '%)' :
+                           ' (difference ' + (r.got > 0 ? '+' : '') + r.got + ' ' + esc(r.unit) + ')') +
                        (r.why ? '<div class="sc-diff-why">' + r.why + '</div>' : '') +
                        '</li>';
             }).join('') + '</ul>';

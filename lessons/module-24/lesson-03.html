@@ -49,6 +49,7 @@
             </div>
         </div>
 
+        <p>Calculator model: an ideal controller drives the stated output ramp into a fixed 24&nbsp;&Omega; load, subject to the selected total current limit. Source resistance for the initial-current estimate is an assumed 0.1&nbsp;&Omega;. Device voltage drops and thermal behavior are omitted.</p>
         <div class="canvas-wrap">
             <canvas id="hs-canvas" width="980" height="300"></canvas>
         </div>
@@ -63,7 +64,7 @@
                 <div class="v mono" id="hs-tstartup">—</div>
             </div>
             <div class="box">
-                <div class="k">FET SOA Check</div>
+                <div class="k">Stored energy / SOA</div>
                 <div class="v mono" id="hs-soa">—</div>
             </div>
         </div>
@@ -112,7 +113,7 @@
         from the table below. Node names are just labels &mdash; anything
         sharing a name is one wire.</p>
 
-        <p><strong>Hot-Swap Controller</strong></p>
+        <p><strong>Gate-RC turn-on: find the missing current-limit loop</strong></p>
 
         <div class="table-wrap">
             <table>
@@ -120,7 +121,10 @@
                 <tbody>
                     <tr><td class="mono">VIN</td><td>Voltage source</td><td>12&nbsp;V DC</td><td>from <span class="mono">in</span> to ground</td></tr>
                     <tr><td class="mono">RSENSE</td><td>Resistor</td><td>10&nbsp;m&Omega;</td><td>between <span class="mono">in</span> and <span class="mono">sense</span></td></tr>
-                    <tr><td class="mono">M1</td><td>Transistor (MOSFET)</td><td><span class="mono">NMOS</span></td><td>drain <span class="mono">sense</span>, gate <span class="mono">gate</span>, source <span class="mono">out</span></td></tr>
+                    <tr><td class="mono">M1</td><td>Transistor (MOSFET)</td><td>NMOS, W/L = 10000</td><td>drain <span class="mono">sense</span>, gate <span class="mono">gate</span>, source <span class="mono">out</span></td></tr>
+                    <tr><td class="mono">VDRIVE</td><td>Voltage source</td><td>10 V DC</td><td>from <span class="mono">drive</span> to <span class="mono">out</span></td></tr>
+                    <tr><td class="mono">RGATE</td><td>Resistor</td><td>100 kohm</td><td>between <span class="mono">drive</span> and <span class="mono">gate</span></td></tr>
+                    <tr><td class="mono">CGATE</td><td>Capacitor</td><td>100 nF</td><td>between <span class="mono">gate</span> and <span class="mono">out</span></td></tr>
                     <tr><td class="mono">COUT</td><td>Capacitor</td><td>1&nbsp;mF</td><td>between <span class="mono">out</span> and ground</td></tr>
                     <tr><td class="mono">RLOAD</td><td>Resistor</td><td>24&nbsp;&Omega;</td><td>between <span class="mono">out</span> and ground</td></tr>
                 </tbody>
@@ -130,9 +134,35 @@
         <p><strong>What to run:</strong> a <strong>transient run</strong> of 50&nbsp;ms in steps of 1&nbsp;&micro;s.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(out)</span>, <span class="mono">I(RSENSE)</span>, <span class="mono">V(gate)</span>.</p>
 
+        <h4>Startup control is not fault protection</h4>
+        <p>VDRIVE represents an ideal floating gate supply, 10&nbsp;V above the source.
+        RGATE and CGATE set a 10&nbsp;ms gate-to-source time constant. Start a transient with
+        both capacitors discharged; a simulator&rsquo;s precomputed DC state starts fully on
+        and hides inrush. The W/L = 10000 generic uses K<sub>p</sub> = 110&nbsp;&micro;A/V&sup2;,
+        V<sub>th</sub> = 0.7&nbsp;V and &lambda; = 0.04&nbsp;V<sup>&minus;1</sup>.</p>
+        <p><strong>RSENSE only measures current.</strong> Nothing in this table feeds its
+        voltage back to the gate, so it cannot enforce a 2&nbsp;A limit. The gate RC does not
+        guarantee a linear output ramp either. Record peak V(in,sense)/10&nbsp;m&Omega; and
+        10&ndash;90% output rise time; repeat with half the transient step. A nonlinear
+        transient solver is required for these readings; the DC checks below establish only
+        the fully-on and disabled conditions.</p>
+        <p>For a hypothetical linear 0&ndash;12&nbsp;V output ramp in 10&nbsp;ms, a 1&nbsp;mF
+        capacitor needs 1.2&nbsp;A. The 24&nbsp;&Omega; load adds up to 0.5&nbsp;A, so a
+        controller needs at least 1.7&nbsp;A just before ramp completion. This calculation
+        specifies a controller requirement; it does not predict this RC gate waveform.</p>
+        <p><strong>Bench acceptance:</strong> measure V<sub>DS</sub>, shunt voltage and
+        V<sub>GS</sub> together during startup. Compare the resulting current/voltage/time
+        trajectory with the chosen MOSFET&rsquo;s SOA curve at the intended temperature.
+        Capacitor energy alone cannot certify SOA. A real controller also needs a fault timer,
+        current or power limiting, and evaluated start-into-short and hot-short behavior.</p>
+        <p><strong>Reference:</strong> <a href="https://www.ti.com/lit/ds/symlink/lm5069.pdf" target="_blank" rel="noopener">TI LM5069, sections 9.1 and 9.2.1.2</a> describes those design checks.
+        This lab is a deliberately incomplete gate-drive experiment, not an LM5069 implementation.</p>
+
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m24l03-verified-practice"></div>
     </div>
 
     <div class="card">
@@ -165,37 +195,28 @@
         const rsource = 0.1;
         const inrush = vin / rsource;
 
-        // Controlled startup time (at current limit)
-        // t = C × V / I
-        const tstartup = cout * vin / ilim;
-
-        // SOA check (simplified: FET dissipates P = VDS × I during ramp)
-        // Average VDS ≈ VIN/2, Average I = ILIM
-        const pAvg = (vin / 2) * ilim;
-        const energyDissipated = pAvg * tstartup;
-
-        document.getElementById('hs-inrush').textContent = AD.fmtUnit(inrush, 'A') + ' (!)';
-        document.getElementById('hs-tstartup').textContent = AD.fmtUnit(tstartup, 's');
-
+        // C dV/dt = I_limit - V/R after the current limit takes over.
+        const rload = 24;
+        const slew = vin / tstart;
+        const transition = Math.max(0, Math.min(vin, (ilim - cout * slew) * rload));
+        const tlinear = transition / slew;
+        const stalled = ilim * rload <= vin;
+        const tstartup = stalled ? Infinity : (transition >= vin ? tstart :
+            tlinear + rload * cout * Math.log((ilim * rload - transition) / (ilim * rload - vin)));
+        document.getElementById('hs-inrush').textContent = AD.fmtUnit(inrush, 'A');
+        document.getElementById('hs-tstartup').textContent = stalled ?
+            'Cannot reach target with this load' : AD.fmtUnit(tstartup, 's');
         const soaEl = document.getElementById('hs-soa');
-        // Typical SOA: 10W for 10ms, derate for longer
-        const soaLimit = 0.1; // 100mJ simplified
-        if (energyDissipated < soaLimit) {
-            soaEl.textContent = 'OK (' + (energyDissipated * 1000).toFixed(1) + 'mJ)';
-            soaEl.style.color = 'var(--ok)';
-        } else {
-            soaEl.textContent = 'CHECK FET (' + (energyDissipated * 1000).toFixed(0) + 'mJ)';
-            soaEl.style.color = 'var(--bad)';
-        }
-
-        plotHotSwap(vin, ilim, tstartup);
+        soaEl.textContent = AD.fmtUnit(0.5 * cout * vin * vin, 'J') + ' stored; SOA needs a device';
+        soaEl.style.color = 'var(--text)';
+        plotHotSwap(vin, ilim, tstartup, cout, rload, slew, transition, tlinear, tstart);
     }
 
-    function plotHotSwap(vin, ilim, tstartup) {
+    function plotHotSwap(vin, ilim, tstartup, cout, rload, slew, transition, tlinear, requested) {
         const w = canvas.width;
         const h = canvas.height;
 
-        const totalTime = tstartup * 2.5;
+        const totalTime = isFinite(tstartup) ? tstartup * 2.5 : Math.max(requested * 2.5, 5 * rload * cout);
 
         const axes = AD.drawAxes(ctx, w, h, {
             xMin: 0,
@@ -220,14 +241,13 @@
             tData.push(t);
 
             let vout, current;
-            if (t < tstartup) {
-                // Current-limited ramp
-                current = ilim;
-                vout = vin * (t / tstartup);
+            if (t >= tstartup) {
+                vout = vin; current = vin / rload;
+            } else if (t <= tlinear) {
+                vout = slew * t; current = cout * slew + vout / rload;
             } else {
-                // Fully on
-                current = 0.5; // Just load current
-                vout = vin;
+                vout = ilim * rload - (ilim * rload - transition) * Math.exp(-(t - tlinear) / (rload * cout));
+                current = ilim;
             }
 
             voutData.push(vout);
@@ -284,7 +304,7 @@
         lessonKey: 'm24l3',
         items: [
             'Know uncontrolled inrush = VIN/Rsource',
-            'Calculate startup time: t = C × V / I',
+            'Use t = C × V / I only for capacitor charging current, excluding load',
             'Check FET SOA for linear region operation',
             'Understand current limit vs soft-start',
             'Size sense resistor for controller'
@@ -294,13 +314,91 @@
     new ExerciseWidget('exercise-container', {
         id: 'R3-3',
         type: 'numeric',
-        question: 'A hot-swap circuit must charge 2000µF to 48V with a 3A current limit. What is the minimum startup time?',
+        question: 'A hot-swap circuit must charge an initially empty 2000µF capacitor to 48V with a 3A current limit and no load. What is the minimum startup time?',
         hint: 't = C × V / I',
         expected: 32,
         tolerance: 0.05,
         unit: 'ms',
         solution: 't = C × V / I = 2000µF × 48V / 3A = 0.032s = 32ms',
         explanation: 'During this 32ms, the FET dissipates significant power in linear region. Average power ≈ (48V/2) × 3A = 72W. Check that FET SOA allows this.'
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m24l03-verified-practice', { id: 'm24l03-verified-practice',
+        title: 'Distinguish a conducting FET from a protected hot-swap',
+        intro: 'The first three rows are DC after both capacitors settle. VDRIVE is relative to out, not ground. The table has a gate ramp but no current-limit feedback; the waveform and fault tests remain measurements, not certified predictions.',
+        probes: [
+            { id: 'on',
+                label: 'Default: settled output',
+                node: 'out',
+                dc: true,
+                expect: '11.94633',
+                unit: 'V',
+                tol: 0.01,
+                why: 'The modeled channel and 10 mohm shunt share the small voltage loss into 24 ohm.'
+            },
+            { id: 'gate',
+                label: 'Default: gate-to-source voltage',
+                node: 'gate,out',
+                dc: true,
+                expect: '10',
+                unit: 'V',
+                tol: 0.001,
+                why: 'The floating supply establishes 10 V after the gate capacitor settles. Absolute gate voltage is about 21.946 V.'
+            },
+            { id: 'sense',
+                label: 'Default: differential shunt voltage',
+                node: 'in,sense',
+                dc: true,
+                expect: '4.97764',
+                unit: 'mV',
+                tol: 0.02,
+                why: 'I = Vout/24 = 497.76 mA; multiplying by 10 mohm gives 4.9776 mV.'
+            },
+            { id: 'off',
+                label: 'VDRIVE = 0 V: output',
+                node: 'out',
+                dc: true,
+                expect: '0',
+                unit: 'V',
+                tol: 0.001,
+                why: 'The gate is returned to the source through RGATE and the channel is off.',
+                dcValues: { VDRIVE: '0 V DC'
+                }
+            },
+            { id: 'load',
+                label: 'RLOAD = 12 ohm: settled output',
+                node: 'out',
+                dc: true,
+                expect: '11.89308',
+                unit: 'V',
+                tol: 0.01,
+                why: 'The increased current produces more channel drop. No sense-to-gate feedback limits it.',
+                dcValues: { RLOAD: '12 ohm'
+                }
+            }
+        ],
+        experiments: [
+            { action: 'Replace RLOAD with 12 ohm.',
+                expect: 'Settled output about 11.893 V and current about 0.991 A.',
+                why: 'The shunt is a measurement element, not a controller. Increasing load does not invoke a programmed limit.'
+            },
+            { action: 'Restore the load and set VDRIVE to 0 V.',
+                expect: 'Settled output near zero and VGS near zero.',
+                why: 'A floating absolute gate node can look plausible; the controlling quantity is always gate minus source.'
+            },
+            { action: 'Restore VDRIVE and start a transient with COUT and CGATE discharged; halve the time step and repeat.',
+                expect: 'Record peak shunt current and output rise time in both runs; no fixed peak is promised here.',
+                why: 'A converged waveform still needs a controller and a part-specific SOA check. The analytical calculator above models total current limiting that this gate-RC circuit does not contain.'
+            }
+        ]
     });
 })();
 </script>

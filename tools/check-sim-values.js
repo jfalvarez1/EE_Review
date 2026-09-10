@@ -49,10 +49,12 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const DC = require('./sim-dc-case');
 
 const ROOT = path.dirname(__dirname);
 const LESSONS = path.join(ROOT, 'lessons');
 const LIST = process.argv.includes('--list');
+const TARGET = process.argv.slice(2).find(a => !a.startsWith('-'));
 
 function walk(dir, out) {
     fs.readdirSync(dir, { withFileTypes: true }).forEach(e => {
@@ -93,6 +95,10 @@ function runSolver(tool, marker, rel) {
 }
 
 function operatingPoint(rel) {
+    // Subtracting two rounded 12 V display values can erase a millivolt
+    // shunt reading. For an unambiguous table compare full-precision nodes.
+    try { return DC.solveCase(fs.readFileSync(path.join(ROOT, rel), 'utf8'), {}); }
+    catch (e) { /* Older multi-table lessons retain the single-solvable-table path. */ }
     return runSolver('solve-dc.js', 'SOLVED', rel) || runSolver('solve-op.js', 'OP', rel);
 }
 
@@ -118,7 +124,7 @@ function probes(src) {
 
         if (/\bdc:\s*true\b/.test(chunk)) {
             const node = /node:\s*'([^']+)'/.exec(chunk);
-            if (node) found.push(Object.assign({ kind: 'dc', node: node[1] }, base));
+            if (node) found.push(Object.assign({ kind: 'dc', node: node[1], dcValues: DC.overrides(chunk) }, base));
             return;
         }
         const acNode = /acNode:\s*'([^']+)'/.exec(chunk);
@@ -147,7 +153,7 @@ function acResponse(rel, extra) {
     try { return JSON.parse(lines[0]).nodes; } catch (e) { return null; }
 }
 
-const files = walk(LESSONS, []).sort();
+const files = TARGET ? [path.resolve(ROOT, TARGET)] : walk(LESSONS, []).sort();
 const bad = [];
 let compared = 0, acCompared = 0, lessons = 0, skipped = 0;
 
@@ -215,10 +221,19 @@ files.forEach(file => {
     // --- DC claims -----------------------------------------------------------
     const dcProbes = ps.filter(p => p.kind === 'dc');
     if (!dcProbes.length) return;
-    const op = operatingPoint(rel);
-    if (!op) { skipped++; return; }
+    const defaultOP = dcProbes.some(p => !p.dcValues) ? operatingPoint(rel) : null;
+    const variants = new Map();
 
     dcProbes.forEach(p => {
+        let op = defaultOP;
+        if (p.dcValues) {
+            const key = JSON.stringify(p.dcValues);
+            try {
+                if (!variants.has(key)) variants.set(key, DC.solveCase(src, p.dcValues));
+                op = variants.get(key);
+            } catch (e) { fail(rel, p.id, e.message); return; }
+        }
+        if (!op) { skipped++; return; }
         // Earlier SimChecks wrote node: 'V(out)' and later ones write node:
         // 'out'. Both mean the same node; accept either rather than making the
         // older ones wrong.

@@ -340,21 +340,43 @@
             <table>
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
-                    <tr><td class="mono">M1</td><td>Transistor (MOSFET)</td><td><span class="mono">PMOS</span></td><td>drain <span class="mono">vin</span>, gate <span class="mono">gate</span>, source <span class="mono">vout</span></td></tr>
-                    <tr><td class="mono">RGATE</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">gate</span> and <span class="mono">vout</span></td></tr>
-                    <tr><td class="mono">D1</td><td>Diode</td><td><span class="mono">Zener Diode</span></td><td>anode <span class="mono">gate</span>, cathode <span class="mono">vin</span></td></tr>
+                    <tr><td class="mono">M1</td><td>Transistor (MOSFET)</td><td>PMOS, W/L = 10000</td><td>drain <span class="mono">vin</span>, gate <span class="mono">gate</span>, source <span class="mono">vout</span></td></tr>
+                    <tr><td class="mono">RGATE</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">gate</span> and ground</td></tr>
+                    <tr><td class="mono">D1</td><td>Diode</td><td>Zener Diode, 5.1 V</td><td>anode <span class="mono">gate</span>, cathode <span class="mono">vout</span></td></tr>
                     <tr><td class="mono">VIN</td><td>Voltage source</td><td>12&nbsp;V DC</td><td>from <span class="mono">vin</span> to ground</td></tr>
                     <tr><td class="mono">RLOAD</td><td>Resistor</td><td>12&nbsp;&Omega;</td><td>between <span class="mono">vout</span> and ground</td></tr>
                 </tbody>
             </table>
         </div>
 
-        <p><strong>What to run:</strong> a <strong>DC operating point</strong>; then a <strong>DC sweep</strong> of <span class="mono">VIN</span> from -15&nbsp; to 15&nbsp;.</p>
+        <p><strong>What to run:</strong> a <strong>DC operating point</strong>; then a <strong>DC sweep</strong> of <span class="mono">VIN</span> from -15&nbsp;V to 15&nbsp;V.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(vout)</span>, <span class="mono">V(gate)</span>, <span class="mono">I(RLOAD)</span>.</p>
+
+        <h4>Check all three MOSFET terminals</h4>
+        <p>The drain faces the input and the source faces the protected load. Pulling the
+        gate toward ground produces negative V<sub>GS</sub> under correct polarity.
+        The 5.1&nbsp;V zener belongs <strong>between gate and source</strong>, not between
+        gate and the unprotected input. Its nominal voltage is an educational choice for
+        this declared model, not a universal gate-clamp specification.</p>
+        <p>The generic PMOS uses V<sub>th</sub> = &minus;0.7&nbsp;V,
+        K<sub>p</sub> = 110&nbsp;&micro;A/V&sup2;, W/L = 10000 and &lambda; = 0.04&nbsp;V<sup>&minus;1</sup>.
+        Expect a finite channel drop; do not assign it a discrete power FET&rsquo;s on-resistance.
+        At reversed input the channel turns off. <strong>The course solver has no MOSFET body
+        diode</strong>, so its reversed DC result alone cannot prove protection or detect a
+        drain/source reversal. Inspect body-diode orientation against the reference and use
+        a device model containing that diode before evaluating startup or reverse transients.</p>
+        <p><strong>Bench acceptance:</strong> use a current-limited supply and a load rated
+        for V(out)&sup2;/R. Verify forward output drop, V<sub>GS</sub>, clamp current and
+        reverse leakage. Repeat after removing input power with the output externally powered:
+        a single PMOS reverse-battery circuit is not guaranteed to block backfeed in that state.</p>
+        <p><strong>References:</strong> <a href="https://www.ti.com/lit/an/slva139/slva139.pdf" target="_blank" rel="noopener">TI SLVA139, figure 3</a> establishes the body-diode orientation;
+        <a href="https://www.ti.com/lit/pdf/slvae57" target="_blank" rel="noopener">TI SLVAE57, section 4.1</a> distinguishes reverse battery protection from reverse-current blocking.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m24l01-verified-practice"></div>
     </div>
 
     <div class="card">
@@ -487,6 +509,75 @@
         unit: 'mW',
         solution: 'V = 2A × 30mΩ = 60mV. P = 2² × 0.03 = 0.12W = 120mW',
         explanation: 'Much better than a diode (2A × 0.5V = 1W loss). At high currents, FET-based protection is far more efficient.'
+    });
+})();
+</script>
+
+<script>
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m24l01-verified-practice', { id: 'm24l01-verified-practice',
+        title: 'Verify gate polarity and forward voltage loss',
+        intro: 'Use the specified generic PMOS geometry and 5.1 V clamp. Read gate-to-source voltage as gate minus vout. The reverse-voltage row checks only the channel model; the body-diode orientation must also be verified separately.',
+        probes: [
+            { id: 'out',
+                label: 'Default: protected output',
+                node: 'vout',
+                dc: true,
+                expect: '11.80243',
+                unit: 'V',
+                tol: 0.01,
+                why: 'The model conducts about 0.984 A through 12 ohm with a finite channel drop.'
+            },
+            { id: 'gs',
+                label: 'Default: gate-to-source voltage',
+                node: 'gate,vout',
+                dc: true,
+                expect: '-5.09437',
+                unit: 'V',
+                tol: 0.02,
+                why: 'RGATE supplies about 0.671 mA to the nominal 5.1 V zener clamp, whose voltage varies with current.'
+            },
+            { id: 'reverse',
+                label: 'VIN = -12 V: channel-only output',
+                node: 'vout',
+                dc: true,
+                expect: '0',
+                unit: 'V',
+                tol: 0.001,
+                why: 'The gate has no negative bias relative to the source, so the PMOS channel is off. This alone cannot validate a body-diode protection path.',
+                dcValues: { VIN: '-12 V DC'
+                }
+            },
+            { id: 'load',
+                label: 'RLOAD = 24 ohm: protected output',
+                node: 'vout',
+                dc: true,
+                expect: '11.89888',
+                unit: 'V',
+                tol: 0.01,
+                why: 'Approximately half the load current produces a smaller channel drop.',
+                dcValues: { RLOAD: '24 ohm'
+                }
+            }
+        ],
+        experiments: [
+            { action: 'Replace RLOAD with 24 ohm.',
+                expect: 'Output rises to about 11.899 V.',
+                why: 'The forward loss depends on current and gate drive. It is not an ideal fixed diode drop.'
+            },
+            { action: 'Restore RLOAD and reverse VIN to -12 V.',
+                expect: 'The channel-only calculation gives nearly zero output.',
+                why: 'Now inspect the actual PMOS body diode: it must face from input to load. The solver omits it, so a numerical pass is insufficient.'
+            },
+            { action: 'On a current-limited prototype, measure gate-to-source voltage before raising the input.',
+                expect: 'Its magnitude must remain within the selected FET gate rating and its enhancement range.',
+                why: 'Size the clamp resistor and zener for the full voltage range using the selected parts. A single FET also needs a separate backfeed test if the output can remain powered.'
+            }
+        ]
     });
 })();
 </script>

@@ -27,15 +27,26 @@ think from time to time.* Not a lecture, and not a puzzle book either.
 
 | | baseline | now |
 | --- | --- | --- |
-| build sections stating what a correct build shows | 3 / 173 | **51 / 173** |
+| build sections stating what a correct build shows | 3 / 173 | **58 / 173** |
 | build tables with a wiring problem | 55 / 196 | **0 / 196** |
 | components with no value a reader could enter | 46 | **0** |
-| stated values checked against the circuit itself | 0 | **81** |
+| stated values checked against the circuit itself | 0 | **113 (86 DC + 27 AC)** |
 | build tables a solver can settle (dc + op) | 0 | **98 / 194** |
-| expected values stated | ~8 | **72** |
-| perturbations with a predicted outcome | 0 | **88** |
-| lessons with an acceptance check | 7% | **12%** |
-| lessons asking the reader to do nothing | 237 | **221** |
+| expected values stated (survey count, not all solver-checked) | ~8 | **236** |
+| perturbations (including requested observations) | 0 | **221** |
+| lessons with an acceptance check | 7% | **21% (85 / 408)** |
+| lessons asking the reader to do nothing | 237 | **201** |
+
+**2026-09-09 continuation:** seven new SimChecks in M12 L11, M14 L08, M15 L02,
+M20 L04, M23 L04, M24 L01 and M24 L03 add 32 checked values, including 16
+probes with explicit changed-circuit settings. Each lesson has derivations,
+manufacturer references, a bench acceptance procedure and stated model limits.
+The hot-swap and ADC calculators were corrected as part of the same pass.
+M05 L11 no longer treats non-convergence as proof of no root or promises an
+unverified transient recovery. See [the source and verification record](review/2026-09-09-practice-tranche.md).
+The paragraphs below retain the history of earlier batches; the table above
+is the current survey snapshot. The 115 remaining build sections and the
+333-figure/141-lesson format backlog are still open.
 
 **Four adversarial reviews were run and worked through** (`_audit/review/`):
 literature grounding, derivation verification, non-ideal constraints, and a red

@@ -243,7 +243,7 @@ function fetTail(value, what) {
 function modelName(value, what) {
     const s = text(value);
     const hit = N.modelFor(s, text(what));
-    if (hit) return hit.name.replace(/\s+W\/L=.*$/, '').toUpperCase();
+    if (hit) return hit.name.split(/\s+/)[0].toUpperCase();
     const named = /\b([0-9]?[A-Z]{1,3}[0-9]{2,5}[A-Z]?)\b/.exec(s.toUpperCase());
     if (named) return named[1];
     return null;
@@ -295,6 +295,16 @@ function emit(row) {
         lines.push(`${named('M')} ${nodes[0]} ${nodes[1]} ${nodes[2]} ${m}${tail.length ? ' ' + tail.join(' ') : ''}`);
     } else if (row.kind === 'diode') {
         const m = modelName(value, what) || 'DIODE';
+        const declared = N.modelFor(value, what);
+        if (m === 'ZENER' && declared && declared.m.BV !== N.MODELS.ZENER.BV) {
+            // The companion dialect has no verified per-instance BV syntax.
+            // Do not emit a default-5.1 V diode for an authored 8.2 V clamp.
+            // rows/netlists.json retains the explicit parameter for importers.
+            const reason = `${ref}: explicit zener BV=${declared.m.BV} V requires a configured model; default ZENER is ${N.MODELS.ZENER.BV} V`;
+            unsupported.push(reason);
+            lines.push(`* UNSUPPORTED: ${reason}; anode ${nodes[0]}, cathode ${nodes[1]}`);
+            return { lines, unsupported };
+        }
         lines.push(`${named('D')} ${nodes[0]} ${nodes[1]} ${m}`);
         if (m === 'ZENER' && !/\d\s*(?:\.\d+)?\s*V/i.test(value)) {
             // "Zener Diode" with no voltage is not a part, it is a category.
@@ -443,8 +453,9 @@ function main() {
             table: rec.table,
             elements: body.filter(l => !/^\*/.test(l)).length,
             gaps,
-            eeReviewSolves: !rec.unparsed,
-            eeReviewSkip: rec.unparsed ? text(rec.unparsed) : null,
+            eeReviewSolves: !!rec.solver && Object.values(rec.solver).includes('solved'),
+            eeReviewSkip: rec.solver && Object.values(rec.solver).includes('solved') ? null :
+                text(rec.unparsed || (rec.solver && rec.solver.op) || 'no solver verdict'),
         });
     }
 
@@ -457,4 +468,5 @@ function main() {
     console.log(`${index.filter(r => r.eeReviewSolves).length} of ${index.length} are solved by an EE_Review solver`);
 }
 
-main();
+module.exports = { emit, modelName };
+if (require.main === module) main();
