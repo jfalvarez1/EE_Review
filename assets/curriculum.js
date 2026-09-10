@@ -1381,8 +1381,8 @@ const CURRICULUM = {
                 {
                     id: 15,
                     title: 'Multiphase and Coupled-Inductor Voltage Regulators',
-                    description: 'What a processor rail actually uses, and what changed to make the textbook buck obsolete for it',
-                    topics: ['K = 0 at D = k/N', 'Ltr = L(1+rho)', 'TLVR and the shared loop', '48 V, vertical delivery, load line']
+                    description: 'Coupled-inductor regulator design, winding polarity, ripple models, implementation and bench validation',
+                    topics: ['Interleaving versus coupling', 'Two-winding current model', 'Magnetics and current sensing', 'TLVR secondary loop', 'Simulation and bench validation']
                 }
             ]
         },

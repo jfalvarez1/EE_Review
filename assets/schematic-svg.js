@@ -851,8 +851,8 @@ const SchematicLib = (() => {
                     l 12 0`;
                 g.appendChild(elem('path', { d: path }));
 
-                if (label) this.text(x + 25, y - 15, label, { size: 11, bold: true });
-                if (value) this.text(x + 25, y + 15, value, { size: 10, color: COLORS.value });
+                if (label) this.text(x + 25, y - 26, label, { size: 11, bold: true });
+                if (value) this.text(x + 25, y + 26, value, { size: 10, color: COLORS.value });
             } else {
                 const path = `M ${x} ${y} l 0 8
                     a 5 5 0 0 0 0 10
@@ -1562,8 +1562,9 @@ const SchematicLib = (() => {
          * Draw a diode
          */
         diode(x, y, orient = 'horizontal', options = {}) {
-            const { label, color = COLORS.component } = options;
+            const { label, color = COLORS.component, flip = false } = options;
             const g = group({ stroke: color, strokeWidth: LINE_WIDTH, fill: 'none' });
+            if (flip) g.setAttribute('transform', orient === 'vertical' ? `rotate(180 ${x} ${y+25})` : `rotate(180 ${x+25} ${y})`);
 
             const terminals = (orient === 'vertical')
                 ? ({ pin1: { x, y }, pin2: { x, y: y + 50 } })
@@ -1591,6 +1592,7 @@ const SchematicLib = (() => {
                     fill: 'none'
                 }));
                 g.appendChild(elem('line', { x1: x - 10, y1: y + 30, x2: x + 10, y2: y + 30 }));
+                g.appendChild(elem('line', { x1: x, y1: y + 30, x2: x, y2: y + 35 }));
 
                 if (label) this.text(x + 16, y + 25, label, { size: 11, anchor: 'start', bold: true });
             }
@@ -1860,8 +1862,7 @@ const SchematicLib = (() => {
                 // Circle
                 g.appendChild(elem('circle', { cx: x, cy: y + 25, r: 15 }));
                 // Plus/minus
-                this.text(x, y + 20, '+', { size: 12, color, internal: true });
-                this.text(x, y + 32, '-', { size: 14, color, internal: true });
+                g.appendChild(elem('path', { d: `M ${x-3} ${y+20} h 6 M ${x} ${y+17} v 6 M ${x-3} ${y+32} h 6` }));
                 // Leads
                 g.appendChild(elem('line', { x1: x, y1: y, x2: x, y2: y + 10 }));
                 g.appendChild(elem('line', { x1: x, y1: y + 40, x2: x, y2: y + 50 }));
@@ -1870,8 +1871,7 @@ const SchematicLib = (() => {
                 if (value) this.text(x + 28, y + 32, value, { size: 10, anchor: 'start', color: COLORS.value });
             } else {
                 g.appendChild(elem('circle', { cx: x + 25, cy: y, r: 15 }));
-                this.text(x + 20, y, '+', { size: 12, color, internal: true });
-                this.text(x + 32, y, '-', { size: 14, color, internal: true });
+                g.appendChild(elem('path', { d: `M ${x+17} ${y} h 6 M ${x+20} ${y-3} v 6 M ${x+29} ${y} h 6` }));
                 g.appendChild(elem('line', { x1: x, y1: y, x2: x + 10, y2: y }));
                 g.appendChild(elem('line', { x1: x + 40, y1: y, x2: x + 50, y2: y }));
 
@@ -1971,6 +1971,13 @@ const SchematicLib = (() => {
 
                 if (label) this.text(x + 20, y + 20, label, { size: 11, anchor: 'start', bold: true });
                 if (value) this.text(x + 20, y + 32, value, { size: 10, anchor: 'start', color: COLORS.value });
+            } else {
+                g.appendChild(elem('circle', { cx: x + 25, cy: y, r: 15 }));
+                g.appendChild(elem('path', {d: `M ${x + 17} ${y} q 4 -8 8 0 q 4 8 8 0`, strokeWidth: 1.2}));
+                g.appendChild(elem('line', {x1:x,y1:y,x2:x+10,y2:y}));
+                g.appendChild(elem('line', {x1:x+40,y1:y,x2:x+50,y2:y}));
+                if(label)this.text(x+25,y-26,label,{size:11,bold:true});
+                if(value)this.text(x+25,y+30,value,{size:10});
             }
 
             this.nodeRegistry.register(terminals.pin1.x, terminals.pin1.y, null, 'pin');
@@ -1981,7 +1988,7 @@ const SchematicLib = (() => {
                 const m = 3;
                 this.addKeepout({
                     type: 'rectangle',
-                    bounds: { xMin: x - 15 - m, xMax: x + 15 + m, yMin: y + 10 - m, yMax: y + 40 + m },
+                    bounds: orient === 'vertical' ? { xMin: x - 15 - m, xMax: x + 15 + m, yMin: y + 10 - m, yMax: y + 40 + m } : { xMin: x+10-m, xMax:x+40+m, yMin:y-15-m, yMax:y+15+m },
                     meta: { type: 'acSource', label }
                 });
             }
@@ -3282,7 +3289,7 @@ const SchematicLib = (() => {
         }
 
         // Annotations
-        sch.text(150, height - 15, 'Gain ≈ 1, Low output impedance',
+        sch.text(150, height - 3, 'Gain ≈ 1, Low output impedance',
             { size: 10, color: COLORS.annotation });
 
         sch.finalize();
@@ -3354,7 +3361,7 @@ const SchematicLib = (() => {
         sch.nodeLabel(voutX, outNodeY, 'Vout');
 
         // PNP label (manual placement to avoid keepout overlap)
-        sch.text(qPNP.collector.x + 45, qPNP.collector.y + 10, 'Q2 (PNP)',
+        sch.text(qPNP.collector.x + 45, qPNP.collector.y + 22, 'Q2 (PNP)',
             { size: 11, bold: true, anchor: 'start' });
 
         // Load resistor
@@ -3440,7 +3447,7 @@ const SchematicLib = (() => {
         sch.ground((q1.emitter.x + q2.emitter.x) / 2, gndY);
 
         // Annotations
-        sch.text(150, height - 10, 'Iout ≈ Iref (matched transistors)',
+        sch.text(150, height + 2, 'Iout ≈ Iref (matched transistors)',
             { size: 10, color: COLORS.annotation });
 
         sch.finalize();
@@ -3450,76 +3457,14 @@ const SchematicLib = (() => {
     /**
      * Sallen-Key Lowpass Filter - 2nd order active filter
      */
-    function sallenKeyLowpass(container, options = {}) {
-        const { width = 420, height = 280, r = '10k', c = '10n' } = options;
+    function sallenKeyLowpass(host, options = {}) {
+    const s=new Schematic(host,{width:720,height:360}),r=options.r||'R',c=options.c||'C';
+    s.nodeLabel(65,190,'Vin');s.wire([[65,190],[115,190]]);s.resistor(115,190,'horizontal',{label:'R1',value:r});s.wire([[165,190],[225,190],[290,190]]);
+    s.resistor(290,190,'horizontal',{label:'R2',value:r});s.wire([[340,190],[400,190],[485,190]]);s.opamp(500,175,{label:'U1'});
+    s.junction(225,190);s.wire([[225,190],[225,65],[365,65]]);s.capacitor(365,65,'horizontal',{label:'C1',value:c});s.wire([[415,65],[630,65],[630,175]]);
+    s.junction(400,190);s.wire([[400,190],[400,250]]);s.capacitor(400,250,'vertical',{label:'C2',value:c});s.wire([[400,300],[400,330]]);s.ground(400,330);
+    s.wire([[485,160],[460,160],[460,115],[605,115],[605,175]]);s.wire([[565,175],[630,175],[675,175]]);s.junction(605,175);s.junction(630,175);s.nodeLabel(675,175,'Vout');s.finalize();return s;
 
-        const sch = new Schematic(container, { width, height });
-
-        // Op-amp position
-        const opX = 220, opY = 140;
-        const op = Schematic.opampTerminals(opX, opY);
-        sch.opamp(opX, opY);
-
-        // Input - wire connects label to resistor (no gap!)
-        const vinX = 30;
-        const vinY = op.nonInvInput.y;
-        sch.nodeLabel(vinX, vinY, 'Vin');
-
-        // R1 (input to node between R1/R2)
-        const r1StartX = vinX + 15;
-        sch.wire([[vinX, vinY], [r1StartX, vinY]]);  // Wire starts at nodeLabel position
-        sch.resistor(r1StartX, vinY, 'horizontal', { label: 'R1', value: r });
-
-        // Node between R1 and R2
-        const nodeX = r1StartX + 50;
-        sch.dot(nodeX, vinY);
-
-        // R2 (to non-inverting input)
-        sch.resistor(nodeX + 10, vinY, 'horizontal', { label: 'R2', value: r });
-        sch.wire([[nodeX, vinY], [nodeX + 10, vinY]]);
-        sch.wire([[nodeX + 60, vinY], [op.nonInvInput.x, op.nonInvInput.y]]);
-
-        // C1 (from node to ground)
-        const c1Y = vinY + 20;
-        sch.capacitor(nodeX, c1Y, 'vertical', { label: 'C1', value: c });
-        sch.wire([[nodeX, vinY], [nodeX, c1Y]]);
-        sch.wire([[nodeX, c1Y + 50], [nodeX, c1Y + 70]]);
-        sch.ground(nodeX, c1Y + 70);
-
-        // C2 (from non-inv input to output - feedback)
-        const outX = op.output.x + 50;
-        const c2Y = opY - 60; // Route above op-amp keepout
-        const c2X = outX - 50;
-        sch.capacitor(c2X, c2Y, 'horizontal', { label: 'C2', value: c });
-        const c2 = { start: { x: c2X, y: c2Y }, end: { x: c2X + 50, y: c2Y } };
-
-        // Wire from non-inv input up and right (keepout-safe)
-        sch.wire([[op.nonInvInput.x, op.nonInvInput.y], [op.nonInvInput.x, c2Y]]);
-        sch.wire([[op.nonInvInput.x, c2Y], [c2.start.x, c2.start.y]]);
-        sch.dot(op.nonInvInput.x, op.nonInvInput.y);
-
-        // Wire from C2 to output
-        sch.wire([[c2.end.x, c2.end.y], [outX, c2Y]]);
-        sch.wire([[outX, c2Y], [outX, op.output.y]]);
-        sch.dot(outX, op.output.y);
-
-        // Inverting input tied to output (unity gain buffer config)
-        sch.wire([[op.invInput.x, op.invInput.y], [op.invInput.x - 15, op.invInput.y]]);
-        sch.wire([[op.invInput.x - 15, op.invInput.y], [op.invInput.x - 15, op.output.y + 40]]);
-        sch.wire([[op.invInput.x - 15, op.output.y + 40], [outX, op.output.y + 40]]);
-        sch.wire([[outX, op.output.y + 40], [outX, op.output.y]]);
-
-        // Output - wire connects to label (no gap!)
-        const voutLabelX = outX + 40;
-        sch.wire([[op.output.x, op.output.y], [voutLabelX, op.output.y]]);
-        sch.nodeLabel(voutLabelX, op.output.y, 'Vout');
-
-        // Annotations
-        sch.text(220, height - 15, 'fc = 1/(2πRC), Q = 0.707 (Butterworth)',
-            { size: 10, color: COLORS.annotation });
-
-        sch.finalize();
-        return sch;
     }
 
     /**
@@ -5549,7 +5494,7 @@ const SchematicLib = (() => {
         sch.wire([[vinLabelX, q1.base.y], [rbX, q1.base.y]]);
 
         // Annotation
-        sch.text(width / 2, height - 10, 'Bootstrap increases input impedance',
+        sch.text(width / 2, height + 2, 'Bootstrap increases input impedance',
             { size: 10, color: COLORS.annotation });
 
         sch.finalize();
@@ -6384,7 +6329,7 @@ const SchematicLib = (() => {
         sch.wire([[leftX, gndY], [rightX + blockW, gndY]]);
         sch.ground((leftX + rightX + blockW) / 2, gndY);
 
-        sch.text(width / 2, gndY + 20, 'Butler: 2-stage amplifier + crystal feedback (conceptual)',
+        sch.text(width / 2, gndY + 32, 'Butler: 2-stage amplifier + crystal feedback (conceptual)',
             { size: 10, color: COLORS.annotation });
 
         sch.finalize();
@@ -7743,7 +7688,7 @@ const SchematicLib = (() => {
 
         // NMOS symbol (terminal-first)
         const m1 = Schematic.nmosTerminals(mosX, mosY, false);
-        sch.nmos(mosX, mosY, { label: 'M1', showType: true, showTerminals: true });
+        sch.nmos(mosX, mosY, { label: 'M1', showType: true, showTerminals: false });
 
         // VDD rail
         sch.vcc(m1.drain.x, vddY, { label: 'VDD' });
@@ -7769,7 +7714,7 @@ const SchematicLib = (() => {
         sch.wire([[vgsX, m1.gate.y], [vgsX, gndY]]);
         sch.wire([[vgsX, gndY], [m1.source.x, gndY]]);
 
-        sch.text(width / 2, height - 10, 'ID = K(VGS - Vth)²',
+        sch.text(width / 2 - 12, height - 10, 'ID = K(VGS - Vth)²',
             { size: 10, color: COLORS.annotation });
 
         sch.finalize();
@@ -7790,7 +7735,7 @@ const SchematicLib = (() => {
 
         // NMOS symbol (terminal-first)
         const m1 = Schematic.nmosTerminals(mosX, mosY, false);
-        sch.nmos(mosX, mosY, { label: 'M1', showType: true, showTerminals: true });
+        sch.nmos(mosX, mosY, { label: 'M1', showType: true, showTerminals: false });
 
         // VDD rail
         sch.vcc(m1.drain.x, vddY, { label: 'VDD' });
@@ -7849,7 +7794,7 @@ const SchematicLib = (() => {
         sch.wire([[biasX, gndY], [m1.source.x, gndY]]);
         sch.ground((biasX + m1.source.x) / 2, gndY);
 
-        sch.text(width / 2, height - 10, 'Av = -gm × RD',
+        sch.text(width / 2, height + 2, 'Av = -gm × RD',
             { size: 10, color: COLORS.annotation });
 
         sch.finalize();
@@ -7973,6 +7918,46 @@ const SchematicLib = (() => {
 if (typeof AD !== 'undefined') {
     AD.Schematic = SchematicLib;
 }
+
+// Shared signal-stage template. Both drive ports require the amplifier's VAS/bias path.
+SchematicLib.classAbBiasStage = function(host, options = {}) {
+    const s = SchematicLib.create(host, {width:780,height:465});
+    const re=options.re||'0.33 Ω', upper=options.upper||'Q4', lower=options.lower||'Q5';
+    s.npn(430,110,{label:upper});s.pnp(430,340,{label:lower});
+    s.wire([[450,80],[450,50],[650,50]]);s.nodeLabel(650,50,'+VS',{dy:-18});
+    s.wire([[450,370],[450,420],[650,420]]);s.nodeLabel(650,420,'−VS',{dy:20});
+    s.wire([[450,140],[450,160]]);s.resistor(450,160,'vertical',{label:'RE1',value:re});
+    s.wire([[450,210],[450,240]]);s.resistor(450,240,'vertical',{label:'RE2',value:re});s.wire([[450,290],[450,310]]);
+    s.wire([[450,225],[630,225],[700,225]]);s.junction(450,225);s.nodeLabel(700,225,'OUT',{dy:-18});
+    s.wire([[630,225],[630,270]]);s.resistor(630,270,'vertical',{label:'Load'});s.wire([[630,320],[630,350]]);s.ground(630,350);s.junction(630,225);
+    s.npn(230,225,{label:'Q3',flip:true});
+    s.wire([[210,195],[210,110]]);s.wire([[210,255],[210,340]]);
+    s.wire([[120,110],[210,110],[300,110],[415,110]]);s.nodeLabel(120,110,'Upper drive',{dy:-18});
+    s.wire([[120,340],[210,340],[300,340],[415,340]]);s.nodeLabel(120,340,'Lower drive',{dy:20});
+    s.wire([[300,110],[300,150]]);s.resistor(300,150,'vertical',{label:'R1'});
+    s.wire([[300,200],[300,250]]);s.resistor(300,250,'vertical',{label:'R2'});s.wire([[300,300],[300,340]]);
+    s.wire([[245,225],[300,225]]);s.junction(300,225);
+    [[210,110],[300,110],[210,340],[300,340]].forEach(p=>s.junction(...p));
+    s.finalize();return s;
+};
+
+SchematicLib.flybackPowerStage = function(host) {
+
+
+        const s=SchematicLib.create(host,{width:780,height:400});
+        s.voltageSource(70,190,'vertical',{label:'Vin'});s.wire([[70,190],[70,70],[230,70],[230,100]]);
+        s.inductor(230,100,'vertical');s.text(208,127,'Lp',{anchor:'end',bold:true});s.wire([[230,150],[230,215]]);
+        s.nmos(210,245,{label:'Q1'});s.wire([[230,275],[230,335],[70,335],[70,240]]);
+        s.wire([[130,245],[190,245]]);s.nodeLabel(130,245,'Gate drive',{dx:30,dy:-25});s.nodeLabel(70,335,'PRI−',{dy:20});
+        s.inductor(370,100,'vertical');s.text(394,127,'Ls',{anchor:'start',bold:true});
+        s.rect(293,92,2,66,{fill:AD.Schematic.COLORS.annotation,stroke:'none'});s.rect(301,92,2,66,{fill:AD.Schematic.COLORS.annotation,stroke:'none'});
+        for(const [x,y] of [[218,98],[358,152]]){const dot=document.createElementNS('http://www.w3.org/2000/svg','circle');for(const [k,v] of Object.entries({cx:x,cy:y,r:3,fill:AD.Schematic.COLORS.component}))dot.setAttribute(k,v);s.componentGroup.appendChild(dot);}
+        s.wire([[370,100],[460,100]]);s.diode(460,100,'horizontal');s.text(485,75,'D1',{bold:true});s.wire([[510,100],[570,100],[685,100]]);s.nodeLabel(685,100,'Vout','top');
+        s.capacitor(570,200,'vertical',{label:'Cout'});s.wire([[570,100],[570,200]]);s.wire([[570,250],[570,335]]);s.junction(570,100);
+        s.resistor(685,200,'vertical',{label:'Load'});s.wire([[685,100],[685,200]]);s.wire([[685,250],[685,335],[370,335],[370,150]]);s.junction(570,335);s.nodeLabel(370,335,'SEC−',{dy:20});
+        s.text(300,182,'Core',{size:10});s.finalize();return s;
+
+};
 
 // ===== SCHEMATIC SVG BUILDER (String-based API for inline schematics) =====
 /**
@@ -8281,9 +8266,9 @@ class SchematicSVGBuilder {
         this.line(inputX + inputDir * pinLen, minusY, inputX, minusY, color, 1.5);
         this.line(inputX + inputDir * pinLen, plusY, inputX, plusY, color, 1.5);
 
-        // +/- symbols near inputs
-        this.text(inputX + inputDir * (pinLen - 5), plusY, '+', { fontSize: 14, fill: color, anchor: 'middle' });
-        this.text(inputX + inputDir * (pinLen - 5), minusY, '-', { fontSize: 14, fill: color, anchor: 'middle' });
+        // Vector polarity marks sit inside the triangle, clear of its input leads.
+        const sx = inputX - inputDir * 9;
+        this._push(`<path d="M ${sx-3} ${minusY} h 6 M ${sx-3} ${plusY} h 6 M ${sx} ${plusY-3} v 6" stroke="${color}" stroke-width="1.3" fill="none"/>`);
 
         // Output stub
         const outX = mirror ? leftX : rightX;
@@ -8524,17 +8509,17 @@ class SchematicSVGBuilder {
             const cx = (left + right) / 2;
             const triW = 10;
             const triH = 8;
-            const barX = cx + dir * (triW + 3);
+            const barX = cx + dir * triW;
             const tipX = cx + dir * triW;
             const baseX = cx - dir * triW;
 
-            this.line(left, y, baseX, y, { stroke: color, strokeWidth });
+            this.line(left, y, cx - triW, y, { stroke: color, strokeWidth });
             const triPath = flip
                 ? `M ${cx + triW} ${y - triH} L ${cx - triW} ${y} L ${cx + triW} ${y + triH} Z`
                 : `M ${cx - triW} ${y - triH} L ${cx + triW} ${y} L ${cx - triW} ${y + triH} Z`;
             this._push(`<path d="${triPath}" stroke="${color}" stroke-width="${strokeWidth}" fill="none"/>`);
             this.line(barX, y - triH, barX, y + triH, { stroke: color, strokeWidth: 2 });
-            this.line(barX, y, right, y, { stroke: color, strokeWidth });
+            this.line(cx + triW, y, right, y, { stroke: color, strokeWidth });
         } else {
             const x = x1;
             const top = Math.min(y1, y2);
@@ -8543,15 +8528,15 @@ class SchematicSVGBuilder {
             const cy = (top + bot) / 2;
             const triH = 10;
             const triW = 8;
-            const barY = cy + dir * (triH + 3);
+            const barY = cy + dir * triH;
 
-            this.line(x, top, x, cy - dir * triH, { stroke: color, strokeWidth });
+            this.line(x, top, x, cy - triH, { stroke: color, strokeWidth });
             const triPath = flip
                 ? `M ${x - triW} ${cy + triH} L ${x} ${cy - triH} L ${x + triW} ${cy + triH} Z`
                 : `M ${x - triW} ${cy - triH} L ${x} ${cy + triH} L ${x + triW} ${cy - triH} Z`;
             this._push(`<path d="${triPath}" stroke="${color}" stroke-width="${strokeWidth}" fill="none"/>`);
             this.line(x - triW, barY, x + triW, barY, { stroke: color, strokeWidth: 2 });
-            this.line(x, barY, x, bot, { stroke: color, strokeWidth });
+            this.line(x, cy + triH, x, bot, { stroke: color, strokeWidth });
         }
 
         return this;

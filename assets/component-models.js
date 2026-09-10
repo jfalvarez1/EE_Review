@@ -3022,6 +3022,7 @@ const ComponentModels = (() => {
             } else {
                 lx = o.x + halfW + 9; ly = o.y - 5; vy = o.y + 10; anchor = 'start';
             }
+            lx += o.labelDx || 0; ly += o.labelDy || 0; vy += o.labelDy || 0;
             if (pos !== 'none') {
                 if (o.label) {
                     outer.push(opToSVG(['text', lx, ly, o.label,

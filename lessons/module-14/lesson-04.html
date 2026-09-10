@@ -120,7 +120,25 @@ Input Power:
 
     <div class="card">
         <h3>Boost Converter Schematic</h3>
-        <div id="boost-schematic"></div>
+        <div class="schematic-container" id="boost-schematic" role="img" aria-label="Boost converter: Vin feeds L1 then the switch node. Q1 connects the switch node to ground. D1 conducts from the switch node to the output; Cout and Rload connect from output to ground. PWM drives Q1's gate relative to its grounded source."></div>
+        <p class="fig-note">Power-stage template: the <span class="mono">in</span>, <span class="mono">sw</span>,
+        <span class="mono">out</span>, and <span class="mono">pwm</span> labels match the build table below.
+        Q1 is the physical switch; the table's Xsw is its ideal controlled-switch model. Vpwm represents the gate drive,
+        not a complete regulator. Hardware also needs the controller's specified input bypassing, feedback, protection,
+        and gate-drive circuit. <a href="https://www.ti.com/lit/an/slva372d/slva372d.pdf" target="_blank" rel="noopener">TI SLVA372D, Fig. 1-1 and §6</a>.</p>
+        <div class="bench-cards">
+            <div><strong>Q1 on · store energy</strong><span>Current flows from Vin through L1 and Q1 to ground.
+            In normal boost operation D1 blocks, and Cout supplies the load.</span></div>
+            <div><strong>Q1 off · deliver energy</strong><span>L1 current flows through D1 into Cout and the load.
+            The input source continues to supply energy during this interval.</span></div>
+            <div><strong>What to measure</strong><span>Probe sw and out relative to ground. In CCM, inductor current stays above zero.
+            Diode current is pulsed; Cout smooths the current delivered to the load.</span></div>
+        </div>
+        <p class="fig-note">For ideal steady-state CCM, \(V_{out}=V_{in}/(1-D)\) with \(0&lt;D&lt;1\).
+        This is not an “always” condition during startup, shutdown, or faults. While Q1 is off and D1 conducts,
+        Q1's drain is approximately Vout plus the diode drop; allow for switching overshoot when selecting its rating.
+        See <a href="https://www.ti.com/lit/an/slva061/slva061.pdf" target="_blank" rel="noopener">TI SLVA061, §2</a>
+        and <a href="https://www.ti.com/lit/an/snva731/snva731.pdf" target="_blank" rel="noopener">SNVA731, §5</a>.</p>
     </div>
 
         <div class="card">
@@ -353,72 +371,38 @@ Input Power:
         document.getElementById(id).addEventListener('input', update);
     });
 
-    // Schematic
+    // Buildable boost power stage; every drawn lead ends at a real terminal.
     function drawSchematic() {
-        const container = document.getElementById('boost-schematic');
-        const svg = new SchematicSVG(650, 220);
-
-        // Input
-        svg.text(30, 100, 'Vin', {fontSize: 10});
-        svg.wire([[50, 90], [80, 90]]);
-
-        // Inductor
-        svg.inductor(100, 90, {horizontal: true});
-        svg.text(100, 75, 'L', {fontSize: 10});
-
-        // Node after inductor
-        svg.wire([[120, 90], [180, 90]]);
-
-        // Switch (MOSFET)
-        svg.wire([[180, 90], [180, 110]]);
-        svg.text(200, 130, 'Q', {fontSize: 10});
-        svg.wire([[180, 150], [180, 170]]);
-        svg.ground(180, 170);
-
-        // Diode
-        svg.wire([[180, 90], [220, 90]]);
-        svg.diode(240, 90, {horizontal: true});
-        svg.text(240, 75, 'D', {fontSize: 10});
-        svg.wire([[260, 90], [320, 90]]);
-
-        // Output capacitor
-        svg.wire([[320, 90], [320, 110]]);
-        svg.capacitor(320, 130, {horizontal: false});
-        svg.text(335, 130, 'Cout', {fontSize: 9});
-        svg.wire([[320, 150], [320, 170]]);
-        svg.ground(320, 170);
-
-        // Load
-        svg.wire([[320, 90], [380, 90]]);
-        svg.resistor(380, 110, {horizontal: false});
-        svg.text(400, 120, 'Load', {fontSize: 9});
-        svg.wire([[380, 130], [380, 170]]);
-        svg.ground(380, 170);
-
-        // Output voltage label
-        svg.text(400, 85, 'Vout', {fontSize: 10});
-
-        // Ground return
-        svg.wire([[50, 170], [180, 170]]);
-        svg.wire([[50, 90], [50, 170]]);
-
-        // PWM controller (simplified)
-        svg.rect(130, 180, 100, 30, {fill: 'none', stroke: '#888'});
-        svg.text(180, 200, 'PWM Controller', {fontSize: 9});
-        svg.wire([[180, 150], [180, 180]]);
-
-        // Annotations
-        svg.text(450, 60, 'Operation:', {fontSize: 11, fill: '#4af'});
-        svg.text(450, 80, 'Q on: L charges from Vin', {fontSize: 9, fill: '#888'});
-        svg.text(450, 95, 'Q off: L discharges to Vout', {fontSize: 9, fill: '#888'});
-        svg.text(450, 110, 'Vout > Vin always', {fontSize: 9, fill: '#888'});
-
-        svg.text(450, 140, 'Key points:', {fontSize: 11, fill: '#fa4'});
-        svg.text(450, 160, '• Input current is continuous', {fontSize: 9, fill: '#888'});
-        svg.text(450, 175, '• Output current is pulsating', {fontSize: 9, fill: '#888'});
-        svg.text(450, 190, '• Switch sees Vout voltage', {fontSize: 9, fill: '#888'});
-
-        container.innerHTML = svg.render();
+        const host = document.getElementById('boost-schematic');
+        const s = AD.Schematic.create(host, {width: 680, height: 350});
+        s.voltageSource(65, 170, 'vertical', {label: 'Vin'});
+        s.wire([[65, 170], [65, 85], [145, 85]]);
+        s.inductor(145, 85, 'horizontal'); s.text(170, 60, 'L1', {bold: true});
+        s.wire([[195, 85], [260, 85], [350, 85]]);
+        s.nodeLabel(110, 85, 'in', 'top');
+        s.junction(260, 85); s.nodeLabel(260, 85, 'sw', 'top');
+        s.nmos(240, 190, {label: 'Q1', showType: true});
+        const q = AD.Schematic.nmosTerminals(240, 190);
+        s.wire([[260, 85], [q.drain.x, q.drain.y]]);
+        s.wire([[q.source.x, q.source.y], [260, 290]]);
+        s.diode(350, 85, 'horizontal'); s.text(375, 60, 'D1', {bold: true});
+        s.wire([[400, 85], [450, 85], [550, 85], [610, 85]]);
+        s.nodeLabel(610, 85, 'out / Vout', 'top');
+        s.junction(450, 85); s.junction(550, 85);
+        s.wire([[450, 85], [450, 170]]);
+        s.capacitor(450, 170, 'vertical', {label: 'Cout'});
+        s.wire([[450, 220], [450, 290]]);
+        s.wire([[550, 85], [550, 170]]);
+        s.resistor(550, 170, 'vertical', {label: 'Rload'});
+        s.wire([[550, 220], [550, 290]]);
+        s.wire([[65, 220], [65, 290], [550, 290]]);
+        [160, 260, 450, 550].forEach(x => s.junction(x, 290));
+        s.ground(260, 290);
+        s.voltageSource(160, 220, 'vertical', {label: 'Vpwm'});
+        s.wire([[160, 220], [160, 190], [q.gate.x, q.gate.y]]);
+        s.nodeLabel(160, 190, 'pwm', 'top');
+        s.wire([[160, 270], [160, 290]]);
+        s.finalize();
     }
 
     // Checklist
@@ -451,13 +435,13 @@ Input Power:
                 },
                 {
                     question: 'Boost delivers 1A at 12V from 5V input. What is the average inductor current?',
-                    answer: '2.06A',
-                    solution: 'D = 1 - 5/12 = 0.583. IL_avg = Iout/(1-D) = 1/(1-0.583) = 1/0.417 = 2.4A. With 85% efficiency: IL_avg ≈ 2.06A'
+                    answer: '2.4 A ideal; 2.82 A at 85% efficiency',
+                    solution: 'D = 1 - 5/12 = 0.583. IL_avg = Iout/(1-D) = 1/(1-0.583) = 1/0.417 = 2.4A. With 85% efficiency: IL_avg = Pout/(Vin × efficiency) = 12/(5 × 0.85) ≈ 2.82 A'
                 },
                 {
                     question: 'Fsw=500kHz, Vin=3.3V, D=60%, IL_avg=1A, 30% ripple. What inductance needed?',
-                    answer: '6.6µH',
-                    solution: 'ΔIL = 0.3 × 1A = 0.3A. L = (Vin × D)/(fsw × ΔIL) = (3.3 × 0.6)/(500k × 0.3) = 1.98/150000 = 13.2µH. Using exact: L ≈ 6.6µH'
+                    answer: '13.2µH',
+                    solution: 'ΔIL = 0.3 × 1A = 0.3A. L = (Vin × D)/(fsw × ΔIL) = (3.3 × 0.6)/(500k × 0.3) = 1.98/150000 = 13.2µH. This is the ideal CCM ripple calculation.'
                 }
             ]
         });

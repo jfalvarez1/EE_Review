@@ -30,6 +30,7 @@ class CanvasContextStub {
     this.globalAlpha = 1;
   }
 
+  clip() { this.operations.push('clip'); }
   save() { this.operations.push('save'); }
   restore() { this.operations.push('restore'); }
   beginPath() { this.operations.push('beginPath'); }
@@ -143,6 +144,12 @@ class ElementStub {
   appendChild(child) {
     this.children.push(child);
     return child;
+  }
+
+  insertAdjacentHTML(position, markup) {
+    if (position === 'beforeend') this.innerHTML += markup;
+    else if (position === 'afterbegin') this.innerHTML = markup + this.innerHTML;
+    else throw new Error('Unsupported fixture insertion: ' + position);
   }
 
   removeChild(child) {
@@ -575,6 +582,7 @@ function createLessonContext(html) {
   const schematicPath = path.join(process.cwd(), 'assets', 'schematic-svg.js');
   const schematicCode = fs.readFileSync(schematicPath, 'utf8');
   new vm.Script(schematicCode, { filename: schematicPath }).runInContext(context);
+  for (const lib of ['coupled-vr-model.js', 'rf-matching.js', 'practical-schematics.js']) new vm.Script(fs.readFileSync(path.join(process.cwd(), 'assets', lib), 'utf8')).runInContext(context);
 
   const curriculumPath = path.join(process.cwd(), 'assets', 'curriculum.js');
   if (fs.existsSync(curriculumPath)) {

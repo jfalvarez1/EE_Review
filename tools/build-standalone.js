@@ -60,7 +60,11 @@ fs.readdirSync(ldir).sort().forEach(m => {
     if (!fs.statSync(md).isDirectory()) return;
     fs.readdirSync(md).sort().forEach(f => {
         if (!f.endsWith('.html')) return;
-        const body = fs.readFileSync(path.join(md, f), 'utf8');
+        let body = fs.readFileSync(path.join(md, f), 'utf8');
+        body = body.replace(/href="(docs\/examples\/[a-z0-9-]+\.cir)"/g, (_, file) => {
+            const encoded=Buffer.from(read(file),'utf8').toString('base64');
+            return 'href="data:text/plain;base64,'+encoded+'"';
+        });
         lessons[m + '/' + f.replace(/\.html$/, '')] = body;
         lessonBytes += Buffer.byteLength(body);
     });
@@ -119,6 +123,9 @@ assetBytes += inlineStylesheet('assets/styles.css');
     'assets/component-models.js',
     'assets/schematic-svg.js',
     'assets/schematic-normalize.js',
+    'assets/coupled-vr-model.js',
+    'assets/rf-matching.js',
+    'assets/practical-schematics.js',
     'assets/checkpoints.js',
     'assets/board-viewer.js',
     'assets/design-brief.js',

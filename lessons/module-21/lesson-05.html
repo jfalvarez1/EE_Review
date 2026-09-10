@@ -43,7 +43,7 @@
 
         <div class="card">
             <h3>Interactive: Filter Response Comparison</h3>
-            <p>Compare different filter response types and see how order affects the frequency response.</p>
+            <p>Magnitude, phase and group delay are calculated from the same analog prototype poles. Butterworth and Bessel are normalized to half power (−3.0103 dB) at fc; Chebyshev uses a 0.5 dB passband edge at fc. Curves describe ideal filters, excluding component loss and parasitics. See <a href="https://www.analog.com/media/en/training-seminars/tutorials/MT-224.pdf" target="_blank" rel="noopener">ADI MT-224</a> and <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.besselap.html" target="_blank" rel="noopener">Bessel prototype normalization</a>.</p>
 
             <div class="controls">
                 <label>Filter Type:
@@ -54,11 +54,11 @@
                     </select>
                 </label>
                 <label>Order: <input type="range" id="filter-order" min="1" max="7" step="1" value="3"> <span id="filter-order-val">3</span></label>
-                <label>Cutoff Freq: <input type="range" id="cutoff-freq" min="100" max="1000" step="50" value="500"> <span id="cutoff-freq-val">500 MHz</span></label>
+                <label>Cutoff / passband edge: <input type="range" id="cutoff-freq" min="100" max="1000" step="50" value="500"> <span id="cutoff-freq-val">500 MHz</span></label>
             </div>
 
             <div class="canvas-wrap">
-                <canvas id="response-canvas" width="980" height="400"></canvas>
+                <canvas id="response-canvas" width="980" height="330"></canvas><canvas id="filter-phase-canvas" width="980" height="270"></canvas><canvas id="filter-delay-canvas" width="980" height="270"></canvas>
             </div>
 
             <div class="kv">
@@ -103,7 +103,7 @@
             </div>
 
             <div class="canvas-wrap">
-                <canvas id="lc-canvas" width="980" height="350"></canvas>
+                <div id="lc-template" class="schematic-container"></div><p class="small">Source and load resistances are part of this design. The response is normalized to the DC insertion gain, where Vout/Vs = 1/2 for equal terminations. Components are ideal; select real parts using Q, self-resonance and tolerance data, then measure the assembled filter.</p><canvas id="lc-canvas" width="980" height="330"></canvas>
             </div>
 
             <div class="kv">
@@ -319,217 +319,17 @@
             const responseCanvas = document.getElementById('response-canvas');
             const responseCtx = responseCanvas.getContext('2d');
 
-            function drawResponse() {
-                const filterType = document.getElementById('filter-type').value;
-                const order = parseInt(document.getElementById('filter-order').value);
-                const fc = AD.num('cutoff-freq');
-
-                document.getElementById('filter-order-val').textContent = order;
-                document.getElementById('cutoff-freq-val').textContent = fc + ' MHz';
-
-                const ctx = responseCtx;
-                const W = responseCanvas.width, H = responseCanvas.height;
-                ctx.fillStyle = TEK.bg;
-                ctx.fillRect(0, 0, W, H);
-
-                // Magnitude response
-                const magX = 50, magY = 40, magW = 450, magH = 300;
-
-                ctx.fillStyle = TEK.text;
-                ctx.font = '14px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('Magnitude Response', magX + magW/2, magY - 10);
-
-                // Grid
-                ctx.strokeStyle = '#333';
-                ctx.lineWidth = 1;
-                for (let db = 0; db >= -60; db -= 10) {
-                    const y = magY + (0 - db) / 60 * (magH - 30);
-                    ctx.beginPath();
-                    ctx.moveTo(magX + 40, y);
-                    ctx.lineTo(magX + magW, y);
-                    ctx.stroke();
-                }
-
-                // Axes
-                ctx.strokeStyle = '#555';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(magX + 40, magY);
-                ctx.lineTo(magX + 40, magY + magH - 30);
-                ctx.lineTo(magX + magW, magY + magH - 30);
-                ctx.stroke();
-
-                // Calculate and draw response
-                const freqMax = fc * 4;
-                const freqScale = (magW - 50) / Math.log10(freqMax / 10);
-
-                // Filter response function
-                const getResponse = (f, type, n) => {
-                    const omega = f / fc;
-                    let H2;  // |H(jω)|²
-
-                    if (type === 'butterworth') {
-                        H2 = 1 / (1 + Math.pow(omega, 2 * n));
-                    } else if (type === 'chebyshev') {
-                        const epsilon = 0.349;  // 0.5 dB ripple
-                        let Tn;
-                        if (omega <= 1) {
-                            Tn = Math.cos(n * Math.acos(omega));
-                        } else {
-                            Tn = Math.cosh(n * Math.acosh(omega));
-                        }
-                        H2 = 1 / (1 + epsilon * epsilon * Tn * Tn);
-                    } else {  // bessel
-                        // Simplified Bessel approximation
-                        H2 = 1 / (1 + Math.pow(omega, 2 * n) * 0.5);
-                    }
-
-                    return 10 * Math.log10(H2);
-                };
-
-                // Draw response curve
-                ctx.strokeStyle = TEK.ch1;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-
-                for (let i = 0; i <= magW - 50; i++) {
-                    const f = 10 * Math.pow(10, i / freqScale);
-                    const db = getResponse(f, filterType, order);
-
-                    const x = magX + 40 + i;
-                    const y = magY + Math.min((0 - db) / 60 * (magH - 30), magH - 30);
-
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-
-                // -3 dB line
-                ctx.strokeStyle = TEK.ch5;
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                const db3Y = magY + 3 / 60 * (magH - 30);
-                ctx.moveTo(magX + 40, db3Y);
-                ctx.lineTo(magX + magW, db3Y);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                // Cutoff frequency line
-                ctx.strokeStyle = TEK.ch4;
-                ctx.setLineDash([3, 3]);
-                const fcX = magX + 40 + Math.log10(fc / 10) * freqScale;
-                ctx.beginPath();
-                ctx.moveTo(fcX, magY);
-                ctx.lineTo(fcX, magY + magH - 30);
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                // Labels
-                ctx.fillStyle = '#888';
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'right';
-                for (let db = 0; db >= -60; db -= 20) {
-                    const y = magY + (0 - db) / 60 * (magH - 30);
-                    ctx.fillText(db + ' dB', magX + 35, y + 3);
-                }
-
-                ctx.textAlign = 'center';
-                [10, 100, 1000].forEach(f => {
-                    if (f < freqMax) {
-                        const x = magX + 40 + Math.log10(f / 10) * freqScale;
-                        ctx.fillText(f + 'M', x, magY + magH - 15);
-                    }
-                });
-
-                // Phase/Group delay plot
-                const phX = 530, phY = 40, phW = 420, phH = 140;
-
-                ctx.fillStyle = TEK.text;
-                ctx.font = '12px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('Phase Response', phX + phW/2, phY - 5);
-
-                ctx.strokeStyle = '#555';
-                ctx.beginPath();
-                ctx.moveTo(phX + 40, phY + 10);
-                ctx.lineTo(phX + 40, phY + phH - 10);
-                ctx.lineTo(phX + phW, phY + phH - 10);
-                ctx.stroke();
-
-                // Draw phase
-                ctx.strokeStyle = TEK.ch2;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                for (let i = 0; i <= phW - 50; i++) {
-                    const f = 10 * Math.pow(10, i / freqScale);
-                    const omega = f / fc;
-
-                    let phase;
-                    if (filterType === 'butterworth' || filterType === 'chebyshev') {
-                        phase = -order * Math.atan(omega) * 180 / Math.PI;
-                    } else {
-                        phase = -order * Math.atan(omega * 0.7) * 180 / Math.PI;
-                    }
-
-                    const x = phX + 40 + i;
-                    const y = phY + 10 + (phH - 20) / 2 - phase / 180 * (phH - 20) / 2;
-
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, Math.max(Math.min(y, phY + phH - 10), phY + 10));
-                }
-                ctx.stroke();
-
-                // Group delay plot
-                const gdX = 530, gdY = 200, gdW = 420, gdH = 140;
-
-                ctx.fillStyle = TEK.text;
-                ctx.font = '12px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('Group Delay', gdX + gdW/2, gdY - 5);
-
-                ctx.strokeStyle = '#555';
-                ctx.beginPath();
-                ctx.moveTo(gdX + 40, gdY + 10);
-                ctx.lineTo(gdX + 40, gdY + gdH - 10);
-                ctx.lineTo(gdX + gdW, gdY + gdH - 10);
-                ctx.stroke();
-
-                // Draw group delay
-                ctx.strokeStyle = TEK.ch3;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                const maxDelay = order * 2 / (2 * Math.PI * fc * 1e6) * 1e9;  // ns
-
-                for (let i = 0; i <= gdW - 50; i++) {
-                    const f = 10 * Math.pow(10, i / freqScale);
-                    const omega = f / fc;
-
-                    let delay;
-                    if (filterType === 'butterworth') {
-                        delay = order / (2 * Math.PI * fc * 1e6) / (1 + omega * omega) * 1e9;
-                    } else if (filterType === 'bessel') {
-                        delay = order / (2 * Math.PI * fc * 1e6) * 0.8 * 1e9;  // Flat
-                    } else {
-                        delay = order / (2 * Math.PI * fc * 1e6) / (1 + omega * omega * 0.5) * 1e9;
-                    }
-
-                    const x = gdX + 40 + i;
-                    const y = gdY + gdH - 20 - delay / maxDelay * (gdH - 30);
-
-                    if (i === 0) ctx.moveTo(x, Math.max(y, gdY + 10));
-                    else ctx.lineTo(x, Math.max(y, gdY + 10));
-                }
-                ctx.stroke();
-
-                // Calculate metrics
-                document.getElementById('bw-3db').textContent = fc + ' MHz';
-                document.getElementById('rolloff').textContent = (order * 20) + ' dB/decade';
-                const stopbandAtten = getResponse(2 * fc, filterType, order);
-                document.getElementById('stopband-atten').textContent = stopbandAtten.toFixed(1) + ' dB';
-                const groupDelay = (order / (2 * Math.PI * fc * 1e6) * 1e9).toFixed(2);
-                document.getElementById('group-delay').textContent = groupDelay + ' ns';
-            }
+            function drawResponse(){
+ const type=document.getElementById('filter-type').value,n=+document.getElementById('filter-order').value,fc=AD.num('cutoff-freq'),wc=2*Math.PI*fc*1e6;
+ AD.setText('filter-order-val',n);AD.setText('cutoff-freq-val',fc+' MHz');
+ const model=f=>RFMatch.lowpass(type,n,f/fc),base={xMin:fc*.05,xMax:fc*4,log:true,xLabel:'Frequency (MHz)'};
+ AD.circuitPlot(responseCanvas,{...base,yMin:-80,yMax:0,yLabel:'Gain (dB)',curves:[{label:type+' · order '+n,fn:f=>model(f).db}]});
+ AD.circuitPlot(document.getElementById('filter-phase-canvas'),{...base,yMin:-90*n,yMax:0,yLabel:'Phase (degrees)',curves:[{label:'Phase from prototype poles',fn:f=>model(f).phase}]});
+ const peak=Math.max(...Array.from({length:201},(_,i)=>model(fc*4*i/200).delay))*1e9/wc;
+ AD.circuitPlot(document.getElementById('filter-delay-canvas'),{...base,yMin:0,yMax:peak*1.1,yLabel:'Group delay (ns)',curves:[{label:'−dφ/dω',fn:f=>model(f).delay*1e9/wc}]});
+ let lo=0,hi=4;for(let i=0;i<70;i++){const mid=(lo+hi)/2;if(RFMatch.lowpass(type,n,mid).db>-10*Math.log10(2))lo=mid;else hi=mid;}
+ AD.setText('bw-3db',(fc*(lo+hi)/2).toFixed(2)+' MHz');AD.setText('rolloff',20*n+' dB/decade');AD.setText('stopband-atten',model(fc*2).db.toFixed(2)+' dB');AD.setText('group-delay',(model(fc).delay*1e9/wc).toFixed(3)+' ns');
+}
 
             ['filter-type', 'filter-order', 'cutoff-freq'].forEach(id => {
                 document.getElementById(id).addEventListener('input', drawResponse);
@@ -540,224 +340,13 @@
             const lcCanvas = document.getElementById('lc-canvas');
             const lcCtx = lcCanvas.getContext('2d');
 
-            function drawLCFilter() {
-                const order = parseInt(document.getElementById('lc-order').value);
-                const fc = AD.num('lc-fc');
-                const Z0 = AD.num('lc-z0');
-
-                document.getElementById('lc-order-val').textContent = order;
-                document.getElementById('lc-fc-val').textContent = fc + ' MHz';
-                document.getElementById('lc-z0-val').textContent = Z0 + ' Ω';
-
-                const g = butterworthG[order];
-                const omega_c = 2 * Math.PI * fc * 1e6;
-
-                // Calculate component values
-                const components = [];
-                for (let i = 0; i < order; i++) {
-                    if (i % 2 === 0) {
-                        // Shunt capacitor
-                        const C = g[i] / (Z0 * omega_c);
-                        components.push({ type: 'C', value: C, position: 'shunt' });
-                    } else {
-                        // Series inductor
-                        const L = g[i] * Z0 / omega_c;
-                        components.push({ type: 'L', value: L, position: 'series' });
-                    }
-                }
-
-                document.getElementById('lc-topology').textContent = order % 2 === 1 ? 'π-network' : 'T-network';
-                document.getElementById('lc-count').textContent = order + ' elements';
-
-                const ctx = lcCtx;
-                const W = lcCanvas.width, H = lcCanvas.height;
-                ctx.fillStyle = TEK.bg;
-                ctx.fillRect(0, 0, W, H);
-
-                // Draw schematic
-                ctx.fillStyle = TEK.text;
-                ctx.font = '14px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('Butterworth Low-Pass Filter (Order ' + order + ')', W/2, 25);
-
-                const schY = 100, schStartX = 150, schSpacing = 150;
-
-                // Input
-                ctx.strokeStyle = '#888';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(50, schY);
-                ctx.lineTo(schStartX, schY);
-                ctx.stroke();
-                ctx.fillStyle = TEK.text;
-                ctx.font = '11px monospace';
-                ctx.textAlign = 'right';
-                ctx.fillText('IN', 45, schY + 5);
-                ctx.fillText(Z0 + 'Ω', 45, schY + 20);
-
-                // Ground line
-                ctx.strokeStyle = '#444';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(schStartX, schY + 100);
-                ctx.lineTo(schStartX + (order - 1) * schSpacing, schY + 100);
-                ctx.stroke();
-
-                let currentX = schStartX;
-
-                components.forEach((comp, i) => {
-                    if (comp.position === 'shunt') {
-                        // Shunt capacitor
-                        ctx.strokeStyle = TEK.ch2;
-                        ctx.lineWidth = 2;
-
-                        // Vertical wire
-                        ctx.beginPath();
-                        ctx.moveTo(currentX, schY);
-                        ctx.lineTo(currentX, schY + 30);
-                        ctx.stroke();
-
-                        // Capacitor plates
-                        ctx.beginPath();
-                        ctx.moveTo(currentX - 15, schY + 30);
-                        ctx.lineTo(currentX + 15, schY + 30);
-                        ctx.moveTo(currentX - 15, schY + 40);
-                        ctx.lineTo(currentX + 15, schY + 40);
-                        ctx.stroke();
-
-                        // To ground
-                        ctx.strokeStyle = '#888';
-                        ctx.beginPath();
-                        ctx.moveTo(currentX, schY + 40);
-                        ctx.lineTo(currentX, schY + 100);
-                        ctx.stroke();
-
-                        // Ground symbol
-                        ctx.beginPath();
-                        ctx.moveTo(currentX - 10, schY + 100);
-                        ctx.lineTo(currentX + 10, schY + 100);
-                        ctx.moveTo(currentX - 6, schY + 105);
-                        ctx.lineTo(currentX + 6, schY + 105);
-                        ctx.moveTo(currentX - 2, schY + 110);
-                        ctx.lineTo(currentX + 2, schY + 110);
-                        ctx.stroke();
-
-                        // Value label
-                        ctx.fillStyle = TEK.ch2;
-                        ctx.font = '10px monospace';
-                        ctx.textAlign = 'left';
-                        const cVal = comp.value * 1e12;
-                        ctx.fillText(cVal.toFixed(1) + ' pF', currentX + 20, schY + 40);
-
-                        if (i < order - 1) currentX += schSpacing / 2;
-                    } else {
-                        // Series inductor
-                        ctx.strokeStyle = TEK.ch1;
-                        ctx.lineWidth = 2;
-
-                        // Draw inductor coils
-                        const startX = currentX;
-                        const endX = currentX + schSpacing;
-                        const coils = 4;
-                        const coilW = (endX - startX - 20) / coils;
-
-                        ctx.beginPath();
-                        ctx.moveTo(startX, schY);
-                        ctx.lineTo(startX + 10, schY);
-                        for (let c = 0; c < coils; c++) {
-                            const cx = startX + 10 + c * coilW + coilW/2;
-                            ctx.arc(cx, schY, coilW/2, Math.PI, 0, false);
-                        }
-                        ctx.lineTo(endX, schY);
-                        ctx.stroke();
-
-                        // Value label
-                        ctx.fillStyle = TEK.ch1;
-                        ctx.font = '10px monospace';
-                        ctx.textAlign = 'center';
-                        const lVal = comp.value * 1e9;
-                        ctx.fillText(lVal.toFixed(1) + ' nH', (startX + endX) / 2, schY - 25);
-
-                        currentX = endX;
-                    }
-                });
-
-                // Output
-                ctx.strokeStyle = '#888';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(currentX, schY);
-                ctx.lineTo(currentX + 100, schY);
-                ctx.stroke();
-                ctx.fillStyle = TEK.text;
-                ctx.font = '11px monospace';
-                ctx.textAlign = 'left';
-                ctx.fillText('OUT', currentX + 105, schY + 5);
-                ctx.fillText(Z0 + 'Ω', currentX + 105, schY + 20);
-
-                // Component table
-                const tableX = 50, tableY = 220;
-                ctx.fillStyle = TEK.text;
-                ctx.font = '12px monospace';
-                ctx.textAlign = 'left';
-                ctx.fillText('Component Values:', tableX, tableY);
-
-                components.forEach((comp, i) => {
-                    const y = tableY + 20 + i * 18;
-                    ctx.fillStyle = comp.type === 'L' ? TEK.ch1 : TEK.ch2;
-
-                    if (comp.type === 'L') {
-                        const lVal = comp.value * 1e9;
-                        ctx.fillText('L' + Math.floor(i/2 + 1) + ' = ' + lVal.toFixed(2) + ' nH', tableX, y);
-                    } else {
-                        const cVal = comp.value * 1e12;
-                        ctx.fillText('C' + Math.floor(i/2 + 1) + ' = ' + cVal.toFixed(2) + ' pF', tableX, y);
-                    }
-                });
-
-                // Draw response preview
-                const prevX = 500, prevY = 220, prevW = 430, prevH = 100;
-
-                ctx.fillStyle = TEK.text;
-                ctx.font = '11px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('Response Preview', prevX + prevW/2, prevY);
-
-                ctx.strokeStyle = '#444';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(prevX, prevY + 10, prevW, prevH);
-
-                // Draw frequency response
-                ctx.strokeStyle = TEK.ch4;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-
-                for (let i = 0; i <= prevW; i++) {
-                    const f = fc * 0.01 * Math.pow(10, i / prevW * 2);
-                    const omega = f / fc;
-                    const H2 = 1 / (1 + Math.pow(omega, 2 * order));
-                    const db = 10 * Math.log10(H2);
-
-                    const x = prevX + i;
-                    const y = prevY + 15 + (-db / 60) * (prevH - 15);
-
-                    if (i === 0) ctx.moveTo(x, Math.min(y, prevY + prevH + 5));
-                    else ctx.lineTo(x, Math.min(y, prevY + prevH + 5));
-                }
-                ctx.stroke();
-
-                // Cutoff marker
-                const fcX2 = prevX + prevW * Math.log10(1) / 2;
-                ctx.strokeStyle = TEK.ch5;
-                ctx.setLineDash([3, 3]);
-                ctx.beginPath();
-                ctx.moveTo(prevX + prevW/2, prevY + 10);
-                ctx.lineTo(prevX + prevW/2, prevY + prevH + 10);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                ctx.fillStyle = TEK.ch5;
-                ctx.fillText('fc=' + fc + 'MHz', prevX + prevW/2, prevY + prevH + 25);
-            }
+            function drawLCFilter(){
+ const n=+document.getElementById('lc-order').value,fc=AD.num('lc-fc'),Z0=AD.num('lc-z0'),wc=2*Math.PI*fc*1e6;
+ const components=Array.from({length:n},(_,i)=>{const g=2*Math.sin((2*i+1)*Math.PI/(2*n));return i%2?{type:'L',value:g*Z0/wc}:{type:'C',value:g/(Z0*wc)};});
+ AD.setText('lc-order-val',n);AD.setText('lc-fc-val',fc+' MHz');AD.setText('lc-z0-val',Z0+' Ω');AD.setText('lc-topology',n===3?'C–L–C π network':'Shunt-first LC ladder');AD.setText('lc-count',n+' reactive elements');
+ AD.Schematic.lcLadderTemplate(document.getElementById('lc-template'),components,Z0);
+ AD.circuitPlot(lcCanvas,{xMin:fc/10,xMax:fc*10,yMin:-80,yMax:0,log:true,xLabel:'Frequency (MHz)',yLabel:'Normalized gain (dB)',curves:[{label:'Ideal Butterworth, fc = '+fc+' MHz',fn:f=>-10*Math.log10(1+(f/fc)**(2*n))}]});
+}
 
             ['lc-order', 'lc-fc', 'lc-z0'].forEach(id => {
                 document.getElementById(id).addEventListener('input', drawLCFilter);
@@ -1127,7 +716,7 @@
                 svg.ground(200, 250);
 
                 // ---- L1, series ----
-                svg.inductor(200, 150, 350, 150, 'L1  159 nH');
+                svg.inductor(200, 150, 350, 150, '');svg.text(275,126,'L1  159 nH');
                 svg.line(350, 150, 400, 150);
 
                 // ---- C2, shunt ----

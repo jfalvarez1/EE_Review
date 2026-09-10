@@ -316,14 +316,47 @@
         }
     }
 
+    // Legacy drawings often place a final label beyond the authored viewBox.
+    // Expand the viewport to the measured ink; never move a wire or label.
+    function fitContent(svg) {
+        if (svg.ownerSVGElement || svg.closest('mjx-container')) return;
+        const v = svg.viewBox && svg.viewBox.baseVal;
+        if (!v || !v.width || !v.height) return;
+        try {
+            const b = svg.getBBox();
+            if (!b.width || !b.height) return;
+            const pad = 10;
+            const left = Math.min(v.x, b.x - pad), top = Math.min(v.y, b.y - pad);
+            const right = Math.max(v.x + v.width, b.x + b.width + pad);
+            const bottom = Math.max(v.y + v.height, b.y + b.height + pad);
+            svg.setAttribute('viewBox', `${left} ${top} ${right - left} ${bottom - top}`);
+        } catch (e) { /* Hidden diagrams are measured when they become visible. */ }
+    }
+
+    function containDrawing(svg) {
+        if (svg.ownerSVGElement || svg.closest('mjx-container') || !svg.closest('#lesson-content')) return;
+        if (svg.parentElement.classList.contains('schematic-scroll')) return;
+        const shell = document.createElement('div');
+        shell.className = 'schematic-scroll';
+        shell.setAttribute('tabindex', '0');
+        shell.setAttribute('role', 'region');
+        shell.setAttribute('aria-label', 'Scrollable diagram');
+        const v = svg.viewBox && svg.viewBox.baseVal;
+        shell.style.setProperty('--drawing-min-width', Math.max(300, v ? v.width : 600) + 'px');
+        svg.parentNode.insertBefore(shell, svg);
+        shell.appendChild(svg);
+    }
+
     function run(root) {
         if (!root) return;
         const svgs = root.querySelectorAll('svg.circuit-diagram, svg.circuit-svg, svg');
         svgs.forEach(svg => {
             normalizeSvg(svg);
             normalizeContrast(svg);
+            fitContent(svg);
+            containDrawing(svg);
         });
     }
 
-    window.SchematicNormalizer = { run, normalizeContrast, brighten };
+    window.SchematicNormalizer = { run, normalizeContrast, brighten, fitContent };
 })();

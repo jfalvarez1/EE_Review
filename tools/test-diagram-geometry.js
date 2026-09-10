@@ -8,22 +8,19 @@ const vm = require('vm');
 const assert = require('assert');
 const { createLessonContext, extractScripts } = require('./validate-schematics');
 
-const targets = {
-    'lessons/module-01/lesson-01.html': ['sch-input-lab'],
-    'lessons/module-01/lesson-02.html': ['sch-build-inv', 'sch-build-non'],
-    'lessons/module-01/lesson-03.html': ['wavegen-schematic'],
-    'lessons/module-01/lesson-04.html': ['sch-build-bandwidth'],
-    'lessons/module-01/lesson-05.html': ['error-source-schematic', 'sch-build-dc-errors'],
-    'lessons/module-01/lesson-07.html': ['sch-offset-bench'],
-    'lessons/module-01/lesson-08.html': ['sch-stability-loop', 'sch-stability-load', 'sch-stability-cin', 'sch-stability-isolation', 'sch-stability-cf', 'sch-stability-noise'],
-    'lessons/module-25/lesson-01.html': ['audio-system-diag', 'pdm-diag', 'tablet-design-diag', 'sch-mic-preamp']
-};
-const geometryTypes = new Set(['text_overlap', 'text_overlap_wire', 'text_overlap_keepout']);
+const targets = require('./fixtures/circuit-targets.json');
+const geometryTypes = new Set(['text_overlap', 'text_overlap_wire', 'text_overlap_keepout', 'text_overlap_node', 'unconnected_pin']);
 
 function render(file, mutate = s => s) {
     const html = mutate(fs.readFileSync(file, 'utf8'));
     const { context, document } = createLessonContext(html);
     const figures = new Map();
+    const finish = context.AD.Schematic.Schematic.prototype.finalize;
+    context.AD.Schematic.Schematic.prototype.finalize = function(opts) {
+        const host = [...document._byId].find(([,el]) => el.children && el.children.includes(this.svg));
+        if (host) figures.set(host[0], this);
+        return finish.call(this, opts);
+    };
     const create = context.AD.Schematic.create;
     context.AD.Schematic.create = (host, options) => {
         const s = create(host, options);
@@ -107,4 +104,4 @@ function main() {
     console.log(`PASS - ${count} rendered diagrams: label geometry, wire clearance, marker attributes; original-defect mutations rejected.`);
 }
 if (require.main === module) main();
-module.exports = { render, issues };
+module.exports = { render, issues, targets };

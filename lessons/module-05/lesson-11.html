@@ -73,7 +73,7 @@
         </div>
 
         <div class="canvas-wrap">
-            <canvas id="cs-canvas" width="700" height="300"></canvas>
+            <div id="cs-steering-schematic"></div><p class="figure-caption">Matched forward-active BJTs, negligible base current and Vₜ = 26 mV. V1 − V2 steers the fixed tail current; collector loads and supply voltages must keep both devices in their active regions.</p>
         </div>
 
         <div class="kv">
@@ -810,153 +810,21 @@
 // CURRENT STEERING ANIMATION
 // ============================================
 (function() {
-    const canvas = document.getElementById('cs-canvas');
-    if (!canvas || typeof AD === 'undefined') return;
-    const ctx = canvas.getContext('2d');
-    const TEK = AD.TEK_COLORS;
-
-    let animationId = null;
-    let animating = false;
-
-    function drawCurrentSteering(vdiff, itail) {
-        const w = canvas.width;
-        const h = canvas.height;
-        const vt = 0.026;
-
-        // Calculate currents
-        const tanhTerm = Math.tanh(vdiff / (2 * vt));
-        const ic1 = (itail / 2) * (1 + tanhTerm);
-        const ic2 = (itail / 2) * (1 - tanhTerm);
-
-        // Clear and draw background
-        ctx.fillStyle = '#1a1a2e';
-        ctx.fillRect(0, 0, w, h);
-
-        // Draw transistor symbols (simplified)
-        const q1X = w * 0.25;
-        const q2X = w * 0.75;
-        const qY = h * 0.45;
-        const transistorSize = 40;
-
-        // Q1 (left)
-        ctx.strokeStyle = TEK.ch1;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(q1X - transistorSize, qY);
-        ctx.lineTo(q1X, qY);
-        ctx.lineTo(q1X + transistorSize * 0.7, qY - transistorSize);
-        ctx.moveTo(q1X, qY);
-        ctx.lineTo(q1X + transistorSize * 0.7, qY + transistorSize);
-        ctx.stroke();
-        ctx.fillStyle = TEK.text;
-        ctx.font = 'bold 14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Q1', q1X, qY + transistorSize + 25);
-
-        // Q2 (right)
-        ctx.strokeStyle = TEK.ch2;
-        ctx.beginPath();
-        ctx.moveTo(q2X + transistorSize, qY);
-        ctx.lineTo(q2X, qY);
-        ctx.lineTo(q2X - transistorSize * 0.7, qY - transistorSize);
-        ctx.moveTo(q2X, qY);
-        ctx.lineTo(q2X - transistorSize * 0.7, qY + transistorSize);
-        ctx.stroke();
-        ctx.fillText('Q2', q2X, qY + transistorSize + 25);
-
-        // Common emitter node
-        const emitterY = qY + transistorSize + 50;
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(q1X + transistorSize * 0.7, qY + transistorSize);
-        ctx.lineTo(q1X + transistorSize * 0.7, emitterY);
-        ctx.lineTo(q2X - transistorSize * 0.7, emitterY);
-        ctx.lineTo(q2X - transistorSize * 0.7, qY + transistorSize);
-        ctx.stroke();
-
-        // Tail current source symbol
-        const tailX = w / 2;
-        ctx.strokeStyle = TEK.ch3;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(tailX, emitterY + 25, 15, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(tailX, emitterY);
-        ctx.lineTo(tailX, emitterY + 10);
-        ctx.moveTo(tailX, emitterY + 40);
-        ctx.lineTo(tailX, h - 20);
-        ctx.stroke();
-
-        // Draw current bars (animated)
-        const maxBarHeight = 100;
-        const barWidth = 50;
-
-        // IC1 bar
-        const ic1Height = (ic1 / itail) * maxBarHeight;
-        const ic1BarX = q1X - barWidth / 2;
-        const ic1BarY = 30;
-
-        ctx.fillStyle = TEK.ch1;
-        ctx.fillRect(ic1BarX, ic1BarY + maxBarHeight - ic1Height, barWidth, ic1Height);
-        ctx.strokeStyle = '#444';
-        ctx.strokeRect(ic1BarX, ic1BarY, barWidth, maxBarHeight);
-        ctx.fillStyle = TEK.text;
-        ctx.font = '12px sans-serif';
-        ctx.fillText(`IC1: ${(ic1 * 1000).toFixed(2)} mA`, q1X, ic1BarY - 8);
-
-        // IC2 bar
-        const ic2Height = (ic2 / itail) * maxBarHeight;
-        const ic2BarX = q2X - barWidth / 2;
-
-        ctx.fillStyle = TEK.ch2;
-        ctx.fillRect(ic2BarX, ic1BarY + maxBarHeight - ic2Height, barWidth, ic2Height);
-        ctx.strokeStyle = '#444';
-        ctx.strokeRect(ic2BarX, ic1BarY, barWidth, maxBarHeight);
-        ctx.fillText(`IC2: ${(ic2 * 1000).toFixed(2)} mA`, q2X, ic1BarY - 8);
-
-        // Current flow arrows (animated particles would be nice, but simplified here)
-        const arrowSize = 8;
-
-        // Draw flow intensity with arrow thickness
-        ctx.lineWidth = Math.max(1, (ic1 / itail) * 5);
-        ctx.strokeStyle = TEK.ch1;
-        ctx.beginPath();
-        ctx.moveTo(q1X + transistorSize * 0.7, qY - transistorSize - 20);
-        ctx.lineTo(q1X + transistorSize * 0.7, qY - transistorSize);
-        ctx.stroke();
-        // Arrow head
-        ctx.beginPath();
-        ctx.moveTo(q1X + transistorSize * 0.7 - arrowSize/2, qY - transistorSize - arrowSize);
-        ctx.lineTo(q1X + transistorSize * 0.7, qY - transistorSize);
-        ctx.lineTo(q1X + transistorSize * 0.7 + arrowSize/2, qY - transistorSize - arrowSize);
-        ctx.stroke();
-
-        ctx.lineWidth = Math.max(1, (ic2 / itail) * 5);
-        ctx.strokeStyle = TEK.ch2;
-        ctx.beginPath();
-        ctx.moveTo(q2X - transistorSize * 0.7, qY - transistorSize - 20);
-        ctx.lineTo(q2X - transistorSize * 0.7, qY - transistorSize);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(q2X - transistorSize * 0.7 - arrowSize/2, qY - transistorSize - arrowSize);
-        ctx.lineTo(q2X - transistorSize * 0.7, qY - transistorSize);
-        ctx.lineTo(q2X - transistorSize * 0.7 + arrowSize/2, qY - transistorSize - arrowSize);
-        ctx.stroke();
-
-        // Tail current
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = TEK.ch3;
-        ctx.fillStyle = TEK.text;
-        ctx.font = '11px sans-serif';
-        ctx.fillText(`Itail: ${(itail * 1000).toFixed(1)} mA`, tailX, h - 8);
-
-        // Input voltage labels
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillStyle = vdiff > 0 ? TEK.ch1 : (vdiff < 0 ? TEK.ch2 : TEK.text);
-        ctx.fillText(`Vdiff = ${(vdiff * 1000).toFixed(0)} mV`, w/2, 20);
-
+    const host = document.getElementById('cs-steering-schematic');
+    if (!host) return;
+    let animationId = null, animating = false;
+    function drawCurrentSteering(vdiff,itail){
+        const tanhTerm=Math.tanh(vdiff/(2*0.026));
+        const ic1=itail/2*(1+tanhTerm),ic2=itail-ic1;
+        host.innerHTML='';const s=AD.Schematic.create(host,{width:720,height:400});
+        s.npn(230,180,{label:'Q1'});s.npn(490,180,{label:'Q2',flip:true});
+        s.wire([[250,150],[250,95]]);s.resistor(250,45,'vertical',{label:'Rc1'});s.vcc(250,45,{label:'+Vs'});
+        s.wire([[470,150],[470,95]]);s.resistor(470,45,'vertical',{label:'Rc2'});s.vcc(470,45,{label:'+Vs'});
+        s.wire([[215,180],[120,180]]);s.nodeLabel(120,180,'V1');s.wire([[505,180],[600,180]]);s.nodeLabel(600,180,'V2');
+        s.wire([[250,210],[250,255],[470,255],[470,210]]);s.junction(360,255);s.wire([[360,255],[360,285]]);
+        s.currentSource(360,285,'vertical',{label:'Itail'});s.wire([[360,335],[360,365]]);s.nodeLabel(360,365,'−Vs',{dy:20});
+        s.text(130,120,'Ic1 = '+(ic1*1000).toFixed(2)+' mA',{size:12});s.text(590,120,'Ic2 = '+(ic2*1000).toFixed(2)+' mA',{size:12});
+        s.finalize();
         // Update displays
         document.getElementById('cs-ic1').textContent = (ic1 * 1000).toFixed(2) + ' mA';
         document.getElementById('cs-ic2').textContent = (ic2 * 1000).toFixed(2) + ' mA';

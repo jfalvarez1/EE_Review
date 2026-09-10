@@ -88,11 +88,11 @@
             <h3>LNA Topologies</h3>
 
             <h4>1. Common Source/Emitter with Inductive Degeneration</h4>
-            <p>Most popular topology - provides simultaneous noise and power match through source inductance.</p>
+            <p>Inductive degeneration introduces a real input-impedance term. Noise and power matching must be evaluated together using the device noise parameters.</p>
             <ul>
                 <li>Source inductor (L_s) creates real input impedance</li>
                 <li>Gate inductor (L_g) resonates with C_gs for matching</li>
-                <li>Achieves near-minimum noise figure with 50Ω match</li>
+                <li>A 50 Ω input match alone does not guarantee minimum noise figure</li>
             </ul>
 
             <h4>2. Cascode Configuration</h4>
@@ -122,7 +122,7 @@
 
         <div class="card">
             <h3>Interactive: Inductive Degeneration LNA Design</h3>
-            <p>Design a common-source LNA with inductive source degeneration for simultaneous noise and power matching.</p>
+            <p>Explore the first-order input impedance of a common-source LNA. The circuit shows bias and DC-blocking paths; the calculation assumes their RF impedances are negligible or very large as appropriate. It includes gm, Cgs, Ls and Lg but omits Cgd, output resistance, package/PCB parasitics and inductor losses. Matching this impedance does not establish noise figure or stability. <a href="https://people.ece.ubc.ca/~dho/Files/06_03_13_CCECE_LNA.pdf" target="_blank" rel="noopener">Hashemi and Masoumi, LNA small-signal model and input matching, Figure 2</a>.</p>
 
             <div class="controls">
                 <label>Frequency: <input type="range" id="freq" min="0.5" max="6" step="0.1" value="2.4"> <span id="freq-val">2.4 GHz</span></label>
@@ -132,14 +132,14 @@
             </div>
 
             <div class="canvas-wrap">
-                <canvas id="degen-canvas" width="980" height="400"></canvas>
+                <div id="degen-template" class="schematic-container"></div><p id="degen-note" class="small"></p><canvas id="degen-canvas" width="980" height="330"></canvas>
             </div>
 
             <div class="kv">
                 <div class="kv-item"><span class="kv-label">L_s (Source):</span><span id="ls-val" class="kv-value">0.8 nH</span></div>
                 <div class="kv-item"><span class="kv-label">L_g (Gate):</span><span id="lg-val" class="kv-value">8.5 nH</span></div>
-                <div class="kv-item"><span class="kv-label">ω_T:</span><span id="wt-val" class="kv-value">40 GHz</span></div>
-                <div class="kv-item"><span class="kv-label">Estimated NF:</span><span id="est-nf" class="kv-value">1.2 dB</span></div>
+                <div class="kv-item"><span class="kv-label">f_T = gm/(2πCgs):</span><span id="wt-val" class="kv-value">40 GHz</span></div>
+                <div class="kv-item"><span class="kv-label">Input model:</span><span id="degen-state" class="kv-value">1.2 dB</span></div>
             </div>
         </div>
 
@@ -586,311 +586,14 @@
             const degenCanvas = document.getElementById('degen-canvas');
             const degenCtx = degenCanvas.getContext('2d');
 
-            function drawDegen() {
-                const freq = AD.num('freq');
-                const gm = AD.num('gm');
-                const Cgs = AD.num('cgs');
-                const Zin = AD.num('zin');
-
-                document.getElementById('freq-val').textContent = freq.toFixed(1) + ' GHz';
-                document.getElementById('gm-val').textContent = gm + ' mS';
-                document.getElementById('cgs-val').textContent = Cgs + ' fF';
-                document.getElementById('zin-val').textContent = Zin + ' Ω';
-
-                const omega = 2 * Math.PI * freq * 1e9;
-                const gmLin = gm / 1000;  // Convert to S
-                const CgsLin = Cgs * 1e-15;  // Convert to F
-
-                // ω_T = gm / Cgs
-                const wT = gmLin / CgsLin;
-                const fT = wT / (2 * Math.PI) / 1e9;
-
-                // For input match: Re{Zin} = gm * Ls / Cgs = ω_T * Ls
-                // Ls = Zin / ω_T
-                const Ls = Zin / wT;
-                const LsNh = Ls * 1e9;
-
-                // Gate inductor resonates with Cgs at frequency
-                // ω² * Lg * Cgs = 1 - ω² * Ls * Cgs
-                // Lg = (1 - ω² * Ls * Cgs) / (ω² * Cgs)
-                const Lg = (1 - omega * omega * Ls * CgsLin) / (omega * omega * CgsLin);
-                const LgNh = Lg * 1e9;
-
-                // Estimated NF (simplified model)
-                const gamma = 2/3;  // Channel noise factor for long-channel
-                const nfEst = 1 + gamma * (omega / wT) * (omega / wT) * 4 * Zin * gmLin;
-                const nfEstDb = 10 * Math.log10(nfEst);
-
-                document.getElementById('ls-val').textContent = LsNh.toFixed(2) + ' nH';
-                document.getElementById('lg-val').textContent = (LgNh > 0 ? LgNh.toFixed(2) : 'N/A') + ' nH';
-                document.getElementById('wt-val').textContent = fT.toFixed(1) + ' GHz';
-                document.getElementById('est-nf').textContent = (nfEstDb > 0 ? nfEstDb.toFixed(2) : '<1') + ' dB';
-
-                const ctx = degenCtx;
-                const W = degenCanvas.width, H = degenCanvas.height;
-                ctx.fillStyle = TEK.bg;
-                ctx.fillRect(0, 0, W, H);
-
-                // Draw schematic representation
-                const schX = 150, schY = 50;
-
-                // VDD
-                ctx.strokeStyle = TEK.ch5;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(schX + 100, schY);
-                ctx.lineTo(schX + 100, schY + 30);
-                ctx.stroke();
-                ctx.fillStyle = TEK.ch5;
-                ctx.font = '12px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('VDD', schX + 100, schY - 5);
-
-                // Load inductor (Ld)
-                ctx.strokeStyle = TEK.ch2;
-                drawInductor(ctx, schX + 100, schY + 30, schX + 100, schY + 80);
-                ctx.fillStyle = TEK.ch2;
-                ctx.textAlign = 'left';
-                ctx.fillText('Ld', schX + 110, schY + 55);
-
-                // Transistor (simplified)
-                ctx.strokeStyle = TEK.ch4;
-                ctx.fillStyle = TEK.ch4;
-                // Drain
-                ctx.beginPath();
-                ctx.moveTo(schX + 100, schY + 80);
-                ctx.lineTo(schX + 100, schY + 110);
-                ctx.stroke();
-                // Gate
-                ctx.beginPath();
-                ctx.moveTo(schX + 60, schY + 130);
-                ctx.lineTo(schX + 85, schY + 130);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(schX + 90, schY + 110);
-                ctx.lineTo(schX + 90, schY + 150);
-                ctx.stroke();
-                // Channel
-                ctx.beginPath();
-                ctx.moveTo(schX + 95, schY + 110);
-                ctx.lineTo(schX + 95, schY + 150);
-                ctx.lineTo(schX + 100, schY + 150);
-                ctx.lineTo(schX + 100, schY + 110);
-                ctx.closePath();
-                ctx.stroke();
-                // Source
-                ctx.beginPath();
-                ctx.moveTo(schX + 100, schY + 150);
-                ctx.lineTo(schX + 100, schY + 170);
-                ctx.stroke();
-                ctx.fillText('M1', schX + 110, schY + 135);
-
-                // Source inductor (Ls)
-                ctx.strokeStyle = TEK.ch1;
-                drawInductor(ctx, schX + 100, schY + 170, schX + 100, schY + 220);
-                ctx.fillStyle = TEK.ch1;
-                ctx.fillText('Ls = ' + LsNh.toFixed(2) + 'nH', schX + 110, schY + 195);
-
-                // Ground
-                ctx.strokeStyle = '#888';
-                ctx.beginPath();
-                ctx.moveTo(schX + 100, schY + 220);
-                ctx.lineTo(schX + 100, schY + 235);
-                ctx.moveTo(schX + 85, schY + 235);
-                ctx.lineTo(schX + 115, schY + 235);
-                ctx.moveTo(schX + 90, schY + 240);
-                ctx.lineTo(schX + 110, schY + 240);
-                ctx.moveTo(schX + 95, schY + 245);
-                ctx.lineTo(schX + 105, schY + 245);
-                ctx.stroke();
-
-                // Gate inductor (Lg)
-                ctx.strokeStyle = TEK.ch3;
-                drawInductor(ctx, schX, schY + 130, schX + 55, schY + 130);
-                ctx.fillStyle = TEK.ch3;
-                ctx.textAlign = 'center';
-                ctx.fillText('Lg = ' + (LgNh > 0 ? LgNh.toFixed(1) : 'N/A') + 'nH', schX + 27, schY + 115);
-
-                // Input
-                ctx.strokeStyle = '#888';
-                ctx.beginPath();
-                ctx.moveTo(schX - 30, schY + 130);
-                ctx.lineTo(schX, schY + 130);
-                ctx.stroke();
-                ctx.fillStyle = TEK.text;
-                ctx.textAlign = 'right';
-                ctx.fillText('RF in', schX - 35, schY + 135);
-
-                // Output
-                ctx.strokeStyle = '#888';
-                ctx.beginPath();
-                ctx.moveTo(schX + 100, schY + 95);
-                ctx.lineTo(schX + 150, schY + 95);
-                ctx.stroke();
-                ctx.fillStyle = TEK.text;
-                ctx.textAlign = 'left';
-                ctx.fillText('RF out', schX + 155, schY + 100);
-
-                // Draw equivalent input circuit
-                const eqX = 400, eqY = 50;
-                ctx.fillStyle = TEK.text;
-                ctx.font = '14px monospace';
-                ctx.textAlign = 'left';
-                ctx.fillText('Equivalent Input Impedance Model', eqX, eqY);
-
-                // Series RLC
-                ctx.strokeStyle = '#888';
-                ctx.beginPath();
-                ctx.moveTo(eqX, eqY + 80);
-                ctx.lineTo(eqX + 30, eqY + 80);
-                ctx.stroke();
-
-                // Lg equivalent
-                ctx.strokeStyle = TEK.ch3;
-                drawInductor(ctx, eqX + 30, eqY + 80, eqX + 80, eqY + 80);
-
-                // Connection
-                ctx.strokeStyle = '#888';
-                ctx.beginPath();
-                ctx.moveTo(eqX + 80, eqY + 80);
-                ctx.lineTo(eqX + 100, eqY + 80);
-                ctx.stroke();
-
-                // Cgs
-                ctx.strokeStyle = TEK.ch1;
-                ctx.beginPath();
-                ctx.moveTo(eqX + 100, eqY + 70);
-                ctx.lineTo(eqX + 100, eqY + 90);
-                ctx.moveTo(eqX + 110, eqY + 70);
-                ctx.lineTo(eqX + 110, eqY + 90);
-                ctx.stroke();
-                ctx.fillStyle = TEK.ch1;
-                ctx.font = '11px monospace';
-                ctx.fillText('Cgs', eqX + 100, eqY + 55);
-
-                // Connection
-                ctx.strokeStyle = '#888';
-                ctx.beginPath();
-                ctx.moveTo(eqX + 110, eqY + 80);
-                ctx.lineTo(eqX + 140, eqY + 80);
-                ctx.stroke();
-
-                // Ls equivalent
-                ctx.strokeStyle = TEK.ch2;
-                drawInductor(ctx, eqX + 140, eqY + 80, eqX + 190, eqY + 80);
-
-                // Connection
-                ctx.strokeStyle = '#888';
-                ctx.beginPath();
-                ctx.moveTo(eqX + 190, eqY + 80);
-                ctx.lineTo(eqX + 220, eqY + 80);
-                ctx.stroke();
-
-                // Real resistance (gm*Ls/Cgs)
-                ctx.strokeStyle = TEK.ch4;
-                drawResistor(ctx, eqX + 220, eqY + 80, eqX + 280, eqY + 80);
-                ctx.fillStyle = TEK.ch4;
-                ctx.fillText('Re{Zin} = ωT·Ls', eqX + 220, eqY + 55);
-                ctx.fillText('= ' + Zin + 'Ω', eqX + 250, eqY + 105);
-
-                // Ground
-                ctx.strokeStyle = '#888';
-                ctx.beginPath();
-                ctx.moveTo(eqX + 280, eqY + 80);
-                ctx.lineTo(eqX + 300, eqY + 80);
-                ctx.lineTo(eqX + 300, eqY + 100);
-                ctx.moveTo(eqX + 290, eqY + 100);
-                ctx.lineTo(eqX + 310, eqY + 100);
-                ctx.stroke();
-
-                // Draw frequency response
-                const frX = 400, frY = 180, frW = 500, frH = 180;
-
-                ctx.fillStyle = TEK.text;
-                ctx.font = '14px monospace';
-                ctx.textAlign = 'left';
-                ctx.fillText('Input Match (S11) vs Frequency', frX, frY);
-
-                // Axes
-                ctx.strokeStyle = '#444';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(frX + 50, frY + 20);
-                ctx.lineTo(frX + 50, frY + frH - 20);
-                ctx.lineTo(frX + frW - 20, frY + frH - 20);
-                ctx.stroke();
-
-                // Y-axis labels
-                ctx.fillStyle = '#888';
-                ctx.font = '10px monospace';
-                ctx.textAlign = 'right';
-                const s11Levels = [0, -10, -20, -30];
-                s11Levels.forEach((s11, i) => {
-                    const y = frY + 30 + i * 40;
-                    ctx.fillText(s11 + ' dB', frX + 45, y + 3);
-                    ctx.strokeStyle = '#333';
-                    ctx.beginPath();
-                    ctx.moveTo(frX + 50, y);
-                    ctx.lineTo(frX + frW - 20, y);
-                    ctx.stroke();
-                });
-
-                // X-axis labels
-                ctx.textAlign = 'center';
-                for (let f = 0.5; f <= 6; f += 0.5) {
-                    const x = frX + 50 + (f - 0.5) / 5.5 * (frW - 70);
-                    if (f % 1 === 0) {
-                        ctx.fillText(f + 'G', x, frY + frH - 5);
-                    }
-                }
-
-                // Draw S11 curve (simplified model)
-                ctx.strokeStyle = TEK.ch1;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                let first = true;
-                for (let f = 0.5; f <= 6; f += 0.05) {
-                    const w = 2 * Math.PI * f * 1e9;
-
-                    // Simplified input impedance
-                    const Zin_real = wT * Ls;
-                    const Zin_imag = w * (Lg > 0 ? Lg : 0) - 1/(w * CgsLin) + w * Ls;
-
-                    // S11 = (Zin - Z0) / (Zin + Z0)
-                    const Z0 = 50;
-                    const numRe = Zin_real - Z0;
-                    const numIm = Zin_imag;
-                    const denRe = Zin_real + Z0;
-                    const denIm = Zin_imag;
-
-                    const s11Mag = Math.sqrt((numRe*numRe + numIm*numIm) / (denRe*denRe + denIm*denIm));
-                    const s11dB = 20 * Math.log10(Math.max(s11Mag, 0.001));
-
-                    const x = frX + 50 + (f - 0.5) / 5.5 * (frW - 70);
-                    const y = frY + 30 + (-s11dB / 30) * 120;
-
-                    if (first) {
-                        ctx.moveTo(x, Math.max(Math.min(y, frY + frH - 20), frY + 20));
-                        first = false;
-                    } else {
-                        ctx.lineTo(x, Math.max(Math.min(y, frY + frH - 20), frY + 20));
-                    }
-                }
-                ctx.stroke();
-
-                // Mark center frequency
-                const centerX = frX + 50 + (freq - 0.5) / 5.5 * (frW - 70);
-                ctx.strokeStyle = TEK.ch4;
-                ctx.setLineDash([5, 5]);
-                ctx.beginPath();
-                ctx.moveTo(centerX, frY + 20);
-                ctx.lineTo(centerX, frY + frH - 20);
-                ctx.stroke();
-                ctx.setLineDash([]);
-                ctx.fillStyle = TEK.ch4;
-                ctx.textAlign = 'center';
-                ctx.fillText('f₀', centerX, frY + frH + 10);
-            }
+            function drawDegen(){
+ const freq=AD.num('freq'),gm=AD.num('gm'),Cgs=AD.num('cgs'),R=AD.num('zin'),f=freq*1e9,c=Cgs*1e-15;
+ const d=RFMatch.degeneration(f,gm/1000,c,R);
+ [['freq-val',freq.toFixed(1)+' GHz'],['gm-val',gm+' mS'],['cgs-val',Cgs+' fF'],['zin-val',R+' Ω'],['ls-val',(d.Ls*1e9).toFixed(3)+' nH'],['lg-val',d.realizable?(d.Lg*1e9).toFixed(3)+' nH':'No positive Lg'],['wt-val',(d.ft/1e9).toFixed(2)+' GHz'],['degen-state',d.realizable?'Input match only':'Unrealizable Lg']].forEach(([id,v])=>AD.setText(id,v));
+ AD.Schematic.lnaDegenTemplate(document.getElementById('degen-template'),d.realizable?(d.Lg*1e9).toFixed(3)+' nH':'No solution',(d.Ls*1e9).toFixed(3)+' nH');
+ AD.setText('degen-note',d.realizable?'Zin ≈ gm·Ls/Cgs + j[ω(Lg+Ls) − 1/(ωCgs)]. The graph uses a '+R+' Ω reference. Select Cblock, Cout, Rbias and Ld with a real device model.':'These inputs require a negative Lg. The passive gate-inductor topology cannot realize this match; change the target, device parameters or frequency.');
+ AD.circuitPlot(degenCanvas,{xMin:freq/4,xMax:freq*4,yMin:0,yMax:60,log:true,xLabel:'Frequency (GHz)',yLabel:'Return loss (dB)',curves:d.realizable?[{label:'First-order input match',fn:x=>{const w=2*Math.PI*x*1e9,im=w*(d.Lg+d.Ls)-1/(w*c);return Math.min(60,-20*Math.log10(Math.max(1e-15,Math.hypot(...RFMatch.reflection([R,im],R)))));}}]:[]});
+}
 
             function drawInductor(ctx, x1, y1, x2, y2) {
                 const horiz = Math.abs(x2 - x1) > Math.abs(y2 - y1);
@@ -964,7 +667,7 @@
 
                 // Vbias2 for cascode
                 svg.line(nodes.get('m2_g').x, nodes.get('m2_g').y, nodes.get('m2_g').x - 30, nodes.get('m2_g').y);
-                svg.text(nodes.get('m2_g').x - 50, nodes.get('m2_g').y + 5, 'Vbias2');
+                svg.text(nodes.get('m2_g').x - 62, nodes.get('m2_g').y + 5, 'Vbias2');
 
                 // Input transistor M1
                 nodes.register('m1_d', 350, 180);
@@ -1018,7 +721,7 @@
                 svg.line(nodes.get('lg_in').x, nodes.get('lg_in').y, nodes.get('rbias').x, nodes.get('lg_in').y);
                 svg.line(nodes.get('rbias').x, nodes.get('rbias').y + 30, nodes.get('rbias').x, 350);
                 svg.ground(nodes.get('rbias').x, 370);
-                svg.text(nodes.get('rbias').x - 30, 270, 'Vbias');
+                svg.text(nodes.get('rbias').x + 25, 285, 'Vbias');
 
                 // Bypass cap
                 nodes.register('cbyp', 450, 200);

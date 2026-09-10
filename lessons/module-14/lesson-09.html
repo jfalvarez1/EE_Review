@@ -166,7 +166,9 @@ Hiccup Mode Timing:
 
     <div class="card">
         <h3>Current Sense Schematic</h3>
-        <div id="cl-schematic"></div>
+        <div id="cl-schematic" class="schematic-container" role="img" aria-label="Low-side switch source shunt feeds the positive input of a comparator, which resets the PWM latch when the current threshold is exceeded"></div>
+        <p class="fig-note">Peak-current trip template for a low-side switch. The drain connects to the converter's switching power stage; this view shows the sensing path only. The shunt's Kelvin return and the comparator reference share ground. The real controller also needs its prescribed filtering, timing and drive circuitry. <a href="https://www.ti.com/lit/ds/symlink/uc3842.pdf" target="_blank" rel="noopener">TI UCx84x, §7.3.3 and Fig. 7-3</a>.</p>
+        <p>For an ideal comparator, Itrip = Vthreshold / Rs. Size the resistor using its actual RMS current: P = I<sub>RMS</sub>²Rs. Comparator/filter delay and switching spikes affect the actual peak current.</p>
     </div>
 
         <div class="card">
@@ -470,70 +472,21 @@ Hiccup Mode Timing:
 
     // Schematic
     function drawSchematic() {
-        const container = document.getElementById('cl-schematic');
-        const svg = new SchematicSVG(700, 200);
-
-        svg.text(50, 25, 'Current Sense with Cycle-by-Cycle Limit:', {fontSize: 12, fill: '#4af'});
-
-        // Power stage
-        svg.wire([[50, 70], [100, 70]]);
-        svg.text(40, 65, 'Vin', {fontSize: 9});
-
-        // High-side switch
-        svg.wire([[100, 70], [100, 90]]);
-        svg.text(115, 80, 'Q', {fontSize: 10});
-        svg.wire([[100, 110], [100, 130]]);
-
-        // Sense resistor
-        svg.wire([[100, 130], [100, 145]]);
-        svg.resistor(100, 160, {horizontal: false});
-        svg.text(115, 160, 'Rs', {fontSize: 9, fill: '#fa4'});
-        svg.wire([[100, 180], [100, 200]]);
-
-        // To inductor
-        svg.wire([[100, 200], [180, 200]]);
-        svg.inductor(200, 200, {horizontal: true});
-        svg.wire([[220, 200], [280, 200]]);
-        svg.text(280, 195, 'Vout', {fontSize: 9});
-
-        // Low side
-        svg.wire([[100, 200], [100, 220]]);
-        svg.ground(100, 220);
-
-        // Current sense amplifier
-        svg.wire([[100, 145], [150, 145]]);
-        svg.wire([[100, 175], [150, 175]]);
-
-        svg.rect(150, 130, 80, 60, {fill: 'none', stroke: '#888'});
-        svg.text(190, 165, 'Current', {fontSize: 9});
-        svg.text(190, 180, 'Sense', {fontSize: 9});
-
-        // To comparator
-        svg.wire([[230, 160], [280, 160]]);
-
-        svg.rect(280, 140, 70, 50, {fill: 'none', stroke: '#888'});
-        svg.text(315, 165, 'Comp', {fontSize: 9});
-
-        // Reference
-        svg.wire([[280, 180], [260, 180]]);
-        svg.text(250, 185, 'Vref', {fontSize: 9});
-
-        // To gate driver
-        svg.wire([[350, 165], [400, 165]]);
-        svg.text(410, 170, 'To PWM latch', {fontSize: 9});
-
-        // Notes
-        svg.text(420, 50, 'Operation:', {fontSize: 11, fill: '#4af'});
-        svg.text(420, 70, '1. Sense voltage = I × Rs', {fontSize: 9, fill: '#888'});
-        svg.text(420, 85, '2. Compare to reference', {fontSize: 9, fill: '#888'});
-        svg.text(420, 100, '3. Trip turns off switch', {fontSize: 9, fill: '#888'});
-        svg.text(420, 115, '4. Next cycle resets', {fontSize: 9, fill: '#888'});
-
-        svg.text(420, 145, 'Rs sizing:', {fontSize: 11, fill: '#fa4'});
-        svg.text(420, 165, 'Rs = Vsense / Ilimit', {fontSize: 9, fill: '#888'});
-        svg.text(420, 180, 'P = Ilimit² × Rs', {fontSize: 9, fill: '#888'});
-
-        container.innerHTML = svg.render();
+        const host=document.getElementById('cl-schematic');if(!host)return;
+        const s=AD.Schematic.create(host,{width:760,height:390});
+        s.nmos(260,155,{label:'Q1'});
+        s.wire([[280,70],[280,125]]);s.nodeLabel(280,70,'From power stage',{dy:-18});
+        s.wire([[165,155],[240,155]]);s.nodeLabel(165,155,'Gate drive',{dy:-18});
+        s.wire([[280,185],[280,225]]);s.resistor(280,225,'vertical',{label:'Rs'});
+        s.wire([[280,275],[280,335]]);s.ground(280,335);
+        s.wire([[280,205],[365,205],[365,155],[440,155]]);s.junction(280,205);
+        s.rect(440,125,120,100,{fill:'none',stroke:'#6ee7ff'});
+        s.text(460,160,'+',{size:16});s.text(460,210,'−',{size:16});s.text(505,176,'Current',{size:10});s.text(505,193,'trip',{size:10});
+        s.voltageSource(370,275,'vertical',{label:'Vthreshold'});
+        s.wire([[370,275],[370,205],[440,205]]);s.wire([[370,325],[370,335]]);s.ground(370,335);
+        s.wire([[560,175],[655,175]]);s.nodeLabel(655,175,'Reset PWM latch',{dy:-18});
+        [[440,155],[440,205],[560,175]].forEach(p=>s.nodeRegistry.register(p[0],p[1],null,'pin'));
+        s.finalize();
     }
 
     // Checklist
@@ -565,7 +518,7 @@ Hiccup Mode Timing:
                     solution: 'Rs = V/I = 0.1V/5A = 20mΩ. P = I²R = 5² × 0.02 = 0.5W. Use 1W for margin.'
                 },
                 {
-                    question: 'Constant current limit at 3A, Vin=15V. What power during short circuit?',
+                    question: 'A linear regulator limits continuously at 3 A with Vin = 15 V. What is its pass-device power during an output short?',
                     answer: '45W',
                     solution: 'During short, Vout≈0. All power dissipated in regulator: P = Vin × I = 15 × 3 = 45W. Foldback would reduce this significantly.'
                 },
