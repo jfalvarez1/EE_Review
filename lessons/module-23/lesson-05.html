@@ -169,11 +169,11 @@
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
                     <tr><td class="mono">Vbat</td><td>Voltage source</td><td>13.5&nbsp;V DC &mdash; a healthy alternator</td><td>from <span class="mono">bat</span> to ground</td></tr>
-                    <tr><td class="mono">M1</td><td>Transistor (MOSFET)</td><td><span class="mono">PMOS</span></td><td>drain <span class="mono">bat</span>, gate <span class="mono">gate</span>, source <span class="mono">prot</span></td></tr>
-                    <tr><td class="mono">Rgate</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">gate</span> and <span class="mono">prot</span></td></tr>
-                    <tr><td class="mono">Rseries</td><td>Resistor</td><td>10&nbsp;&Omega;</td><td>between <span class="mono">prot</span> and <span class="mono">filtered</span></td></tr>
-                    <tr><td class="mono">D1</td><td>Diode</td><td><span class="mono">Zener Diode</span></td><td>anode <span class="mono">filtered</span>, cathode ground</td></tr>
-                    <tr><td class="mono">D2</td><td>Diode</td><td><span class="mono">Zener Diode</span></td><td>anode ground, cathode <span class="mono">filtered</span></td></tr>
+                    <tr><td class="mono">M1</td><td>Transistor (MOSFET)</td><td>PMOS, W/L = 10000</td><td>drain <span class="mono">bat</span>, gate <span class="mono">gate</span>, source <span class="mono">prot</span> <em>(body diode points from the battery to the load)</em></td></tr>
+                    <tr><td class="mono">Rgate</td><td>Resistor</td><td>10&nbsp;k&Omega;</td><td>between <span class="mono">gate</span> and ground</td></tr>
+                    <tr><td class="mono">Dgs</td><td>Diode</td><td>Zener Diode, 12&nbsp;V <em>(gate-source clamp)</em></td><td>anode <span class="mono">gate</span>, cathode <span class="mono">prot</span></td></tr>
+                    <tr><td class="mono">D1</td><td>Diode</td><td>Zener Diode, 36.7&nbsp;V, rz = 0.13&nbsp;&Omega; <em>(an SM8S33A-class TVS: 33&nbsp;V stand-off)</em></td><td>anode ground, cathode <span class="mono">prot</span></td></tr>
+                    <tr><td class="mono">Lfilt</td><td>Inductor</td><td>10&nbsp;&micro;H</td><td>between <span class="mono">prot</span> and <span class="mono">filtered</span></td></tr>
                     <tr><td class="mono">Cin</td><td>Capacitor</td><td>100&nbsp;&micro;F</td><td>between <span class="mono">filtered</span> and ground</td></tr>
                     <tr><td class="mono">Xbuck</td><td>Block (buck regulator)</td><td><span class="mono">Sub-Circuit</span></td><td>pins <span class="mono">filtered</span>, <span class="mono">rail5v</span></td></tr>
                     <tr><td class="mono">Xldo</td><td>Block (LDO regulator)</td><td><span class="mono">Sub-Circuit</span></td><td>pins <span class="mono">rail5v</span>, <span class="mono">rail3v3</span></td></tr>
@@ -183,6 +183,44 @@
 
         <p><strong>What to run:</strong> a <strong>transient run</strong> of 5&nbsp;ms in steps of 10&nbsp;&micro;s.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(bat)</span>, <span class="mono">V(filtered)</span>, <span class="mono">V(rail5v)</span>, <span class="mono">V(rail3v3)</span>.</p>
+
+        <h4>Why each front-end part is wired the way it is</h4>
+        <p><strong>The reverse-polarity FET</strong> conducts at power-up through its body diode, which
+        lifts its source to the battery; Rgate holds the gate at ground, so V<sub>GS</sub> is about
+        &minus;12&nbsp;V and the channel shorts the diode out. Dgs holds the gate within 12&nbsp;V of the source,
+        because during a 40&nbsp;V event an unclamped gate would see the whole rail, beyond the &plusmn;20&nbsp;V
+        a typical gate oxide is rated for. Reverse the battery and the body diode is reverse-biased while
+        V<sub>GS</sub> is zero: nothing flows. A gate resistor to the FET&rsquo;s own source instead of to ground,
+        as an earlier version of this table had it, holds V<sub>GS</sub> at zero in both cases and leaves the
+        whole load on the body diode.</p>
+        <p><strong>The TVS</strong> reads the diagram&rsquo;s &ldquo;33&nbsp;V&rdquo; as a stand-off: Vishay&rsquo;s
+        SM8S33A breaks down at 36.7&nbsp;V minimum and clamps at 53.3&nbsp;V at 124&nbsp;A, modelled as BV = 36.7&nbsp;V
+        and rz = (53.3 &minus; 36.7)/124 = 0.13&nbsp;&Omega;. Its cathode goes to the rail; one unidirectional part
+        is enough because the FET already blocks reverse battery. In a Test&nbsp;B suppressed load dump the bus
+        sits near 35&nbsp;V, below that breakdown, so the TVS stays off and the regulator must take 35&nbsp;V
+        directly. Its job is the faster pulses: ISO 7637-2 pulse&nbsp;2a at level&nbsp;IV adds 50&nbsp;V to the
+        13.5&nbsp;V supply behind 2&nbsp;&Omega;, and with about 1.3&nbsp;A of load the clamp holds roughly 38.3&nbsp;V with
+        11&nbsp;A in the TVS for 50&nbsp;&micro;s. That meets the 40&nbsp;V target; an unsuppressed 87&nbsp;V dump at
+        low R<sub>i</sub> does not, which is why this design assumes central suppression.</p>
+        <p><strong>The series element is an inductor, not a resistor.</strong> An earlier version of this
+        page put 10&nbsp;&Omega; in the supply path. At 6&nbsp;V cranking the 5&nbsp;V, 1&nbsp;A buck draws about 1&nbsp;A at full load, so 10&nbsp;&Omega;
+        would drop the 6&nbsp;V the module must run from; even at 13.5&nbsp;V it would waste about 2&nbsp;W.
+        Series resistance belongs on signal lines. Here 10&nbsp;&micro;H with C<sub>in</sub> forms an LC filter for
+        conducted emissions and fast transients with almost no DC drop. Any input LC filter ahead of a
+        switching regulator needs damping, because the regulator&rsquo;s input looks like a negative
+        resistance; the electrolytic&rsquo;s ESR usually provides it, so check its value rather than assume it.</p>
+        <p><strong>Bench acceptance:</strong> verify reverse battery first, from a current-limited supply
+        at &minus;14&nbsp;V: input current should be leakage only. At 6&nbsp;V and full load, measure the drop across the
+        FET and confirm the regulator stays in regulation. Then apply pulse&nbsp;2a and a suppressed load dump
+        from a generator with stated U<sub>S</sub> and R<sub>i</sub>, recording V(prot), V(filtered) and the
+        FET&rsquo;s V<sub>GS</sub> together.</p>
+        <p><strong>What this build cannot tell you:</strong> Circuit Toy&rsquo;s MOSFET has no body diode, so
+        the power-up path the FET depends on is absent from the solve; the TVS is a straight-line fit with
+        no energy limit; and the regulator blocks stand in for parts whose input-voltage ratings you must
+        take from their own datasheets.</p>
+        <p><strong>Reference:</strong>
+        <a href="https://www.vishay.com/docs/88387/sm8s.pdf" target="_blank" rel="noopener">Vishay SM8S10A thru SM8S43A datasheet (document 88387)</a>, SM8S33A row.
+        It does not endorse this build.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
@@ -383,10 +421,11 @@
         svg.wire([[150, 140], [150, 160]]);
         svg.ground(150, 160);
 
-        // Series resistor for pulse 3
+        // Series inductor: an LC filter with Cin. A series resistor here
+        // would drop the 6 V the module has to run from during cranking.
         svg.wire([[150, 85], [180, 85]]);
-        svg.resistor(200, 85, {horizontal: true});
-        svg.text(200, 70, '10Ω', {fontSize: 9});
+        svg.inductor(200, 85, {horizontal: true});
+        svg.text(200, 70, '10µH', {fontSize: 9});
         svg.wire([[220, 85], [260, 85]]);
 
         // Input cap

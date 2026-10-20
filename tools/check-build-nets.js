@@ -20,6 +20,11 @@
  *   - a source and a component fighting over the same node, so the passive is
  *     electrically absent. Module 2 lesson 4's Schmitt trigger had ideal
  *     sources on both comparator inputs and therefore no hysteresis at all.
+ *   - two zeners in parallel, one each way round. Each one's forward drop
+ *     clamps the other, so the pair holds +/-0.7 V instead of +/-BV. A
+ *     bidirectional clamp is two zeners in SERIES, anode to anode. Module 22
+ *     lesson 4 and module 23 lesson 5 both drew their TVS this way, and the
+ *     second one had a 13.5 V supply feeding it through 10 ohm.
  *
  * All three are invisible on the page and obvious to a parser.
  *
@@ -156,6 +161,15 @@ function nodesOf(cell) {
     return matched ? out : null;
 }
 
+/** [anode, cathode] of a diode row, ground by one name, or null. */
+function anodeCathode(cell) {
+    const a = /\banode\s*:?\s*([A-Za-z0-9_+\-]{1,20})/i.exec(cell);
+    const k = /\bcathode\s*:?\s*([A-Za-z0-9_+\-]{1,20})/i.exec(cell);
+    if (!a || !k) return null;
+    const norm = n => (isGround(n) ? 'ground' : n);
+    return [norm(a[1]), norm(k[1])];
+}
+
 /** Is this row a source that hard-drives its node? */
 const isSource = whatCell => /voltage source|current source|battery|clock|pulse source|square wave|sine|triangle|sawtooth|arb source|3-phase/i.test(whatCell);
 
@@ -206,13 +220,13 @@ files.forEach(file => {
 
         rows.forEach(cells => {
             rowsSeen++;
-            const [part, what, , connect] = cells;
+            const [part, what, value, connect] = cells;
             const nodes = nodesOf(connect);
             if (nodes === null) {
                 unparsedRows.push(rel + '  ' + part + ': ' + connect.slice(0, 70));
                 return;
             }
-            parts.push({ part, what, nodes });
+            parts.push({ part, what, value, connect, nodes });
             const uniq = [...new Set(nodes)];
             uniq.forEach(n => {
                 if (isGround(n) || isRail(n)) return;
@@ -247,10 +261,20 @@ files.forEach(file => {
         // solvers are precisely what cannot see it.
         const floating = [...degree.keys()].filter(n => !conductive.has(n));
 
-        if (dangling.length || unknown.length || floating.length) {
-            findings.push({ rel, dangling, unknown, floating, rows: rows.length });
+        // Zeners wired anti-parallel across the same two nodes.
+        const zeners = parts
+            .filter(p => /zener/i.test(p.value + ' ' + p.what))
+            .map(p => ({ part: p.part, ak: anodeCathode(p.connect) }))
+            .filter(z => z.ak);
+        const antiParallel = [];
+        zeners.forEach((z, i) => zeners.slice(i + 1).forEach(y => {
+            if (z.ak[0] === y.ak[1] && z.ak[1] === y.ak[0]) antiParallel.push(z.part + '/' + y.part);
+        }));
+
+        if (dangling.length || unknown.length || floating.length || antiParallel.length) {
+            findings.push({ rel, dangling, unknown, floating, antiParallel, rows: rows.length });
         } else if (LIST) {
-            findings.push({ rel, dangling: [], unknown: [], floating: [], rows: rows.length, ok: true });
+            findings.push({ rel, dangling: [], unknown: [], floating: [], antiParallel: [], rows: rows.length, ok: true });
         }
     }
 });
@@ -288,8 +312,10 @@ if (BLESS) {
     process.exit(0);
 }
 
+const count = f => f.dangling.length + f.unknown.length + f.floating.length + f.antiParallel.length;
+
 findings.forEach(f => {
-    const n = f.dangling.length + f.unknown.length + (f.floating ? f.floating.length : 0);
+    const n = count(f);
     const allowed = base[f.rel] || 0;
     const isNew = n > allowed;
     console.log('  ' + (n ? (isNew ? 'FAIL' : 'debt') : 'ok  ') + '  ' + f.rel +
@@ -301,12 +327,15 @@ findings.forEach(f => {
         console.log('          watched but never built: ' +
                     f.unknown.map(u => 'V(' + u + ')').join(', '));
     }
-    if (f.floating && f.floating.length) {
+    if (f.floating.length) {
         console.log('          no DC return path, only capacitors: ' + f.floating.join(', '));
+    }
+    if (f.antiParallel.length) {
+        console.log('          zeners in anti-parallel, a +/-0.7 V clamp: ' + f.antiParallel.join(', '));
     }
 });
 
-const regressions = bad.filter(f => (f.dangling.length + f.unknown.length + (f.floating ? f.floating.length : 0)) > (base[f.rel] || 0));
+const regressions = bad.filter(f => count(f) > (base[f.rel] || 0));
 
 console.log('');
 console.log('  tables with a wiring problem  ' + String(bad.length).padStart(4) +

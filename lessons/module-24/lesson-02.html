@@ -129,7 +129,7 @@
                 <tbody>
                     <tr><td class="mono">VPULSE</td><td>Voltage source</td><td>pulse 12&nbsp;V to 60&nbsp;V, 1&nbsp;&micro;s rise, 100&nbsp;&micro;s duration</td><td>from <span class="mono">in</span> to ground</td></tr>
                     <tr><td class="mono">RSOURCE</td><td>Resistor</td><td>10&nbsp;&Omega;</td><td>between <span class="mono">in</span> and <span class="mono">protected</span></td></tr>
-                    <tr><td class="mono">D_TVS</td><td>Diode</td><td><span class="mono">Zener Diode</span></td><td>anode <span class="mono">protected</span>, cathode ground</td></tr>
+                    <tr><td class="mono">D_TVS</td><td>Diode</td><td>Zener Diode, 16.7&nbsp;V, rz = 0.31&nbsp;&Omega; <em>(an SMBJ15A-class TVS)</em></td><td>anode ground, cathode <span class="mono">protected</span></td></tr>
                     <tr><td class="mono">CLOAD</td><td>Capacitor</td><td>100&nbsp;pF</td><td>between <span class="mono">protected</span> and ground</td></tr>
                     <tr><td class="mono">RLOAD</td><td>Resistor</td><td>1&nbsp;M&Omega;</td><td>between <span class="mono">protected</span> and ground</td></tr>
                 </tbody>
@@ -139,9 +139,39 @@
         <p><strong>What to run:</strong> a <strong>transient run</strong> of 20&nbsp;&micro;s in steps of 100&nbsp;ns.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(in)</span>, <span class="mono">V(protected)</span>, <span class="mono">I(D_TVS)</span>.</p>
 
+        <h4>Choose the part before you run it</h4>
+        <p>The selection rule above, applied to this rail: a 12&nbsp;V supply that may sit 10% high reaches
+        13.2&nbsp;V, which rules out a 13&nbsp;V stand-off. A 15&nbsp;V stand-off part is the next step up, and
+        Vishay&rsquo;s SMBJ15A row gives V<sub>BR</sub> = 16.7&nbsp;V minimum at 1&nbsp;mA and V<sub>C</sub> = 24.4&nbsp;V at
+        I<sub>PPM</sub> = 24.6&nbsp;A. The table models that as a zener with BV = 16.7&nbsp;V (the solver puts exactly
+        1&nbsp;mA through it there) and a dynamic resistance of (24.4 &minus; 16.7)/24.6 = 0.31&nbsp;&Omega;, which Circuit
+        Toy accepts as the zener&rsquo;s <span class="mono">rz</span>. Its cathode goes to the rail: turned round, a
+        unidirectional TVS is a forward-biased diode across the supply.</p>
+        <p>On the 60&nbsp;V plateau the source pushes (60 &minus; 16.7)/(10 + 0.31) = 4.20&nbsp;A at the clamp, so
+        V(protected) is about 16.7 + 4.20 &times; 0.31 = 18.0&nbsp;V plus the junction&rsquo;s own few hundred
+        millivolts above its 1&nbsp;mA knee: <strong>18.21&nbsp;V</strong> in the solver, with 4.18&nbsp;A in the TVS.
+        That is 76&nbsp;W for 100&nbsp;&micro;s, about 7.6&nbsp;mJ; compare it with the datasheet&rsquo;s peak-pulse-power
+        curve at that duration rather than with the 600&nbsp;W headline, which is for a 10/1000&nbsp;&micro;s pulse.</p>
+        <p><strong>Bench acceptance:</strong> with a current-limited supply, raise the rail slowly and confirm the
+        TVS draws only leakage up to the highest normal voltage; its rated leakage at stand-off is a few
+        microamps, which matters on a battery rail. Then apply a pulse from a generator with a known source
+        impedance and record V(protected) and the TVS current with a current probe. Compare the clamp with
+        the protected IC&rsquo;s absolute maximum, not its operating range.</p>
+        <p><strong>What this build cannot tell you:</strong> one straight line from V<sub>BR</sub> to V<sub>C</sub> is a
+        single fit; a real TVS curves, and its V<sub>BR</sub> spread runs to 18.5&nbsp;V. There is no junction
+        capacitance, no thermal derating, and no limit on pulse energy, so the solver will clamp a pulse
+        the real part would not survive.</p>
+        <p><strong>Reference:</strong>
+        <a href="https://www.vishay.com/docs/88392/smbj.pdf" target="_blank" rel="noopener">Vishay SMBJ5.0A thru SMBJ188A datasheet (document 88392)</a>,
+        electrical characteristics table: the SMBJ15A row for this build, and the SMBJ5.0A row
+        (5&nbsp;V stand-off, 9.2&nbsp;V clamp) behind the interactive&rsquo;s defaults above. The datasheet does not
+        endorse this circuit.</p>
+
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m24l02-verified-practice"></div>
     </div>
 
     <div class="card">
@@ -323,6 +353,62 @@
         unit: 'A',
         solution: 'I = (50V - 15V) / 5Ω = 35V / 5Ω = 7A',
         explanation: 'At 7A, the TVS dissipates 7A × 15V = 105W instantaneously. This is why TVS devices are rated for pulse power, not continuous.'
+    });
+})();
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m24l02-verified-practice', { id: 'm24l02-verified-practice',
+        title: 'Read the clamp at the working voltage and on the surge plateau',
+        intro: 'The pulse source has no single DC value, so each probe holds VPULSE at one level of the pulse. The plateau is 100 us long against a 1 ns RC, so the DC answer is the plateau value. Tolerances refer to the single-line TVS fit in the table.',
+        probes: [
+            { id: 'working',
+                label: 'VPULSE = 12 V DC: V(protected)',
+                node: 'protected',
+                dc: true,
+                expect: '11.9999',
+                unit: 'V',
+                tol: 0.001,
+                why: 'Below breakdown the TVS draws almost nothing. The only drop is 10 ohm against the 1 Mohm load.',
+                dcValues: { VPULSE: '12 V DC' }
+            },
+            { id: 'plateau',
+                label: 'VPULSE = 60 V DC: V(protected)',
+                node: 'protected',
+                dc: true,
+                expect: '18.211',
+                unit: 'V',
+                tol: 0.01,
+                why: '(60 - 16.7)/10.31 = 4.20 A sets 16.7 + 4.20 x 0.31 = 18.0 V, and the junction adds a little over 0.2 V above its 1 mA knee.',
+                dcValues: { VPULSE: '60 V DC' }
+            },
+            { id: 'current',
+                label: 'VPULSE = 60 V DC: voltage across RSOURCE, V(in) - V(protected)',
+                node: 'in,protected',
+                dc: true,
+                expect: '41.789',
+                unit: 'V',
+                tol: 0.01,
+                why: 'Divide by 10 ohm: 4.18 A in the TVS, about 76 W while the plateau lasts.',
+                dcValues: { VPULSE: '60 V DC' }
+            }
+        ],
+        experiments: [
+            { action: 'Turn D_TVS round, anode on protected.',
+                expect: 'The 12 V rail collapses to one forward drop and over 1 A flows from the start.',
+                why: 'A unidirectional TVS is an ordinary diode in its forward direction. Polarity is the first thing to check on a protection footprint.'
+            },
+            { action: 'Restore it and set rz to 7 ohm, the generic zener value.',
+                expect: 'The plateau clamp rises to about 34.6 V.',
+                why: 'Most of the surge now drops in the part meant to clamp it. A TVS model is only as good as its dynamic resistance.'
+            },
+            { action: 'Set RSOURCE to 2 ohm.',
+                expect: 'The TVS current rises to about 18.6 A and the clamp to about 22.7 V, approaching the 24.4 V datasheet clamp at 24.6 A.',
+                why: 'Source impedance, not the TVS, sets the surge current. Specify the test source with the surge level.'
+            }
+        ]
     });
 })();
 </script>

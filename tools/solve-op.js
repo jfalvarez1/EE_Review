@@ -232,10 +232,23 @@ function newton(parts, idx, gmin, seed) {
                         // would never settle; leaving it unlimited lets Newton
                         // step 20 V into an exponential that is 2 A per 200 mV,
                         // which is what stopped m23l04 converging at all.
+                        //
+                        // Limit it at the JUNCTION, not the terminals. With RZ
+                        // the terminal voltage carries a linear I*RZ drop on
+                        // top of the exponential, and limiting that as though
+                        // it were all junction let Newton move a 40 V TVS
+                        // carrying 60 A by a few millivolts per iteration - a
+                        // bidirectional pair needed thousands to settle. The
+                        // limited junction voltage maps back to the terminals
+                        // exactly, so both branches still see one voltage.
                         const IBV = M.IBV || 1e-3;
-                        const vbOld = -((prev.get(q.part) || 0) + M.BV);
-                        const vb = pnjlim(-(vd + M.BV), vbOld, nvt, vcritOf(IBV));
-                        vd = -(vb + M.BV);
+                        const vjOld = zenerVj(M, prev.get(q.part) || 0, nvt);
+                        const ubNew = -(zenerVj(M, vd, nvt) + M.BV);
+                        const ub = pnjlim(ubNew, -(vjOld + M.BV), nvt, vcritOf(IBV));
+                        if (ub !== ubNew) {
+                            const vj = -(ub + M.BV);
+                            vd = M.RZ ? vj - IBV * brkExp(M, vj, nvt) * M.RZ : vj;
+                        }
                     }
                     prev.set(q.part, vd);
                     const e = Math.exp(Math.min(vd / nvt, 80));
@@ -508,12 +521,20 @@ function devices(parts, v) {
         } else {
             const s = M.type === 'nmos' ? 1 : -1;
             const vgs = s * (V(q.n[1]) - V(q.n[2])), vds = s * (V(q.n[0]) - V(q.n[2]));
-            const vov = vgs - M.Vth;
+            // Swap exactly as the stamp does. A FET conducting source-to-drain
+            // - the charge FET of a back-to-back pair during discharge - is
+            // controlled by gate-to-DRAIN, and evaluating it from the printed
+            // terminals reported 6.914 A in series with 6.933 A, or "cutoff"
+            // for a channel the solve had conducting.
+            const rev = vds < 0;
+            const ve = rev ? s * (V(q.n[1]) - V(q.n[0])) : vgs, vde = Math.abs(vds);
+            const vov = ve - M.Vth;
             let id = 0, region = 'cutoff';
             if (vov > 0) {
-                if (vds < vov) { id = M.K * (vov * vds - vds * vds / 2) * (1 + M.lambda * vds); region = 'triode'; }
-                else { id = M.K / 2 * vov * vov * (1 + M.lambda * vds); region = 'saturation'; }
+                if (vde < vov) { id = M.K * (vov * vde - vde * vde / 2) * (1 + M.lambda * vde); region = 'triode'; }
+                else { id = M.K / 2 * vov * vov * (1 + M.lambda * vde); region = 'saturation'; }
             }
+            if (rev) { id = -id; region += ', reverse'; }
             out.push('  ' + q.part.padEnd(10) + M.type.toUpperCase() +
                      '   Vgs = ' + vgs.toFixed(4) + ' V, Vds = ' + vds.toFixed(4) +
                      ' V, Id = ' + fmtI(id) + '   [' + region + ']');

@@ -296,11 +296,13 @@ function emit(row) {
     } else if (row.kind === 'diode') {
         const m = modelName(value, what) || 'DIODE';
         const declared = N.modelFor(value, what);
-        if (m === 'ZENER' && declared && declared.m.BV !== N.MODELS.ZENER.BV) {
-            // The companion dialect has no verified per-instance BV syntax.
-            // Do not emit a default-5.1 V diode for an authored 8.2 V clamp.
-            // rows/netlists.json retains the explicit parameter for importers.
-            const reason = `${ref}: explicit zener BV=${declared.m.BV} V requires a configured model; default ZENER is ${N.MODELS.ZENER.BV} V`;
+        if (m === 'ZENER' && declared &&
+            (declared.m.BV !== N.MODELS.ZENER.BV || declared.m.RZ !== N.MODELS.ZENER.RZ)) {
+            // The companion dialect has no verified per-instance BV or RZ
+            // syntax. Do not emit a default 5.1 V / 7 ohm diode for an
+            // authored 8.2 V clamp or a 0.31 ohm TVS. rows/netlists.json
+            // retains the explicit parameters for importers.
+            const reason = `${ref}: explicit zener BV=${declared.m.BV} V, RZ=${declared.m.RZ} ohm requires a configured model; default ZENER is ${N.MODELS.ZENER.BV} V, ${N.MODELS.ZENER.RZ} ohm`;
             unsupported.push(reason);
             lines.push(`* UNSUPPORTED: ${reason}; anode ${nodes[0]}, cathode ${nodes[1]}`);
             return { lines, unsupported };

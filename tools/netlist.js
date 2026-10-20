@@ -168,6 +168,15 @@ function modelFor(value, what) {
             out = Object.assign({}, out, { BV: parseFloat(bv[1]) });
             name += ' BV=' + out.BV;
         }
+        // So is its dynamic resistance, which Circuit Toy exposes as rz beside
+        // vz. A TVS clamping tens of amps is a fraction of an ohm; the generic
+        // 7 ohm put most of m24l02's 60 V surge across the "clamp" and read
+        // 34.6 V where the SMBJ15A's own datasheet points give 18.2 V.
+        const rz = /\brz\s*=?\s*(\d+(?:\.\d+)?)\s*(m)?\s*ohm/i.exec(value);
+        if (k === 'ZENER' && rz) {
+            out = Object.assign({}, out, { RZ: parseFloat(rz[1]) * (rz[2] ? 1e-3 : 1) });
+            name += ' RZ=' + out.RZ;
+        }
         return { name, m: out };
     }
     return null;

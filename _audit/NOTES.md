@@ -399,22 +399,74 @@ corner the solution sits on.
 
 ### Still open
 
-- **Six lessons name "Zener Diode" with no voltage** — m18l02, m22l04, m23l04, m23l05, m24l01,
-  m24l02. Every one is about clamping or protection, where the breakdown voltage *is* the design
-  answer, and the reader's result depends entirely on which part they place. m23l04 no longer
-  converges at all under the generic 5.1 V, because its two clamps sit across a 24 V rail and a
-  5.1 V part is in hard breakdown there. The table has to state the voltage.
-
-  Circuit Toy settles how: there is **one** generic zener part, `COMP_ZENER`, refdes `DZ`, with an
-  editable breakdown voltage (`vz`, default 5.1 V) and a series `rz` of 7 Ω. There are no
-  per-voltage zener parts on the palette, so the part will never supply the number — each table
-  has to name it, as "Zener Diode, 15 V" or whatever that lesson's design answer is. Six design
-  decisions, one per lesson.
-- **m15l06's control sources short the pass FETs.** `V_chg_ctrl` ties `chg_gate` to `pack_plus`,
-  which is also `M_chg`'s drain, so the device sits at Vds = 0. Along with the missing ground,
-  the table needs its topology looked at, not just a node renamed.
+- ~~Six lessons name "Zener Diode" with no voltage~~ — all six now state one, and
+  `check-build-values` fails any zener row that does not. Four of them were worse than
+  unvalued; see "The fourth round" below.
+- ~~m15l06's control sources short the pass FETs~~ — rebuilt; see below.
 - ~~m06l09's cascode devices land in triode~~ — fixed by diode-connecting the reference through
   the cascode; see above.
+- **The zener default disagrees with Circuit Toy's.** `netlist.js` gives the generic ZENER
+  RZ = 7 Ω, "matching COMP_ZENER". Circuit Toy's `src/component.c` defaults `rz` to **5 Ω**;
+  7 Ω is its 1N4733A preset's Z<sub>ZT</sub>. Changing ours moves m23l04's and m24l01's clamp
+  values, so it is a decision, not a fix. Every table written since states its own rz.
+- **m22l04's two coordination interactives invent their physics** — the stage-2 clamp is
+  `min(v1Clamp / (1 + L/10), 58)`. The build section beneath them now says why that is wrong
+  for a clamping primary; the interactives still need rewriting to agree with it.
+- **solve-op's per-node step clamp can open a junction between two floating nodes.** MAXSTEP
+  clips each node to 2 V per iteration independently, so the midpoint of a back-to-back TVS pair
+  lags its neighbour by ~9 V during a negative-going solve, and the forward limiter then walks it
+  back a thermal voltage at a time: m22l04 at −300 V needs ~1000 iterations against a 400 cap.
+  Positive polarity converges at once. Scaling the step vector instead of clipping it would fix
+  this and might slow the 120 MV gmin-node case it was added for; not attempted.
+- **A reversed unidirectional TVS is not caught structurally.** m18l02 and m24l02 had the anode
+  on the rail. A TVS with its anode on a negative rail is correct, so no wiring rule separates
+  the two without knowing the rail's sign; a DC solve does, but both tables had pulse sources.
+
+### The fourth round: protection tables that protected nothing
+
+Stating the six missing voltages meant reading the six tables, and four were wired so the
+protection could not work at any voltage.
+
+**Two TVSs were forward-biased across their supply.** m18l02 and m24l02 put the TVS anode on the
+rail and the cathode on ground: a diode across 13.5 V and 12 V. Both now sit cathode-to-rail
+with a datasheet part behind them — Vishay SM8S24A (load dump, 24 V stand-off so the 24 V/60 s
+jump-start test leaves it off) and SMBJ15A (15 V stand-off over a 12 V ±10% rail).
+
+**Two "bidirectional" clamps were two diodes.** m22l04 and m23l05 wired their zener pairs
+anti-parallel, one each way round between the same nodes, so each pair clamped at ±0.7 V. A
+bidirectional clamp is two zeners in series, anode to anode. `check-build-nets` now fails an
+anti-parallel zener pair; the original tables are its negative control.
+
+**m22l04 also had no surge amplitude and a 1 GΩ series resistor** cutting the varistor off from
+the source. Fixed, it shows something the lesson's interactive denies: behind a *clamping*
+primary, 10 µH does not decouple a 50 µs surge (the branch time constant is under 4.4 µs), and
+the TVS takes 61 A at a 300 V plateau and ~381 A at 2 kV against a 10.3 A rating. Inductive
+decoupling needs a crowbar primary. The build text and the practice answer say so.
+
+**m23l05 had three faults besides its zeners.** The reverse-polarity PFET's gate went to its own
+source (V<sub>GS</sub> = 0, permanently off), the gate had no clamp for a 40 V event, and a
+10 Ω resistor sat in series with the ECU supply — about 10 V of drop at the 1 A a 5 V buck draws
+at 6 V cranking, in a lesson whose requirement is to run at 6 V. The figure and table now carry
+a 10 µH LC-filter inductor.
+
+**rz is now a stated value.** Circuit Toy exposes the zener's `rz` beside `vz`, and `netlist.js`
+now reads "rz = 0.31 Ω" from a Value cell. A TVS is a fraction of an ohm; at the generic 7 Ω the
+m24l02 clamp reads 34.6 V instead of 18.2 V. The SPICE export marks any non-default BV or RZ
+UNSUPPORTED rather than emitting a 5.1 V / 7 Ω part.
+
+**A solver bug the TVS exposed.** solve-op limited the breakdown knee on the *terminal* voltage,
+which with rz includes a linear I·rz drop, so a TVS carrying tens of amps moved a few millivolts
+per Newton step and a bidirectional pair needed thousands of iterations. It now limits the
+junction voltage and maps back exactly. Every existing operating point and SimCheck comparison
+is byte-identical before and after. solve-op's device report also evaluated a reverse-conducting
+MOSFET from its printed terminals (6.914 A in series with 6.933 A); it swaps as the stamp does.
+
+**m15l06 and m23l08 were rebuilt.** m15l06 is the figure's common-drain low-side NMOS pair with
+explicit body diodes, a 5 mΩ shunt and source-referenced 12 V drives (BQ769x0's nominal level);
+seven probes cover discharge, each FET off, and charging through the shunt. m23l08's VBE
+multiplier had base and emitter on one node and was fed from two emitter followers that put its
+collector 1.3 V *below* its emitter, so every transistor sat at cut-off; it is now the figure's
+multiplier fed by a current source and a VAS stand-in, idling at 33 mA with the generic models.
 
 ---
 

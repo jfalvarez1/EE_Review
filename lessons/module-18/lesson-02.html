@@ -165,13 +165,12 @@
             <table>
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
-                    <tr><td class="mono">VBATT</td><td>Voltage source</td><td>13.50&nbsp;V DC</td><td>from <span class="mono">batt_int</span> to ground</td></tr>
-                    <tr><td class="mono">RBATT</td><td>Resistor</td><td>50&nbsp;m&Omega;</td><td>between <span class="mono">batt_int</span> and <span class="mono">batt</span></td></tr>
+                    <tr><td class="mono">VBATT</td><td>Voltage source</td><td>13.5&nbsp;V DC <em>(U<sub>A</sub>, the level the test pulse is added to)</em></td><td>from <span class="mono">batt</span> to ground</td></tr>
                     <tr><td class="mono">VDUMP</td><td>Voltage source</td><td>pulse 0&nbsp;V to 73.5&nbsp;V, rise 10&nbsp;ms, duration 200&nbsp;ms</td><td>from <span class="mono">dump</span> to ground</td></tr>
-                    <tr><td class="mono">VSUM</td><td>Voltage source</td><td>0&nbsp;V DC</td><td>from <span class="mono">batt</span> to <span class="mono">vsum</span></td></tr>
-                    <tr><td class="mono">EDUMP</td><td>VCVS</td><td>gain 1</td><td>output <span class="mono">vin</span> to <span class="mono">vsum</span>, sensing <span class="mono">dump</span> to ground</td></tr>
-                    <tr><td class="mono">RPFET</td><td>Resistor</td><td>50&nbsp;m&Omega;</td><td>between <span class="mono">vin</span> and <span class="mono">prot</span></td></tr>
-                    <tr><td class="mono">D_TVS</td><td>Diode</td><td><span class="mono">Zener Diode</span></td><td>anode <span class="mono">prot</span>, cathode ground</td></tr>
+                    <tr><td class="mono">EDUMP</td><td>VCVS</td><td>gain 1</td><td>output <span class="mono">vsrc</span> to <span class="mono">batt</span>, sensing <span class="mono">dump</span> to ground <em>(puts the pulse in series with U<sub>A</sub>: 87&nbsp;V peak)</em></td></tr>
+                    <tr><td class="mono">RI</td><td>Resistor</td><td>1&nbsp;&Omega; &mdash; the test generator&rsquo;s R<sub>i</sub></td><td>between <span class="mono">vsrc</span> and <span class="mono">vin</span></td></tr>
+                    <tr><td class="mono">RPFET</td><td>Resistor</td><td>50&nbsp;m&Omega; &mdash; the reverse-polarity FET, fully on</td><td>between <span class="mono">vin</span> and <span class="mono">prot</span></td></tr>
+                    <tr><td class="mono">D_TVS</td><td>Diode</td><td>Zener Diode, 26.7&nbsp;V, rz = 70&nbsp;m&Omega; <em>(an SM8S24A-class load-dump TVS)</em></td><td>anode ground, cathode <span class="mono">prot</span></td></tr>
                     <tr><td class="mono">L_FILT</td><td>Inductor</td><td>10&nbsp;&micro;H</td><td>between <span class="mono">prot</span> and <span class="mono">filt</span></td></tr>
                     <tr><td class="mono">R_DCR</td><td>Resistor</td><td>20&nbsp;m&Omega;</td><td>between <span class="mono">filt</span> and <span class="mono">filt2</span></td></tr>
                     <tr><td class="mono">C_IN</td><td>Capacitor</td><td>100&nbsp;&micro;F</td><td>between <span class="mono">filt2</span> and ground</td></tr>
@@ -180,12 +179,53 @@
             </table>
         </div>
 
-        <p><strong>What to run:</strong> a <strong>transient run</strong> of 20&nbsp;ms in steps of 100&nbsp;ns.</p>
+        <p><strong>What to run:</strong> a <strong>transient run</strong> of 300&nbsp;ms in steps of 10&nbsp;&micro;s,
+        long enough to see the whole 200&nbsp;ms pulse and the filter settle after it.</p>
         <p><strong>What to watch:</strong> <span class="mono">V(vin)</span>, <span class="mono">V(prot)</span>, <span class="mono">V(filt2)</span>, <span class="mono">I(D_TVS)</span>.</p>
+
+        <h4>This is the test bench, not the vehicle</h4>
+        <p>In a car, load dump is what happens when the battery is disconnected and the alternator drives
+        the bus alone. ISO 16750-2 Test&nbsp;A reproduces it with a generator: U<sub>A</sub> = 13.5&nbsp;V plus a
+        pulse to U<sub>S</sub> = 87&nbsp;V, the top of the 65&ndash;87&nbsp;V range, behind R<sub>i</sub>, here 1&nbsp;&Omega;
+        from the standard&rsquo;s 0.5&ndash;4&nbsp;&Omega;. So even with no pulse the generator&rsquo;s R<sub>i</sub> sags the
+        10&nbsp;&Omega; load to 13.5 &times; 10/11.07 = 12.20&nbsp;V. The 200&nbsp;ms rectangle holds the peak for the whole
+        duration and so carries more energy than the standard&rsquo;s decaying pulse of the same t<sub>d</sub>; treat it
+        as a worst case.</p>
+        <p><strong>Choosing the clamp.</strong> The TVS must stay off through every sustained abnormal voltage,
+        and for a 12&nbsp;V module the highest is the jump-start test: 24&nbsp;V for 60&nbsp;s. That sets a 24&nbsp;V
+        stand-off. Vishay&rsquo;s SM8S24A row gives V<sub>BR</sub> = 26.7&nbsp;V minimum at 5&nbsp;mA and V<sub>C</sub> =
+        38.9&nbsp;V at 170&nbsp;A, modelled as BV = 26.7&nbsp;V and rz = (38.9 &minus; 26.7)/170 = 70&nbsp;m&Omega;. Its cathode
+        goes to the rail: a unidirectional TVS turned round is a forward-biased diode across the supply.</p>
+        <p>On the plateau, 87&nbsp;V behind 1.05&nbsp;&Omega; pushes about 53.8&nbsp;A into <span class="mono">prot</span>: 3.05&nbsp;A
+        to the load and <strong>50.7&nbsp;A in the TVS</strong>, which holds <strong>30.53&nbsp;V</strong>. That is
+        26.7 + 50.7 &times; 0.07 = 30.25&nbsp;V plus the junction&rsquo;s rise above its knee. The regulator behind
+        the filter sees about 30.5&nbsp;V, so it needs a rating above that with margin for the TVS spread
+        (V<sub>BR</sub> up to 29.5&nbsp;V). The TVS dissipates about <strong>1.55&nbsp;kW for 200&nbsp;ms</strong>, roughly
+        310&nbsp;J. Vishay rates the SM8S series at 5200&nbsp;W for a 10/10&nbsp;000&nbsp;&micro;s pulse, which carries about
+        75&nbsp;J, and draws its load-dump curve for a 10&nbsp;ms exponential waveform. This pulse carries about
+        four times the energy of that rating pulse, so one module TVS is not a credible answer to an
+        unsuppressed 87&nbsp;V, 1&nbsp;&Omega; dump. That is the arithmetic behind Test&nbsp;B: a central suppressor
+        holds the bus near 35&nbsp;V, or the module uses an active surge stopper rather than a clamp.</p>
+        <p><strong>Bench acceptance:</strong> confirm TVS polarity and leakage first with a current-limited
+        supply at 24&nbsp;V; Vishay specifies 10&nbsp;&micro;A maximum at stand-off at 25&nbsp;&deg;C. Then run the pulse
+        from a generator whose U<sub>S</sub>, R<sub>i</sub> and t<sub>d</sub> are stated, and record V(prot), the TVS
+        current and the regulator input together. Check the TVS case temperature and the filter capacitor&rsquo;s
+        voltage rating against the measured peak, not the nominal clamp.</p>
+        <p><strong>What this build cannot tell you:</strong> the straight-line rz fit is exact only at its two
+        datasheet points; a hot TVS clamps higher; and nothing in the solver limits pulse energy, so it will
+        clamp a pulse the real part cannot survive. The FET is a fixed 50&nbsp;m&Omega;, not a device.</p>
+        <p><strong>References:</strong>
+        <a href="https://www.vishay.com/docs/88387/sm8s.pdf" target="_blank" rel="noopener">Vishay SM8S10A thru SM8S43A datasheet (document 88387)</a>:
+        maximum ratings, the SM8S24A row and Fig.&nbsp;2;
+        <a href="https://www.analog.com/en/resources/technical-articles/low-quiescent-current-surge-stopper-robust-automotive-supply-protection.html" target="_blank" rel="noopener">Analog Devices, &ldquo;Low Quiescent Current Surge Stopper&rdquo;</a>,
+        which summarises the ISO 16750-2 jump-start and load-dump tests and the surge-stopper alternative.
+        Neither endorses this build.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m18l02-verified-practice"></div>
     </div>
 
     <div class="card">
@@ -461,4 +501,70 @@
 
 // Auto Protection Canvas
 (function(){AD.Schematic.inputProtectionTemplate(document.getElementById('auto-input-protection'));})();
+/* What a correct build reads, and what to do to it next. Every number
+   below is derived from the values in the build table above - if it cannot
+   be derived from what is on this page, it does not belong here. */
+(function () {
+    if (typeof SimCheckWidget === 'undefined') return;
+    new SimCheckWidget('m18l02-verified-practice', { id: 'm18l02-verified-practice',
+        title: 'Read the bus before and during the load dump',
+        intro: 'The pulse source has no single DC value, so each probe holds VDUMP at one level. The 200 ms plateau is far longer than the 10 uH / 100 uF filter settles, so the DC answer is the plateau value. Tolerances refer to the straight-line TVS fit in the table.',
+        probes: [
+            { id: 'rest',
+                label: 'VDUMP = 0 V DC: regulator input, V(filt2)',
+                node: 'filt2',
+                dc: true,
+                expect: '12.1951',
+                unit: 'V',
+                tol: 0.002,
+                why: '13.5 V x 10/(10 + 1 + 0.05 + 0.02). The generator Ri sags the bus by 1.2 V before any pulse arrives.',
+                dcValues: { VDUMP: '0 V DC' }
+            },
+            { id: 'clamp',
+                label: 'VDUMP = 73.5 V DC: clamp voltage, V(prot)',
+                node: 'prot',
+                dc: true,
+                expect: '30.531',
+                unit: 'V',
+                tol: 0.02,
+                why: '26.7 V + 50.7 A x 70 mohm = 30.25 V, plus the junction rising above its 1 mA knee.',
+                dcValues: { VDUMP: '73.5 V DC' }
+            },
+            { id: 'ri',
+                label: 'VDUMP = 73.5 V DC: drop across RI, V(vsrc) - V(vin)',
+                node: 'vsrc,vin',
+                dc: true,
+                expect: '53.780',
+                unit: 'V',
+                tol: 0.05,
+                why: 'Divide by 1 ohm: 53.8 A. The load takes 3.05 A, so 50.7 A goes through the TVS, about 1.55 kW.',
+                dcValues: { VDUMP: '73.5 V DC' }
+            },
+            { id: 'lowri',
+                label: 'VDUMP = 73.5 V DC, RI = 0.5 ohm: clamp voltage, V(prot)',
+                node: 'prot',
+                dc: true,
+                expect: '33.563',
+                unit: 'V',
+                tol: 0.02,
+                why: 'The lowest Ri the standard allows: about 97 A from the generator and 94 A in the TVS, over 3 kW. The clamp moves by 3 V; the dissipation doubles.',
+                dcValues: { VDUMP: '73.5 V DC', RI: '0.5 ohm' }
+            }
+        ],
+        experiments: [
+            { action: 'Turn D_TVS round, anode on prot, with no pulse.',
+                expect: 'The bus collapses to one forward drop and about 12 A flows from the 13.5 V level.',
+                why: 'Only Ri limits it. On a vehicle there is no Ri, and the fuse or the TVS opens.'
+            },
+            { action: 'Restore it, hold VDUMP at 0 V, set VBATT to 24 V for the jump-start test, and change D_TVS to Zener Diode, 17.8 V, rz = 70 mohm (a 16 V stand-off part).',
+                expect: 'V(prot) clamps near 18.3 V and the TVS carries about 3.6 A: roughly 66 W.',
+                why: 'For 60 seconds, against a part whose steady dissipation rating is 8 W on an infinite heatsink. Stand-off is chosen from sustained abnormal voltages, not from the nominal rail.'
+            },
+            { action: 'Restore the 26.7 V part and set RI to 4 ohm.',
+                expect: 'The clamp falls to about 27.8 V and the TVS current to about 11.9 A.',
+                why: 'The generator source impedance sets the energy. State Ri with every load-dump requirement.'
+            }
+        ]
+    });
+})();
 </script>

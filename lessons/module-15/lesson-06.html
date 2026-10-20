@@ -140,11 +140,11 @@
             <div class="kv" style="margin-top:1rem;">
                 <div class="box">
                     <div class="k">Discharge Mode</div>
-                    <div class="v">Pack+ → Q1 (body diode) → Q2 (channel) → Load. Q2 must be ON.</div>
+                    <div class="v">Load current returns P− → Qchg (channel, or its body diode if Qchg is off) → Qdis (channel) → B−. Qdis must be ON.</div>
                 </div>
                 <div class="box">
                     <div class="k">Charge Mode</div>
-                    <div class="v">Charger+ → Q2 (body diode) → Q1 (channel) → Pack+. Q1 must be ON.</div>
+                    <div class="v">Charge current leaves B− → Qdis (channel, or its body diode if Qdis is off) → Qchg (channel) → P−. Qchg must be ON.</div>
                 </div>
                 <div class="box">
                     <div class="k">Fault Protection</div>
@@ -286,35 +286,81 @@ void balance_cells(void) {
         from the table below. Node names are just labels &mdash; anything
         sharing a name is one wire.</p>
 
-        <p><strong>BMS Protection Circuit</strong></p>
+        <p><strong>BMS protection path: 4S stack, sense resistor and the common-drain disconnect pair drawn above</strong></p>
 
         <div class="table-wrap">
             <table>
                 <thead><tr><th>Part</th><th>What</th><th>Value</th><th>Connect</th></tr></thead>
                 <tbody>
-                    <tr><td class="mono">V_cell1</td><td>Voltage source</td><td>3.70&nbsp;V DC</td><td>from <span class="mono">pack_plus</span> to <span class="mono">n1</span></td></tr>
-                    <tr><td class="mono">R_int1</td><td>Resistor</td><td>30&nbsp;m&Omega;</td><td>between <span class="mono">n1</span> and <span class="mono">n1a</span></td></tr>
-                    <tr><td class="mono">V_cell2</td><td>Voltage source</td><td>3.70&nbsp;V DC</td><td>from <span class="mono">n1a</span> to <span class="mono">n2</span></td></tr>
-                    <tr><td class="mono">R_int2</td><td>Resistor</td><td>30&nbsp;m&Omega;</td><td>between <span class="mono">n2</span> and <span class="mono">n2a</span></td></tr>
-                    <tr><td class="mono">V_cell3</td><td>Voltage source</td><td>3.70&nbsp;V DC</td><td>from <span class="mono">n2a</span> to <span class="mono">n3</span></td></tr>
-                    <tr><td class="mono">R_int3</td><td>Resistor</td><td>30&nbsp;m&Omega;</td><td>between <span class="mono">n3</span> and <span class="mono">n3a</span></td></tr>
-                    <tr><td class="mono">V_cell4</td><td>Voltage source</td><td>3.70&nbsp;V DC</td><td>from <span class="mono">n3a</span> to <span class="mono">pack_minus</span></td></tr>
-                    <tr><td class="mono">R_int4</td><td>Resistor</td><td>30&nbsp;m&Omega;</td><td>between <span class="mono">pack_minus</span> and <span class="mono">pack_gnd</span></td></tr>
-                    <tr><td class="mono">M_chg</td><td>Transistor (MOSFET)</td><td><span class="mono">PMOS</span></td><td>drain <span class="mono">pack_plus</span>, gate <span class="mono">chg_mid</span>, source <span class="mono">chg_gate</span></td></tr>
-                    <tr><td class="mono">M_dsg</td><td>Transistor (MOSFET)</td><td><span class="mono">PMOS</span></td><td>drain <span class="mono">chg_mid</span>, gate <span class="mono">load_plus</span>, source <span class="mono">dsg_gate</span></td></tr>
-                    <tr><td class="mono">R_shunt</td><td>Resistor</td><td>5&nbsp;m&Omega;</td><td>between <span class="mono">load_plus</span> and <span class="mono">load_out</span></td></tr>
-                    <tr><td class="mono">R_load</td><td>Resistor</td><td>2&nbsp;&Omega;</td><td>between <span class="mono">load_out</span> and <span class="mono">pack_gnd</span></td></tr>
-                    <tr><td class="mono">V_chg_ctrl</td><td>Voltage source</td><td>0&nbsp;V DC</td><td>from <span class="mono">chg_gate</span> to <span class="mono">pack_plus</span></td></tr>
-                    <tr><td class="mono">V_dsg_ctrl</td><td>Voltage source</td><td>0&nbsp;V DC</td><td>from <span class="mono">dsg_gate</span> to <span class="mono">pack_plus</span></td></tr>
+                    <tr><td class="mono">V_cell1</td><td>Voltage source</td><td>3.70&nbsp;V DC</td><td>from <span class="mono">cell1_int</span> to ground <em>(ground is B&minus;, the bottom of the cell stack and the monitor&rsquo;s V<sub>SS</sub>)</em></td></tr>
+                    <tr><td class="mono">R_int1</td><td>Resistor</td><td>30&nbsp;m&Omega;</td><td>between <span class="mono">cell1_int</span> and <span class="mono">cell1_pos</span></td></tr>
+                    <tr><td class="mono">V_cell2</td><td>Voltage source</td><td>3.70&nbsp;V DC</td><td>from <span class="mono">cell2_int</span> to <span class="mono">cell1_pos</span></td></tr>
+                    <tr><td class="mono">R_int2</td><td>Resistor</td><td>30&nbsp;m&Omega;</td><td>between <span class="mono">cell2_int</span> and <span class="mono">cell2_pos</span></td></tr>
+                    <tr><td class="mono">V_cell3</td><td>Voltage source</td><td>3.70&nbsp;V DC</td><td>from <span class="mono">cell3_int</span> to <span class="mono">cell2_pos</span></td></tr>
+                    <tr><td class="mono">R_int3</td><td>Resistor</td><td>30&nbsp;m&Omega;</td><td>between <span class="mono">cell3_int</span> and <span class="mono">cell3_pos</span></td></tr>
+                    <tr><td class="mono">V_cell4</td><td>Voltage source</td><td>3.70&nbsp;V DC</td><td>from <span class="mono">cell4_int</span> to <span class="mono">cell3_pos</span></td></tr>
+                    <tr><td class="mono">R_int4</td><td>Resistor</td><td>30&nbsp;m&Omega;</td><td>between <span class="mono">cell4_int</span> and <span class="mono">pack_plus</span></td></tr>
+                    <tr><td class="mono">R_sense</td><td>Resistor</td><td>5&nbsp;m&Omega;</td><td>between ground and <span class="mono">sense</span></td></tr>
+                    <tr><td class="mono">M_dsg</td><td>NMOS</td><td>NMOS, W/L = 200000</td><td>drain <span class="mono">fet_mid</span>, gate <span class="mono">dsg_g</span>, source <span class="mono">sense</span></td></tr>
+                    <tr><td class="mono">D_dsg</td><td>Diode</td><td>Diode</td><td>anode <span class="mono">sense</span>, cathode <span class="mono">fet_mid</span> <em>(M_dsg&rsquo;s body diode, drawn as its own part)</em></td></tr>
+                    <tr><td class="mono">V_dsg</td><td>Voltage source</td><td>12&nbsp;V DC &mdash; <strong>discharge FET on</strong></td><td>from <span class="mono">dsg_g</span> to <span class="mono">sense</span> <em>(referenced to M_dsg&rsquo;s own source)</em></td></tr>
+                    <tr><td class="mono">M_chg</td><td>NMOS</td><td>NMOS, W/L = 200000</td><td>drain <span class="mono">fet_mid</span>, gate <span class="mono">chg_g</span>, source <span class="mono">pack_minus</span></td></tr>
+                    <tr><td class="mono">D_chg</td><td>Diode</td><td>Diode</td><td>anode <span class="mono">pack_minus</span>, cathode <span class="mono">fet_mid</span> <em>(M_chg&rsquo;s body diode)</em></td></tr>
+                    <tr><td class="mono">V_chg</td><td>Voltage source</td><td>12&nbsp;V DC &mdash; <strong>charge FET on</strong></td><td>from <span class="mono">chg_g</span> to <span class="mono">pack_minus</span> <em>(referenced to P&minus;, not to ground)</em></td></tr>
+                    <tr><td class="mono">R_load</td><td>Resistor</td><td>2&nbsp;&Omega;</td><td>between <span class="mono">pack_plus</span> and <span class="mono">pack_minus</span></td></tr>
+                    <tr><td class="mono">I_charger</td><td>Current source</td><td>0&nbsp;A DC &mdash; charger unplugged</td><td>from <span class="mono">pack_minus</span> to <span class="mono">pack_plus</span></td></tr>
                 </tbody>
             </table>
         </div>
 
-        <p><strong>What to run:</strong> a <strong>transient run</strong> of 100&nbsp;ms in steps of 100&nbsp;&micro;s.</p>
+        <p><strong>What to run:</strong> a <strong>DC operating point</strong>. The cells are ideal
+        sources with no capacity, so a transient run shows nothing a DC solve does not.</p>
+        <p><strong>What to watch:</strong> <span class="mono">V(sense)</span>, <span class="mono">V(pack_minus)</span>
+        and <span class="mono">V(fet_mid)</span> &minus; <span class="mono">V(sense)</span>.</p>
+
+        <h4>Close the loop before you run it</h4>
+        <p>Both FETs use a declared square-law teaching model: K<sub>p</sub> = 110&nbsp;&micro;A/V&sup2;,
+        W/L = 200&nbsp;000, so K = 22&nbsp;A/V&sup2;, with V<sub>th</sub> = 0.7&nbsp;V and
+        &lambda; = 0.04&nbsp;V<sup>&minus;1</sup>. It is not a discrete MOSFET specification. At 12&nbsp;V of
+        gate drive the channel resistance at small V<sub>DS</sub> is 1/[22 &times; (12 &minus; 0.7)] =
+        4.023&nbsp;m&Omega;. The loop is four 30&nbsp;m&Omega; cells, the 5&nbsp;m&Omega; shunt, two channels and the
+        2&nbsp;&Omega; load: 2.13305&nbsp;&Omega; across 14.8&nbsp;V, so <strong>6.938&nbsp;A</strong> flows.
+        The shunt reads 6.938 &times; 5&nbsp;m&Omega; = <strong>34.69&nbsp;mV</strong>, which is what a monitor&rsquo;s
+        SRP/SRN inputs see, and each FET drops about 27.9&nbsp;mV and dissipates 0.194&nbsp;W.</p>
+        <p><strong>P&minus; is not ground.</strong> It sits 90.5&nbsp;mV above B&minus; at this current, because the
+        shunt and both channels are between them, and it moves with load current. V_chg is wired from
+        <span class="mono">chg_g</span> to <span class="mono">pack_minus</span> so the charge FET always sees
+        12&nbsp;V gate-to-source. A real low-side driver does not: the BQ769x0&rsquo;s CHG and DSG pins pull up
+        to a nominal 12&nbsp;V and are referenced to the monitor&rsquo;s V<sub>SS</sub>, and CHG turns off through
+        a high-impedance path of about 1&nbsp;M&Omega; rather than a fast pull-down. Neither ideal source here
+        models that.</p>
+        <p><strong>Bench acceptance:</strong> bring the board up from a current-limited supply or electronic
+        load, not a bare cell stack. At a known current, Kelvin-measure V<sub>DS</sub> across each FET and the
+        shunt voltage separately, and compare V<sub>DS</sub>/I with the datasheet R<sub>DS(on)</sub> at the actual
+        V<sub>GS</sub> and temperature rather than the 25&nbsp;&deg;C headline figure. Measure each gate relative to
+        its own source. Then confirm blocking in both directions: discharge-off must stop discharge with the
+        full pack voltage across the discharge FET, and charge-off must stop charge. In each case also confirm
+        that the opposite direction still conducts through a body diode, and that the FET survives that
+        diode&rsquo;s dissipation for as long as the protection logic takes to respond.</p>
+        <p><strong>What this build cannot tell you.</strong> The cells are ideal sources, so there is no state
+        of charge. It is DC only: short-circuit turn-off, di/dt, avalanche energy and gate-charge timing are
+        absent. The body diodes are the generic diode model; a real FET&rsquo;s V<sub>SD</sub> at this current comes
+        from its datasheet. And the generic 0.7&nbsp;V threshold lets a reverse-biased channel carry part of the
+        current at body-diode voltages; a power MOSFET&rsquo;s threshold is normally well above that, leaving the
+        diode to carry all of it.</p>
+        <p><strong>References:</strong>
+        <a href="https://www.ti.com/lit/ds/symlink/bq76920.pdf" target="_blank" rel="noopener">TI BQ769x0 datasheet (SLUSBK2I), section 8.3.1.3.1</a>
+        describes CHG and DSG as low-side N-channel FET drivers;
+        <a href="https://www.ti.com/lit/ds/symlink/bq76952.pdf" target="_blank" rel="noopener">TI BQ76952 datasheet (SLUSE13B), section 11.5.1</a>
+        describes the series FET configuration and body-diode protection, in which the monitor turns the off
+        FET back on when significant current would otherwise flow through its body diode. Neither document
+        endorses this complete build.</p>
 
         <p>Then change one thing at a time and predict the result before you run
         it. A simulator is only worth the time if you are checking an answer you
         already have &mdash; otherwise it is a very slow way of being surprised.</p>
+
+        <div id="m15l06-verified-practice"></div>
     </div>
 
         <div class="card">
@@ -1397,4 +1443,97 @@ void balance_cells(void) {
             });
         }
     });
+    /* What a correct build reads, and what to do to it next. Every number
+       below is derived from the values in the build table above - if it cannot
+       be derived from what is on this page, it does not belong here. */
+    (function () {
+        if (typeof SimCheckWidget === 'undefined') return;
+        new SimCheckWidget('m15l06-verified-practice', { id: 'm15l06-verified-practice',
+            title: 'Find where the return current goes, and what each FET blocks',
+            intro: 'Both FETs are on in the printed build and a 2 ohm load is discharging the pack. Numeric tolerances refer to the declared square-law and generic-diode models; on the bench, compare against your FET datasheet at its actual gate drive and temperature.',
+            probes: [
+                { id: 'shunt',
+                    label: 'Default: shunt voltage, V(sense)',
+                    node: 'sense',
+                    dc: true,
+                    expect: '34.692',
+                    unit: 'mV',
+                    tol: 0.05,
+                    why: '14.8 V across 2.13305 ohm is 6.938 A, and 6.938 A through 5 mohm is 34.69 mV. This is the SRP/SRN signal a monitor converts to current.'
+                },
+                { id: 'pminus',
+                    label: 'Default: P- relative to B-, V(pack_minus)',
+                    node: 'pack_minus',
+                    dc: true,
+                    expect: '90.451',
+                    unit: 'mV',
+                    tol: 0.1,
+                    why: 'The shunt plus two 4.023 mohm channels: 34.69 + 2 x 27.91 mV. P- is a load-dependent node, not ground.'
+                },
+                { id: 'vds',
+                    label: 'Default: discharge FET drop, V(fet_mid) - V(sense)',
+                    node: 'fet_mid,sense',
+                    dc: true,
+                    expect: '27.914',
+                    unit: 'mV',
+                    tol: 0.05,
+                    why: '6.938 A x 4.023 mohm. Each FET dissipates about 0.194 W.'
+                },
+                { id: 'dsgoff',
+                    label: 'V_dsg = 0 V: voltage the discharge FET blocks',
+                    node: 'fet_mid,sense',
+                    dc: true,
+                    expect: '14.8',
+                    unit: 'V',
+                    tol: 0.01,
+                    why: 'No current flows, so nothing drops anywhere and the whole pack voltage appears across the off FET. Its V(DS) rating must cover the maximum pack voltage plus transients.',
+                    dcValues: { V_dsg: '0 V DC' }
+                },
+                { id: 'chgoff',
+                    label: 'V_chg = 0 V while discharging: charge FET drop, V(pack_minus) - V(fet_mid)',
+                    node: 'pack_minus,fet_mid',
+                    dc: true,
+                    expect: '0.88040',
+                    unit: 'V',
+                    tol: 0.005,
+                    why: 'Discharge does not stop. 6.538 A now crosses the charge FET at its body-diode voltage: about 5.76 W, thirty times the 0.194 W on-state loss. This is why a monitor turns the off FET back on during significant discharge.',
+                    dcValues: { V_chg: '0 V DC' }
+                },
+                { id: 'charge',
+                    label: 'I_charger = 3 A, R_load = 15 ohm: shunt voltage, V(sense)',
+                    node: 'sense',
+                    dc: true,
+                    expect: '-9.978',
+                    unit: 'mV',
+                    tol: 0.05,
+                    why: 'The sign reverses: 1.996 A flows into the pack while the 15 ohm load takes the other 1.004 A. The shunt measures pack current, not charger current.',
+                    dcValues: { I_charger: '3 A DC', R_load: '15 ohm' }
+                },
+                { id: 'chargedsgoff',
+                    label: 'Charging as above with V_dsg = 0 V: discharge FET drop, V(sense) - V(fet_mid)',
+                    node: 'sense,fet_mid',
+                    dc: true,
+                    expect: '0.84700',
+                    unit: 'V',
+                    tol: 0.005,
+                    why: 'Charging continues at 1.940 A through the discharge FET body diode, about 1.64 W. Discharge-off does not block a charger, which is how a pack in undervoltage fault can still be recharged.',
+                    dcValues: { I_charger: '3 A DC', R_load: '15 ohm', V_dsg: '0 V DC' }
+                }
+            ],
+            experiments: [
+                { action: 'Change V_dsg to 0 V.',
+                    expect: 'Load current falls to zero and the discharge FET holds off 14.8 V.',
+                    why: 'Its body diode points the wrong way for discharge, so nothing else can carry the current.'
+                },
+                { action: 'Restore V_dsg and change V_chg to 0 V.',
+                    expect: 'Discharge continues at about 6.54 A with roughly 0.88 V across the charge FET.',
+                    why: 'Charge-off blocks only charge current. Budget the body-diode dissipation for the time the protection logic takes to react.'
+                },
+                { action: 'Restore both, set R_load to 15 ohm and I_charger to 3 A.',
+                    expect: 'V(sense) goes negative: about 2 A into the pack and 1 A to the load.',
+                    why: 'A fuel gauge integrates the shunt, so it counts only what the pack actually receives.'
+                }
+            ]
+        });
+    })();
     </script>

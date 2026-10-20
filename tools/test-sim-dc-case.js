@@ -45,6 +45,14 @@ try {
     assert.equal(N.modelFor('Zener Diode, 8.2 V', 'Diode').m.BV, 8.2);
     assert.equal(N.modelFor('Zener Diode, 5.1 V', 'Diode').m.BV, 5.1);
     assert.equal(N.MODELS.ZENER.BV, 5.1, 'per-part parameters must not mutate the global default');
+    const tvs = N.modelFor(N.text('Zener Diode, 16.7 V, rz = 0.31&nbsp;&Omega;'), 'Diode').m;
+    assert.equal(tvs.BV, 16.7);
+    assert.equal(tvs.RZ, 0.31, 'a stated dynamic resistance replaces the generic 7 ohm');
+    assert.equal(N.modelFor(N.text('Zener Diode, 26.7 V, rz = 70&nbsp;m&Omega;'), 'Diode').m.RZ, 0.07);
+    assert.equal(N.modelFor('Zener Diode, 8.2 V', 'Diode').m.RZ, N.MODELS.ZENER.RZ);
+    assert.equal(N.MODELS.ZENER.RZ, 7, 'per-part rz must not mutate the global default');
+    const tvsExport = SPICE.emit({ ref: 'D2', what: 'Diode', value: 'Zener Diode, 5.1 V, rz = 0.5 ohm', kind: 'diode', nodes: ['ground', 'out'] });
+    assert.equal(tvsExport.unsupported.length, 1, 'a default-BV zener with a stated rz is still not the default part');
     const clamp = { ref: 'D1', what: 'Diode', value: 'Zener Diode, 8.2 V', kind: 'diode', nodes: ['ground', 'out'] };
     const export82 = SPICE.emit(clamp);
     assert.equal(export82.unsupported.length, 1);

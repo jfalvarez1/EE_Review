@@ -17,6 +17,12 @@
  * leftovers from a generator that expected a parameter block the build table
  * never carries, so they LOOK like values and are not.
  *
+ * A zener is the one named part whose name is NOT its value. "Zener Diode" is a
+ * category: the breakdown voltage is the design answer in every lesson that
+ * uses one, and Circuit Toy's single zener part defaults to 5.1 V, so a reader
+ * who places it as named gets a clamp nobody chose. Six protection lessons said
+ * only "Zener Diode"; one of them, across a 24 V rail, could not converge.
+ *
  * What is allowed
  * ---------------
  * A part whose name is its value: an op-amp is an "Op-Amp", a transistor is a
@@ -69,6 +75,7 @@ const noValue = v =>
  */
 const SEMI = /diode|transistor|mosfet|nmos|pmos|\bbjt\b|jfet|darlington/i;
 const numericOnly = v => /^[\d.\s]+$/.test(v);
+const zenerNoVolts = v => /zener/i.test(v) && !/\d(?:\.\d+)?\s*V\b/.test(v);
 
 /** Parts whose name IS their value. */
 const NAMED = /^(op-amp|real op-amp|opamp|nmos|pmos|npn|pnp|n-jfet|2n\d|1n\d|mbr|schottky|diode|led|photodiode|zener|sub-circuit|sr latch|not gate|and gate|or gate|xor gate|nor gate|buffer|analog switch|spdt switch|dpdt switch|spst switch|transmission line|d flip-flop|t flip-flop|counter|shift register|half adder|full adder|open loop|crystal|thermistor|photoresistor|ldr|optocoupler|memristor|varactor|tunnel diode|ujt|test point|magnetic coupling)/i;
@@ -91,9 +98,10 @@ walk(LESSONS, []).sort().forEach(file => {
             rowsSeen++;
             const [part, what, value] = c;
             const bad = (noValue(value) && !NAMED.test(value)) ||
-                        (SEMI.test(what) && numericOnly(value));
+                        (SEMI.test(what) && numericOnly(value)) ||
+                        zenerNoVolts(value);
             if (!bad) return;
-            findings.push({ rel, part, what, value });
+            findings.push({ rel, part, what, value, why: zenerNoVolts(value) ? 'no breakdown voltage' : '' });
         });
     }
 });
@@ -108,7 +116,7 @@ if (findings.length) {
     findings.forEach(f => {
         if (f.rel !== last) { console.log('  ' + f.rel); last = f.rel; }
         console.log('      ' + f.part.padEnd(12) + f.what.padEnd(24) +
-                    (f.value ? '"' + f.value + '"' : '(empty)'));
+                    (f.value ? '"' + f.value + '"' : '(empty)') + (f.why ? '  - ' + f.why : ''));
     });
     console.log('');
     console.log('FAIL - ' + findings.length + ' component row(s) a reader cannot enter into a simulator.');
