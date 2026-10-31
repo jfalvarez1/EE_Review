@@ -15,6 +15,7 @@ and its HTTP tests. There is no npm install step and no agent service at runtime
 | Data download/deletion controls | `assets/learning-data-ui.js` |
 | Shared exercises and design/measurement widgets | `assets/widgets.js`, `assets/design-brief.js` |
 | Reusable circuit symbols and geometry validation | `assets/schematic-svg.js` |
+| Capacitor PCB placement illustrations | `tools/build-capacitor-layouts.js`; [editing and review guide](docs/CAPACITOR_PLACEMENT_DIAGRAMS.md) |
 | Topic-specific numerical models | `assets/*-model.js`, `assets/rf-matching.js`, `assets/protocol-signals.js` |
 | Evidence, simulation inputs, exported data | `docs/examples`, `docs/data`, evidence ledgers in `docs` |
 | Static checks and independent numerical regressions | `tools/audit.js` and the checks it lists |

@@ -97,6 +97,8 @@ const GATING = [
      'a standards limit with nothing behind it: the reader cannot check what they cannot find'],
     ['validate-path.js',
      'every syllabus step resolves to a lesson that exists on disk'],
+    ['build-capacitor-layouts.js --check',
+     'capacitor placement illustrations must match their editable generator'],
     ['stamp-build.js --check',
      'a stale cache key: readers get the OLD lesson against the new assets']
 ];
