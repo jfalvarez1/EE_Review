@@ -13,17 +13,29 @@ const AD = (() => {
 
     // ===== COMPLETION TRACKING =====
     function getProgress() {
-        try {
-            const raw = localStorage.getItem(ns('progress'));
-            if (!raw) return { lessons: {}, exercises: {}, checklists: {} };
-            return JSON.parse(raw);
-        } catch (e) {
-            return { lessons: {}, exercises: {}, checklists: {} };
+        const saved = window.CourseStorage.readObject(ns('progress'));
+        const progress = { lessons: Object.create(null), exercises: Object.create(null),
+            checklists: Object.create(null) };
+        for (const kind of Object.keys(progress)) {
+            const entries = saved[kind];
+            if (!entries || typeof entries !== 'object' || Array.isArray(entries)) continue;
+            for (const key of Object.keys(entries)) {
+                if (['__proto__', 'constructor', 'prototype'].includes(key)) continue;
+                const value = entries[key];
+                if (kind === 'exercises') {
+                    if (value && typeof value === 'object' && !Array.isArray(value)) {
+                        progress[kind][key] = { solved: value.solved === true,
+                            attempts: Number.isSafeInteger(value.attempts) && value.attempts >= 0
+                                ? value.attempts : 0 };
+                    }
+                } else if (typeof value === 'boolean') progress[kind][key] = value;
+            }
         }
+        return progress;
     }
 
     function saveProgress(progress) {
-        localStorage.setItem(ns('progress'), JSON.stringify(progress));
+        return window.CourseStorage.write(ns('progress'), JSON.stringify(progress));
     }
 
     function isLessonDone(moduleId, lessonId) {
@@ -78,11 +90,11 @@ const AD = (() => {
     }
 
     function getLastVisited() {
-        return localStorage.getItem(ns('lastVisited')) || null;
+        return window.CourseStorage.read(ns('lastVisited')) || null;
     }
 
     function setLastVisited(path) {
-        localStorage.setItem(ns('lastVisited'), path);
+        return window.CourseStorage.write(ns('lastVisited'), path);
     }
 
     // ===== TEKTRONIX OSCILLOSCOPE COLORS =====

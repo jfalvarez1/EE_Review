@@ -80,25 +80,22 @@
     function storageKey(id) { return 'design:' + id; }
 
     function loadState(id) {
-        try {
-            var raw = localStorage.getItem(storageKey(id));
-            return raw ? JSON.parse(raw) : {};
-        } catch (e) { return {}; }
+        return window.CourseStorage.readObject(storageKey(id));
     }
 
     function saveState(id, state) {
-        try { localStorage.setItem(storageKey(id), JSON.stringify(state)); }
-        catch (e) { /* private mode: the widget still works, it just forgets */ }
+        return window.CourseStorage.write(storageKey(id), JSON.stringify(state));
     }
 
     /** Every completed design, for the portfolio view. */
     function completedDesigns() {
         var out = [];
         try {
-            for (var i = 0; i < localStorage.length; i++) {
-                var k = localStorage.key(i);
+            var keys = window.CourseStorage.keys();
+            for (var i = 0; i < keys.length; i++) {
+                var k = keys[i];
                 if (k && k.indexOf('design:') === 0) {
-                    var s = JSON.parse(localStorage.getItem(k) || '{}');
+                    var s = window.CourseStorage.readObject(k);
                     if (s.passed) out.push({ id: k.slice(7), at: s.passedAt || null,
                                              attempts: s.attempts || 0,
                                              hintsUsed: s.hintsUsed || 0 });
@@ -525,10 +522,11 @@
     SimCheckWidget.completed = function () {
         var out = [];
         try {
-            for (var i = 0; i < localStorage.length; i++) {
-                var k = localStorage.key(i);
+            var keys = window.CourseStorage.keys();
+            for (var i = 0; i < keys.length; i++) {
+                var k = keys[i];
                 if (k && k.indexOf('design:sim:') === 0) {
-                    var s = JSON.parse(localStorage.getItem(k) || '{}');
+                    var s = window.CourseStorage.readObject(k);
                     if (s.passed) out.push({ id: k.slice(11), at: s.passedAt || null });
                 }
             }
@@ -709,10 +707,11 @@
     FaultFindWidget.completed = function () {
         var out = [];
         try {
-            for (var i = 0; i < localStorage.length; i++) {
-                var k = localStorage.key(i);
+            var keys = window.CourseStorage.keys();
+            for (var i = 0; i < keys.length; i++) {
+                var k = keys[i];
                 if (k && k.indexOf('design:fault:') === 0) {
-                    var s = JSON.parse(localStorage.getItem(k) || '{}');
+                    var s = window.CourseStorage.readObject(k);
                     if (s.solved) out.push({ id: k.slice(13), at: s.at || null,
                                              probesUsed: s.probesUsed });
                 }

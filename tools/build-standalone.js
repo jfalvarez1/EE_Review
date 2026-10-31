@@ -122,6 +122,8 @@ function inlineScript(src) {
 let assetBytes = 0;
 assetBytes += inlineStylesheet('assets/styles.css');
 [
+    'assets/course-storage.js',
+    'assets/learning-data-ui.js',
     'assets/ad-framework.js',
     'assets/widgets.js',
     'assets/component-models.js',

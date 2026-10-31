@@ -290,6 +290,8 @@ function loadFrameworks(context) {
     const basePath = process.cwd();
 
     // Load ad-framework.js
+    const storagePath = path.join(basePath, 'assets', 'course-storage.js');
+    new vm.Script(fs.readFileSync(storagePath, 'utf8'), { filename: storagePath }).runInContext(context);
     const adFrameworkPath = path.join(basePath, 'assets', 'ad-framework.js');
     const adCode = fs.readFileSync(adFrameworkPath, 'utf8');
     new vm.Script(adCode, { filename: adFrameworkPath }).runInContext(context);

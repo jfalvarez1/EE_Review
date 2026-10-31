@@ -26,6 +26,7 @@ const FULL = process.argv.includes('--full');
 const VERBOSE = process.argv.includes('--verbose') || process.argv.includes('-v');
 
 const GATING = [
+    ['test-course-storage.js', 'saved learning records survive storage failures and deletion stays scoped to the course'],
     ['check-structure.js',
      'lessons stay fragments: no standalone documents, stray nav, <h1> or netlists'],
     ['check-titles.js',

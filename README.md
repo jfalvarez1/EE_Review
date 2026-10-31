@@ -2,6 +2,11 @@
 
 # ▶ [**View HERE**](https://jfalvarez1.github.io/EE_Review/)
 
+Maintainers: see [CONTRIBUTING.md](CONTRIBUTING.md) for the architecture, checks
+and evidence requirements, and [SECURITY.md](SECURITY.md) for storage and trust
+boundaries. The sidebar's **Learning data** control downloads or clears your
+browser's saved course records.
+
 ### It runs in your browser. Nothing to install.
 
 ---
@@ -77,8 +82,9 @@ picks up your changes on reload.
 **Windows:** double-click `launch.bat`.
 **macOS / Linux:** `./launch.sh`.
 
-Both find Python, start a server, open your browser, and print a second URL you can open on
-your phone:
+Both find Python, start a local-only server and open your browser. To make the
+public course files reachable on your phone, use `launch.bat --lan` or
+`./launch.sh --lan` on a trusted network. With that option the launcher prints:
 
 ```
   Analog Design Refresher Course
@@ -92,9 +98,10 @@ your phone:
 ```
 
 If 8080 is busy it takes the next free port rather than failing, and it serves with caching
-off so an edited lesson appears on reload instead of three reloads later. `--local-only`
-binds to loopback if you would rather nothing on the network could reach it; `--no-browser`
-and `--port N` do what they say.
+off so an edited lesson appears on reload instead of three reloads later. Loopback
+is the default; `--local-only` remains a compatible alias. `--no-browser` and
+`--port N` do what they say. Repository metadata and private working directories
+are excluded from this server.
 
 **Why a server at all**, when there is no build step? Because lessons are fetched with
 `XMLHttpRequest`, and every browser blocks that on `file://`. Opening `index.html` directly
@@ -105,12 +112,13 @@ avoid.
 Any static server works if you prefer:
 
 ```bash
-python -m http.server 8080      # then http://localhost:8080/index.html
-npx --yes http-server -p 8080 -c-1
+python tools/serve.py --no-browser --port 8080
 ```
 
-No build step, no dependencies, no `node_modules`. It is plain HTML, CSS and ES5-compatible
-JavaScript. Python is needed only to serve the files, not by the course itself.
+No build step or `node_modules` is required to read the course. It uses plain HTML,
+CSS and JavaScript for current browsers. Python is needed only for the local
+server, not by the course itself. A generic static server may expose files that
+the course launcher deliberately excludes.
 
 ---
 

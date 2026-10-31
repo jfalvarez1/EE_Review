@@ -310,6 +310,8 @@ function testLesson(lessonPath) {
     try {
         const { adCode, widgetsCode, schematicCode } = loadFrameworks();
 
+        const storagePath = path.join(__dirname, '..', 'assets', 'course-storage.js');
+        new vm.Script(fs.readFileSync(storagePath, 'utf8'), { filename: storagePath }).runInContext(context);
         new vm.Script(adCode, { filename: 'ad-framework.js' }).runInContext(context);
         new vm.Script(widgetsCode, { filename: 'widgets.js' }).runInContext(context);
         new vm.Script(schematicCode, { filename: 'schematic-svg.js' }).runInContext(context);

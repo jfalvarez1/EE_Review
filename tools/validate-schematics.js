@@ -569,6 +569,8 @@ function createLessonContext(html) {
   };
 
   // Load core libs into the lesson VM.
+  const storagePath = path.join(process.cwd(), 'assets', 'course-storage.js');
+  new vm.Script(fs.readFileSync(storagePath, 'utf8'), { filename: storagePath }).runInContext(context);
   const adPath = path.join(process.cwd(), 'assets', 'ad-framework.js');
   const adCode = fs.readFileSync(adPath, 'utf8');
   new vm.Script(adCode, { filename: adPath }).runInContext(context);

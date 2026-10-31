@@ -12,8 +12,7 @@ is a confusing first experience for something that is otherwise dependency-free.
 So this does the four things a person actually wants:
 
   * finds a free port instead of failing when 8080 is taken
-  * binds to all interfaces and prints the LAN URL, so a phone on the same
-    WiFi can read it
+  * binds to loopback by default; --lan opts into access from the local network
   * disables caching, so an edited lesson shows up on reload rather than
     three reloads later
   * opens the browser
@@ -29,19 +28,61 @@ import socketserver
 import sys
 import threading
 import webbrowser
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 DEFAULT_PORT = 8080
 PORT_ATTEMPTS = 40
 
 # The repo root is the parent of tools/, whatever the working directory is.
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PUBLIC_FILES = {"index.html", "components.html"}
+PUBLIC_DIRECTORIES = {"assets", "lessons", "docs"}
+
+
+def public_path(request_path, root=ROOT):
+    """Resolve only published content, rejecting hidden paths and symlink escapes."""
+    decoded = unquote(urlsplit(request_path).path)
+    if "\\" in decoded or "\x00" in decoded:
+        return None
+    parts = [part for part in decoded.split("/") if part]
+    if not parts:
+        parts = ["index.html"]
+    if any(part.startswith(".") for part in parts):
+        return None
+    if parts[0] not in PUBLIC_DIRECTORIES and parts != [parts[0]]:
+        return None
+    if parts[0] not in PUBLIC_DIRECTORIES | PUBLIC_FILES:
+        return None
+    root = Path(root).resolve()
+    target = root.joinpath(*parts).resolve()
+    # Check the resolved path too: assets/link -> ../split_pdfs is not public.
+    try:
+        resolved_parts = target.relative_to(root).parts
+    except ValueError:
+        return None
+    if not resolved_parts or any(part.startswith(".") for part in resolved_parts):
+        return None
+    if resolved_parts[0] not in PUBLIC_DIRECTORIES | PUBLIC_FILES:
+        return None
+    return target
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
-    """Static handler that always serves the repo root, and never caches."""
+    """Serve the same public content as Pages; never list repository directories."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=ROOT, **kwargs)
+
+    def send_head(self):
+        if public_path(self.path, self.directory) is None:
+            self.send_error(404, "Not found")
+            return None
+        return super().send_head()
+
+    def list_directory(self, path):
+        self.send_error(404, "Not found")
+        return None
 
     def end_headers(self):
         # Without this the browser holds onto lessons and assets, and an edit
@@ -71,7 +112,7 @@ class Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = (os.name != "nt")
 
 
-def find_port(start, attempts):
+def find_port(start, attempts, host="127.0.0.1"):
     """
     First free port at or above `start`.
 
@@ -82,7 +123,7 @@ def find_port(start, attempts):
     for port in range(start, start + attempts):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-                probe.bind(("0.0.0.0", port))
+                probe.bind((host, port))
             return port
         except OSError:
             continue
@@ -112,8 +153,11 @@ def main():
                     help="preferred port (default %d; the next free one is used if taken)"
                          % DEFAULT_PORT)
     ap.add_argument("--no-browser", action="store_true", help="do not open a browser")
-    ap.add_argument("--local-only", action="store_true",
-                    help="bind to 127.0.0.1 only, so nothing on the network can reach it")
+    network = ap.add_mutually_exclusive_group()
+    network.add_argument("--lan", action="store_true",
+                         help="allow devices on the local network to read public course files")
+    network.add_argument("--local-only", action="store_true",
+                         help="bind to 127.0.0.1 only (the default; retained for compatibility)")
     args = ap.parse_args()
 
     if not os.path.isfile(os.path.join(ROOT, "index.html")):
@@ -121,13 +165,13 @@ def main():
                          "Run this from inside the EE_Review folder.\n")
         return 1
 
-    port = find_port(args.port, PORT_ATTEMPTS)
+    host = "0.0.0.0" if args.lan else "127.0.0.1"
+    port = find_port(args.port, PORT_ATTEMPTS, host)
     if port is None:
         sys.stderr.write("No free port between %d and %d.\n"
                          % (args.port, args.port + PORT_ATTEMPTS - 1))
         return 1
 
-    host = "127.0.0.1" if args.local_only else "0.0.0.0"
     local_url = "http://localhost:%d/index.html" % port
 
     print()
@@ -135,7 +179,7 @@ def main():
     print("  " + "-" * 44)
     print("  On this computer:  %s" % local_url)
 
-    if not args.local_only:
+    if args.lan:
         ip = lan_ip()
         if ip:
             print("  On your phone:     http://%s:%d/index.html" % (ip, port))
