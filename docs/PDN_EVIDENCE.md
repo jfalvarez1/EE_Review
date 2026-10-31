@@ -2,7 +2,9 @@
 
 The five lessons at Module 29, lessons 8–12 distinguish manufacturer measurements,
 published simulations, new LTspice runs, and analytical teaching calculations.
-No result here is a field-solver extraction or measurement of the user's PCB.
+The original experiments below are circuit simulations and calculations, not
+measurements of the user's PCB. The later [field-solver evidence](FIELD_SOLVER_EVIDENCE.md)
+adds a synthetic 2.5D board experiment with geometry, raw data and mesh checks.
 
 ## Local experiments
 

@@ -61,8 +61,8 @@
             spends part of its journey on an outer layer and the rest on an inner
             layer, matching the <strong>physical</strong> lengths does not match
             the <strong>electrical</strong> lengths. Over 100&nbsp;mm the
-            difference is \(100 \times (6.9-5.8) = 110\)&nbsp;ps &mdash; which is
-            more than the entire timing budget of a DDR interface. Match delay,
+            difference under these assumed velocities is \(100 \times (6.9-5.8) = 110\)&nbsp;ps.
+            Compare it with the selected interface's actual timing budget. Match delay,
             not millimetres, and keep matched groups on the same layer type.
         </div>
     </div>
@@ -71,10 +71,10 @@
     <div class="card">
         <h3>2. Rules of thumb worth memorising</h3>
 
-        <p>These are Bogatin's, and their value is not precision &mdash; it is
-        that you can sanity-check a calculator's output in your head before you
-        trust it. A tool that disagrees with these by more than about 20% has
-        been given bad inputs.</p>
+        <p>These rough estimates help check orders of magnitude. Their material,
+        geometry and edge-shape assumptions matter; disagreement with a calculator
+        does not by itself prove bad inputs. Use the fabricator's stackup and a
+        model appropriate to the geometry before accepting a trace width.</p>
 
         <div class="table-wrap">
             <table class="data-table">
@@ -358,6 +358,29 @@
     </div>
 
     <!-- ================================================================= -->
+    <div class="card" id="si-field-study">
+        <h3>Field-solver lab: a converged run can still disagree with hardware</h3>
+        <p><strong>Actually run:</strong> native openEMS 0.37.0 on Antmicro's public <em>short physical stub</em> PCB slice, 0.2–4 GHz. The image below comes from a frequency-domain electric-field dump at 3 GHz. White outlines are the imported top copper; the return plane is below it. Port 0 drives the trace and port 1 is terminated in 50 Ω.</p>
+        <div class="canvas-wrap" style="overflow-x:auto"><img src="assets/figures/field-solvers/electric-field.svg" alt="Actual openEMS electric-field distribution beneath a PCB trace and its branching stub, with driven and terminated ports labeled" style="width:100%;min-width:660px;height:auto" loading="lazy"></div>
+        <p class="fig-note">The sampled plane is z = −0.075 mm. Color is 20 log10(|E| / this plane's peak), with values below −50 dB clipped for display. It shows relative field distribution, not calibrated field strength or an EMC limit. The placement file lists an R4 zero-ohm link at the stub end, but the exported model has no bridge across those pads. The measured population state is unknown; the fixture name does not prove a short-circuited termination.</p>
+        <p><a href="assets/figures/field-solvers/electric-field.svg" target="_blank" rel="noopener">Open the field map at full size</a>. <strong>First diagnose the numerical setup.</strong> The original eight-cell absorbing boundary overlapped the board in x/y and touched its copper faces in z. The forward run reached its 200,960-step cap. Adding ten exterior vacuum cells per face preserved the entire board and local mesh while moving the absorbing region away; it reached the −60 dB energy criterion in 37,694 steps. A fourteen-cell version reached it in 32,882 steps. The original Gaussian stimulus was unchanged.</p>
+        <div class="canvas-wrap" style="overflow-x:auto"><img src="assets/figures/field-solvers/si-boundary-review.svg" alt="Simulated S11 compared with published VNA measurement, energy decay before and after boundary padding, and residual change when the domain is enlarged again" style="width:100%;min-width:660px;height:auto" loading="lazy"></div>
+        <p><a href="assets/figures/field-solvers/si-boundary-review.svg" target="_blank" rel="noopener">Open the comparison plots at full size</a>. <strong>Then separate numerical agreement from physical accuracy.</strong> Increasing padding from ten to fourteen cells changes the forward complex S11 by at most 0.0000328 and S21 by 0.0001163. These are absolute complex-amplitude differences, not percentages or dB. The upper plot still shows substantial disagreement with the published VNA S11. Its complex RMSE is 0.1163 over 655 overlapping samples. No smoothing, phase fitting or connector adjustment was used; the measurement is Antmicro's, not a measurement made here.</p>
+        <details><summary>Why excite both ports, and what checks passed?</summary>
+        <p>Each run supplies incident and reflected waves at both ports. Arrange the power-normalized incident waves as columns of A and reflected waves as columns of B, then solve <strong>B = S A</strong>. The runs must share identical geometry, configuration, frequencies and reference impedances. Treating every reflected/source ratio as a finished multiport S-matrix ignores the other incident waves.</p>
+        <p>Both port excitations reached the stopping criterion. The incident matrix condition number was at most 1.0682. The extracted matrix's maximum singular value was <strong>1.0000344</strong>, a small numerical excess above the passive bound of one; no passivity enforcement hid it. Maximum |S12−S21| was 0.0001369. Independent per-column ratios would instead give a maximum singular value of 1.03294. These diagnostics are useful consistency checks, not hardware validation.</p>
+        </details>
+        <div class="warn"><strong>Unresolved:</strong> local-mesh refinement, copper and dielectric loss, the connector/reference-plane model, and R4 population/model correspondence. This import uses perfect conductors and an ε-only dielectric; its loss-tangent field is not applied. Do not use this network as a qualified channel, an eye-diagram compliance result or an EMC prediction. The boundary investigation remains on a separate experimental fork branch.</div>
+        <ol>
+            <li>Inspect geometry, ports and component population before running. Confirm what the imported model actually contains.</li>
+            <li>Check native stopping diagnostics and move the outer boundary while preserving the local mesh. Then test local-mesh refinement separately.</li>
+            <li>Excite every port; check normalization, conditioning, passivity and reciprocity without silently correcting the data.</li>
+            <li>Compare complex measured data at matching reference planes. Resolve material, fixture and population differences before interpreting residual error.</li>
+        </ol>
+        <p><a href="docs/data/field-solvers/two-port.csv" download>Complex two-port CSV</a> · <a href="docs/data/field-solvers/boundary-change.csv" download>Domain-sensitivity CSV</a> · <a href="docs/data/field-solvers/si-inputs-and-results.zip" download>Geometry, Gerbers, raw waves, field samples and logs</a> · <a href="docs/FIELD_SOLVER_EVIDENCE.md">Exact versions and reproduction</a>.</p>
+        <p>Primary background: <a href="https://docs.openems.de/en/stable/concepts/bc.html" target="_blank" rel="noopener">openEMS boundary conditions</a>, <a href="https://antmicro.com/blog/2025/07/recent-improvements-to-antmicros-signal-integrity-simulation-flow/" target="_blank" rel="noopener">Antmicro's simulation and VNA workflow</a>, and the <a href="https://github.com/antmicro/signal-integrity-test-board" target="_blank" rel="noopener">open test-board design</a>.</p>
+    </div>
+
     <div class="card">
         <h3>Design Checklist</h3>
         <div id="im-checklist"></div>
