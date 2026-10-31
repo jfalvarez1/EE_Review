@@ -46,7 +46,8 @@
 
     function esc(s) {
         return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     // Accept 4k7, 4.7k, 4700, 1M, 100n, 2u2 - the way engineers actually type.
@@ -80,7 +81,25 @@
     function storageKey(id) { return 'design:' + id; }
 
     function loadState(id) {
-        return window.CourseStorage.readObject(storageKey(id));
+        var saved = window.CourseStorage.readObject(storageKey(id));
+        var state = { values: Object.create(null), passed: saved.passed === true,
+            solved: saved.solved === true };
+        ['attempts', 'hintsUsed', 'probesUsed'].forEach(function (key) {
+            state[key] = Number.isSafeInteger(saved[key]) && saved[key] >= 0 ? saved[key] : 0;
+        });
+        ['passedAt', 'at'].forEach(function (key) {
+            state[key] = typeof saved[key] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(saved[key])
+                ? saved[key] : null;
+        });
+        if (saved.values && typeof saved.values === 'object' && !Array.isArray(saved.values)) {
+            Object.keys(saved.values).forEach(function (key) {
+                var value = saved.values[key];
+                if (typeof value === 'string' || (typeof value === 'number' && isFinite(value))) {
+                    state.values[key] = String(value);
+                }
+            });
+        }
+        return state;
     }
 
     function saveState(id, state) {
@@ -95,7 +114,7 @@
             for (var i = 0; i < keys.length; i++) {
                 var k = keys[i];
                 if (k && k.indexOf('design:') === 0) {
-                    var s = window.CourseStorage.readObject(k);
+                    var s = loadState(k.slice(7));
                     if (s.passed) out.push({ id: k.slice(7), at: s.passedAt || null,
                                              attempts: s.attempts || 0,
                                              hintsUsed: s.hintsUsed || 0 });
@@ -526,7 +545,7 @@
             for (var i = 0; i < keys.length; i++) {
                 var k = keys[i];
                 if (k && k.indexOf('design:sim:') === 0) {
-                    var s = window.CourseStorage.readObject(k);
+                    var s = loadState(k.slice(7));
                     if (s.passed) out.push({ id: k.slice(11), at: s.passedAt || null });
                 }
             }
@@ -711,7 +730,7 @@
             for (var i = 0; i < keys.length; i++) {
                 var k = keys[i];
                 if (k && k.indexOf('design:fault:') === 0) {
-                    var s = window.CourseStorage.readObject(k);
+                    var s = loadState(k.slice(7));
                     if (s.solved) out.push({ id: k.slice(13), at: s.at || null,
                                              probesUsed: s.probesUsed });
                 }

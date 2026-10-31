@@ -64,4 +64,28 @@ assert.equal(quota.readObject('design:answer').constructor, Object);
 const poisoned = create(() => backend({ 'AD_course_v1.progress': '{"lessons":{"__proto__":{"polluted":true}},"exercises":{"constructor":{"attempts":5}}}' }));
 assert.equal(Object.keys(framework(poisoned).getProgress().lessons).length, 0);
 assert.equal({}.polluted, undefined);
-console.log('PASS - legacy progress, malformed records, quota/blocked storage, export, scoped deletion and prototype keys.');
+// Exercise actual widget rendering with saved strings that try to escape an input attribute.
+const injection = '4" autofocus onfocus="window.injected=1';
+const widgetStorage = create(() => backend({
+    'design:test': JSON.stringify({ values: { R: injection }, attempts: '<img src=x>' }),
+    'design:sim:test': JSON.stringify({ values: { v: injection } }),
+    'design:fault:test': JSON.stringify({ solved: true, probesUsed: '<img src=x onerror=alert(1)>' })
+}));
+const widgets = vm.createContext({ window: { CourseStorage: widgetStorage }, console });
+vm.runInContext(fs.readFileSync(path.join(__dirname, '../assets/design-brief.js'), 'utf8'), widgets);
+function host() {
+    return { innerHTML: '', classList: { toggle() {} },
+        querySelector: () => ({ addEventListener() {} }), querySelectorAll: () => [] };
+}
+const designHost = host();
+const design = new widgets.window.DesignBriefWidget(designHost, { id: 'test', inputs: [{ id: 'R' }] });
+assert.equal(design.state.attempts, 0);
+assert(designHost.innerHTML.includes('value="4&quot; autofocus onfocus=&quot;window.injected=1"'));
+const simHost = host();
+new widgets.window.SimCheckWidget(simHost, { id: 'test', probes: [{ id: 'v' }] });
+assert(simHost.innerHTML.includes('value="4&quot; autofocus onfocus=&quot;window.injected=1"'));
+const faultHost = host();
+new widgets.window.FaultFindWidget(faultHost, { id: 'test' });
+assert(!faultHost.innerHTML.includes('<img'));
+assert(faultHost.innerHTML.includes('Diagnosed in 0 probes'));
+console.log('PASS - legacy/malformed records, blocked storage, scoped deletion and stored-markup injection regressions.');
