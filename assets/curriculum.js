@@ -1943,6 +1943,24 @@ const CURRICULUM = {
                     title: 'Protocol Debug Techniques',
                     description: 'Using oscilloscopes and analyzers for communication debugging',
                     topics: ['I2C/SPI decoding', 'Eye diagram analysis', 'Protocol violations', 'Common failure modes']
+                },
+                {
+                    id: 11,
+                    title: 'SPMI, I3C and Bus Ownership',
+                    description: 'Driver ownership, PMIC interfaces, turnaround and power-state debugging',
+                    topics: ['SPMI implementation', 'I3C drive modes', 'Bus ownership', 'Reset and sequencing']
+                },
+                {
+                    id: 12,
+                    title: 'Bus Contention and Three-Level Waveforms',
+                    description: 'LTspice evidence for opposing drivers, open-drain sharing and Hi-Z',
+                    topics: ['Contention current', 'Three voltage plateaus', 'Buffer offset', 'LTspice data']
+                },
+                {
+                    id: 13,
+                    title: 'Negative Excursions and Protocol Fault Isolation',
+                    description: 'Investigating negative pin voltage with simulations and probe evidence',
+                    topics: ['Negative undershoot', 'Ground reference', 'I2C recovery', 'Measurement limits']
                 }
             ]
         },

@@ -1,0 +1,53 @@
+<!-- Module 20, Lesson 13: Negative Excursions and Protocol Fault Isolation -->
+<div class="lesson-content" data-module="20" data-lesson="13">
+<div class="card">
+<h2>Negative Excursions and Protocol Fault Isolation</h2>
+<p>A measured −1 V needs a time scale and a reference. Is it a 3 ns undershoot at an edge, a 1 µs plateau, or a DC level? Is it measured relative to the receiver's local ground? Those questions distinguish an interconnect transient from a conflicting driver, a shifted ground or a misleading probe connection.</p>
+<div class="notice"><strong>Two actual LTspice experiments are embedded below.</strong> One produces −1.138 V through stored energy; the other displays −1 V while the pin remains at 0 V relative to its own ground. Neither proves the cause of an unprovided board waveform. Their purpose is to test competing explanations.</div>
+</div>
+<div class="card">
+<h3>Experiment 4 — negative voltage from an RLC falling edge</h3>
+<div id="protocol-ringing"></div>
+<p class="fig-note">Simulation circuit: a source falls from 3.3 V to 0 V in 2 ns, beginning at 50 ns. LP = 100 nH and CP = 100 pF are illustrative total loop/pin values, not a PCB extraction. RS includes all assumed source/path resistance. No second driver, clamp diode, transmission-line delay or protocol engine is included.</p>
+<div class="protocol-figure"><img src="assets/figures/protocol/undershoot.svg" alt="An unclamped 100 nanohenry and 100 picofarad network undershoots to minus 1.138 volts with 20 ohms; 63.25 ohms removes the oscillatory undershoot"></div>
+<p>The 20 Ω case reaches <strong>−1.138 V</strong>. A resistor-only DC contention model cannot do this; an inductor and capacitor can exchange stored energy after an edge. Increasing RS to 63.25 Ω gives critical damping in this specific series-RLC model and removes the oscillatory undershoot.</p>
+<div class="formula">f<sub>0</sub> = 1 / (2π√LC) = 50.33 MHz<br>ζ = R/2 × √(C/L) = 0.316 at 20 Ω<br>R<sub>critical</sub> = 2√(L/C) = 63.25 Ω</div>
+<p>These equations follow from LC·d²v/dt² + RC·dv/dt + v = vsource. For an instantaneous falling step, the first undershoot magnitude is 3.3·exp[−πζ/√(1−ζ²)] ≈ 1.159 V. The actual simulated 2 ns ramp gives 1.138 V. This independent calculation checks the mechanism; it does not validate the assumed parasitic values for a board.</p>
+<p><strong>Run the same drawing:</strong> download the <a href="docs/examples/protocol-ringing-native.asc" download>native LTspice schematic</a> and <a href="docs/examples/protocol-ringing-native.plt" download>plot settings</a> together with their existing names, then open the .asc and Run. Change RS from 20 to 63.2455532034 Ω for the comparison. Its generated netlist was simulated and matched the published reference trace within 1 µV.</p>
+<p><a href="docs/examples/protocol-ringing.cir" download>20 Ω netlist</a> · <a href="docs/data/protocol/protocol-ringing.csv" download>CSV</a> · <a href="docs/examples/protocol-damped.cir" download>63.25 Ω netlist</a> · <a href="docs/data/protocol/protocol-damped.csv" download>CSV</a> · <a href="docs/data/protocol/native-checks.json" download>Native schematic verification</a>.</p>
+<p>For a long trace or cable, use a distributed transmission-line model and actual driver/receiver models. Reflection coefficients depend on source and load impedance; a lumped LC fit cannot predict propagation steps or the effect of a stub. Slowing an edge or adding source damping may help, but verify timing margin, receiver loading and both signaling directions. There is no universal “add 33 Ω” repair. See <a href="https://www.ti.com/lit/an/sdya018/sdya018.pdf" target="_blank" rel="noopener">TI SDYA018, transmission-line design discussion</a>.</p>
+</div>
+<div class="card">
+<h3>Experiment 5 — a reference error also produces −1 V</h3>
+<div id="protocol-reference"></div>
+<p>This minimal test uses three sources: VPIN is the same 3.3-to-0 V ramp; VREF imposes a +1 V reference disturbance from 65–85 ns; BMEAS reports V(pin) − V(ref). Both source returns connect to local ground. The disturbance is deliberately imposed to demonstrate subtraction, not calculated from a real probe or board.</p>
+<div class="protocol-figure"><img src="assets/figures/protocol/reference.svg" alt="The pin is zero volts locally while a plus one volt reference shift causes the displayed pin-minus-reference signal to read minus one volt"></div>
+<p><a href="docs/examples/protocol-reference.cir" download>Reference-error circuit</a> · <a href="docs/data/protocol/protocol-reference.csv" download>CSV</a>. The result is exact: 0 − 1 = −1 V. A local receiver could see a valid LOW even though a remotely referenced instrument displays a negative excursion. Conversely, ground motion at the receiver can create a real threshold violation even if another measurement point looks clean.</p>
+<p><a href="https://www.tek.com/en/documents/whitepaper/abcs-probes-primer" target="_blank" rel="noopener">Tektronix's ABCs of Probes primer</a> documents ground-lead inductance and probe-loading artifacts. Its example combines an 11 pF probe and 6-inch ground lead, producing about 140 MHz ringing. Changing the ground-lead geometry is a useful diagnostic because a large change in observed ringing implicates the measurement path. That published example is separate from our imposed-reference simulation.</p>
+</div>
+<div class="card">
+<h3>Fault isolation matrix</h3>
+<div class="table-wrap"><table class="table"><thead><tr><th>Signature</th><th>Plausible mechanism</th><th>Test that separates it</th></tr></thead><tbody>
+<tr><td>Short negative lobe after a fast edge</td><td>LC ringing, reflections, crosstalk or probe resonance</td><td>Compare source and receiver with short local probe grounds. Vary edge rate or damping in a model, then measure an authorized board change.</td></tr>
+<tr><td>Negative pulse coincides with another net switching</td><td>Capacitive/inductive coupling or shared return impedance</td><td>Trigger on the aggressor; examine return geometry and correlate multiple victims.</td></tr>
+<tr><td>Long negative plateau or DC −1 V</td><td>Ground offset, wrong reference/coupling setting, negative source, miswire or abnormal device path</td><td>Use DC coupling and compare local grounds, rails and connector pinout. An ordinary positive-rail DC driver conflict is insufficient.</td></tr>
+<tr><td>Midlevel only in ACK or turnaround</td><td>Enable overlap, buffer offset, different sink VOL or a released line</td><td>Use the <a href="#module-20/lesson-12">contention experiments</a>; correlate ownership and supply current.</td></tr>
+<tr><td>SDA remains LOW after a glitch</td><td>Controller and target counted different clock edges</td><td>Capture the first glitch and count clocks separately at both devices; do not start with the final stuck condition.</td></tr>
+</tbody></table></div>
+<p>TI's <a href="https://www.ti.com/lit/an/scpa069/scpa069.pdf" target="_blank" rel="noopener">SCPA069, I²C Stuck Bus: Prevention and Workarounds</a> shows how different glitch-filter responses can desynchronize devices. Figures 2-1 and 6-1 provide a transaction explanation and a hardware recovery waveform. Its TCA4307 example is device-specific; do not confuse that buffer's recovery behavior with a universal protocol rule.</p>
+<h3>Check stress and logic limits separately</h3>
+<p>For a concrete example, <a href="https://www.ti.com/lit/ds/symlink/sn74lvc1g125.pdf" target="_blank" rel="noopener">SN74LVC1G125, §§5.1 and 5.3</a> lists −0.5 V as a negative voltage rating, a negative clamp-current rating, and a footnote permitting the voltage rating to be exceeded when the specified current ratings are observed. Its recommended operating range is a separate requirement. Read those conditions together; neither “any −1 V pulse is safe” nor “the diode always holds −0.3 V” follows. Other pins may have different protection and powered-off behavior.</p>
+<p>A clamp added to the RLC model would change the voltage and current. Use the actual device's I/O model or justified clamp model and package inductance before estimating stress. An unclamped −1.138 V demonstration is not an absolute-maximum or reliability qualification.</p>
+</div>
+<div class="lab"><h3>Lab — collect evidence before changing a pullup</h3>
+<ol>
+<li>Record the bus mode, I/O rails, pinmux, reset state, buffer part numbers and expected owner in the failing interval.</li>
+<li>Capture analog clock/data at the receiver with DC coupling and a short ground connection. Record probe capacitance, bandwidth, sample interval and reference point. Use appropriately rated differential probing where a single-ended ground connection would short different potentials; do not float protective earth.</li>
+<li>Repeat at the transmitter and across a buffer. Capture CS/OE or a software marker and the local supply. Save individual acquisitions as well as persistence views.</li>
+<li>Measure duration, minimum voltage, plateau level, rise/fall time, and threshold crossings. A decoder cannot establish clamp current or distinguish a valid LOW from a voltage below ground.</li>
+<li>Choose one candidate mechanism from the matrix. Change one model parameter, then one justified board setting or component. Verify protocol timing and power-state corners after the change.</li>
+</ol>
+<p>For I²C recovery, first distinguish SDA stuck from SCL stuck. <a href="https://www.nxp.com/docs/en/user-guide/UM10204.pdf" target="_blank" rel="noopener">UM10204 §3.1.16</a> describes nine clock pulses for SDA stuck LOW, then reset/power cycling if it remains stuck. If SCL cannot be released, pulses cannot be delivered: follow the device's reset/power recovery. Release open-drain pins to get HIGH, observe actual SCL and respect clock stretching; do not force a push-pull HIGH against a target.</p>
+<details><summary>What these simulations establish — and what remains to measure</summary><p>The retained traces establish voltage/current behavior of the published decks. The maximum timestep was halved for all eight cases and the sampled voltage differences stayed below 1.4 mV. Input values, linear output resistance, ideal switch behavior and parasitics remain assumed. No protocol conformance, real PMIC clamp waveform, extracted PCB or measured board failure is claimed. The <a href="docs/data/protocol/manifest.json" download>manifest</a>, CSV files and solver logs make that boundary auditable.</p></details>
+</div></div>
+<script>(function(){ProtocolSignals.ringing('protocol-ringing');ProtocolSignals.reference('protocol-reference');})();</script>

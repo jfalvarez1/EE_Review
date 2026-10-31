@@ -25,7 +25,7 @@
         </div>
 
         <div class="notice">
-            <strong>Key Insight:</strong> Most communication failures are physical layer issues masquerading as protocol errors. Always check signal integrity (levels, edges, noise) before diving into protocol-level debugging.
+            <strong>Key Insight:</strong> Check analog levels, edges and bus ownership alongside protocol decoding. A decode error does not identify its physical cause. Continue with <a href="#module-20/lesson-11">SPMI and I3C ownership</a>, <a href="#module-20/lesson-12">contention and three-level waveforms</a>, and <a href="#module-20/lesson-13">negative excursions and LTspice evidence</a>.
         </div>
     </div>
 
@@ -110,7 +110,7 @@
             <tr>
                 <td>Bus stuck low</td>
                 <td>Slave holding SDA</td>
-                <td>Toggle SCL 9 times to reset</td>
+                <td>If SDA is stuck and SCL can rise, try the documented bus-clear sequence; otherwise use device reset/power recovery.</td>
             </tr>
             <tr>
                 <td rowspan="2">SPI</td>
@@ -139,6 +139,7 @@
 
     <div class="card">
         <h3>I2C Bus Recovery</h3>
+        <p>This illustration assumes SCL can be released HIGH. Nine clocks are an attempted bus clear, not a guaranteed target reset. Check actual SCL, respect stretching and use open-drain release for HIGH. If SDA remains stuck or SCL cannot rise, follow device reset/power recovery. <a href="#module-20/lesson-13">Detailed recovery conditions and source references</a>.</p>
 
         <canvas id="i2c-recovery-canvas" width="780" height="420" style="background:#0d1117;border-radius:8px;display:block;max-width:100%;"></canvas>
     </div>
@@ -149,11 +150,11 @@
         <div class="kv">
             <div class="box">
                 <div class="k">Bandwidth</div>
-                <div class="v">≥5× bit rate (20MHz for 4MHz SPI)</div>
+                <div class="v">Resolve the edge and suspected glitch, not just the bit rate</div>
             </div>
             <div class="box">
                 <div class="k">Sample Rate</div>
-                <div class="v">≥10× bit rate for waveform</div>
+                <div class="v">Several samples across the shortest feature; verify acquisition mode</div>
             </div>
             <div class="box">
                 <div class="k">Trigger</div>
@@ -435,7 +436,7 @@
     ctx.fillStyle = TEK.ch4;
     ctx.font = '10px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('Slave releases after receiving 9 clocks', (startX + releaseX) / 2 + 50, sdaLow + 25);
+    ctx.fillText('Example: target releases; recovery is not guaranteed', (startX + releaseX) / 2 + 50, sdaLow + 25);
 
     // Implementation steps
     const implY = waveY + 165;
@@ -448,9 +449,9 @@
 
     const implSteps = [
         '1. Set SDA as input (let pull-up drive high)',
-        '2. Toggle SCL 9 times manually',
+        '2. Clock up to 9 times; verify SCL rises',
         '3. Generate STOP (SDA low→high while SCL high)',
-        '4. Retry normal communication'
+        '4. Still stuck? Use documented reset/recovery'
     ];
 
     ctx.fillStyle = '#9ca3af';
@@ -467,13 +468,13 @@
     ctx.fillText('Code Pattern (pseudo):', 415, implY + 20);
 
     const codeLines = [
-        'for (i = 0; i < 9; i++) {',
-        '    SCL = LOW; delay_us(5);',
-        '    SCL = HIGH; delay_us(5);',
-        '    if (SDA == HIGH) break;',
-        '}',
-        'SDA = LOW; SCL = HIGH; delay_us(5);',
-        'SDA = HIGH; // STOP condition'
+        'release(SDA); // open-drain pins',
+        'repeat up to 9 clocks:',
+        '  sink(SCL); wait(tLOW); release(SCL);',
+        '  wait HIGH or timeout -> recovery;',
+        '  wait(tHIGH); if SDA HIGH: break;',
+        'if SDA LOW: documented reset/recovery;',
+        'else: generate legal STOP, retry;'
     ];
 
     ctx.fillStyle = '#a78bfa';
@@ -826,7 +827,7 @@
             'Use logic analyzer for protocol decode',
             'Verify clock speed/baud rate matches',
             'Check address (I2C) or mode (SPI)',
-            'Know recovery procedures (I2C: 9 clocks)'
+            'Know bus-clear conditions and device reset/recovery'
         ]
     });
 
@@ -837,32 +838,32 @@
             type: 'choice',
             question: 'An I2C device responds with NAK to every address. What should you check first?',
             choices: [
-                { text: 'The device firmware', correct: false, explanation: 'Hardware issues are more common and should be ruled out first.' },
+                { text: 'The device firmware', correct: false, explanation: 'Firmware and pinmux can cause failures, but first establish that the device is powered and the bus reaches valid levels.' },
                 { text: 'Power and pull-up resistors', correct: true, explanation: 'Correct! Without proper power or pull-ups, the device cannot communicate. Always check physical layer first.' },
-                { text: 'The I2C clock speed', correct: false, explanation: 'Clock speed issues would cause timing errors, not NAK on all addresses.' },
-                { text: 'The data being sent', correct: false, explanation: 'If all addresses NAK, the problem is connectivity, not data content.' }
+                { text: 'The I2C clock speed', correct: false, explanation: 'Timing can cause missing ACKs too. Check it after establishing supply, idle levels and connectivity; a NAK alone does not isolate the cause.' },
+                { text: 'The data being sent', correct: false, explanation: 'Also verify address and command format, but first establish that the device is powered and the bus is electrically valid.' }
             ]
         },
         {
             id: 'M13L10-2',
             type: 'choice',
-            question: 'How do you recover an I2C bus where SDA is stuck low?',
+            question: 'SDA is stuck LOW, SCL can rise, and the devices support bus clear. What should you try before reset?',
             choices: [
-                { text: 'Power cycle the system', correct: false, explanation: 'Power cycling works but is disruptive. There\'s a better software recovery.' },
+                { text: 'Power cycle the system', correct: false, explanation: 'A documented reset or power cycle is a fallback if supported bus clear fails; neither is universally guaranteed to resolve a hardware fault.' },
                 { text: 'Pull SDA high manually', correct: false, explanation: 'This could cause contention if a slave is driving low.' },
-                { text: 'Toggle SCL 9 times then send STOP', correct: true, explanation: 'Correct! 9 clock pulses complete any pending byte, allowing the slave to release SDA.' },
+                { text: 'Attempt up to 9 open-drain clocks, then STOP if released', correct: true, explanation: 'Observe actual SCL and respect stretching. If the target releases SDA, generate a legal STOP; if it remains stuck, follow device reset/recovery. Nine clocks are not a guaranteed reset.' },
                 { text: 'Lower the pull-up resistor value', correct: false, explanation: 'This doesn\'t address a slave holding the line low.' }
             ]
         },
         {
             id: 'M13L10-3',
             type: 'choice',
-            question: 'SPI is returning all zeros. What is the most likely cause?',
+            question: 'SPI returns zeros and the target CS remains inactive throughout the transfer. What should you fix first?',
             choices: [
-                { text: 'Baud rate too high', correct: false, explanation: 'Speed issues would cause bit errors, not all zeros.' },
+                { text: 'Baud rate too high', correct: false, explanation: 'Speed can cause failed reads, but the observed inactive CS must be corrected first.' },
                 { text: 'CS not asserted correctly', correct: true, explanation: 'Correct! If CS is not active (wrong polarity or not connected), the device ignores everything and MISO stays tri-stated or pulled low.' },
-                { text: 'Wrong CPOL setting', correct: false, explanation: 'CPOL mismatch causes bit shifting, not all zeros.' },
-                { text: 'MOSI and MISO swapped', correct: false, explanation: 'Swapped lines would cause garbled data, not all zeros.' }
+                { text: 'Wrong CPOL setting', correct: false, explanation: 'Verify CPOL/CPHA too, but the stated capture already shows a selection problem.' },
+                { text: 'MOSI and MISO swapped', correct: false, explanation: 'A wiring error can also produce zeros; fix or explain the observed inactive CS first.' }
             ]
         }
     ];

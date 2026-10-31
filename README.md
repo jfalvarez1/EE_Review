@@ -6,7 +6,7 @@
 
 ---
 
-A browser-based study guide for electrical engineering. **29 modules, 413 lessons**, each one
+A browser-based study guide for electrical engineering. **29 modules, 416 lessons**, each one
 short enough to read in a sitting: the concept, the equations that matter, a worked example
 with real numbers, an interactive calculator, and the gotchas that only show up on a bench or
 in the field.
@@ -31,6 +31,12 @@ and PC/server/aerospace implementation. It includes seven evidence plots,
 LTspice AC/transient experiments, circuit downloads and CSV data. The
 [evidence ledger and reproduction instructions](docs/PDN_EVIDENCE.md) distinguish
 new simulations, analytical calculations and published manufacturer research.
+
+The [protocol signal sequence](https://jfalvarez1.github.io/EE_Review/#module-20/lesson-11)
+adds SPMI/I3C ownership, contention, three-level waveforms and negative excursions.
+It embeds five annotated plots from eight LTspice experiments, with CSV exports,
+circuit files and a native schematic. See the [protocol evidence ledger](docs/PROTOCOL_SIGNAL_EVIDENCE.md)
+for primary references, model assumptions and reproduction commands.
 
 This guide **teaches and calculates**, and includes reproducible external simulation results. Where a lesson would benefit from
 seeing a circuit actually solved — a mirror's output resistance against collector voltage, a
@@ -57,7 +63,7 @@ Three ways, in order of how little you want to install.
 | **Offline, one file** | Download `EE_Review.html` from [Releases](https://github.com/jfalvarez1/EE_Review/releases) and double-click it | a browser |
 | **From a clone** | `launch.bat` / `./launch.sh` | Python |
 
-The **one-file offline edition** is the whole course — all 413 lessons, every interactive,
+The **one-file offline edition** is the whole course — all 416 lessons, every interactive,
 all the maths and the published PDN plots/data — inside a single HTML file. No server, no Python, no internet, no
 install. It runs from a USB stick, and it will keep working for as long as browsers do.
 That is deliberate: a reference you cannot open when the network is down is not much of a

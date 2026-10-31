@@ -65,10 +65,10 @@ fs.readdirSync(ldir).sort().forEach(m => {
             const encoded=Buffer.from(read(file),'utf8').toString('base64');
             return 'href="data:text/plain;base64,'+encoded+'" download="'+path.basename(file)+'"';
         });
-        body = body.replace(/src="(assets\/figures\/pdn\/[a-z0-9-]+\.(svg|jpg))"/g, (_, file, ext) =>
+        body = body.replace(/src="(assets\/figures\/(?:pdn|protocol)\/[a-z0-9-]+\.(svg|jpg))"/g, (_, file, ext) =>
             'src="data:image/'+(ext==='svg'?'svg+xml':'jpeg')+';base64,' + fs.readFileSync(path.join(ROOT,file)).toString('base64') + '"');
-        body = body.replace(/href="(docs\/data\/pdn\/[a-z0-9-]+\.(?:csv|json|txt))"/g, (_, file) =>
-            'href="data:text/plain;base64,' + Buffer.from(read(file),'utf8').toString('base64') + '"');
+        body = body.replace(/href="(docs\/data\/(?:pdn|protocol)\/[a-z0-9-]+\.(?:csv|json|txt))"(?: download(?:="[^"]*")?)?/g, (_, file) =>
+            'href="data:text/plain;base64,' + Buffer.from(read(file),'utf8').toString('base64') + '" download="'+path.basename(file)+'"');
         lessons[m + '/' + f.replace(/\.html$/, '')] = body;
         lessonBytes += Buffer.byteLength(body);
     });
@@ -131,6 +131,7 @@ assetBytes += inlineStylesheet('assets/styles.css');
     'assets/rf-matching.js',
     'assets/practical-schematics.js',
     'assets/pdn-layout-model.js',
+    'assets/protocol-signals.js',
     'assets/checkpoints.js',
     'assets/board-viewer.js',
     'assets/design-brief.js',

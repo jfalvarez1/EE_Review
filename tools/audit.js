@@ -53,6 +53,7 @@ const GATING = [
     ['test-rf-filter-models.js', 'RF filter curves and group delay must match independent analog prototypes'],
     ['test-rf-matching.js', 'RF network equations, source/load reversal and control geometry'],
     ['test-pdn-layout.js', 'complex capacitor-bank impedance, shared inductance and worked examples'],
+    ['test-protocol-evidence.js', 'LTspice signal-fault exports, independent analytical checks and native drawing'],
     ['test-power-topologies.js', 'boost nets and Sallen–Key capacitor placement'],
     ['test-coupled-vr.js',
      'coupled-winding equations, magnetic modes and current summation agree at equal common-mode inductance'],

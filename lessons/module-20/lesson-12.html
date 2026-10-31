@@ -1,0 +1,54 @@
+<!-- Module 20, Lesson 12: Bus Contention and Three-Level Waveforms -->
+<div class="lesson-content" data-module="20" data-lesson="12">
+<div class="card">
+<h2>Bus Contention and Three-Level Waveforms</h2>
+<p>Three voltage plateaus on SDA or MISO are a clue, not a diagnosis. Compare the level with who is driving, how long it lasts, and whether current rises during that interval. The five experiments across this lesson and the next are actual LTspice 26.1.1 runs, using deliberately simple assumed output resistances and capacitance. They are not measured hardware or vendor I/O models.</p>
+<div class="notice"><strong>Simulation evidence is on this page:</strong> scroll to the circuit and its annotated plot below. Every comparison has downloadable CSV and circuit files. The <a href="docs/data/protocol/manifest.json" download>run manifest</a> records simulator version, hashes and timestep checks. Halving the maximum timestep changed the saved voltages by less than 1.4 mV across all eight experiments in this lesson and the next.</div>
+</div>
+<div class="card">
+<h3>Experiment 1 — two push-pull outputs disagree</h3>
+<div id="protocol-contention"></div>
+<p class="fig-note">Exact topology of the contention model. Enable blocks are controlled switches: 0.01 Ω on, 1 TΩ off. RA = 22 Ω; RB = 22 Ω or 66 Ω. CB = 100 pF and Rleak = 1 MΩ. All grounds are the same node. A drives HIGH until 6.005 µs; B drives LOW from 2.005 to 8.005 µs. The 0.005 µs offsets are the switch thresholds within the 10 ns enable ramps.</p>
+<div class="protocol-figure"><img src="assets/figures/protocol/contention.svg" alt="LTspice bus voltage plateaus at 1.650 or 2.475 volts during overlap; high-driver currents are about 75 or 37.5 milliamps"></div>
+<p><strong>Read the amber region:</strong> both drivers are enabled. With RA = RB, the bus settles near 1.650 V and draws 74.97 mA from the HIGH driver. Increasing RB to 66 Ω moves the plateau to 2.475 V while reducing that current to 37.49 mA. A trace can therefore look like a valid HIGH while a conflicting LOW driver is still active. The current pane reveals what the voltage alone hides.</p>
+<p>Ignoring the small switch resistance and weak leakage for a hand calculation:</p>
+<div class="formula">V<sub>bus</sub> = (V<sub>H</sub>/R<sub>H</sub> + V<sub>L</sub>/R<sub>L</sub>) / (1/R<sub>H</sub> + 1/R<sub>L</sub>)<br>I<sub>fight</sub> = (V<sub>H</sub> − V<sub>L</sub>) / (R<sub>H</sub> + R<sub>L</sub>)</div>
+<p>For 3.3 V, 0 V and two 22 Ω resistances: Vbus = 1.65 V and I = 75 mA. Each idealized 22 Ω output resistance dissipates about 124 mW during overlap. Real output resistance is nonlinear and temperature dependent; current limiting, rail droop and protection structures can alter both values. Use the device's output curves or IBIS model for a board prediction.</p>
+<p><a href="docs/examples/protocol-balanced.cir" download>22 Ω / 22 Ω netlist</a> · <a href="docs/data/protocol/protocol-balanced.csv" download>CSV</a> · <a href="docs/examples/protocol-unequal.cir" download>22 Ω / 66 Ω netlist</a> · <a href="docs/data/protocol/protocol-unequal.csv" download>CSV</a>.</p>
+<details><summary>Why this DC model cannot produce −1 V</summary><p>The bus voltage is a weighted average of 0 V and 3.3 V, with positive conductances. It must lie between those endpoints. A sustained negative level needs another source/reference or a different circuit. A transient negative excursion can come from stored energy, coupling or measurement artifacts, as demonstrated in the <a href="#module-20/lesson-13">next lesson</a>. Contention can excite those effects on a real interconnect, but the divider alone is not the explanation.</p></details>
+</div>
+<div class="card">
+<h3>Experiment 2 — wired-AND sharing versus an erroneous HIGH driver</h3>
+<div id="protocol-open-drain"></div>
+<p class="fig-note">Base circuit: 3.3 V supply, 2.2 kΩ pullup, 100 pF bus and two independently enabled LOW paths, each 22 Ω plus a 0.01 Ω switch. A sinks from 2.005–6.005 µs; B from 4.005–8.005 µs. The fault variant adds RHIGH = 22 Ω directly from 3.3 V to BUS, representing a mistakenly enabled push-pull HIGH output.</p>
+<div class="protocol-figure"><img src="assets/figures/protocol/open-drain.svg" alt="Legal open-drain sharing holds the line close to ground with about 1.5 milliamps; an extra strong HIGH driver creates intermediate levels and much larger current"></div>
+<p>In the legal model, one LOW sink gives 32.7 mV and two give 16.4 mV; supply draw remains about 1.5 mA. Adding the strong HIGH driver produces 1.659 V with one LOW sink and 1.108 V with two. Those are electrical conflicts, even if a decoder happens to classify one plateau as LOW.</p>
+<p>I²C arbitration deliberately allows simultaneous open-drain drive: a controller transmitting a released HIGH observes a LOW from another participant and loses arbitration. Two LOW sinks are not a push-pull short. Duplicate target addresses can still corrupt a transaction because multiple devices may respond; electrical wired-AND compatibility does not make the transaction logically correct. <a href="https://www.nxp.com/docs/en/user-guide/UM10204.pdf" target="_blank" rel="noopener">NXP UM10204, arbitration and acknowledgment</a>.</p>
+<p><a href="docs/examples/protocol-open-drain.cir" download>Open-drain netlist</a> · <a href="docs/data/protocol/protocol-open-drain.csv" download>CSV</a> · <a href="docs/examples/protocol-wrong-push-pull.cir" download>Fault netlist</a> · <a href="docs/data/protocol/protocol-wrong-push-pull.csv" download>CSV</a>.</p>
+</div>
+<div class="card">
+<h3>Experiment 3 — releasing a pin does not prescribe a voltage</h3>
+<div id="protocol-released"></div>
+<p class="fig-note">One branch template, repeated independently for the three Rbias values below. Each branch has its own enable switch; the capacitor and bias resistor share the released node. The switch uses the same on/off model as Experiment 1.</p>
+<p>Three independent 100 pF lines are charged from 3.3 V through 22 Ω and an enable switch. At 2.005 µs, all three switches open. The only difference is their pulldown: 1 TΩ, 100 kΩ or 10 kΩ. Switch off resistance is also 1 TΩ. This intentionally omits real pad leakage, clamps, crosstalk and a bus keeper.</p>
+<div class="protocol-figure"><img src="assets/figures/protocol/released.svg" alt="After identical drivers enter Hi-Z, a nearly floating line holds HIGH while biased lines decay with one and ten microsecond time constants"></div>
+<p>The same Hi-Z command gives almost constant HIGH, slow decay, or fast decay. For a resistive pulldown, τ = RC: 100 kΩ × 100 pF = 10 µs. An undriven pin observed as LOW is not proof that another device is actively sinking it.</p>
+<p><a href="docs/examples/protocol-released.cir" download>Three-branch release netlist</a> · <a href="docs/data/protocol/protocol-released.csv" download>CSV</a>. See <a href="https://www.ti.com/lit/an/scba004e/scba004e.pdf" target="_blank" rel="noopener">TI, Implications of Slow or Floating CMOS Inputs</a>: floating or slowly transitioning inputs can increase internal current and produce unstable switching. Hi-Z at a transmitter does not guarantee a receiver sees a legal input.</p>
+</div>
+<div class="card">
+<h3>A legitimate third plateau: buffered I²C</h3>
+<p>The <a href="https://www.ti.com/lit/ds/symlink/pca9515a.pdf" target="_blank" rel="noopener">PCA9515A datasheet, §8.3</a> describes an approximately 0.5 V buffered LOW and a lower input recognition level to prevent self-latching. A local pull-down can produce a lower LOW than a LOW propagated from the other side. Thus a capture can show HIGH, local LOW and buffered LOW without push-pull contention. This is still binary communication, not a three-level encoding.</p>
+<p>Compare both sides of the buffer and the direction of propagation. Check the receiver's VIL and the buffer's special input thresholds at the relevant supply and load. The same datasheet warns that two PCA9515A devices cannot simply be cascaded in series. Do not apply this offset explanation to a different buffer without reading its architecture.</p>
+<div class="table-wrap"><table class="table"><thead><tr><th>Observation</th><th>Candidate explanation</th><th>Discriminating evidence</th></tr></thead><tbody>
+<tr><td>Midpoint only during handoff</td><td>Opposing enabled drivers</td><td>OE/CS overlap, higher current; plateau disappears when one output is released.</td></tr>
+<tr><td>Two LOW plateaus tied to direction</td><td>Buffer offset or different sink strengths</td><td>Compare both buffer ports and specified VOL under the actual pullup current.</td></tr>
+<tr><td>Slow ramp during idle</td><td>Released line charging/discharging</td><td>Matches bias × capacitance; no matching active output-enable interval.</td></tr>
+<tr><td>Extra levels only with persistence enabled</td><td>Different events overlaid</td><td>Inspect individual acquisitions before assuming one transaction has three plateaus.</td></tr>
+</tbody></table></div>
+</div>
+<div class="lab"><h3>Lab — predict, simulate, then isolate</h3>
+<p>Open either contention netlist in LTspice and run it. Predict the level if RB changes to 10 Ω, then inspect V(bus) and I(RA). Next move B's enable until A has released. Explain why a series resistor may reduce current yet cannot repair an invalid ownership sequence. Keep this deliberate fault in simulation.</p>
+<p>For a real failing board, save an analog capture with clock, data and CS/OE or a firmware marker. Capture both sides of any buffer and record power/reset state. Check actual thresholds and output ratings before changing the circuit. A scope measures voltage; a decoder's HIGH/LOW labels are decisions made using configured thresholds.</p>
+<details><summary>Expected calculation for RB = 10 Ω</summary><p>Ignoring leakage and switch resistance, Vbus = 3.3 × 10 / (22 + 10) = 1.031 V and conflict current = 103.1 mA. This is an assumed model result, not a permissible current for an unspecified pin.</p></details>
+</div></div>
+<script>(function(){ProtocolSignals.contention('protocol-contention');ProtocolSignals.openDrain('protocol-open-drain');ProtocolSignals.released('protocol-released');})();</script>
