@@ -9,7 +9,6 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
-import shutil
 import zipfile
 
 import numpy as np
@@ -36,6 +35,8 @@ def read_csv(file):
 
 def save(fig,name,scratch):
     fig.savefig(FIGURES/(name+'.svg'),metadata={'Date':None},bbox_inches='tight')
+    svg=FIGURES/(name+'.svg')
+    svg.write_text('\n'.join(line.rstrip() for line in svg.read_text(encoding='utf-8').splitlines())+'\n',encoding='utf-8',newline='\n')
     fig.savefig(scratch/(name+'.png'),dpi=130,bbox_inches='tight')
     plt.close(fig)
 
@@ -133,9 +134,9 @@ def main():
             manifest['cases'][name]=summary
             ac=read_csv(source/name/'circuit/ac.csv');tran=read_csv(source/name/'circuit/tran-1ns.csv')
             for filename,target in [('ac.csv','ac'),('tran-1ns.csv','transient')]:
-                shutil.copyfile(source/name/'circuit'/filename,DATA/f'{name}-{target}.csv')
-            shutil.copyfile(source/name/'fine/extraction.csv',DATA/f'{name}-copper.csv')
-            shutil.copyfile(source/name/'fine/geometry.json',DATA/f'{name}-geometry.json')
+                (DATA/f'{name}-{target}.csv').write_text((source/name/'circuit'/filename).read_text(encoding='utf-8'),encoding='utf-8',newline='\n')
+            for filename,target in [('extraction.csv','copper.csv'),('geometry.json','geometry.json')]:
+                (DATA/f'{name}-{target}').write_text((source/name/'fine'/filename).read_text(encoding='utf-8'),encoding='utf-8',newline='\n')
             for runfile in sorted((source/name).rglob('*')):
                 if runfile.is_file() and runfile.suffix in {'.inp','.json','.mat','.csv','.cir','.raw','.log'}:
                     relative=runfile.relative_to(source).as_posix()
@@ -170,7 +171,7 @@ def main():
     for file in sorted([*DATA.glob('*'),*FIGURES.glob('*.svg')]):
         if file.name=='manifest.json':continue
         manifest['files'][file.relative_to(ROOT).as_posix()]=dict(bytes=file.stat().st_size,sha256=STUDY.digest(file))
-    STUDY.write_json(DATA/'manifest.json',manifest)
+    (DATA/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8',newline='\n')
     print(json.dumps({name:{k:v for k,v in m.items() if k in ['minimum_V','maximum_V','z_at_10MHz_ohm','mesh_max_complex_relative_change','timestep_max_difference_V']} for name,m in manifest['cases'].items()},indent=2))
 
 
