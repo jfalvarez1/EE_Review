@@ -6,6 +6,11 @@ They complement the existing schematic and field-solver views; they are **not**
 the geometry behind the KiPI or LTspice results. No dimensions, inductances,
 impedances, capacitor values or validated pin assignments are implied.
 
+The later [placement simulation study](PLACEMENT_SIMULATION.md) adds separate,
+dimensioned structures with actual extracted copper and LTspice results. Its
+layout and result figures sit beside each other in lesson 29/9. Do not transfer
+their numbers onto these unscaled conceptual drawings.
+
 ## Edit and regenerate
 
 Edit `tools/build-capacitor-layouts.js`, then run from the repository root:

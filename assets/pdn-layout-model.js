@@ -82,6 +82,29 @@
         s.nodeLabel(660,80,'Load port',{dy:-45});s.currentSource(850,200,'vertical',{label:'Load',value:'0–4 A',direction:'down'});
         s.wire([[850,250],[850,400]]);s.ground(850,400);s.wire([[70,250],[70,400]]);s.ground(70,400);s.finalize();return s;
     };
+    api.placementTestDiagram = function(host) {
+        const s=make(host,900,560);
+        s.voltageSource(70,220,'vertical',{label:'VREG',value:'1 V'});
+        s.wire([[70,220],[70,80],[150,80]]);
+        s.resistor(150,80,'horizontal',{label:'Rsource',value:'20 mΩ'});
+        s.wire([[200,80],[300,80]]);
+        s.inductor(300,80,'horizontal',{label:'Lsource',value:'20 nH'});
+        s.wire([[350,80],[760,80],[760,220]]);
+        s.junction(480,80);s.nodeLabel(600,80,'Load port',{dy:-35});
+        s.wire([[480,80],[480,140]]);
+        block(s,395,140,170,70,'Extracted loop',[[480,140,'',0,0],[480,210,'',0,0]]);
+        s.wire([[480,210],[480,250]]);
+        s.resistor(480,250,'vertical',{label:'ESR 10 mΩ'});
+        s.wire([[480,300],[480,330]]);
+        s.inductor(480,330,'vertical',{label:'ESL 0.3 nH'});
+        s.wire([[480,380],[480,410]]);
+        s.capacitor(480,410,'vertical',{label:'Clocal 10 µF'});
+        s.wire([[480,460],[480,510]]);s.ground(480,510);
+        s.currentSource(760,220,'vertical',{label:'Load 0–2 A',direction:'down'});
+        s.wire([[760,270],[760,320]]);s.ground(760,320);
+        s.wire([[70,270],[70,320]]);s.ground(70,320);
+        s.finalize();return s;
+    };
     api.treeDiagram = function(host) {
         const s=make(host,900,410);
         block(s,60,140,140,100,'Input bus',[[200,190,'',0,0]]);

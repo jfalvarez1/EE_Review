@@ -97,6 +97,8 @@ const GATING = [
      'a standards limit with nothing behind it: the reader cannot check what they cannot find'],
     ['validate-path.js',
      'every syllabus step resolves to a lesson that exists on disk'],
+    ['test-placement-evidence.js',
+     'layout comparisons retain their geometry, raw data and independent circuit checks'],
     ['build-capacitor-layouts.js --check',
      'capacitor placement illustrations must match their editable generator'],
     ['stamp-build.js --check',
