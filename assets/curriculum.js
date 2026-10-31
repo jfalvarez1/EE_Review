@@ -2700,6 +2700,16 @@ const CURRICULUM = {
                     title: 'Reading Real Layouts: Three Boards, Measured',
                     description: 'Three real KiCad boards critiqued from their files - and why DRC-clean is not the same as correct',
                     topics: ['An LDO with 41 mV outside the loop', 'A buck whose FB passes the inductor', 'An autorouted 4-layer board with no reference plane', 'The review checklist they produce']
+                },
+                {id: 8, title: 'Capacitor Banks: Package, Bias and Antiresonance', description: 'Select capacitor banks using complex impedance and real evidence', topics: ['0201 versus 0402', 'Equal and mixed values', 'Shared inductance', 'Measured versus simulated data']
+                },
+                {id: 9, title: 'PMIC and BGA Power Layout', description: 'Place capacitors by their complete power and return paths', topics: ['Pin-pair floorplanning', 'T, Y, V and plane connections', 'Corners and underside placement', 'Extraction and measurement']
+                },
+                {id: 10, title: 'Regulator Capacitors and Feedback', description: 'Input, output and feedback networks from calculation to layout', topics: ['Buck capacitor sizing', 'Kelvin sensing', 'LDO stability', 'RF and EMC filters']
+                },
+                {id: 11, title: 'Stackups, Vias and Assembly Constraints', description: 'Carry return paths through layers and release a manufacturable layout', topics: ['Reference changes', 'Microvias and laser drilling', 'Stacked versus staggered', '0201 DFM']
+                },
+                {id: 12, title: 'PC, Server and Aerospace Power Implementation', description: 'Apply TLVR, multiphase modules, LDOs and power-domain load switches', topics: ['Phase transitions', 'Modular current sharing', 'Load-switch inrush', 'Application qualification']
                 }
             ]
         }

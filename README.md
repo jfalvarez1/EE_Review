@@ -6,7 +6,7 @@
 
 ---
 
-A browser-based study guide for electrical engineering. **29 modules, 408 lessons**, each one
+A browser-based study guide for electrical engineering. **29 modules, 413 lessons**, each one
 short enough to read in a sitting: the concept, the equations that matter, a worked example
 with real numbers, an interactive calculator, and the gotchas that only show up on a bench or
 in the field.
@@ -21,11 +21,18 @@ It reads two ways, and they are genuinely different documents:
 - **The sidebar** — the same lessons, browsable by topic. It now runs in the same order as the
   path, so you can follow it top to bottom or jump straight to what you need.
 
-![The welcome screen, showing 29 modules and 408 lessons](docs/images/welcome.png)
+![The welcome screen from an earlier course build](docs/images/welcome.png)
 
 ### Suggested pairing: run the simulations in Circuit Toy
 
-This guide **teaches and calculates**; it does not simulate. Where a lesson would benefit from
+The [power-layout sequence](https://jfalvarez1.github.io/EE_Review/#module-29/lesson-8)
+covers capacitor selection, PMIC/BGA placement, regulator feedback, stackups/DFM,
+and PC/server/aerospace implementation. It includes seven evidence plots,
+LTspice AC/transient experiments, circuit downloads and CSV data. The
+[evidence ledger and reproduction instructions](docs/PDN_EVIDENCE.md) distinguish
+new simulations, analytical calculations and published manufacturer research.
+
+This guide **teaches and calculates**, and includes reproducible external simulation results. Where a lesson would benefit from
 seeing a circuit actually solved — a mirror's output resistance against collector voltage, a
 loop's phase margin, a converter's ripple — build it in the companion project:
 
@@ -50,8 +57,8 @@ Three ways, in order of how little you want to install.
 | **Offline, one file** | Download `EE_Review.html` from [Releases](https://github.com/jfalvarez1/EE_Review/releases) and double-click it | a browser |
 | **From a clone** | `launch.bat` / `./launch.sh` | Python |
 
-The **one-file offline edition** is the whole course — all 408 lessons, every interactive,
-all the maths — inside a single 13 MB HTML file. No server, no Python, no internet, no
+The **one-file offline edition** is the whole course — all 413 lessons, every interactive,
+all the maths and the published PDN plots/data — inside a single HTML file. No server, no Python, no internet, no
 install. It runs from a USB stick, and it will keep working for as long as browsers do.
 That is deliberate: a reference you cannot open when the network is down is not much of a
 reference. Build it yourself with `node tools/build-standalone.js`.

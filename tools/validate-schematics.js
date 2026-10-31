@@ -582,7 +582,7 @@ function createLessonContext(html) {
   const schematicPath = path.join(process.cwd(), 'assets', 'schematic-svg.js');
   const schematicCode = fs.readFileSync(schematicPath, 'utf8');
   new vm.Script(schematicCode, { filename: schematicPath }).runInContext(context);
-  for (const lib of ['coupled-vr-model.js', 'rf-matching.js', 'practical-schematics.js']) new vm.Script(fs.readFileSync(path.join(process.cwd(), 'assets', lib), 'utf8')).runInContext(context);
+  for (const lib of ['coupled-vr-model.js', 'rf-matching.js', 'practical-schematics.js', 'pdn-layout-model.js']) new vm.Script(fs.readFileSync(path.join(process.cwd(), 'assets', lib), 'utf8')).runInContext(context);
 
   const curriculumPath = path.join(process.cwd(), 'assets', 'curriculum.js');
   if (fs.existsSync(curriculumPath)) {

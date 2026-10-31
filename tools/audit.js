@@ -52,6 +52,7 @@ const GATING = [
      'bench predictions and stability/slew controls must agree with their stated circuit models'],
     ['test-rf-filter-models.js', 'RF filter curves and group delay must match independent analog prototypes'],
     ['test-rf-matching.js', 'RF network equations, source/load reversal and control geometry'],
+    ['test-pdn-layout.js', 'complex capacitor-bank impedance, shared inductance and worked examples'],
     ['test-power-topologies.js', 'boost nets and Sallen–Key capacitor placement'],
     ['test-coupled-vr.js',
      'coupled-winding equations, magnetic modes and current summation agree at equal common-mode inductance'],

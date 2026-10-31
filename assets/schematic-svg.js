@@ -1919,9 +1919,10 @@ const SchematicLib = (() => {
                 // Bounds: circle + leads (labels already tracked via text())
                 this.boundsAccumulator.addRect(x - 16, y, 32, 50);
                 g.appendChild(elem('circle', { cx: x, cy: y + 25, r: 15 }));
-                // Arrow pointing up
-                g.appendChild(elem('line', { x1: x, y1: y + 35, x2: x, y2: y + 15 }));
-                g.appendChild(elem('path', { d: `M ${x} ${y + 15} l -4 6 l 8 0 z`, fill: color }));
+                // Default up for existing sources; sinks explicitly request down.
+                const down = options.direction === 'down';
+                g.appendChild(elem('line', { x1: x, y1: y + (down ? 15 : 35), x2: x, y2: y + (down ? 35 : 15) }));
+                g.appendChild(elem('path', { d: `M ${x} ${y + (down ? 35 : 15)} l -4 ${down ? -6 : 6} l 8 0 z`, fill: color }));
                 // Leads
                 g.appendChild(elem('line', { x1: x, y1: y, x2: x, y2: y + 10 }));
                 g.appendChild(elem('line', { x1: x, y1: y + 40, x2: x, y2: y + 50 }));
