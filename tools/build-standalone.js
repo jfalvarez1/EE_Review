@@ -61,12 +61,12 @@ fs.readdirSync(ldir).sort().forEach(m => {
     fs.readdirSync(md).sort().forEach(f => {
         if (!f.endsWith('.html')) return;
         let body = fs.readFileSync(path.join(md, f), 'utf8');
-        body = body.replace(/href="(docs\/examples\/[a-z0-9-]+\.cir)"/g, (_, file) => {
+        body = body.replace(/href="(docs\/examples\/[a-z0-9-]+\.(?:cir|asc|plt))"(?: download(?:="[^"]*")?)?/g, (_, file) => {
             const encoded=Buffer.from(read(file),'utf8').toString('base64');
-            return 'href="data:text/plain;base64,'+encoded+'"';
+            return 'href="data:text/plain;base64,'+encoded+'" download="'+path.basename(file)+'"';
         });
-        body = body.replace(/src="(assets\/figures\/pdn\/[a-z0-9-]+\.svg)"/g, (_, file) =>
-            'src="data:image/svg+xml;base64,' + Buffer.from(read(file),'utf8').toString('base64') + '"');
+        body = body.replace(/src="(assets\/figures\/pdn\/[a-z0-9-]+\.(svg|jpg))"/g, (_, file, ext) =>
+            'src="data:image/'+(ext==='svg'?'svg+xml':'jpeg')+';base64,' + fs.readFileSync(path.join(ROOT,file)).toString('base64') + '"');
         body = body.replace(/href="(docs\/data\/pdn\/[a-z0-9-]+\.(?:csv|json|txt))"/g, (_, file) =>
             'href="data:text/plain;base64,' + Buffer.from(read(file),'utf8').toString('base64') + '"');
         lessons[m + '/' + f.replace(/\.html$/, '')] = body;

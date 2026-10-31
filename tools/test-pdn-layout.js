@@ -47,3 +47,10 @@ for(const [name,record] of Object.entries(manifest.runs)){
     }
 }
 console.log('PDN evidence: 5,005 LTspice AC samples, five transient exports and 15 circuit hashes verified');
+for(const [name,check] of Object.entries(require('../docs/data/pdn/native-checks.json'))){
+    const asc=fs.readFileSync(path.join(root,'docs/examples/'+name+'.asc'),'utf8').replace(/\r\n/g,'\n');
+    assert.strictEqual(crypto.createHash('sha256').update(asc).digest('hex'),check.asc_sha256,'Native drawing changed without simulation: '+name);
+    if(check.max_relative_complex_error!==undefined) assert(check.max_relative_complex_error<1e-9);
+    if(check.max_interpolated_voltage_difference_V!==undefined) assert(check.max_interpolated_voltage_difference_V<.002);
+}
+console.log('PDN native drawings: verified schematic hashes and LTspice-to-CSV comparison tolerances');

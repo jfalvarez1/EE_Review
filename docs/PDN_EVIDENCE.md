@@ -52,6 +52,32 @@ did not rerun that mechanical simulation.
 
 ## Primary-source evidence ledger
 
+### Native drawings and annotated plots
+
+The downloadable `pdn-bank-b-native.asc` and `pdn-local-10u-native.asc` use
+stock LTspice symbols. Keep the matching `.plt` beside each `.asc`, open the
+drawing and click Run to restore the impedance or two-pane voltage/current view.
+The AC drawing is bank B; the transient drawing is the 10 uF, 10 nH reference
+case. Other sweep cases remain available as individual `.cir` decks.
+
+`python -X utf8 tools/build-pdn-native.py --verify PATH_TO_LTSPICE` rebuilds,
+netlists and simulates both drawings. `docs/data/pdn/native-checks.json` records
+the schematic hashes and comparisons to retained CSV data: relative complex
+impedance error below 1e-9 and interpolated transient difference below 2 mV.
+The behavioral load uses an equivalent named function in the native drawing;
+adaptive timestep samples can differ from the expanded expression in the deck.
+
+All seven evidence plots include labeled points, callout boxes or shaded regions.
+Peak and minimum markers come from the simulated samples, not freehand estimates.
+Shading identifies viewing regions or the stated example comparison band; it is
+not a pass/fail mask or a device requirement. The plots are rendered from LTspice
+CSV exports with Matplotlib; analytical and reported manufacturer results remain
+explicitly identified as such. No experimental board measurement is implied.
+The expandable native LTspice views contain actual schematic and waveform
+window captures. Both drawings were opened and run in the GUI, and their saved
+plot configurations were visually checked. Native screenshots remain unchanged;
+the larger comparison figures carry the teaching overlays.
+
 | Evidence | Source | What it supports / boundary |
 |---|---|---|
 | Measured capacitor behavior and separate simulated bank comparisons | [Bogatin, Smith, Sandler, Figures 6–8](https://www.signalintegrityjournal.com/articles/1589-the-myth-of-three-capacitor-values) | Why nominal value staggering alone does not establish a good PDN |

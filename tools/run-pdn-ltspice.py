@@ -124,16 +124,35 @@ def main():
         fig.savefig(SCRATCH/(name+'.png'),dpi=120)
         plt.close(fig)
 
-    fig,ax=plt.subplots(figsize=(9,5))
+    def callout(ax, text, xy, pos, color='#ffce71'):
+        """Use data coordinates for evidence and axes coordinates for clear labels."""
+        ax.plot(*xy, 'o', ms=5, color=color, zorder=5)
+        ax.annotate(text, xy=xy, xytext=pos, textcoords='axes fraction',
+                    fontsize=10, color='#e3edf4', va='top',
+                    bbox=dict(boxstyle='round,pad=.4', fc='#101d29', ec=color, alpha=.96),
+                    arrowprops=dict(arrowstyle='->', color=color, lw=1.3), zorder=6)
+
+    fig,ax=plt.subplots(figsize=(10,6))
     for name,label in [('bank-a','A: 3 × 10 µF (30 µF)'),('bank-b','B: 10 / 1 / 0.1 µF (11.1 µF)'),('bank-c','C: 3 × 3.7 µF (11.1 µF)')]:
         ax.loglog(ac[name][:,0],ac[name][:,1],label=label)
     ax.set(xlabel='Frequency (Hz)',ylabel='Port impedance magnitude (Ω)',title='LTspice AC: equal count versus equal total C')
-    ax.grid(True,which='both',alpha=.35);ax.legend(fontsize=10);save(fig,'bank-comparison')
-    fig,ax=plt.subplots(figsize=(9,5))
+    d=ac['bank-b']
+    peaks=[i for i in range(1,len(d)-1) if d[i,1]>d[i-1,1] and d[i,1]>d[i+1,1]]
+    for i,pos in zip(peaks,[(.34,.68),(.61,.87)]):
+        f,z=d[i]
+        callout(ax,f'Bank B antiresonance\n{f/1e6:.2f} MHz / {z*1e3:.1f} mΩ',(f,z),pos)
+    ax.axvspan(1e5,1e7,color='#6ee7ff',alpha=.045)
+    ax.text(.02,.03,'Shaded band: 100 kHz–10 MHz\nExample comparison band, not a device specification',transform=ax.transAxes,fontsize=9)
+    ax.grid(True,which='both',alpha=.35);ax.legend(fontsize=9,loc='upper center',bbox_to_anchor=(.5,-.16),ncol=3);save(fig,'bank-comparison')
+    fig,ax=plt.subplots(figsize=(10,6))
     for name,label in [('bank-a','Shared L = 0'),('shared-02','Shared L = 0.2 nH'),('shared-05','Shared L = 0.5 nH')]:
         ax.loglog(ac[name][:,0],ac[name][:,1],label=label)
     ax.set(xlabel='Frequency (Hz)',ylabel='Port impedance magnitude (Ω)',title='LTspice AC: common inductance remains outside the bank')
-    ax.grid(True,which='both',alpha=.35);ax.legend(fontsize=10);save(fig,'shared-inductance')
+    ax.axvspan(1e7,1e8,color='#ffce71',alpha=.07)
+    callout(ax,'100 MHz: port ≈ 0.524 Ω\nCommon 0.5 nH alone contributes j0.314 Ω',tuple(ac['shared-05'][-1]),(.35,.77))
+    i=int(np.argmin(ac['shared-05'][:,1]))
+    callout(ax,'Resonance shifts lower\nwhen common L is added',tuple(ac['shared-05'][i]),(.12,.34),'#6ee7ff')
+    ax.grid(True,which='both',alpha=.35);ax.legend(fontsize=9,loc='upper center',bbox_to_anchor=(.5,-.16),ncol=3);save(fig,'shared-inductance')
 
     transient={}
     # Fixed 1 V Thevenin source; no active regulator control loop is modeled.
@@ -164,12 +183,28 @@ def main():
     for figure,selection,title in [
         ('local-capacitance',[('local-1u','1 µF local'),('local-10u','10 µF local'),('local-100u','100 µF local')],'LTspice transient: local C changes droop and ringing'),
         ('distribution-inductance',[('path-1n','1 nH path'),('local-10u','10 nH path'),('path-30n','30 nH path')],'LTspice transient: distribution L changes the load voltage')]:
-        fig,(ax,ai)=plt.subplots(2,1,figsize=(9,6),sharex=True,gridspec_kw={'height_ratios':[3,1]})
-        for name,label in selection:
-            d=transient[name];ax.plot(d[:,0]*1e6,d[:,1],label=label)
+        fig,(ax,ai)=plt.subplots(2,1,figsize=(10,7),sharex=True,gridspec_kw={'height_ratios':[3,1]})
+        for (name,label),color in zip(selection,['#6ee7ff','#34d399','#ffce71']):
+            d=transient[name];i=int(np.argmin(d[:,1]))
+            ax.plot(d[:,0]*1e6,d[:,1],label=f'{label}: min {d[i,1]:.3f} V',color=color)
+            ax.plot(d[i,0]*1e6,d[i,1],'o',ms=5,color=color,zorder=5)
         d=transient['local-10u'];ai.plot(d[:,0]*1e6,d[:,3],color='#c4d3df')
         ax.set(ylabel='Load voltage (V)',title=title);ai.set(xlabel='Time (µs)',ylabel='Load (A)')
-        ax.grid(True,alpha=.35);ai.grid(True,alpha=.35);ax.legend(fontsize=10);save(fig,figure)
+        ax.set_ylim(.62,1.4);ax.set_xlim(0,30)
+        for pane in (ax,ai):
+            pane.axvspan(2,4,color='#ffce71',alpha=.10)
+            pane.axvspan(12,14,color='#6ee7ff',alpha=.10)
+        worst=min((transient[n] for n,_ in selection),key=lambda x:x[:,1].min())
+        i=int(np.argmin(worst[:,1]));j=int(np.argmax(worst[:,1]))
+        callout(ax,'Load applied: droop + ringing\nDots mark each waveform minimum',(worst[i,0]*1e6,worst[i,1]),(.25,.13))
+        callout(ax,'Load released: overshoot\nStored energy returns to the network',(worst[j,0]*1e6,worst[j,1]),(.65,.95),'#6ee7ff')
+        ax.hlines(.96,8,12,linestyles=':',color='#c4d3df')
+        ax.text(.65,.65,'Steady load ≈ 0.96 V\n4 A × 10 mΩ = 40 mV DC drop\nNo active regulation in this model',transform=ax.transAxes,fontsize=10,
+                bbox=dict(boxstyle='round,pad=.4',fc='#101d29',ec='#c4d3df'))
+        ai.text(.02,.67,'2 µs: 0 → 4 A',transform=ai.transAxes,fontsize=10)
+        ai.text(.48,.67,'12 µs: 4 → 0 A',transform=ai.transAxes,fontsize=10)
+        ai.text(.63,.13,'Both edges: 100 ns raised cosine',transform=ai.transAxes,fontsize=9)
+        ax.grid(True,alpha=.35);ai.grid(True,alpha=.35);ax.legend(fontsize=9,loc='lower right');save(fig,figure)
 
     # Analytical plots are explicitly separate from LTspice data.
     fig,ax=plt.subplots(figsize=(9,4.5))
@@ -177,18 +212,22 @@ def main():
     for c,label in [(10e-6,'10 µF'),(100e-6,'100 µF'),(470e-6,'470 µF')]:
         ax.loglog(t,c*3.3/(t*1e-3),label=label)
     ax.set(xlabel='0–3.3 V linear ramp duration (ms)',ylabel='Capacitor charging current (A)',title='Calculated inrush: I = C × ΔV / Δt (load current excluded)')
-    ax.grid(True,which='both',alpha=.35);ax.legend();save(fig,'inrush-calculated')
+    callout(ax,'100 µF at 1 ms: 0.33 A\n10× slower ramp → 10× less charging current',(1,.33),(.35,.88))
+    ax.grid(True,which='both',alpha=.35);ax.legend(loc='lower left');save(fig,'inrush-calculated')
     csv_write('inrush-calculated',['ramp_ms','I_10u_A','I_100u_A','I_470u_A'],[(x,*[c*3.3/(x*1e-3) for c in [10e-6,100e-6,470e-6]]) for x in t])
     fig,ax=plt.subplots(figsize=(9,4.5))
     h=np.linspace(.02,.3,150)
     ax.plot(h,8.8541878128e-12*4*.05*.05/(h*1e-3)*1e9)
     ax.set(xlabel='Plane separation (mm)',ylabel='Ideal plane-pair capacitance (nF)',title='Calculated parallel plates: 50 × 50 mm, εr = 4')
+    callout(ax,'0.10 mm spacing: 0.885 nF\nIdeal plate estimate; not extracted PCB data',(.1,.88541878128),(.36,.88))
     ax.grid(True,alpha=.35);save(fig,'plane-capacitance-calculated')
     csv_write('plane-capacitance-calculated',['separation_mm','capacitance_nF'],[(x,8.8541878128e-12*4*.05*.05/(x*1e-3)*1e9) for x in h])
     fig,ax=plt.subplots(figsize=(9,4.5))
     bars=ax.bar(['0603 inch','0402 inch','0201 inch'],[100,132,183],color=['#6ee7ff','#34d399','#ffce71'])
     ax.bar_label(bars,padding=6)
-    ax.set(ylabel='Relative maximum principal stress',ylim=(0,210),title='Reported Murata FEM results — not a new simulation')
+    ax.set(ylabel='Relative maximum principal stress',ylim=(0,250),title='Reported Murata FEM results — not a new simulation')
+    ax.text(.04,.96,'0603 reference = 100\n0201: 1.83× stress in this particular model\nNot a failure probability or universal package ranking',transform=ax.transAxes,fontsize=10,va='top',
+            bbox=dict(boxstyle='round,pad=.4',fc='#101d29',ec='#ffce71'))
     ax.grid(True,axis='y',alpha=.35);ax.set_axisbelow(True);save(fig,'murata-stress-reported')
     csv_write('murata-stress-reported',['inch_package','relative_stress','source'],[
         (package,value,'Murata Points of Downsizing MLCCs 2022-03-25 p7; 1mm wiring,35um copper; p6 boundary conditions')
